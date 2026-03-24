@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: xiaodianlv
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerCommand: sh -c "cd frontend && npm install && npm run build && cd .. && npm install && node backend/src/app.js"
+    startCommand: node backend/src/app.js
+    branch: master
+    healthCheckPath: /api/health
