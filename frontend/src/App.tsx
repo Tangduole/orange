@@ -132,7 +132,7 @@ export default function App() {
               <Zap className="w-6 h-6 text-white" />
             </div>
             <div className="text-left">
-              <h1 className="text-xl font-bold text-white">小电驴</h1>
+              <h1 className="text-xl font-bold text-white">橙子下载器</h1>
               <p className="text-xs text-slate-400">Multi-platform Downloader</p>
             </div>
           </div>
@@ -377,7 +377,7 @@ export default function App() {
 
         {/* Footer */}
         <footer className="text-center py-8 text-slate-600 text-xs">
-          <p>小电驴 v1.0 · 仅供个人学习使用</p>
+          <p>橙子下载器 v1.0 · 仅供个人学习使用</p>
         </footer>
       </div>
     </div>
