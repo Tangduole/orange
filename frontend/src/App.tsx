@@ -286,13 +286,13 @@ export default function App() {
                     value={url}
                     onChange={(e) => handleUrlChange(e.target.value)}
                     placeholder="Paste video link..."
-                    className="w-full pl-12 pr-12 py-4 bg-slate-900/60 border-2 border-slate-600/50 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 outline-none text-white text-base transition-all placeholder:text-slate-500"
+                    className="w-full pl-14 pr-14 py-4 bg-slate-900/60 border-2 border-slate-600/50 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 outline-none text-white text-base transition-all placeholder:text-slate-500"
                   />
                   {/* 清理按钮 - 最右边 */}
                   {url && !loading && (
                     <button
                       onClick={clearUrl}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-slate-300 transition"
+                      className="absolute right-6 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-slate-300 transition"
                       title="Clear link"
                     >
                       <Eraser className="w-4 h-4" />
@@ -300,7 +300,7 @@ export default function App() {
                   )}
                   {/* 解析状态指示 */}
                   {loading && (
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                    <div className="absolute right-6 top-1/2 -translate-y-1/2">
                       <Loader2 className="w-5 h-5 text-orange-400 animate-spin" />
                     </div>
                   )}

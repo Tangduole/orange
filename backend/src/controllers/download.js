@@ -161,7 +161,7 @@ async function processDownload(taskId, url, needAsr, options = ['video']) {
     let result = null;
 
     // 2. 需要实际下载的情况
-    if (wantsVideo || wantsCover || wantsSubtitle || wantsAudio || needAsr) {
+    if (wantsVideo || wantsCover || wantsSubtitle || wantsAudio || wantsCopywriting || needAsr) {
       store.update(taskId, { status: 'downloading', progress: 10 });
 
       const isYouTube = /youtube\.com|youtu\.be/i.test(url);

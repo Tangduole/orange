@@ -49,11 +49,12 @@ app.use('/download', (req, res, next) => {
     const mimeType = mimeTypes[ext] || 'application/octet-stream';
     res.setHeader('Content-Type', mimeType);
     
-    // 强制下载，使用正确的文件名
+    // 强制下载，使用正确的文件名（URL编码）
+    const encodedFilename = encodeURIComponent(filename);
     if (ext === '.mp4' || ext === '.mp3') {
-      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodedFilename}`);
     } else {
-      res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+      res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodedFilename}`);
     }
     
     // 允许跨域访问
