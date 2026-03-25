@@ -146,17 +146,34 @@ async function processDownload(taskId, url, needAsr, options = ['video']) {
     if (wantsVideo || wantsCover || wantsSubtitle || wantsAudio || needAsr) {
       store.update(taskId, { status: 'downloading', progress: 10 });
 
+      const isYouTube = /youtube\.com|youtu\.be/i.test(url);
+
       result = await downloadWithLimit(async () => {
-        return await executeWithRetry(async () => {
-          return await ytdlp.download(url, taskId, (percent, speed, eta) => {
-            store.update(taskId, {
-              status: 'downloading',
-              progress: percent,
-              speed,
-              eta
+        try {
+          return await executeWithRetry(async () => {
+            return await ytdlp.download(url, taskId, (percent, speed, eta) => {
+              store.update(taskId, {
+                status: 'downloading',
+                progress: percent,
+                speed,
+                eta
+              });
             });
           });
-        });
+        } catch (err) {
+          // YouTube 失败时用 Invidious 备用方案
+          if (isYouTube && err.message.includes('Sign in to confirm')) {
+            console.log(`[task] ${taskId} yt-dlp failed, trying Invidious...`);
+            store.update(taskId, { progress: 5 });
+            return await ytdlp.downloadViaInvidious(url, taskId, (percent) => {
+              store.update(taskId, {
+                status: 'downloading',
+                progress: percent,
+              });
+            });
+          }
+          throw err;
+        }
       });
 
       const update = {

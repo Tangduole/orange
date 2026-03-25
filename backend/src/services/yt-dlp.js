@@ -242,4 +242,113 @@ function getDownloadPath(taskId, ext = 'mp4') {
   return path.join(DOWNLOAD_DIR, `${taskId}.${ext}`);
 }
 
-module.exports = { download, getInfo, extractAudio, getDownloadPath, DOWNLOAD_DIR };
+/**
+ * Invidious YouTube 备用下载方案
+ */
+async function downloadViaInvidious(url, taskId, onProgress) {
+  const https = require('https');
+  const http = require('http');
+
+  const instances = [
+    'https://invidious.fdn.fr',
+    'https://inv.nadeko.net',
+    'https://invidious.nerdvpn.de',
+    'https://inv.tux.pizza',
+  ];
+
+  const videoIdMatch = url.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/);
+  if (!videoIdMatch) throw new Error('Invalid YouTube URL');
+  const videoId = videoIdMatch[1];
+
+  console.log(`[Invidious] Downloading YouTube video: ${videoId}`);
+
+  for (const instance of instances) {
+    try {
+      console.log(`[Invidious] Trying: ${instance}`);
+      const apiUrl = `${instance}/api/v1/videos/${videoId}`;
+
+      const info = await new Promise((resolve, reject) => {
+        const proto = apiUrl.startsWith('https') ? https : http;
+        proto.get(apiUrl, { timeout: 15000 }, (res) => {
+          let data = '';
+          res.on('data', chunk => data += chunk);
+          res.on('end', () => {
+            try { resolve(JSON.parse(data)); }
+            catch (e) { reject(new Error('Parse failed')); }
+          });
+        }).on('error', reject);
+      });
+
+      const formats = (info.formatStreams || [])
+        .filter(f => f.container === 'mp4' && f.url)
+        .sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
+
+      if (formats.length === 0) continue;
+
+      const downloadUrl = formats[0].url;
+      console.log(`[Invidious] Downloading: ${info.title}`);
+
+      const outputPath = path.join(DOWNLOAD_DIR, `${taskId}.mp4`);
+      await new Promise((resolve, reject) => {
+        const file = fs.createWriteStream(outputPath);
+        const proto = downloadUrl.startsWith('https') ? https : http;
+        proto.get(downloadUrl, { timeout: 120000 }, (res) => {
+          const total = parseInt(res.headers['content-length'] || '0', 10);
+          let downloaded = 0;
+          res.on('data', (chunk) => {
+            downloaded += chunk.length;
+            if (total > 0 && onProgress) {
+              onProgress(Math.round((downloaded / total) * 90), '', '');
+            }
+          });
+          res.pipe(file);
+          file.on('finish', () => {
+            file.close();
+            if (onProgress) onProgress(100, '', '');
+            resolve();
+          });
+        }).on('error', (err) => {
+          fs.unlink(outputPath, () => {});
+          reject(err);
+        });
+      });
+
+      // Download thumbnail
+      let thumbnailUrl = '';
+      if (info.videoThumbnails?.length > 0) {
+        const thumb = info.videoThumbnails.find(t => t.quality === 'medium') || info.videoThumbnails[0];
+        if (thumb?.url) {
+          const thumbPath = path.join(DOWNLOAD_DIR, `${taskId}_thumb.jpg`);
+          try {
+            await new Promise((resolve, reject) => {
+              const proto2 = thumb.url.startsWith('https') ? https : http;
+              proto2.get(thumb.url, { timeout: 10000 }, (res) => {
+                const f = fs.createWriteStream(thumbPath);
+                res.pipe(f);
+                f.on('finish', () => { f.close(); resolve(); });
+              }).on('error', reject);
+            });
+            thumbnailUrl = `/download/${taskId}_thumb.jpg`;
+          } catch {}
+        }
+      }
+
+      console.log(`[Invidious] Complete: ${taskId}.mp4`);
+      return {
+        title: info.title || 'unknown',
+        filePath: outputPath,
+        ext: 'mp4',
+        thumbnailUrl,
+        subtitleFiles: [],
+        duration: info.lengthSeconds ? parseInt(info.lengthSeconds) : 0
+      };
+
+    } catch (err) {
+      console.error(`[Invidious] Failed: ${err.message}`);
+      continue;
+    }
+  }
+  throw new Error('All Invidious instances failed');
+}
+
+module.exports = { download, getInfo, extractAudio, getDownloadPath, downloadViaInvidious, DOWNLOAD_DIR };
