@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
-import { Filesystem, Directory } from '@capacitor/filesystem'
+import { Share } from '@capacitor/share'
 import {
   Download, Link2, CheckCircle2, XCircle, Loader2,
   Video, FileText, Image as ImageIcon, Mic, Languages,
@@ -11,37 +11,21 @@ import {
 const API = 'https://orange-production-95b9.up.railway.app/api'
 const BASE_URL = API.replace('/api', '')
 
-// Save file to device gallery
-const saveToGallery = async (url: string, filename: string) => {
+// Share file using native share sheet (Android: shows save to Photos/Files option)
+const shareFile = async (url: string, title: string) => {
   try {
-    // Download file as blob
-    const response = await fetch(url)
-    const blob = await response.blob()
-    const base64 = await blobToBase64(blob)
+    const fullUrl = url.startsWith('http') ? url : `${BASE_URL}${url}`
     
-    // Save to documents directory
-    await Filesystem.writeFile({
-      path: filename,
-      data: base64,
-      directory: Directory.Documents,
+    // Use native share sheet - on Android shows "Save to Files", "Photos", etc.
+    await Share.share({
+      title: title || 'Orange Downloader',
+      url: fullUrl,
     })
-    return { success: true, filename }
+    return { success: true }
   } catch (e) {
-    console.error('Save failed:', e)
+    console.error('Share failed:', e)
     return { success: false, error: String(e) }
   }
-}
-
-const blobToBase64 = (blob: Blob): Promise<string> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onloadend = () => {
-      const base64 = reader.result as string
-      resolve(base64.split(',')[1])
-    }
-    reader.onerror = reject
-    reader.readAsDataURL(blob)
-  })
 }
 
 interface Task {
@@ -100,38 +84,6 @@ export default function App() {
   const [batchQueue, setBatchQueue] = useState<string[]>([])
   const [batchIndex, setBatchIndex] = useState(0)
   const [saveLocation, setSaveLocation] = useState<string>('album')
-  const [saving, setSaving] = useState(false)
-
-  // Download and save to device using Capacitor (native) or web fallback
-  const handleDownload = async (url: string, filename: string, type: string) => {
-    const fullUrl = url.startsWith('http') ? url : `${BASE_URL}${url}`
-    setSaving(true)
-    try {
-      // Try Capacitor native save first
-      if (typeof window !== 'undefined' && (window as any).Capacitor?.Filesystem) {
-        const result = await saveToGallery(fullUrl, filename)
-        if (result.success) {
-          alert(`${filename} saved to Documents folder!`)
-        } else {
-          throw new Error(result.error)
-        }
-      } else {
-        // Fallback to web download
-        const a = document.createElement('a')
-        a.href = fullUrl
-        a.download = filename
-        a.click()
-      }
-    } catch (e) {
-      console.error('Save failed:', e)
-      // Fallback
-      const a = document.createElement('a')
-      a.href = fullUrl
-      a.download = filename
-      a.click()
-    }
-    setSaving(false)
-  }
 
   // 读取保存的位置偏好
   useEffect(() => {
@@ -509,30 +461,22 @@ export default function App() {
                 </div>
               )}
 
-              {/* Video下载 */}
+              {/* Video下载 - 使用原生分享菜单 */}
               {task.status === 'completed' && task.downloadUrl && (
                 <button 
-                  onClick={() => {
-                    const filename = task.downloadUrl!.split('/').pop() || 'video.mp4'
-                    handleDownload(task.downloadUrl!, filename, 'video')
-                  }}
-                  disabled={saving}
-                  className="w-full py-3.5 rounded-2xl text-sm font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  onClick={() => shareFile(task.downloadUrl, task.title || 'video')}
+                  className="w-full py-3.5 rounded-2xl text-sm font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-2"
                 >
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} 
-                  {saving ? 'Saving...' : 'Save to Device'}
+                  <Download className="w-4 h-4" /> 
+                  Save to Device
                 </button>
               )}
 
               {/* Cover */}
               {task.status === 'completed' && task.coverUrl && (
                 <button 
-                  onClick={() => {
-                    const filename = task.coverUrl!.split('/').pop() || 'cover.jpg'
-                    handleDownload(task.coverUrl!, filename, 'cover')
-                  }}
-                  disabled={saving}
-                  className="w-full py-3 rounded-xl text-xs bg-slate-700/30 border border-slate-600/30 text-slate-400 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  onClick={() => shareFile(task.coverUrl, 'cover')}
+                  className="w-full py-3 rounded-xl text-xs bg-slate-700/30 border border-slate-600/30 text-slate-400 hover:text-white transition-all flex items-center justify-center gap-2"
                 >
                   <ImageIcon className="w-3.5 h-3.5" /> Save Cover
                 </button>
