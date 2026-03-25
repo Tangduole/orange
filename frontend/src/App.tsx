@@ -75,6 +75,7 @@ const PLATFORMS = [
   { id: 'x', label: 'X/Twitter', icon: '🐦' },
   { id: 'bilibili', label: 'Bilibili', icon: '📺' },
   { id: 'instagram', label: 'Instagram', icon: '📸' },
+  { id: 'xiaohongshu', label: '小紅書', icon: '📕' },
 ]
 
 const OPTIONS: { id: string; label: string; icon: typeof Video }[] = [
@@ -92,6 +93,7 @@ function detectPlatform(url: string): string {
   if (/twitter\.com|x\.com/i.test(url)) return 'x'
   if (/bilibili\.com|b23\.tv/i.test(url)) return 'bilibili'
   if (/instagram\.com/i.test(url)) return 'instagram'
+  if (/xiaohongshu\.com|xhslink\.com/i.test(url)) return 'xiaohongshu'
   return ''
 }
 

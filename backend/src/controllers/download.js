@@ -85,6 +85,24 @@ async function createDownload(req, res) {
       return res.json({ code: 0, data: { taskId, status: 'pending', platform: finalPlatform } });
     }
 
+    // YouTube 链接：走 TikHub API
+    if (/youtube\.com|youtu\.be/i.test(url)) {
+      processYouTube(taskId, url, wantsAsr, normalizedOptions).catch(err => {
+        console.error(`[task] ${taskId} youtube failed:`, err);
+        store.update(taskId, { status: 'error', progress: 0, error: err.message });
+      });
+      return res.json({ code: 0, data: { taskId, status: 'pending', platform: 'youtube' } });
+    }
+
+    // 小红书链接：走 TikHub API
+    if (/xiaohongshu\.com|xhslink\.com/i.test(url)) {
+      processXiaohongshu(taskId, url, wantsAsr, normalizedOptions).catch(err => {
+        console.error(`[task] ${taskId} xiaohongshu failed:`, err);
+        store.update(taskId, { status: 'error', progress: 0, error: err.message });
+      });
+      return res.json({ code: 0, data: { taskId, status: 'pending', platform: 'xiaohongshu' } });
+    }
+
     // 其他平台：走 yt-dlp
     processDownload(taskId, url, wantsAsr, normalizedOptions).catch(err => {
       console.error(`[task] ${taskId} failed:`, err);
@@ -331,6 +349,83 @@ async function processX(taskId, url, needAsr, options = ['video']) {
     console.log(`[task] ${taskId} x completed`);
   } catch (error) {
     console.error(`[task] ${taskId} x failed:`, error);
+    store.update(taskId, { status: 'error', error: error.message });
+  }
+}
+
+/**
+ * 处理 YouTube 下载 (TikHub API)
+ */
+async function processYouTube(taskId, url, needAsr, options = ['video']) {
+  try {
+    const { parseYouTube } = require('../services/tikhub');
+    store.update(taskId, { status: 'parsing', progress: 5 });
+
+    const result = await parseYouTube(url, taskId, (percent) => {
+      store.update(taskId, {
+        status: percent < 20 ? 'parsing' : 'downloading',
+        progress: percent
+      });
+    });
+
+    const update = {
+      status: 'completed',
+      progress: 100,
+      title: result.title,
+      thumbnailUrl: result.thumbnailUrl,
+    };
+
+    if (result.filePath) {
+      update.filePath = result.filePath;
+      update.ext = result.ext;
+      update.downloadUrl = `/download/${path.basename(result.filePath)}`;
+    }
+
+    store.update(taskId, update);
+    console.log(`[task] ${taskId} youtube completed`);
+  } catch (error) {
+    console.error(`[task] ${taskId} youtube failed:`, error);
+    store.update(taskId, { status: 'error', error: error.message });
+  }
+}
+
+/**
+ * 处理小红书下载 (TikHub API)
+ */
+async function processXiaohongshu(taskId, url, needAsr, options = ['video']) {
+  try {
+    const { parseXiaohongshu } = require('../services/tikhub');
+    store.update(taskId, { status: 'parsing', progress: 5 });
+
+    const result = await parseXiaohongshu(url, taskId, (percent) => {
+      store.update(taskId, {
+        status: percent < 20 ? 'parsing' : 'downloading',
+        progress: percent
+      });
+    });
+
+    const update = {
+      status: 'completed',
+      progress: 100,
+      title: result.title,
+      thumbnailUrl: result.thumbnailUrl,
+    };
+
+    if (result.filePath) {
+      update.filePath = result.filePath;
+      update.ext = result.ext;
+      update.downloadUrl = `/download/${path.basename(result.filePath)}`;
+    }
+
+    if (result.isNote && result.imageFiles) {
+      update.isNote = true;
+      update.imageFiles = result.imageFiles;
+    }
+
+    store.update(taskId, update);
+    console.log(`[task] ${taskId} xiaohongshu completed`);
+  } catch (error) {
+    console.error(`[task] ${taskId} xiaohongshu failed:`, error);
     store.update(taskId, { status: 'error', error: error.message });
   }
 }
