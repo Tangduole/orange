@@ -249,7 +249,7 @@ export default function App() {
               <p className="text-xs text-slate-400">Multi-platform Video Downloader</p>
             </div>
           </div>
-          <p className="text-slate-400 text-sm">
+          <p className="text-slate-500 text-sm">
             Paste link → One-click download. Support multiple platforms
           </p>
         </header>
@@ -262,13 +262,13 @@ export default function App() {
             <div className="flex gap-2 mb-5">
               <button
                 onClick={() => setBatchMode(false)}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${!batchMode ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : 'bg-slate-700/40 text-slate-500 border border-transparent'}`}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${!batchMode ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : 'bg-slate-700/30 text-slate-500 border border-transparent'}`}
               >
                 Single Download
               </button>
               <button
                 onClick={() => setBatchMode(true)}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${batchMode ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : 'bg-slate-700/40 text-slate-500 border border-transparent'}`}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${batchMode ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : 'bg-slate-700/30 text-slate-500 border border-transparent'}`}
               >
                 Batch Download
               </button>
@@ -330,9 +330,9 @@ export default function App() {
                       const platform = detectPlatform(url)
                       const platformIcon = PLATFORMS.find(p => p.id === platform)?.icon || '🔗'
                       return (
-                        <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-slate-700/40 rounded-xl border border-slate-600/30">
+                        <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-slate-700/30 rounded-xl border border-slate-700/60">
                           <span className="text-sm">{platformIcon}</span>
-                          <span className="flex-1 text-xs text-slate-400 truncate" title={url}>{url}</span>
+                          <span className="flex-1 text-xs text-slate-500 truncate" title={url}>{url}</span>
                           <button
                             onClick={() => {
                               const lines = batchUrls.split('\n')
@@ -359,7 +359,7 @@ export default function App() {
               <p className="text-xs text-slate-500 mb-2">Supported Platforms</p>
               <div className="flex flex-wrap gap-1.5">
                 {PLATFORMS.map((p) => (
-                  <span key={p.id} className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-700/40 text-slate-400 text-xs rounded-lg">
+                  <span key={p.id} className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-700/30 text-slate-500 text-xs rounded-lg">
                     <span>{p.icon}</span>
                     <span>{p.label}</span>
                   </span>
@@ -376,7 +376,7 @@ export default function App() {
                   return (
                     <button key={o.id} onClick={() => toggle(o.id)}
                       className={`flex items-center gap-1 px-3 py-2 text-xs rounded-lg transition-all
-                        ${on ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : 'bg-slate-700/40 text-slate-500 border border-transparent hover:text-slate-300'}`}>
+                        ${on ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : 'bg-slate-700/30 text-slate-500 border border-transparent hover:text-slate-300'}`}>
                       <Icon className="w-3.5 h-3.5" />{o.label}
                     </button>
                   )
@@ -403,8 +403,8 @@ export default function App() {
                 <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
               </div>
               {saveLocation === 'download' && (
-                <div className="mt-2 p-2.5 bg-slate-700/30 rounded-xl border border-slate-600/30">
-                  <p className="text-xs text-slate-400 leading-relaxed">
+                <div className="mt-2 p-2.5 bg-slate-700/30 rounded-xl border border-slate-700/60">
+                  <p className="text-xs text-slate-500 leading-relaxed">
                     💡 <span className="text-orange-400">Tip:</span>To change download path, set default download location in browser settings. Chrome: Settings → Advanced → Downloads.
                   </p>
                 </div>
@@ -447,7 +447,7 @@ export default function App() {
           {task && (
             <div className="mt-5 bg-slate-800/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-700/60 shadow-xl space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-slate-600 flex items-center gap-2">
                   <Download className="w-4 h-4 text-orange-400" /> Download Progress
                 </h3>
                 <button onClick={() => setTask(null)}><X className="w-4 h-4 text-slate-500 hover:text-slate-300" /></button>
@@ -457,7 +457,7 @@ export default function App() {
                 {task.status === 'completed' && <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
                 {task.status === 'error' && <XCircle className="w-5 h-5 text-red-400" />}
                 {isWorking(task.status) && <Loader2 className="w-5 h-5 text-orange-400 animate-spin" />}
-                <span className="text-sm text-slate-300">{statusLabel(task.status)}</span>
+                <span className="text-sm text-slate-600">{statusLabel(task.status)}</span>
               </div>
 
               {/* 精细进度条 */}
@@ -476,7 +476,7 @@ export default function App() {
                 </div>
               )}
 
-              {task.title && !isWorking(task.status) && <p className="text-sm text-slate-400">{task.title}</p>}
+              {task.title && !isWorking(task.status) && <p className="text-sm text-slate-500">{task.title}</p>}
 
               {/* 图文 */}
               {task.isNote && task.imageFiles?.length > 0 && (
@@ -484,7 +484,7 @@ export default function App() {
                   <p className="text-xs text-slate-500 mb-2">Total {task.imageFiles.length}  images</p>
                   <div className="grid grid-cols-3 gap-2">
                     {task.imageFiles.map(img => (
-                      <a key={img.filename} href={`${API.replace('/api', '')}${img.url}`} download><img src={`${API.replace('/api', '')}${img.url}`} alt="" className="w-full aspect-square object-cover rounded-xl bg-slate-800" loading="lazy" /></a>
+                      <a key={img.filename} href={`${API.replace('/api', '')}${img.url}`} download><img src={`${API.replace('/api', '')}${img.url}`} alt="" className="w-full aspect-square object-cover rounded-xl bg-slate-700/30" loading="lazy" /></a>
                     ))}
                   </div>
                 </div>
@@ -515,7 +515,7 @@ export default function App() {
                     setDownloading(false)
                   }}
                   disabled={downloading}
-                  className="w-full py-3 rounded-xl text-xs bg-slate-700/30 border border-slate-600/30 text-slate-400 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full py-3 rounded-xl text-xs bg-slate-700/30 border border-slate-700/60 text-slate-500 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />}
                   {downloading ? 'Downloading...' : 'Save Cover'}
@@ -531,7 +531,7 @@ export default function App() {
                       {copied === 'copy' ? <><Check className="w-3 h-3 inline" /> Copied</> : <><Copy className="w-3 h-3 inline" /> Copy</>}
                     </button>
                   </div>
-                  <p className="text-sm text-slate-400 whitespace-pre-wrap max-h-28 overflow-y-auto">{task.copyText}</p>
+                  <p className="text-sm text-slate-500 whitespace-pre-wrap max-h-28 overflow-y-auto">{task.copyText}</p>
                 </div>
               )}
 
@@ -539,7 +539,7 @@ export default function App() {
               {task.status === 'completed' && task.subtitleFiles?.length > 0 && (
                 <div className="flex gap-2 flex-wrap">
                   {task.subtitleFiles.map(s => (
-                    <a key={s.filename} href={`${API.replace('/api', '')}${s.url}`} download={s.filename} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs bg-slate-700/30 border border-slate-600/30 text-slate-400 hover:text-white transition-all">
+                    <a key={s.filename} href={`${API.replace('/api', '')}${s.url}`} download={s.filename} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs bg-slate-700/30 border border-slate-700/60 text-slate-500 hover:text-white transition-all">
                       <Languages className="w-3 h-3" />{s.filename}
                     </a>
                   ))}
@@ -555,7 +555,7 @@ export default function App() {
                       {copied === 'asr' ? <><Check className="w-3 h-3 inline" /> Copied</> : <><Copy className="w-3 h-3 inline" /> Copy</>}
                     </button>
                   </div>
-                  <p className="text-sm text-slate-400 whitespace-pre-wrap max-h-32 overflow-y-auto">{task.asrText}</p>
+                  <p className="text-sm text-slate-500 whitespace-pre-wrap max-h-32 overflow-y-auto">{task.asrText}</p>
                 </div>
               )}
 
@@ -564,12 +564,12 @@ export default function App() {
           )}
 
           {/* How to Use */}
-          <div className="mt-5 bg-slate-800/30 rounded-2xl p-5 border border-slate-700/30">
-            <h3 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+          <div className="mt-5 bg-slate-900/60 rounded-2xl p-5 border border-slate-700/60">
+            <h3 className="text-sm font-semibold text-slate-600 mb-3 flex items-center gap-2">
               <Download className="w-4 h-4 text-orange-400" />
               How to Use
             </h3>
-            <div className="space-y-2.5 text-sm text-slate-400">
+            <div className="space-y-2.5 text-sm text-slate-500">
               <div className="flex items-start gap-2">
                 <span className="text-orange-400 font-bold text-xs mt-0.5">1</span>
                 <p>Copy any video link from supported platforms</p>
@@ -592,7 +592,7 @@ export default function App() {
           {/* // Download History - Enhanced */}
           <div className="mt-5">
             <button onClick={() => setShowHistory(!showHistory)}
-              className="w-full flex items-center justify-between px-5 py-3 bg-slate-800/30 rounded-2xl border border-slate-700/30 text-sm text-slate-400 hover:text-slate-300 transition">
+              className="w-full flex items-center justify-between px-5 py-3 bg-slate-900/60 rounded-2xl border border-slate-700/60 text-sm text-slate-500 hover:text-slate-300 transition">
               <span className="flex items-center gap-2">
                 <Clock className="w-4 h-4" /> Download History
                 {history.length > 0 && <span className="bg-orange-500/20 text-orange-300 px-2 py-0.5 rounded text-xs">{history.length}</span>}
@@ -600,17 +600,17 @@ export default function App() {
               {showHistory ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
             </button>
             {showHistory && (
-              <div className="mt-2 max-h-72 overflow-y-auto bg-slate-800/30 rounded-2xl border border-slate-700/30">
+              <div className="mt-2 max-h-72 overflow-y-auto bg-slate-900/60 rounded-2xl border border-slate-700/60">
                 {history.length === 0
                   ? <p className="py-10 text-center text-sm text-slate-600">No download history</p>
                   : history.map(item => (
-                    <div key={item.taskId} className="flex items-center gap-3 px-4 py-3 border-b border-slate-700/20 last:border-0 hover:bg-slate-700/20 transition">
+                    <div key={item.taskId} className="flex items-center gap-3 px-4 py-3 border-b border-slate-700/20 last:border-0 hover:bg-slate-900/60 transition">
                       {item.thumbnailUrl
                         ? <img src={item.thumbnailUrl} alt="" className="w-14 h-10 object-cover rounded-lg shrink-0" />
                         : <div className="w-14 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0"><Video className="w-4 h-4 text-slate-600" /></div>
                       }
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-slate-300 truncate font-medium">{item.title || 'Untitled'}</p>
+                        <p className="text-sm text-slate-600 truncate font-medium">{item.title || 'Untitled'}</p>
                         <div className="flex items-center gap-2 mt-0.5">
                           {item.platform && <span className="text-xs text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded">{platformLabel(item.platform)}</span>}
                           <span className="text-xs text-slate-600">{new Date(item.createdAt).toLocaleString('en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>

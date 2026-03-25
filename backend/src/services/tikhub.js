@@ -7,7 +7,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const API_KEY = '1q4bBt1Ogk+pgz6xDaW96RLZHGGAWbZAsx34i3vQcc6Gq1WtdmKCaD3AFQ==';
+const API_KEY = 'nbwMHtwa3GuiuW/CKoyvygj8CWGeerdC7CXatWGcWNXgoE6uOCecUg+uLw==';
 const API_BASE = 'https://api.tikhub.io';
 const DOWNLOAD_DIR = path.join(__dirname, '../../downloads');
 
@@ -85,35 +85,31 @@ async function parseYouTube(url, taskId, onProgress) {
   console.log(`[TikHub] Parsing YouTube: ${videoId}`);
   if (onProgress) onProgress(10);
 
-  const data = await tikhubRequest(`/api/v1/youtube/web/get_video_info?url=https://www.youtube.com/watch?v=${videoId}`);
+  const data = await tikhubRequest(`/api/v1/youtube/web/get_video_info?video_id=${videoId}`);
   
   if (onProgress) onProgress(20);
 
   // 获取视频信息
   const title = data.title || 'YouTube Video';
-  const thumbnail = data.thumbnail || '';
+  const thumbnails = data.thumbnails || [];
+  const thumbnail = thumbnails.length > 0 ? thumbnails[0].url : '';
   const duration = data.lengthSeconds ? parseInt(data.lengthSeconds) : 0;
 
-  // 找到最好的下载链接
+  // 找到最好的下载链接 (TikHub returns videos.items)
   let downloadUrl = '';
-  const formats = data.streamingData?.formats || [];
-  const adaptiveFormats = data.streamingData?.adaptiveFormats || [];
+  const videos = data.videos?.items || [];
+  
+  // 找最高画质的 MP4
+  const bestVideo = videos
+    .filter(v => v.url && (v.mimeType || '').includes('video/mp4'))
+    .sort((a, b) => {
+      const aH = parseInt((a.qualityLabel || '0p').replace('p', ''));
+      const bH = parseInt((b.qualityLabel || '0p').replace('p', ''));
+      return bH - aH;
+    })[0];
 
-  // 优先 progressive (有音视频)
-  const bestFormat = formats
-    .filter(f => f.url && f.mimeType?.includes('video/mp4'))
-    .sort((a, b) => (b.width || 0) - (a.width || 0))[0];
-
-  if (bestFormat?.url) {
-    downloadUrl = bestFormat.url;
-  } else if (adaptiveFormats.length > 0) {
-    // 如果没有 progressive，取最高的 video stream
-    const bestVideo = adaptiveFormats
-      .filter(f => f.url && f.mimeType?.includes('video'))
-      .sort((a, b) => (b.width || 0) - (a.width || 0))[0];
-    if (bestVideo?.url) {
-      downloadUrl = bestVideo.url;
-    }
+  if (bestVideo?.url) {
+    downloadUrl = bestVideo.url;
   }
 
   if (!downloadUrl) {
