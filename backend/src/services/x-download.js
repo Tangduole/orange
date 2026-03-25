@@ -102,6 +102,7 @@ async function parseTweet(url) {
             type: m.type,
             width: m.width || 0,
             height: m.height || 0,
+            thumbnail_url: m.thumbnail_url || m.thumbnailUrl || '',
           });
         }
         if (m.type === 'image') {
@@ -170,17 +171,24 @@ async function downloadX(url, taskId, onProgress) {
   // 下载封面
   if (info.coverUrl) {
     try {
-      const buf = await httpGet(info.coverUrl, { responseType: 'arraybuffer', timeout: 10000 });
+      console.log(`[X] Downloading thumbnail: ${info.coverUrl.substring(0, 80)}...`);
+      const buf = await httpGet(info.coverUrl, { responseType: 'arraybuffer', timeout: 15000 });
       const coverPath = path.join(downloadDir, `${taskId}_thumb.jpg`);
       fs.writeFileSync(coverPath, buf);
       result.thumbnailUrl = `/download/${taskId}_thumb.jpg`;
-    } catch {}
+      console.log(`[X] Thumbnail saved: ${result.thumbnailUrl}`);
+    } catch (e) {
+      console.error(`[X] Thumbnail download failed: ${e.message}`);
+    }
+  } else {
+    console.log(`[X] No cover URL found for tweet`);
   }
 
   // 下载视频
-  if (info.videoUrl) {
+  const videoUrl = info.videoUrl || (info.videoUrls && info.videoUrls[0]?.url) || '';
+  if (videoUrl) {
     if (onProgress) onProgress(30, '下载视频');
-    const buf = await httpGet(info.videoUrl, { responseType: 'arraybuffer', timeout: 120000 });
+    const buf = await httpGet(videoUrl, { responseType: 'arraybuffer', timeout: 120000 });
     const filename = `${taskId}.mp4`;
     const filepath = path.join(downloadDir, filename);
     fs.writeFileSync(filepath, buf);

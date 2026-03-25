@@ -6,6 +6,7 @@ import {
   Video, FileText, Image as ImageIcon, Mic, Languages,
   Trash2, ChevronDown, ChevronUp, Clock, Copy, Check,
   X, Zap, AlertCircle, Eraser, FolderOpen, HardDrive, Smartphone,
+  Play,
 } from 'lucide-react'
 
 const API = 'https://orange-production-95b9.up.railway.app/api'
@@ -166,7 +167,11 @@ export default function App() {
   }, [task, batchMode, batchQueue, batchIndex])
 
   const fetchHistory = useCallback(async () => {
-    try { const r = await axios.get(`${API}/history`); setHistory(Array.isArray(r.data.data) ? r.data.data : []) } catch {}
+    try { 
+      const r = await axios.get(`${API}/history`); 
+      const data = r.data.data || {};
+      setHistory(Array.isArray(data.tasks) ? data.tasks : (Array.isArray(data) ? data : [])) 
+    } catch {}
   }, [])
   useEffect(() => { fetchHistory() }, [fetchHistory])
 
@@ -286,13 +291,13 @@ export default function App() {
                     value={url}
                     onChange={(e) => handleUrlChange(e.target.value)}
                     placeholder="Paste video link..."
-                    className="w-full pl-14 pr-14 py-4 bg-slate-900/60 border-2 border-slate-600/50 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 outline-none text-white text-base transition-all placeholder:text-slate-500"
+                    className="w-full pl-10 pr-10 py-4 bg-slate-900/60 border-2 border-slate-600/50 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 outline-none text-white text-base transition-all placeholder:text-slate-500"
                   />
                   {/* 清理按钮 - 最右边 */}
                   {url && !loading && (
                     <button
                       onClick={clearUrl}
-                      className="absolute right-6 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-slate-300 transition"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-slate-300 transition"
                       title="Clear link"
                     >
                       <Eraser className="w-4 h-4" />
@@ -300,7 +305,7 @@ export default function App() {
                   )}
                   {/* 解析状态指示 */}
                   {loading && (
-                    <div className="absolute right-6 top-1/2 -translate-y-1/2">
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2">
                       <Loader2 className="w-5 h-5 text-orange-400 animate-spin" />
                     </div>
                   )}
@@ -558,29 +563,14 @@ export default function App() {
             </div>
           )}
 
-          {/* How to Use */}
-          <div className="mt-5 bg-slate-900/60 rounded-2xl p-5 border border-slate-700/60">
-            <h3 className="text-sm font-semibold text-slate-600 mb-3 flex items-center gap-2">
-              <Download className="w-4 h-4 text-orange-400" />
-              How to Use
-            </h3>
-            <div className="space-y-2.5 text-sm text-slate-500">
-              <div className="flex items-start gap-2">
-                <span className="text-orange-400 font-bold text-xs mt-0.5">1</span>
-                <p>Copy any video link from supported platforms</p>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="text-orange-400 font-bold text-xs mt-0.5">2</span>
-                <p>Paste in the input box above, auto-detects platform</p>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="text-orange-400 font-bold text-xs mt-0.5">3</span>
-                <p>Select content to download (video/copy/cover/etc)</p>
-              </div>
-              <div className="flex items-start gap-2">
-                <span className="text-orange-400 font-bold text-xs mt-0.5">4</span>
-                <p>Click Start Download</p>
-              </div>
+          {/* How to Use - 精简版 */}
+          <div className="mt-5 bg-slate-900/60 rounded-2xl px-5 py-3 border border-slate-700/60">
+            <div className="flex items-center gap-4 text-xs text-slate-500">
+              <span className="flex items-center gap-1"><span className="text-orange-400 font-bold">1</span> Copy link</span>
+              <span>→</span>
+              <span className="flex items-center gap-1"><span className="text-orange-400 font-bold">2</span> Paste</span>
+              <span>→</span>
+              <span className="flex items-center gap-1"><span className="text-orange-400 font-bold">3</span> Download</span>
             </div>
           </div>
 
@@ -600,12 +590,24 @@ export default function App() {
                   ? <p className="py-10 text-center text-sm text-slate-600">No download history</p>
                   : history.map(item => (
                     <div key={item.taskId} className="flex items-center gap-3 px-4 py-3 border-b border-slate-700/20 last:border-0 hover:bg-slate-900/60 transition">
+                      {/* 缩略图 - 点击播放视频 */}
                       {item.thumbnailUrl
-                        ? <img src={item.thumbnailUrl} alt="" className="w-14 h-10 object-cover rounded-lg shrink-0" />
+                        ? <button 
+                            onClick={() => setTask({ ...item, status: 'completed', downloadUrl: `/download/${item.taskId}.mp4` })}
+                            className="relative shrink-0 group"
+                          >
+                            <img src={`${BASE_URL}${item.thumbnailUrl}`} alt="" className="w-14 h-10 object-cover rounded-lg" />
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 transition">
+                              <Play className="w-4 h-4 text-white" />
+                            </div>
+                          </button>
                         : <div className="w-14 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0"><Video className="w-4 h-4 text-slate-600" /></div>
                       }
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-slate-600 truncate font-medium">{item.title || 'Untitled'}</p>
+                        {/* 跑马灯标题 */}
+                        <div className="overflow-hidden">
+                          <p className="text-sm text-slate-600 font-medium whitespace-nowrap animate-marquee">{item.title || 'Untitled'}</p>
+                        </div>
                         <div className="flex items-center gap-2 mt-0.5">
                           {item.platform && <span className="text-xs text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded">{platformLabel(item.platform)}</span>}
                           <span className="text-xs text-slate-600">{new Date(item.createdAt).toLocaleString('en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
