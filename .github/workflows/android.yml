@@ -20,9 +20,10 @@ jobs:
       - name: Install dependencies
         run: |
           cd frontend
+          npm config set registry https://registry.npmmirror.com
           npm install --legacy-peer-deps
           npx cap sync android
-        timeout-minutes: 20
+        timeout-minutes: 25
           
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -35,7 +36,7 @@ jobs:
           cd frontend/android
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
-        timeout-minutes: 25
+        timeout-minutes: 30
           
       - name: Upload APK
         uses: actions/upload-artifact@v4
