@@ -38,11 +38,11 @@ function download(url, taskId, onProgress) {
       '--newline',              // 每行输出用于解析进度
       '--progress',             // 启用进度输出
       '--ignore-errors',
-      '--retries', '3',
-      '--fragment-retries', '3',
-      '--socket-timeout', '30',
+      '--retries', '5',
+      '--fragment-retries', '5',
+      '--socket-timeout', '60',
       '--no-check-certificates',
-      '--format', 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+      '--format', 'best[ext=mp4]/best',
       '--write-thumbnail',      // 下载封面
       '--write-auto-subs',      // 下载自动字幕
       '--sub-langs', 'zh-Hans,zh-Hant,en',
