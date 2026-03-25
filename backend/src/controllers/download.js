@@ -209,9 +209,20 @@ async function processDownload(taskId, url, needAsr, options = ['video']) {
         update.downloadUrl = `/download/${path.basename(result.filePath)}`;
       }
 
-      // 封面
-      if (wantsCover && result.thumbnailUrl) {
-        update.coverUrl = result.thumbnailUrl;
+      // 封面（总是提取，供显示用）
+      if (result.thumbnailUrl) {
+        update.thumbnailUrl = result.thumbnailUrl;
+        if (wantsCover) {
+          update.coverUrl = result.thumbnailUrl;
+        }
+      }
+
+      // 文案（总是提取标题和描述）
+      if (result.title) {
+        update.copyText = result.title;
+        if (result.description) {
+          update.copyText = `${result.title}\n\n${result.description}`;
+        }
       }
 
       // 原声音频

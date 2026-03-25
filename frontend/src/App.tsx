@@ -286,7 +286,7 @@ export default function App() {
                     value={url}
                     onChange={(e) => handleUrlChange(e.target.value)}
                     placeholder="Paste video link..."
-                    className="w-full pl-4 pr-12 py-4 bg-slate-900/60 border-2 border-slate-600/50 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 outline-none text-white text-base transition-all placeholder:text-slate-500"
+                    className="w-full pl-12 pr-12 py-4 bg-slate-900/60 border-2 border-slate-600/50 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 outline-none text-white text-base transition-all placeholder:text-slate-500"
                   />
                   {/* 清理按钮 - 最右边 */}
                   {url && !loading && (
