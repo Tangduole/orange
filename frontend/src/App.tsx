@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
+import { Filesystem, Directory } from '@capacitor/filesystem'
 import {
   Download, Link2, CheckCircle2, XCircle, Loader2,
   Video, FileText, Image as ImageIcon, Mic, Languages,
@@ -7,7 +8,41 @@ import {
   X, Zap, AlertCircle, Eraser, FolderOpen, HardDrive, Smartphone,
 } from 'lucide-react'
 
-const API = 'https://orange-ef47.onrender.com/api'
+const API = 'https://orange-production-95b9.up.railway.app/api'
+const BASE_URL = API.replace('/api', '')
+
+// Save file to device gallery
+const saveToGallery = async (url: string, filename: string) => {
+  try {
+    // Download file as blob
+    const response = await fetch(url)
+    const blob = await response.blob()
+    const base64 = await blobToBase64(blob)
+    
+    // Save to documents directory
+    await Filesystem.writeFile({
+      path: filename,
+      data: base64,
+      directory: Directory.Documents,
+    })
+    return { success: true, filename }
+  } catch (e) {
+    console.error('Save failed:', e)
+    return { success: false, error: String(e) }
+  }
+}
+
+const blobToBase64 = (blob: Blob): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      const base64 = reader.result as string
+      resolve(base64.split(',')[1])
+    }
+    reader.onerror = reject
+    reader.readAsDataURL(blob)
+  })
+}
 
 interface Task {
   taskId: string; status: string; progress: number
@@ -65,6 +100,38 @@ export default function App() {
   const [batchQueue, setBatchQueue] = useState<string[]>([])
   const [batchIndex, setBatchIndex] = useState(0)
   const [saveLocation, setSaveLocation] = useState<string>('album')
+  const [saving, setSaving] = useState(false)
+
+  // Download and save to device using Capacitor (native) or web fallback
+  const handleDownload = async (url: string, filename: string, type: string) => {
+    const fullUrl = url.startsWith('http') ? url : `${BASE_URL}${url}`
+    setSaving(true)
+    try {
+      // Try Capacitor native save first
+      if (typeof window !== 'undefined' && (window as any).Capacitor?.Filesystem) {
+        const result = await saveToGallery(fullUrl, filename)
+        if (result.success) {
+          alert(`${filename} saved to Documents folder!`)
+        } else {
+          throw new Error(result.error)
+        }
+      } else {
+        // Fallback to web download
+        const a = document.createElement('a')
+        a.href = fullUrl
+        a.download = filename
+        a.click()
+      }
+    } catch (e) {
+      console.error('Save failed:', e)
+      // Fallback
+      const a = document.createElement('a')
+      a.href = fullUrl
+      a.download = filename
+      a.click()
+    }
+    setSaving(false)
+  }
 
   // 读取保存的位置偏好
   useEffect(() => {
@@ -436,7 +503,7 @@ export default function App() {
                   <p className="text-xs text-slate-500 mb-2">Total {task.imageFiles.length}  images</p>
                   <div className="grid grid-cols-3 gap-2">
                     {task.imageFiles.map(img => (
-                      <a key={img.filename} href={img.url} download><img src={img.url} alt="" className="w-full aspect-square object-cover rounded-xl bg-slate-800" loading="lazy" /></a>
+                      <a key={img.filename} href={`${API.replace('/api', '')}${img.url}`} download><img src={`${API.replace('/api', '')}${img.url}`} alt="" className="w-full aspect-square object-cover rounded-xl bg-slate-800" loading="lazy" /></a>
                     ))}
                   </div>
                 </div>
@@ -444,16 +511,31 @@ export default function App() {
 
               {/* Video下载 */}
               {task.status === 'completed' && task.downloadUrl && (
-                <a href={task.downloadUrl} download className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl text-sm font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all">
-                  <Download className="w-4 h-4" /> 下载Video文件
-                </a>
+                <button 
+                  onClick={() => {
+                    const filename = task.downloadUrl!.split('/').pop() || 'video.mp4'
+                    handleDownload(task.downloadUrl!, filename, 'video')
+                  }}
+                  disabled={saving}
+                  className="w-full py-3.5 rounded-2xl text-sm font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} 
+                  {saving ? 'Saving...' : 'Save to Device'}
+                </button>
               )}
 
               {/* Cover */}
               {task.status === 'completed' && task.coverUrl && (
-                <a href={task.coverUrl} download className="flex items-center justify-center gap-2 w-full py-3 rounded-xl text-xs bg-slate-700/30 border border-slate-600/30 text-slate-400 hover:text-white transition-all">
-                  <ImageIcon className="w-3.5 h-3.5" /> 下载Cover
-                </a>
+                <button 
+                  onClick={() => {
+                    const filename = task.coverUrl!.split('/').pop() || 'cover.jpg'
+                    handleDownload(task.coverUrl!, filename, 'cover')
+                  }}
+                  disabled={saving}
+                  className="w-full py-3 rounded-xl text-xs bg-slate-700/30 border border-slate-600/30 text-slate-400 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <ImageIcon className="w-3.5 h-3.5" /> Save Cover
+                </button>
               )}
 
               {/* Copywriting */}
@@ -473,7 +555,7 @@ export default function App() {
               {task.status === 'completed' && task.subtitleFiles?.length > 0 && (
                 <div className="flex gap-2 flex-wrap">
                   {task.subtitleFiles.map(s => (
-                    <a key={s.filename} href={s.url} download={s.filename} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs bg-slate-700/30 border border-slate-600/30 text-slate-400 hover:text-white transition-all">
+                    <a key={s.filename} href={`${API.replace('/api', '')}${s.url}`} download={s.filename} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs bg-slate-700/30 border border-slate-600/30 text-slate-400 hover:text-white transition-all">
                       <Languages className="w-3 h-3" />{s.filename}
                     </a>
                   ))}
