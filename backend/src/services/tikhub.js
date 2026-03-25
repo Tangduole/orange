@@ -7,7 +7,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const API_KEY = 'nbwMHtwa3GuiuW/CKoyvygj8CWGeerdC7CXatWGcWNXgoE6uOCecUg+uLw==';
+const API_KEY = 'lrwNPvEUzE2ph0K5Oces5Q/RNRHRZ5tTzTTogR7aU/mj1li7O0XfZgWPCQ==';
 const API_BASE = 'https://api.tikhub.io';
 const DOWNLOAD_DIR = path.join(__dirname, '../../downloads');
 
@@ -148,54 +148,44 @@ async function parseYouTube(url, taskId, onProgress) {
  * 解析小红书笔记 (TikHub)
  */
 async function parseXiaohongshu(url, taskId, onProgress) {
-  // 提取笔记 ID
-  let noteId = '';
-  const noteMatch = url.match(/(?:item\/|explore\/|discovery\/item\/)([a-f0-9]{24})/);
-  if (noteMatch) {
-    noteId = noteMatch[1];
-  } else {
-    // 短链接需要重定向获取
-    const shortMatch = url.match(/xhslink\.com\/([a-zA-Z0-9]+)/);
-    if (shortMatch) {
-      // 短链接在 TikHub 中也能处理
-      noteId = shortMatch[1];
-    }
-  }
-
-  if (!noteId) {
-    throw new Error('Invalid Xiaohongshu URL');
-  }
-
-  console.log(`[TikHub] Parsing Xiaohongshu: ${noteId}`);
+  console.log(`[TikHub] Parsing Xiaohongshu: ${url}`);
   if (onProgress) onProgress(10);
 
-  // 尝试视频笔记
-  try {
-    const data = await tikhubRequest(`/api/v1/xiaohongshu/web_v2/get_video_note_detail?note_id=${noteId}`);
-    
-    if (onProgress) onProgress(20);
+  // 使用 fetch_feed_notes_v3 接口（支持短链）
+  const data = await tikhubRequest(`/api/v1/xiaohongshu/web_v2/fetch_feed_notes_v3?short_url=${encodeURIComponent(url)}`);
+  
+  if (onProgress) onProgress(20);
 
-    const noteData = data.noteData || data.data?.noteData || data;
-    const title = noteData.noteCard?.title || noteData.noteCard?.desc || 'Xiaohongshu Video';
-    const thumbnail = noteData.noteCard?.cover?.urlDefault || '';
-    
-    // 获取视频下载链接
-    const videoUrl = noteData.noteCard?.video?.media?.stream?.h264?.[0]?.masterUrl 
-      || noteData.noteCard?.video?.media?.stream?.h265?.[0]?.masterUrl
-      || '';
+  const note = data.note || data.data?.note || {};
+  const title = note.title || 'Xiaohongshu Note';
+  const type = note.type || '';
 
-    if (videoUrl) {
+  // 视频笔记
+  if (type === 'video') {
+    const video = note.video || {};
+    const media = video.media || {};
+    const stream = media.stream || {};
+    const h264 = stream.h264 || [];
+    
+    // 找最高画质
+    const bestStream = h264
+      .filter(s => s.masterUrl)
+      .sort((a, b) => (b.avgBitrate || 0) - (a.avgBitrate || 0))[0];
+
+    if (bestStream?.masterUrl) {
       console.log(`[TikHub] Found Xiaohongshu video: ${title}`);
       
       const outputPath = path.join(DOWNLOAD_DIR, `${taskId}.mp4`);
-      await downloadFile(videoUrl, outputPath, onProgress);
+      await downloadFile(bestStream.masterUrl, outputPath, onProgress);
 
       // 下载封面
       let thumbnailUrl = '';
-      if (thumbnail) {
+      const thumbId = video.image?.thumbnailFileid || '';
+      if (thumbId) {
+        const thumbUrl = `https://ci.xiaohongshu.com/${thumbId}`;
         const thumbPath = path.join(DOWNLOAD_DIR, `${taskId}_thumb.jpg`);
         try {
-          await downloadFile(thumbnail, thumbPath);
+          await downloadFile(thumbUrl, thumbPath);
           thumbnailUrl = `/download/${taskId}_thumb.jpg`;
         } catch {}
       }
@@ -208,58 +198,47 @@ async function parseXiaohongshu(url, taskId, onProgress) {
         ext: 'mp4',
         thumbnailUrl,
         subtitleFiles: [],
-        duration: 0
+        duration: video.capa?.duration || 0
       };
     }
-  } catch (e) {
-    console.log(`[TikHub] Video note failed, trying image note: ${e.message}`);
   }
 
-  // 尝试图文笔记
-  try {
-    const data = await tikhubRequest(`/api/v1/xiaohongshu/web_v2/get_image_note_detail?note_id=${noteId}`);
+  // 图文笔记
+  const imageList = note.imageList || [];
+  if (imageList.length > 0) {
+    console.log(`[TikHub] Found Xiaohongshu images: ${imageList.length}`);
     
-    const noteData = data.noteData || data.data?.noteData || data;
-    const title = noteData.noteCard?.title || 'Xiaohongshu Images';
-    const images = noteData.noteCard?.imageList || [];
-    
-    if (images.length > 0) {
-      console.log(`[TikHub] Found Xiaohongshu images: ${images.length}`);
-      
-      // 下载所有图片
-      const imageFiles = [];
-      for (let i = 0; i < images.length; i++) {
-        const imgUrl = images[i].urlDefault || images[i].url || '';
-        if (imgUrl) {
-          const imgPath = path.join(DOWNLOAD_DIR, `${taskId}_img_${i}.jpg`);
-          try {
-            await downloadFile(imgUrl, imgPath, (p) => {
-              if (onProgress) onProgress(Math.round((i / images.length) * 90 + p * 0.1));
-            });
-            imageFiles.push({
-              filename: `${taskId}_img_${i}.jpg`,
-              path: imgPath,
-              url: `/download/${taskId}_img_${i}.jpg`
-            });
-          } catch {}
-        }
+    const imageFiles = [];
+    for (let i = 0; i < imageList.length; i++) {
+      const img = imageList[i];
+      const imgUrl = img.urlDefault || img.url || '';
+      if (imgUrl) {
+        const imgPath = path.join(DOWNLOAD_DIR, `${taskId}_img_${i}.jpg`);
+        try {
+          await downloadFile(imgUrl, imgPath, (p) => {
+            if (onProgress) onProgress(Math.round(20 + (i / imageList.length) * 70 + p * 0.1));
+          });
+          imageFiles.push({
+            filename: `${taskId}_img_${i}.jpg`,
+            path: imgPath,
+            url: `/download/${taskId}_img_${i}.jpg`
+          });
+        } catch {}
       }
-
-      if (onProgress) onProgress(100);
-
-      return {
-        title,
-        filePath: null,
-        ext: null,
-        thumbnailUrl: imageFiles[0]?.url || '',
-        subtitleFiles: [],
-        isNote: true,
-        imageFiles,
-        duration: 0
-      };
     }
-  } catch (e) {
-    console.log(`[TikHub] Image note failed: ${e.message}`);
+
+    if (onProgress) onProgress(100);
+
+    return {
+      title,
+      filePath: null,
+      ext: null,
+      thumbnailUrl: imageFiles[0]?.url || '',
+      subtitleFiles: [],
+      isNote: true,
+      imageFiles,
+      duration: 0
+    };
   }
 
   throw new Error('Failed to parse Xiaohongshu note');
