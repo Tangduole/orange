@@ -592,21 +592,23 @@ export default function App() {
                     <div key={item.taskId} className="flex items-center gap-3 px-4 py-3 border-b border-slate-700/20 last:border-0 hover:bg-slate-900/60 transition">
                       {/* 缩略图 - 点击播放视频 */}
                       {item.thumbnailUrl
-                        ? <button 
-                            onClick={() => setTask({ ...item, status: 'completed', downloadUrl: `/download/${item.taskId}.mp4` })}
+                        ? <a 
+                            href={`${BASE_URL}/download/${item.taskId}.mp4`}
+                            target="_blank"
+                            rel="noopener noreferrer"
                             className="relative shrink-0 group"
                           >
                             <img src={`${BASE_URL}${item.thumbnailUrl}`} alt="" className="w-14 h-10 object-cover rounded-lg" />
                             <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 transition">
                               <Play className="w-4 h-4 text-white" />
                             </div>
-                          </button>
+                          </a>
                         : <div className="w-14 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0"><Video className="w-4 h-4 text-slate-600" /></div>
                       }
                       <div className="flex-1 min-w-0">
-                        {/* 跑马灯标题 */}
+                        {/* 标题 - 长标题才跑马灯 */}
                         <div className="overflow-hidden">
-                          <p className="text-sm text-slate-600 font-medium whitespace-nowrap animate-marquee">{item.title || 'Untitled'}</p>
+                          <p className={`text-sm text-slate-600 font-medium whitespace-nowrap ${(item.title || '').length > 20 ? 'animate-marquee' : 'truncate'}`}>{item.title || 'Untitled'}</p>
                         </div>
                         <div className="flex items-center gap-2 mt-0.5">
                           {item.platform && <span className="text-xs text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded">{platformLabel(item.platform)}</span>}
