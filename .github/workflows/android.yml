@@ -16,15 +16,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
           
       - name: Install dependencies
         run: |
           cd frontend
-          npm ci
+          npm install --legacy-peer-deps
           npx cap sync android
-        timeout-minutes: 15
+        timeout-minutes: 20
           
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -36,8 +34,8 @@ jobs:
         run: |
           cd frontend/android
           chmod +x gradlew
-          ./gradlew assembleDebug
-        timeout-minutes: 20
+          ./gradlew assembleDebug --no-daemon
+        timeout-minutes: 25
           
       - name: Upload APK
         uses: actions/upload-artifact@v4
