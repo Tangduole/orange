@@ -206,7 +206,7 @@ export default function App() {
         url: url.trim(), platform: detected || 'auto',
         needAsr: selected.has('asr'), options: [...selected],
       }, { timeout: 120000 })
-      setTask(r.data.data); setUrl(''); setDetected('')
+      setTask(r.data.data); setDetected('')
     } catch (e: any) {
       setError(e.code === 'ECONNABORTED' ? 'Request timeout, please retry' : (e.response?.data?.message || 'Download failed'))
     } finally { setLoading(false) }
@@ -286,13 +286,13 @@ export default function App() {
                     value={url}
                     onChange={(e) => handleUrlChange(e.target.value)}
                     placeholder="Paste video link..."
-                    className="w-full pl-12 pr-24 py-4 bg-slate-900/60 border-2 border-slate-600/50 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 outline-none text-white text-base transition-all placeholder:text-slate-500"
+                    className="w-full pl-4 pr-12 py-4 bg-slate-900/60 border-2 border-slate-600/50 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 outline-none text-white text-base transition-all placeholder:text-slate-500"
                   />
-                  {/* 一键清理按钮 */}
-                  {url && (
+                  {/* 清理按钮 - 最右边 */}
+                  {url && !loading && (
                     <button
                       onClick={clearUrl}
-                      className="absolute right-16 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-slate-300 transition"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-slate-300 transition"
                       title="Clear link"
                     >
                       <Eraser className="w-4 h-4" />
@@ -302,11 +302,6 @@ export default function App() {
                   {loading && (
                     <div className="absolute right-4 top-1/2 -translate-y-1/2">
                       <Loader2 className="w-5 h-5 text-orange-400 animate-spin" />
-                    </div>
-                  )}
-                  {detected && !loading && (
-                    <div className="absolute right-4 top-1/2 -translate-y-1/2 px-2 py-1 bg-orange-500/15 text-orange-300 text-xs rounded-lg border border-orange-500/20">
-                      {platformLabel(detected) || detected}
                     </div>
                   )}
                 </div>

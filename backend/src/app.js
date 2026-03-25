@@ -27,8 +27,44 @@ app.use(express.json());
 // API 路由
 app.use('/api', apiRouter);
 
-// 静态提供下载文件
-app.use('/download', express.static(DOWNLOAD_DIR));
+// 静态提供下载文件（带正确的 Content-Disposition 头）
+app.use('/download', (req, res, next) => {
+  const filePath = path.join(DOWNLOAD_DIR, req.path);
+  if (fs.existsSync(filePath)) {
+    const filename = path.basename(filePath);
+    const ext = path.extname(filename).toLowerCase();
+    
+    // 设置正确的 MIME 类型
+    const mimeTypes = {
+      '.mp4': 'video/mp4',
+      '.mp3': 'audio/mpeg',
+      '.jpg': 'image/jpeg',
+      '.jpeg': 'image/jpeg',
+      '.png': 'image/png',
+      '.webp': 'image/webp',
+      '.srt': 'text/plain',
+      '.vtt': 'text/vtt',
+    };
+    
+    const mimeType = mimeTypes[ext] || 'application/octet-stream';
+    res.setHeader('Content-Type', mimeType);
+    
+    // 强制下载，使用正确的文件名
+    if (ext === '.mp4' || ext === '.mp3') {
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    } else {
+      res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    }
+    
+    // 允许跨域访问
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    
+    // 发送文件
+    res.sendFile(filePath);
+  } else {
+    res.status(404).json({ error: 'File not found' });
+  }
+});
 
 // 前端静态文件 (生产环境)
 const frontendDist = path.join(__dirname, '../../frontend/dist');
