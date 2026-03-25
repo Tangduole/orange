@@ -12,19 +12,45 @@ const API = 'https://orange-production-95b9.up.railway.app/api'
 const BASE_URL = API.replace('/api', '')
 
 // Share file using native share sheet (Android: shows save to Photos/Files option)
-const shareFile = async (url: string, title: string) => {
+const isNativeApp = () => {
   try {
-    const fullUrl = url.startsWith('http') ? url : `${BASE_URL}${url}`
-    
-    // Use native share sheet - on Android shows "Save to Files", "Photos", etc.
-    await Share.share({
-      title: title || 'Orange Downloader',
-      url: fullUrl,
-    })
-    return { success: true }
-  } catch (e) {
-    console.error('Share failed:', e)
-    return { success: false, error: String(e) }
+    return (window as any).Capacitor?.isNativePlatform?.() ?? false
+  } catch { return false }
+}
+
+const shareFile = async (url: string, title: string) => {
+  const fullUrl = url.startsWith('http') ? url : `${BASE_URL}${url}`
+  
+  if (isNativeApp()) {
+    try {
+      await Share.share({
+        title: title || 'Orange Downloader',
+        url: fullUrl,
+      })
+      return { success: true }
+    } catch (e) {
+      console.error('Share failed:', e)
+      return { success: false, error: String(e) }
+    }
+  } else {
+    // Web: fetch as blob → force download (no new tab)
+    try {
+      const resp = await fetch(fullUrl)
+      const blob = await resp.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = title || 'video.mp4'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(blobUrl)
+      return { success: true }
+    } catch (e) {
+      // Fallback: direct link
+      window.open(fullUrl, '_blank')
+      return { success: false, error: String(e) }
+    }
   }
 }
 
@@ -76,6 +102,7 @@ export default function App() {
   const [task, setTask] = useState<Task | null>(null)
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [loading, setLoading] = useState(false)
+  const [downloading, setDownloading] = useState(false)
   const [error, setError] = useState('')
   const [showHistory, setShowHistory] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
@@ -461,24 +488,35 @@ export default function App() {
                 </div>
               )}
 
-              {/* Video下载 - 使用原生分享菜单 */}
+              {/* Video下载 */}
               {task.status === 'completed' && task.downloadUrl && (
                 <button 
-                  onClick={() => shareFile(task.downloadUrl, task.title || 'video')}
-                  className="w-full py-3.5 rounded-2xl text-sm font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-2"
+                  onClick={async () => {
+                    setDownloading(true)
+                    await shareFile(task.downloadUrl, task.title || 'video')
+                    setDownloading(false)
+                  }}
+                  disabled={downloading}
+                  className="w-full py-3.5 rounded-2xl text-sm font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  <Download className="w-4 h-4" /> 
-                  Save to Device
+                  {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} 
+                  {downloading ? 'Downloading...' : 'Save to Device'}
                 </button>
               )}
 
               {/* Cover */}
               {task.status === 'completed' && task.coverUrl && (
                 <button 
-                  onClick={() => shareFile(task.coverUrl, 'cover')}
-                  className="w-full py-3 rounded-xl text-xs bg-slate-700/30 border border-slate-600/30 text-slate-400 hover:text-white transition-all flex items-center justify-center gap-2"
+                  onClick={async () => {
+                    setDownloading(true)
+                    await shareFile(task.coverUrl, 'cover')
+                    setDownloading(false)
+                  }}
+                  disabled={downloading}
+                  className="w-full py-3 rounded-xl text-xs bg-slate-700/30 border border-slate-600/30 text-slate-400 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
-                  <ImageIcon className="w-3.5 h-3.5" /> Save Cover
+                  {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />}
+                  {downloading ? 'Downloading...' : 'Save Cover'}
                 </button>
               )}
 

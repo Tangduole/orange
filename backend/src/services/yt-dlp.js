@@ -42,6 +42,8 @@ function download(url, taskId, onProgress) {
       '--fragment-retries', '5',
       '--socket-timeout', '60',
       '--no-check-certificates',
+      '--extractor-args', 'youtube:player_client=android',
+      '--user-agent', 'com.google.android.youtube/17.36.4 (Linux; U; Android 12; US) gzip',
       '--format', 'best[ext=mp4]/best',
       '--write-thumbnail',      // 下载封面
       '--write-auto-subs',      // 下载自动字幕
