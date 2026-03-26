@@ -28,7 +28,7 @@ if (!fs.existsSync(DOWNLOAD_DIR)) {
  * @param {function} onProgress 进度回调 (percent: number, speed: string, eta: string) => void
  * @returns {Promise<{title: string, filePath: string, ext: string, thumbnailUrl: string, duration: number}>}
  */
-function download(url, taskId, onProgress) {
+function download(url, taskId, onProgress, quality = null) {
   return new Promise((resolve, reject) => {
     const outputTemplate = path.join(DOWNLOAD_DIR, `${taskId}.%(ext)s`);
     const thumbnailPath = path.join(DOWNLOAD_DIR, `${taskId}_thumb.jpg`);
@@ -44,7 +44,7 @@ function download(url, taskId, onProgress) {
       '--no-check-certificates',
       '--extractor-args', 'youtube:player_client=android',
       '--user-agent', 'com.google.android.youtube/17.36.4 (Linux; U; Android 12; US) gzip',
-      '--format', 'best[ext=mp4]/best',
+      '--format', quality || 'best[ext=mp4]/best',
       '--write-thumbnail',      // 下载封面
       '--write-auto-subs',      // 下载自动字幕
       '--sub-langs', 'zh-Hans,zh-Hant,en',

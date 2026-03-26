@@ -100,6 +100,13 @@ const OPTIONS: { id: string; label: string; icon: typeof Video }[] = [
   { id: 'subtitle', label: 'Subtitle 字幕', icon: Languages },
 ]
 
+const QUALITY_OPTIONS = [
+  { value: 'best[ext=mp4]/best', label: 'Best 最高画质' },
+  { value: 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]', label: '1080p' },
+  { value: 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]', label: '720p' },
+  { value: 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]', label: '480p' },
+]
+
 function detectPlatform(url: string): string {
   if (/douyin\.com|iesdouyin\.com/i.test(url)) return 'douyin'
   if (/tiktok\.com/i.test(url)) return 'tiktok'
@@ -123,6 +130,7 @@ export default function App() {
   const [showHistory, setShowHistory] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
   const [batchMode, setBatchMode] = useState(false)
+  const [quality, setQuality] = useState('best[ext=mp4]/best')
   const [batchUrls, setBatchUrls] = useState('')
   const [batchQueue, setBatchQueue] = useState<string[]>([])
   const [batchIndex, setBatchIndex] = useState(0)
@@ -158,11 +166,11 @@ export default function App() {
         setLoading(true)
         axios.post(`${API}/download`, {
           url: nextUrl, platform: detectPlatform(nextUrl) || 'auto',
-          needAsr: selected.has('asr'), options: [...selected],
+          needAsr: selected.has('asr'), options: [...selected], quality,
         }, { timeout: 120000 }).then(r => {
           setTask(r.data.data)
         }).catch(() => {
-          setError('Batch DownloadFailed')
+          setError(getErrorMessage('Batch download failed'))
         }).finally(() => setLoading(false))
       }
       return
@@ -219,11 +227,11 @@ export default function App() {
         const detectedFirst = detectPlatform(firstUrl)
         const r = await axios.post(`${API}/download`, {
           url: firstUrl, platform: detectedFirst || 'auto',
-          needAsr: selected.has('asr'), options: [...selected],
+          needAsr: selected.has('asr'), options: [...selected], quality,
         }, { timeout: 120000 })
         setTask(r.data.data)
       } catch (e: any) {
-        setError(e.code === 'ECONNABORTED' ? 'Request timeout, please retry' : (e.response?.data?.message || 'Download failed'))
+        setError(getErrorMessage(e.code === 'ECONNABORTED' ? 'timeout' : (e.response?.data?.message || e.message || 'Download failed')))
         setLoading(false)
       }
       return
@@ -234,11 +242,11 @@ export default function App() {
     try {
       const r = await axios.post(`${API}/download`, {
         url: url.trim(), platform: detected || 'auto',
-        needAsr: selected.has('asr'), options: [...selected],
+        needAsr: selected.has('asr'), options: [...selected], quality,
       }, { timeout: 120000 })
       setTask(r.data.data); setDetected('')
     } catch (e: any) {
-      setError(e.code === 'ECONNABORTED' ? 'Request timeout, please retry' : (e.response?.data?.message || 'Download failed'))
+      setError(getErrorMessage(e.code === 'ECONNABORTED' ? 'timeout' : (e.response?.data?.message || e.message || 'Download failed')))
     } finally { setLoading(false) }
   }
 
@@ -265,6 +273,17 @@ export default function App() {
 
   const isWorking = (s: string) => ['pending', 'parsing', 'processing', 'downloading', 'asr'].includes(s)
   const statusLabel = (s: string) => ({ pending: 'Queuing', parsing: 'Parsing', downloading: 'Downloading', asr: 'Speech recognition', completed: 'Completed', error: 'Failed' }[s] || s)
+  
+  const getErrorMessage = (err: string) => {
+    if (err.includes('TikHub API error')) return '❌ API service error, please try again later'
+    if (err.includes('Sign in to confirm')) return '❌ YouTube requires verification, try another video'
+    if (err.includes('No download URL')) return '❌ Video not available for download'
+    if (err.includes('timeout')) return '⏱️ Download timeout, please try again'
+    if (err.includes('network')) return '🌐 Network error, check your connection'
+    if (err.includes('403') || err.includes('Forbidden')) return '🚫 Access denied, video may be private'
+    if (err.includes('404') || err.includes('Not Found')) return '🔍 Video not found, check the link'
+    return `❌ ${err || 'Download failed, please try again'}`
+  }
   const platformLabel = (id: string) => PLATFORMS.find(p => p.id === id)?.label || ''
 
   return (
@@ -414,6 +433,28 @@ export default function App() {
                     </button>
                   )
                 })}
+              </div>
+            </div>
+
+            {/* Quality Selection 画质选择 */}
+            <div className="mb-5">
+              <label className="text-xs text-slate-500 mb-2 flex items-center gap-1.5">
+                <Video className="w-3.5 h-3.5" />
+                Video Quality 画质
+              </label>
+              <div className="flex gap-1.5 mt-1.5">
+                {QUALITY_OPTIONS.map(q => (
+                  <button
+                    key={q.value}
+                    onClick={() => setQuality(q.value)}
+                    className={`px-3 py-2 text-xs rounded-lg transition-all
+                      ${quality === q.value 
+                        ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' 
+                        : 'bg-slate-700/30 text-slate-500 border border-transparent hover:text-slate-300'}`}
+                  >
+                    {q.label}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -592,7 +633,7 @@ export default function App() {
                 </div>
               )}
 
-              {task.status === 'error' && task.error && <p className="text-sm text-red-400">{task.error}</p>}
+              {task.status === 'error' && task.error && <p className="text-sm text-red-400">{getErrorMessage(task.error)}</p>}
             </div>
           )}
 

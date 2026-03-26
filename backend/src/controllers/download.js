@@ -27,7 +27,7 @@ async function createDownload(req, res) {
       return res.json({ code: 400, message: validation.message });
     }
 
-    let { url, platform, needAsr = false, options = ['video'], saveTarget = 'phone' } = req.body;
+    let { url, platform, needAsr = false, options = ['video'], saveTarget = 'phone', quality = null } = req.body;
 
     // 从分享文本中提取 URL
     const { extractUrl } = require('../utils/validator');
@@ -104,7 +104,7 @@ async function createDownload(req, res) {
     }
 
     // 其他平台：走 yt-dlp
-    processDownload(taskId, url, wantsAsr, normalizedOptions).catch(err => {
+    processDownload(taskId, url, wantsAsr, normalizedOptions, quality).catch(err => {
       console.error(`[task] ${taskId} failed:`, err);
       store.update(taskId, {
         status: 'error',
@@ -147,7 +147,7 @@ async function getInfo(req, res) {
 /**
  * 处理下载任务（异步）
  */
-async function processDownload(taskId, url, needAsr, options = ['video']) {
+async function processDownload(taskId, url, needAsr, options = ['video'], quality = null) {
   try {
     const wantsVideo = options.includes('video');
     const wantsCopywriting = options.includes('copywriting');
@@ -176,7 +176,7 @@ async function processDownload(taskId, url, needAsr, options = ['video']) {
                 speed,
                 eta
               });
-            });
+            }, quality);
           });
         } catch (err) {
           // YouTube 失败时用 Invidious 备用方案
