@@ -154,7 +154,6 @@ async function processDownload(taskId, url, needAsr, options = ['video']) {
     const wantsCover = options.includes('cover');
     const wantsAudio = options.includes('audio');
     const wantsSubtitle = options.includes('subtitle');
-    console.log(`[task] ${taskId} options=${JSON.stringify(options)}, wantsCover=${wantsCover}`);
 
     // 1. 解析阶段
     store.update(taskId, { status: 'parsing', progress: 5 });
@@ -210,14 +209,10 @@ async function processDownload(taskId, url, needAsr, options = ['video']) {
         update.downloadUrl = `/download/${path.basename(result.filePath)}`;
       }
 
-      // 封面（总是提取，供显示用）
-      console.log(`[task] ${taskId} wantsCover=${wantsCover}, thumbnailUrl=${result.thumbnailUrl?.substring(0, 50)}`);
+      // 封面（总是返回，供显示和下载）
       if (result.thumbnailUrl) {
         update.thumbnailUrl = result.thumbnailUrl;
-        if (wantsCover) {
-          update.coverUrl = result.thumbnailUrl;
-          console.log(`[task] ${taskId} set coverUrl=${result.thumbnailUrl?.substring(0, 50)}`);
-        }
+        update.coverUrl = result.thumbnailUrl;
       }
 
       // 文案（总是提取标题和描述）
