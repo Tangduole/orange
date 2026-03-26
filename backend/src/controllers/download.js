@@ -154,6 +154,7 @@ async function processDownload(taskId, url, needAsr, options = ['video']) {
     const wantsCover = options.includes('cover');
     const wantsAudio = options.includes('audio');
     const wantsSubtitle = options.includes('subtitle');
+    console.log(`[task] ${taskId} options=${JSON.stringify(options)}, wantsCover=${wantsCover}`);
 
     // 1. 解析阶段
     store.update(taskId, { status: 'parsing', progress: 5 });
