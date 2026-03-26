@@ -7,19 +7,23 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const API_KEY = 'lrwNPvEUzE2ph0K5Oces5Q/RNRHRZ5tTzTTogR7aU/mj1li7O0XfZgWPCQ==';
+// API Keys - separate keys for different platforms
+const API_KEY_XHS = 'lrwNPvEUzE2ph0K5Oces5Q/RNRHRZ5tTzTTogR7aU/mj1li7O0XfZgWPCQ==';
+const API_KEY_YT = 'nbwMHtwa3GuiuW/CKoyvygj8CWGeerdC7CXatWGcWNXgoE6uOCecUg+uLw==';
+const API_KEY = API_KEY_XHS; // Default to XHS key
 const API_BASE = 'https://api.tikhub.io';
 const DOWNLOAD_DIR = path.join(__dirname, '../../downloads');
 
 /**
  * 通用 TikHub API 请求
  */
-function tikhubRequest(endpoint) {
+function tikhubRequest(endpoint, apiKey = null) {
   return new Promise((resolve, reject) => {
     const url = `${API_BASE}${endpoint}`;
+    const key = apiKey || API_KEY;
     const options = {
       headers: {
-        'Authorization': `Bearer ${API_KEY}`,
+        'Authorization': `Bearer ${key}`,
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
       }
     };
@@ -85,7 +89,7 @@ async function parseYouTube(url, taskId, onProgress) {
   console.log(`[TikHub] Parsing YouTube: ${videoId}`);
   if (onProgress) onProgress(10);
 
-  const data = await tikhubRequest(`/api/v1/youtube/web/get_video_info?video_id=${videoId}`);
+  const data = await tikhubRequest(`/api/v1/youtube/web/get_video_info?video_id=${videoId}`, API_KEY_YT);
   
   if (onProgress) onProgress(20);
 
