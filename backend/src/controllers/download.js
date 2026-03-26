@@ -210,19 +210,19 @@ async function processDownload(taskId, url, needAsr, options = ['video']) {
       }
 
       // 封面（总是提取，供显示用）
+      console.log(`[task] ${taskId} wantsCover=${wantsCover}, thumbnailUrl=${result.thumbnailUrl?.substring(0, 50)}`);
       if (result.thumbnailUrl) {
         update.thumbnailUrl = result.thumbnailUrl;
         if (wantsCover) {
           update.coverUrl = result.thumbnailUrl;
+          console.log(`[task] ${taskId} set coverUrl=${result.thumbnailUrl?.substring(0, 50)}`);
         }
       }
 
       // 文案（总是提取标题和描述）
       if (result.title) {
         update.copyText = result.title;
-        if (result.description) {
-          update.copyText = `${result.title}\n\n${result.description}`;
-        }
+        console.log(`[task] ${taskId} set copyText=${result.title?.substring(0, 50)}`);
       }
 
       // 原声音频
