@@ -9,7 +9,8 @@ const {
   getStatus,
   getHistory,
   getSystemStatus,
-  deleteTask
+  deleteTask,
+  clearHistory
 } = require('../controllers/download');
 
 const router = express.Router();
@@ -28,6 +29,7 @@ router.get('/history', getHistory);
 
 // 删除任务
 router.delete('/tasks/:taskId', deleteTask);
+router.delete('/history', clearHistory);
 
 // 系统状态
 router.get('/system/status', getSystemStatus);

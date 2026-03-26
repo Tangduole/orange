@@ -556,6 +556,14 @@ function deleteTask(req, res) {
   res.json({ code: 0, message: '删除成功' });
 }
 
+function clearHistory(req, res) {
+  const tasks = store.list();
+  for (const task of tasks) {
+    store.removeWithFiles(task.taskId);
+  }
+  res.json({ code: 0, message: '已清除所有记录' });
+}
+
 module.exports = {
   createDownload,
   getInfo,
@@ -563,5 +571,6 @@ module.exports = {
   getHistory,
   getSystemStatus,
   deleteTask,
+  clearHistory,
   detectPlatform
 };

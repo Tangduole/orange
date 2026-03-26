@@ -24,17 +24,31 @@ const shareFile = async (url: string, title: string) => {
   
   if (isNativeApp()) {
     try {
-      await Share.share({
-        title: title || 'Orange Downloader',
-        url: fullUrl,
+      // Native app: 下载并直接保存到相册
+      const resp = await fetch(fullUrl)
+      const blob = await resp.blob()
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result as string)
+        reader.readAsDataURL(blob)
       })
+      
+      // 直接保存到 Pictures 目录（相册）
+      const { Filesystem, Directory } = await import('@capacitor/filesystem')
+      const fileName = `Orange_${Date.now()}.mp4`
+      await Filesystem.writeFile({
+        path: `Pictures/${fileName}`,
+        data: base64.split(',')[1],
+        directory: Directory.ExternalStorage,
+      })
+      
       return { success: true }
     } catch (e) {
-      console.error('Share failed:', e)
+      console.error('Save failed:', e)
       return { success: false, error: String(e) }
     }
   } else {
-    // Web: fetch as blob → force download (no new tab)
+    // Web: fetch as blob → force download
     try {
       const resp = await fetch(fullUrl)
       const blob = await resp.blob()
@@ -48,7 +62,6 @@ const shareFile = async (url: string, title: string) => {
       URL.revokeObjectURL(blobUrl)
       return { success: true }
     } catch (e) {
-      // Fallback: direct link
       window.open(fullUrl, '_blank')
       return { success: false, error: String(e) }
     }
@@ -166,6 +179,18 @@ export default function App() {
     return () => clearInterval(t)
   }, [task, batchMode, batchQueue, batchIndex])
 
+  // 自动下载：当下载完成时自动触发保存
+  useEffect(() => {
+    if (task?.status === 'completed' && task.downloadUrl && !downloading) {
+      // 延迟 500ms 后自动下载
+      const timer = setTimeout(() => {
+        setDownloading(true)
+        shareFile(task.downloadUrl, task.title || 'video').finally(() => setDownloading(false))
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [task?.status, task?.downloadUrl])
+
   const fetchHistory = useCallback(async () => {
     try { 
       const r = await axios.get(`${API}/history`); 
@@ -224,6 +249,14 @@ export default function App() {
   })
   const del = async (id: string) => {
     try { await axios.delete(`${API}/tasks/${id}`); fetchHistory(); if (task?.taskId === id) setTask(null) } catch {}
+  }
+  const clearAllHistory = async () => {
+    try { await axios.delete(`${API}/history`); fetchHistory(); setTask(null) } catch {}
+  }
+  const openSavedFile = (item: HistoryItem) => {
+    // 在新窗口打开视频文件
+    const videoUrl = `${BASE_URL}/download/${item.taskId}.mp4`
+    window.open(videoUrl, '_blank')
   }
   const clip = async (text: string, id: string) => {
     try { await navigator.clipboard.writeText(text); setCopied(id); setTimeout(() => setCopied(null), 3000) } catch {}
@@ -582,7 +615,12 @@ export default function App() {
                 <Clock className="w-4 h-4" /> Download History
                 {history.length > 0 && <span className="bg-orange-500/20 text-orange-300 px-2 py-0.5 rounded text-xs">{history.length}</span>}
               </span>
-              {showHistory ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+              <span className="flex items-center gap-2">
+                {history.length > 0 && showHistory && (
+                  <button onClick={(e) => { e.stopPropagation(); clearAllHistory() }} className="text-xs text-red-400 hover:text-red-300 transition">Clear All</button>
+                )}
+                {showHistory ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+              </span>
             </button>
             {showHistory && (
               <div className="mt-2 max-h-72 overflow-y-auto bg-slate-900/60 rounded-2xl border border-slate-700/60">
@@ -590,19 +628,17 @@ export default function App() {
                   ? <p className="py-10 text-center text-sm text-slate-600">No download history</p>
                   : history.map(item => (
                     <div key={item.taskId} className="flex items-center gap-3 px-4 py-3 border-b border-slate-700/20 last:border-0 hover:bg-slate-900/60 transition">
-                      {/* 缩略图 - 点击播放视频 */}
+                      {/* 缩略图 - 点击打开已保存的文件 */}
                       {item.thumbnailUrl
-                        ? <a 
-                            href={`${BASE_URL}/download/${item.taskId}.mp4`}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                        ? <button 
+                            onClick={() => openSavedFile(item)}
                             className="relative shrink-0 group"
                           >
                             <img src={`${BASE_URL}${item.thumbnailUrl}`} alt="" className="w-14 h-10 object-cover rounded-lg" />
                             <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 transition">
                               <Play className="w-4 h-4 text-white" />
                             </div>
-                          </a>
+                          </button>
                         : <div className="w-14 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0"><Video className="w-4 h-4 text-slate-600" /></div>
                       }
                       <div className="flex-1 min-w-0">
