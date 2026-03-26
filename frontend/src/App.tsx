@@ -71,7 +71,7 @@ const shareFile = async (url: string, title: string) => {
 interface Task {
   taskId: string; status: string; progress: number
   title?: string; platform?: string; thumbnailUrl?: string
-  downloadUrl?: string; asrText?: string; copyText?: string
+  downloadUrl?: string; audioUrl?: string; asrText?: string; copyText?: string
   coverUrl?: string; isNote?: boolean
   imageFiles?: Array<{ filename: string; url: string }>
   subtitleFiles?: Array<{ filename: string; url: string }>
@@ -132,7 +132,7 @@ export default function App() {
   const [batchMode, setBatchMode] = useState(false)
   const [quality, setQuality] = useState('best[ext=mp4]/best')
   const [batchUrls, setBatchUrls] = useState('')
-  const [batchQueue, setBatchQueue] = useState<string[]>([])
+  const [batchQueue, setBatchQueue] = useState<Array<{url: string, status: string, progress: number, title?: string}>>([])
   const [batchIndex, setBatchIndex] = useState(0)
   const [saveLocation, setSaveLocation] = useState<string>('album')
 
@@ -161,7 +161,7 @@ export default function App() {
       // 如果是批量模式且有队列中的下一G
       if (task?.status === 'completed' && batchMode && batchQueue.length > 0 && batchIndex < batchQueue.length - 1) {
         const nextIndex = batchIndex + 1
-        const nextUrl = batchQueue[nextIndex]
+        const nextUrl = batchQueue[nextIndex].url
         setBatchIndex(nextIndex)
         setLoading(true)
         axios.post(`${API}/download`, {
@@ -218,7 +218,7 @@ export default function App() {
     if (batchMode) {
       const urls = batchUrls.split('\n').map(u => u.trim()).filter(u => u)
       if (urls.length === 0) { setError('Please enter a video link'); return }
-      setBatchQueue(urls)
+      setBatchQueue(urls.map(u => ({ url: u, status: 'pending', progress: 0 })))
       setBatchIndex(0)
       // Start Download第一G
       const firstUrl = urls[0]
@@ -436,25 +436,23 @@ export default function App() {
               </div>
             </div>
 
-            {/* Quality Selection 画质选择 */}
+            {/* Quality Selection 画质选择 - 下拉菜单 */}
             <div className="mb-5">
               <label className="text-xs text-slate-500 mb-2 flex items-center gap-1.5">
                 <Video className="w-3.5 h-3.5" />
                 Video Quality 画质
               </label>
-              <div className="flex gap-1.5 mt-1.5">
-                {QUALITY_OPTIONS.map(q => (
-                  <button
-                    key={q.value}
-                    onClick={() => setQuality(q.value)}
-                    className={`px-3 py-2 text-xs rounded-lg transition-all
-                      ${quality === q.value 
-                        ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' 
-                        : 'bg-slate-700/30 text-slate-500 border border-transparent hover:text-slate-300'}`}
-                  >
-                    {q.label}
-                  </button>
-                ))}
+              <div className="relative mt-1.5">
+                <select
+                  value={quality}
+                  onChange={(e) => setQuality(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-900/60 border-2 border-slate-600/50 rounded-xl text-sm text-white outline-none focus:border-orange-500/70 cursor-pointer appearance-none"
+                >
+                  {QUALITY_OPTIONS.map(q => (
+                    <option key={q.value} value={q.value}>{q.label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
               </div>
             </div>
 
@@ -495,11 +493,25 @@ export default function App() {
 
             {/* 批量进度提示 */}
             {/* Batch progress indicator */}
-            {batchMode && batchQueue.length > 0 && (
-              <div className="mb-3 p-2.5 bg-orange-500/10 border border-orange-500/20 rounded-xl">
-                <p className="text-xs text-orange-300 text-center">
-                  Batch downloading: {batchIndex + 1} / {batchQueue.length}
-                </p>
+            {/* Batch Progress 批量进度 */}
+            {batchMode && batchQueue.length > 0 && loading && (
+              <div className="mb-3 bg-slate-900/60 rounded-xl border border-slate-700/60 overflow-hidden">
+                <div className="px-4 py-2 border-b border-slate-700/60">
+                  <p className="text-xs text-slate-400">
+                    Batch: {batchIndex + 1} / {batchQueue.length}
+                  </p>
+                </div>
+                <div className="max-h-32 overflow-y-auto">
+                  {batchQueue.map((item, idx) => (
+                    <div key={idx} className={`flex items-center gap-2 px-4 py-2 ${idx === batchIndex ? 'bg-orange-500/10' : ''}`}>
+                      <span className="text-xs text-slate-500 w-6">{idx + 1}.</span>
+                      <span className="text-xs text-slate-400 truncate flex-1">{item.url.substring(0, 40)}...</span>
+                      {idx < batchIndex && <span className="text-xs text-emerald-400">✓</span>}
+                      {idx === batchIndex && <Loader2 className="w-3 h-3 text-orange-400 animate-spin" />}
+                      {idx > batchIndex && <span className="text-xs text-slate-600">⏳</span>}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
@@ -593,6 +605,22 @@ export default function App() {
                 >
                   {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />}
                   {downloading ? 'Downloading...' : 'Save Cover'}
+                </button>
+              )}
+
+              {/* MP3 Audio */}
+              {task.status === 'completed' && task.audioUrl && (
+                <button 
+                  onClick={async () => {
+                    setDownloading(true)
+                    await shareFile(task.audioUrl!, 'audio.mp3')
+                    setDownloading(false)
+                  }}
+                  disabled={downloading}
+                  className="w-full py-3 rounded-xl text-xs bg-slate-700/30 border border-slate-700/60 text-slate-500 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mic className="w-3.5 h-3.5" />}
+                  {downloading ? 'Downloading...' : 'Save MP3'}
                 </button>
               )}
 
