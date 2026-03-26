@@ -210,9 +210,10 @@ async function processDownload(taskId, url, needAsr, options = ['video']) {
       }
 
       // 封面（总是返回，供显示和下载）
-      if (result.thumbnailUrl) {
-        update.thumbnailUrl = result.thumbnailUrl;
-        update.coverUrl = result.thumbnailUrl;
+      const coverImage = result.thumbnailUrl || result.coverUrl;
+      if (coverImage) {
+        update.thumbnailUrl = coverImage;
+        update.coverUrl = coverImage;
       }
 
       // 文案（总是提取标题和描述）
