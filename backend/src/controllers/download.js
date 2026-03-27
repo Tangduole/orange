@@ -448,11 +448,11 @@ async function processXiaohongshu(taskId, url, needAsr, options = ['video']) {
 }
 
 /**
- * 处理 Bilibili 下载 (TikHub API)
+ * 处理 Bilibili 下载 (Bilibili API - 免费)
  */
 async function processBilibili(taskId, url, needAsr, options = ['video']) {
   try {
-    const { parseBilibili } = require('../services/tikhub');
+    const { parseBilibili } = require('../services/bilibili');
     store.update(taskId, { status: 'parsing', progress: 5 });
 
     const result = await parseBilibili(url, taskId, (percent) => {
