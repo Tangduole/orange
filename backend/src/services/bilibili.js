@@ -34,9 +34,11 @@ function downloadFile(url, outputPath, onProgress, headers = {}) {
     const options = {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Referer': 'https://www.bilibili.com/',
+        'Referer': 'https://www.bilibili.com/video/BV1GmQBBxENA/',
+        'Origin': 'https://www.bilibili.com',
         'Accept': '*/*',
         'Accept-Encoding': 'identity',
+        'Connection': 'keep-alive',
         ...headers
       }
     };
@@ -52,10 +54,12 @@ function downloadFile(url, outputPath, onProgress, headers = {}) {
       console.log(`[Bilibili] Content-Type: ${response.headers['content-type']}`);
       
       if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-        // Follow redirect
+        // Follow redirect with same headers
         file.close();
         fs.unlink(outputPath, () => {});
-        downloadFile(response.headers.location, outputPath, onProgress, headers).then(resolve).catch(reject);
+        const redirectUrl = response.headers.location;
+        console.log(`[Bilibili] Following redirect to: ${redirectUrl.substring(0, 80)}...`);
+        downloadFile(redirectUrl, outputPath, onProgress, headers).then(resolve).catch(reject);
         return;
       }
       
