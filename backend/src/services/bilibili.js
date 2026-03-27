@@ -5,8 +5,27 @@ const https = require('https');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const { URL } = require('url');
 
 const DOWNLOAD_DIR = '/app/downloads';
+
+// 解析 b23.tv 短链接
+function resolveShortUrl(shortUrl) {
+  return new Promise((resolve, reject) => {
+    https.get(shortUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Referer': 'https://www.bilibili.com/'
+      }
+    }, (res) => {
+      if (res.headers.location) {
+        resolve(res.headers.location);
+      } else {
+        reject(new Error('Failed to resolve short URL'));
+      }
+    }).on('error', reject);
+  });
+}
 
 function downloadFile(url, outputPath, onProgress, headers = {}) {
   return new Promise((resolve, reject) => {
@@ -94,6 +113,14 @@ function downloadFile(url, outputPath, onProgress, headers = {}) {
 
 async function parseBilibili(url, taskId, onProgress) {
   console.log(`[Bilibili] parseBilibili called with URL: ${url}`);
+  
+  // 如果是 b23.tv 短链接，先解析真实 URL
+  if (url.includes('b23.tv')) {
+    console.log(`[Bilibili] Resolving short URL...`);
+    const realUrl = await resolveShortUrl(url);
+    console.log(`[Bilibili] Resolved to: ${realUrl}`);
+    url = realUrl;
+  }
   
   // 提取 BV 号
   const bvMatch = url.match(/BV[a-zA-Z0-9]+/);
