@@ -103,8 +103,9 @@ async function createDownload(req, res) {
       return res.json({ code: 0, data: { taskId, status: 'pending', platform: 'xiaohongshu' } });
     }
 
-    // Bilibili 链接：走 TikHub API
+    // Bilibili 链接：走 Bilibili API
     if (/bilibili\.com|b23\.tv/i.test(url)) {
+      console.log(`[download] Bilibili URL detected: ${url}`);
       processBilibili(taskId, url, wantsAsr, normalizedOptions).catch(err => {
         console.error(`[task] ${taskId} bilibili failed:`, err);
         store.update(taskId, { status: 'error', progress: 0, error: err.message });

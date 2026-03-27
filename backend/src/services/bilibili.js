@@ -93,10 +93,16 @@ function downloadFile(url, outputPath, onProgress, headers = {}) {
 }
 
 async function parseBilibili(url, taskId, onProgress) {
+  console.log(`[Bilibili] parseBilibili called with URL: ${url}`);
+  
   // 提取 BV 号
   const bvMatch = url.match(/BV[a-zA-Z0-9]+/);
-  if (!bvMatch) throw new Error('Invalid Bilibili URL');
+  if (!bvMatch) {
+    console.log(`[Bilibili] No BV号 found in URL`);
+    throw new Error('Invalid Bilibili URL');
+  }
   const bvid = bvMatch[0];
+  console.log(`[Bilibili] Extracted BVID: ${bvid}`);
 
   console.log(`[Bilibili] Parsing: ${bvid}`);
   if (onProgress) onProgress(5);
