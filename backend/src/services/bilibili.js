@@ -16,35 +16,77 @@ function downloadFile(url, outputPath, onProgress, headers = {}) {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Referer': 'https://www.bilibili.com/',
+        'Accept': '*/*',
+        'Accept-Encoding': 'identity',
         ...headers
       }
     };
 
+    console.log(`[Bilibili] Downloading: ${url.substring(0, 100)}...`);
+    
     const file = fs.createWriteStream(outputPath);
-    protocol.get(url, options, (response) => {
+    let totalSize = 0;
+    let downloaded = 0;
+    
+    const req = protocol.get(url, options, (response) => {
+      console.log(`[Bilibili] Response status: ${response.statusCode}`);
+      console.log(`[Bilibili] Content-Type: ${response.headers['content-type']}`);
+      
       if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
         // Follow redirect
+        file.close();
+        fs.unlink(outputPath, () => {});
         downloadFile(response.headers.location, outputPath, onProgress, headers).then(resolve).catch(reject);
         return;
       }
       
-      let downloaded = 0;
-      const total = parseInt(response.headers['content-length']) || 0;
+      if (response.statusCode !== 200) {
+        file.close();
+        fs.unlink(outputPath, () => {});
+        reject(new Error(`HTTP ${response.statusCode}`));
+        return;
+      }
+      
+      // Check if it's actually a video
+      const contentType = response.headers['content-type'] || '';
+      if (contentType.includes('application/json') || contentType.includes('text')) {
+        let data = '';
+        response.on('data', chunk => data += chunk);
+        response.on('end', () => {
+          file.close();
+          fs.unlink(outputPath, () => {});
+          console.log(`[Bilibili] Got JSON instead of video: ${data.substring(0, 200)}`);
+          reject(new Error('Got JSON response instead of video'));
+        });
+        return;
+      }
+      
+      totalSize = parseInt(response.headers['content-length']) || 0;
+      console.log(`[Bilibili] Total size: ${totalSize} bytes`);
       
       response.on('data', (chunk) => {
         downloaded += chunk.length;
-        if (total > 0 && onProgress) {
-          onProgress(Math.floor((downloaded / total) * 100));
+        if (totalSize > 0 && onProgress) {
+          onProgress(Math.floor((downloaded / totalSize) * 100));
         }
+      });
+      
+      response.on('error', (err) => {
+        file.close();
+        fs.unlink(outputPath, () => {});
+        reject(err);
       });
       
       response.pipe(file);
       file.on('finish', () => {
         file.close();
+        console.log(`[Bilibili] Download complete: ${outputPath}`);
         resolve();
       });
     }).on('error', (err) => {
+      file.close();
       fs.unlink(outputPath, () => {});
+      console.log(`[Bilibili] Download error: ${err.message}`);
       reject(err);
     });
   });
@@ -75,20 +117,32 @@ async function parseBilibili(url, taskId, onProgress) {
   console.log(`[Bilibili] Title: ${title}, CID: ${cid}`);
   if (onProgress) onProgress(15);
 
-  // 获取播放地址
-  const playData = await fetchUrl(`https://api.bilibili.com/x/player/playurl?bvid=${bvid}&cid=${cid}&qn=80&fnval=0`);
+  // 获取播放地址 - 使用 fnval=1 获取更多格式
+  const playData = await fetchUrl(`https://api.bilibili.com/x/player/playurl?bvid=${bvid}&cid=${cid}&qn=80&fnval=1&fnver=1`);
   const play = JSON.parse(playData);
   
   if (play.code !== 0) {
     throw new Error(play.message || 'Failed to get play URL');
   }
   
+  // 尝试从新格式获取 URL
+  let videoUrl = '';
   const durl = play.data.durl;
-  if (!durl || durl.length === 0) {
+  if (durl && durl.length > 0) {
+    videoUrl = durl[0].url;
+  } else if (play.data.dash) {
+    // 新格式：dash
+    const dash = play.data.dash;
+    if (dash.video) {
+      videoUrl = dash.video[0].baseUrl;
+    }
+  }
+  
+  if (!videoUrl) {
     throw new Error('No download URL found');
   }
   
-  let videoUrl = durl[0].url;
+  console.log(`[Bilibili] Video URL: ${videoUrl.substring(0, 80)}...`);
   console.log(`[Bilibili] Got play URL`);
   if (onProgress) onProgress(25);
 
