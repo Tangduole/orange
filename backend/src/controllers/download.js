@@ -103,6 +103,15 @@ async function createDownload(req, res) {
       return res.json({ code: 0, data: { taskId, status: 'pending', platform: 'xiaohongshu' } });
     }
 
+    // Bilibili 链接：走 TikHub API
+    if (/bilibili\.com|b23\.tv/i.test(url)) {
+      processBilibili(taskId, url, wantsAsr, normalizedOptions).catch(err => {
+        console.error(`[task] ${taskId} bilibili failed:`, err);
+        store.update(taskId, { status: 'error', progress: 0, error: err.message });
+      });
+      return res.json({ code: 0, data: { taskId, status: 'pending', platform: 'bilibili' } });
+    }
+
     // 其他平台：走 yt-dlp
     processDownload(taskId, url, wantsAsr, normalizedOptions, quality).catch(err => {
       console.error(`[task] ${taskId} failed:`, err);
@@ -434,6 +443,42 @@ async function processXiaohongshu(taskId, url, needAsr, options = ['video']) {
     console.log(`[task] ${taskId} xiaohongshu completed`);
   } catch (error) {
     console.error(`[task] ${taskId} xiaohongshu failed:`, error);
+    store.update(taskId, { status: 'error', error: error.message });
+  }
+}
+
+/**
+ * 处理 Bilibili 下载 (TikHub API)
+ */
+async function processBilibili(taskId, url, needAsr, options = ['video']) {
+  try {
+    const { parseBilibili } = require('../services/tikhub');
+    store.update(taskId, { status: 'parsing', progress: 5 });
+
+    const result = await parseBilibili(url, taskId, (percent) => {
+      store.update(taskId, {
+        status: percent < 20 ? 'parsing' : 'downloading',
+        progress: percent
+      });
+    });
+
+    const update = {
+      status: 'completed',
+      progress: 100,
+      title: result.title,
+      thumbnailUrl: result.thumbnailUrl,
+    };
+
+    if (result.filePath) {
+      update.filePath = result.filePath;
+      update.ext = result.ext;
+      update.downloadUrl = `/download/${path.basename(result.filePath)}`;
+    }
+
+    store.update(taskId, update);
+    console.log(`[task] ${taskId} bilibili completed`);
+  } catch (error) {
+    console.error(`[task] ${taskId} bilibili failed:`, error);
     store.update(taskId, { status: 'error', error: error.message });
   }
 }
