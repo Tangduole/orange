@@ -33,6 +33,9 @@ function download(url, taskId, onProgress, quality = null) {
     const outputTemplate = path.join(DOWNLOAD_DIR, `${taskId}.%(ext)s`);
     const thumbnailPath = path.join(DOWNLOAD_DIR, `${taskId}_thumb.jpg`);
 
+    // 判断是否为 Bilibili
+    const isBilibili = /bilibili\.com|b23\.tv/i.test(url);
+    
     const args = [
       '--no-warnings',
       '--newline',              // 每行输出用于解析进度
@@ -42,18 +45,30 @@ function download(url, taskId, onProgress, quality = null) {
       '--fragment-retries', '5',
       '--socket-timeout', '60',
       '--no-check-certificates',
-      '--extractor-args', 'youtube:player_client=android',
+    ];
+    
+    // YouTube 专用参数
+    if (/youtube\.com|youtu\.be/i.test(url)) {
+      args.push('--extractor-args', 'youtube:player_client=android');
+    }
+    
+    // Bilibili 专用参数
+    if (isBilibili) {
+      args.push('--referer', 'https://www.bilibili.com');
+      args.push('--extractor-args', 'bilibili:prefer_multi_flv=true');
+    }
+    
+    args.push(
       '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       '--format', quality || 'best[ext=mp4]/best',
       '--write-thumbnail',      // 下载封面
       '--write-auto-subs',      // 下载自动字幕
       '--sub-langs', 'zh-Hans,zh-Hant,en',
       '--sub-format', 'srt',
-      '--no-check-certificates',
       '--output', outputTemplate,
       '--merge-output-format', 'mp4',
       url
-    ];
+    );
 
     console.log(`[yt-dlp] Starting download: ${url} (taskId: ${taskId})`);
 
