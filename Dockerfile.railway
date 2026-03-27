@@ -11,8 +11,8 @@ RUN apk add --no-cache \
     curl \
     bash
 
-# Install yt-dlp
-RUN pip3 install --break-system-packages yt-dlp
+# Install latest yt-dlp
+RUN pip3 install --break-system-packages --upgrade yt-dlp
 
 # Copy backend files
 COPY backend/package*.json ./
