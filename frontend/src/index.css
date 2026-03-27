@@ -7,18 +7,14 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
-/* 跑马灯动画 - 悬浮时才开始 */
+/* 跑马灯动画 - 自动播放 */
 @keyframes marquee {
   0% { transform: translateX(0); }
   100% { transform: translateX(-50%); }
 }
 
 .animate-marquee {
+  animation: marquee 20s linear infinite;
   display: inline-block;
   min-width: 100%;
-}
-
-/* 长标题悬浮时才跑马灯 */
-.group:hover .animate-marquee {
-  animation: marquee 15s linear infinite;
 }

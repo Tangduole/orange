@@ -132,6 +132,56 @@ export default function App() {
   const [batchMode, setBatchMode] = useState(false)
   const [quality, setQuality] = useState('best[ext=mp4]/best')
   const [batchUrls, setBatchUrls] = useState('')
+
+  // 从文本中提取所有链接
+  const extractUrls = (text: string): string[] => {
+    // 通用 URL 正则（支持所有平台）
+    const urlRegex = /(?:https?:\/\/|twitter\.com\/|x\.com\/|youtube\.com\/|youtu\.be\/|v\.douyin\.com\/|v\.kuaishou\.com\/|xhslink\.com\/|vt\.tiktok\.com\/|vm\.tiktok\.com\/|b23\.tv\/|bilibili\.com\/|instagram\.com\/)[^\s\n,，、；;）)】"']+/g
+    
+    let matches = text.match(urlRegex) || []
+    
+    // 清理和补全
+    const urls = matches.map(u => {
+      // 移除末尾的标点符号
+      let cleaned = u.trim().replace(/[，。、,.\s;；）)】"']+$/g, '')
+      // 补全短链
+      if (!cleaned.startsWith('http')) {
+        cleaned = `https://${cleaned}`
+      }
+      return cleaned
+    })
+    
+    // 去重
+    return [...new Set(urls)]
+  }
+
+  // 处理粘贴事件 - 自动提取链接并追加
+  const handleBatchPaste = (e: React.ClipboardEvent) => {
+    e.preventDefault()
+    const pastedText = e.clipboardData.getData('text')
+    const newUrls = extractUrls(pastedText)
+    
+    if (newUrls.length > 0) {
+      // 获取现有链接（去除数字前缀）
+      const existingUrls = batchUrls.split('\n')
+        .map(line => line.replace(/^\d+\.\s*/, '').trim())
+        .filter(u => u && extractUrls(u).length > 0)
+      
+      // 去重并追加
+      const allUrls = [...existingUrls]
+      for (const url of newUrls) {
+        if (!allUrls.includes(url)) {
+          allUrls.push(url)
+        }
+      }
+      
+      // 添加数字排序
+      setBatchUrls(allUrls.map((url, idx) => `${idx + 1}. ${url}`).join('\n'))
+    } else {
+      // 没有链接，追加原文
+      setBatchUrls(prev => prev ? prev + '\n' + pastedText : pastedText)
+    }
+  }
   const [batchQueue, setBatchQueue] = useState<Array<{url: string, status: string, progress: number, title?: string}>>([])
   const [batchIndex, setBatchIndex] = useState(0)
   const [saveLocation, setSaveLocation] = useState<string>('album')
@@ -155,41 +205,95 @@ export default function App() {
     documents: { label: 'Documents', icon: FolderOpen, desc: '保存到Documents文件夹' },
   }
 
-  // Poll task status + 批量处理
+  // 批量下载：自动处理下一个（完成或失败都继续）
   useEffect(() => {
-    if (!task || task.status === 'completed' || task.status === 'error') {
-      // 如果是批量模式且有队列中的下一G
-      if (task?.status === 'completed' && batchMode && batchQueue.length > 0 && batchIndex < batchQueue.length - 1) {
-        const nextIndex = batchIndex + 1
-        const nextUrl = batchQueue[nextIndex].url
-        setBatchIndex(nextIndex)
-        setLoading(true)
-        axios.post(`${API}/download`, {
-          url: nextUrl, platform: detectPlatform(nextUrl) || 'auto',
-          needAsr: selected.has('asr'), options: [...selected], quality,
-        }, { timeout: 120000 }).then(r => {
-          setTask(r.data.data)
-        }).catch(() => {
-          setError(getErrorMessage('Batch download failed'))
-        }).finally(() => setLoading(false))
+    if ((task?.status === 'completed' || task?.status === 'error') && batchMode && batchQueue.length > 0) {
+      // 更新当前任务状态
+      setBatchQueue(prev => prev.map((item, idx) => 
+        idx === batchIndex ? { ...item, status: task.status } : item
+      ))
+      
+      // 完成后从链接框删除已处理的链接
+      if (task?.status === 'completed') {
+        setBatchUrls(prev => {
+          const lines = prev.split('\n').filter(u => u.trim())
+          lines.shift()
+          return lines.join('\n')
+        })
       }
-      return
+      
+      const currentIdx = batchIndex
+      const nextIdx = currentIdx + 1
+      if (nextIdx < batchQueue.length) {
+        const nextUrl = batchQueue[nextIdx].url
+        
+        setTimeout(() => {
+          setBatchIndex(nextIdx)
+          setLoading(true)
+          setUrl(nextUrl)
+          axios.post(`${API}/download`, {
+            url: nextUrl, platform: detectPlatform(nextUrl) || 'auto',
+            needAsr: selected.has('asr'), options: [...selected], quality,
+          }, { timeout: 180000 }).then(r => {
+            setTask(r.data.data)
+          }).catch((e) => {
+            console.error('[batch] 下载失败:', e.message)
+            setTask({ 
+              taskId: `error-${Date.now()}`, 
+              status: 'error', 
+              progress: 0, 
+              error: e.response?.data?.message || e.message || 'Download failed',
+              createdAt: Date.now()
+            })
+          }).finally(() => setLoading(false))
+        }, 3000)
+      } else {
+        // 所有任务完成 - 保留队列显示结果
+        setLoading(false)
+      }
     }
+  }, [task?.status, batchMode])
+
+  // Poll task status
+  useEffect(() => {
+    if (!task || ['completed', 'error'].includes(task.status)) return
     const t = setInterval(async () => {
       try {
         const r = await axios.get(`${API}/status/${task.taskId}`)
         if (r.data.data) {
           setTask(r.data.data)
-          if (['completed', 'error'].includes(r.data.data.status)) { clearInterval(t); fetchHistory() }
+          if (['completed', 'error'].includes(r.data.data.status)) { 
+            clearInterval(t)
+            fetchHistory()
+          }
         }
       } catch {}
     }, 1500)
     return () => clearInterval(t)
-  }, [task, batchMode, batchQueue, batchIndex])
+  }, [task?.taskId])
 
-  // 自动下载：当下载完成时自动触发保存
+  // 播放提示音
+  const playNotificationSound = () => {
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+      const oscillator = audioContext.createOscillator()
+      const gainNode = audioContext.createGain()
+      oscillator.connect(gainNode)
+      gainNode.connect(audioContext.destination)
+      oscillator.frequency.value = 800
+      oscillator.type = 'sine'
+      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3)
+      oscillator.start(audioContext.currentTime)
+      oscillator.stop(audioContext.currentTime + 0.3)
+    } catch {}
+  }
+
+  // 自动下载：当下载完成时自动触发保存 + 播放提示音
   useEffect(() => {
     if (task?.status === 'completed' && task.downloadUrl && !downloading) {
+      // 播放提示音
+      playNotificationSound()
       // 延迟 500ms 后自动下载
       const timer = setTimeout(() => {
         setDownloading(true)
@@ -209,14 +313,52 @@ export default function App() {
   useEffect(() => { fetchHistory() }, [fetchHistory])
 
   const handleUrlChange = (value: string) => {
-    setUrl(value)
-    setDetected(value.trim() ? detectPlatform(value) : '')
+    // 检测是否有嵌入文字的链接
+    const urls = extractUrls(value)
+    if (urls.length === 1 && urls[0] !== value.trim()) {
+      // 提取到链接且与原文不同 → 使用提取的链接
+      setUrl(urls[0])
+      setDetected(detectPlatform(urls[0]))
+    } else {
+      setUrl(value)
+      setDetected(value.trim() ? detectPlatform(value) : '')
+    }
+  }
+
+  // 单个输入框粘贴处理 - 自动提取链接
+  const handleSinglePaste = (e: React.ClipboardEvent) => {
+    const pastedText = e.clipboardData.getData('text')
+    const urls = extractUrls(pastedText)
+    if (urls.length > 1) {
+      // 多个链接 → 切换批量模式
+      e.preventDefault()
+      setBatchMode(true)
+      setBatchUrls(urls.join('\n'))
+    } else if (urls.length === 1) {
+      // 单个链接 → 提取链接，去除文字
+      e.preventDefault()
+      setUrl(urls[0])
+      setDetected(detectPlatform(urls[0]))
+    }
+    // 没有链接则使用默认粘贴行为
+  }
+
+  // 批量输入框变化处理 - 智能追加
+  // 批量输入变化处理 - 允许自由编辑
+  const handleBatchChange = (value: string) => {
+    setBatchUrls(value)
   }
 
   const handleSubmit = async () => {
     // 批量模式
     if (batchMode) {
-      const urls = batchUrls.split('\n').map(u => u.trim()).filter(u => u)
+      // 提取纯链接（去除数字前缀）
+      const urls = batchUrls.split('\n')
+        .map(u => u.trim())
+        .filter(u => u)
+        .map(u => u.replace(/^\d+\.\s*/, '')) // 移除数字前缀
+        .map(u => extractUrls(u)[0] || u) // 提取链接
+        .filter(u => u)
       if (urls.length === 0) { setError('Please enter a video link'); return }
       setBatchQueue(urls.map(u => ({ url: u, status: 'pending', progress: 0 })))
       setBatchIndex(0)
@@ -342,6 +484,7 @@ export default function App() {
                     type="url"
                     value={url}
                     onChange={(e) => handleUrlChange(e.target.value)}
+                    onPaste={handleSinglePaste}
                     placeholder="Paste video link..."
                     className="w-full pl-10 pr-10 py-4 bg-slate-900/60 border-2 border-slate-600/50 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 outline-none text-white text-base transition-all placeholder:text-slate-500"
                   />
@@ -371,25 +514,31 @@ export default function App() {
                 {/* 粘贴区域 */}
                 <textarea
                   value={batchUrls}
-                  onChange={(e) => setBatchUrls(e.target.value)}
-                  placeholder="Paste multiple video links, one per line：&#10;https://v.douyin.com/xxx&#10;https://v.douyin.com/yyy&#10;https://x.com/zzz"
+                  onChange={(e) => handleBatchChange(e.target.value)}
+                  onPaste={handleBatchPaste}
+                  placeholder="Paste links (auto-extract) or type one per line：&#10;https://v.douyin.com/xxx&#10;https://x.com/yyy"
                   className="w-full h-28 px-4 py-3 bg-slate-900/60 border-2 border-slate-600/50 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 outline-none text-white text-sm transition-all placeholder:text-slate-500 resize-none"
                 />
-                {/* 链接预览列表 */}
+                {/* 链接预览列表 - 带数字排序 */}
                 {batchUrls.split('\n').filter(u => u.trim()).length > 0 && (
                   <div className="mt-2 max-h-48 overflow-y-auto space-y-1.5">
                     {batchUrls.split('\n').filter(u => u.trim()).map((url, idx) => {
-                      const platform = detectPlatform(url)
-                      const platformIcon = PLATFORMS.find(p => p.id === platform)?.icon || '🔗'
+                      // 去除数字前缀获取纯链接
+                      const cleanUrl = url.replace(/^\d+\.\s*/, '').trim()
+                      // 截取显示
+                      const displayUrl = cleanUrl.replace(/^https?:\/\//, '')
+                      const shortUrl = displayUrl.length > 35 
+                        ? displayUrl.substring(0, 20) + '...' + displayUrl.substring(displayUrl.length - 10)
+                        : displayUrl
                       return (
                         <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-slate-700/30 rounded-xl border border-slate-700/60">
-                          <span className="text-sm">{platformIcon}</span>
-                          <span className="flex-1 text-xs text-slate-500 truncate" title={url}>{url}</span>
+                          <span className="text-xs text-slate-500">{idx + 1}.</span>
+                          <span className="flex-1 text-xs text-slate-400 truncate" title={cleanUrl}>{shortUrl}</span>
                           <button
                             onClick={() => {
                               const lines = batchUrls.split('\n')
                               lines.splice(idx, 1)
-                              setBatchUrls(lines.join('\n'))
+                              setBatchUrls(lines.filter(l => l.trim()).join('\n'))
                             }}
                             className="text-slate-600 hover:text-red-400 transition"
                           >
@@ -494,23 +643,44 @@ export default function App() {
             {/* 批量进度提示 */}
             {/* Batch progress indicator */}
             {/* Batch Progress 批量进度 */}
-            {batchMode && batchQueue.length > 0 && loading && (
+            {batchMode && batchQueue.length > 0 && (
               <div className="mb-3 bg-slate-900/60 rounded-xl border border-slate-700/60 overflow-hidden">
-                <div className="px-4 py-2 border-b border-slate-700/60">
+                <div className="px-4 py-2 border-b border-slate-700/60 flex justify-between items-center">
                   <p className="text-xs text-slate-400">
-                    Batch: {batchIndex + 1} / {batchQueue.length}
+                    Batch Queue: {batchQueue.length} items
                   </p>
+                  {loading && <span className="text-xs text-orange-400">Processing {batchIndex + 1}/{batchQueue.length}</span>}
                 </div>
-                <div className="max-h-32 overflow-y-auto">
-                  {batchQueue.map((item, idx) => (
-                    <div key={idx} className={`flex items-center gap-2 px-4 py-2 ${idx === batchIndex ? 'bg-orange-500/10' : ''}`}>
-                      <span className="text-xs text-slate-500 w-6">{idx + 1}.</span>
-                      <span className="text-xs text-slate-400 truncate flex-1">{item.url.substring(0, 40)}...</span>
-                      {idx < batchIndex && <span className="text-xs text-emerald-400">✓</span>}
-                      {idx === batchIndex && <Loader2 className="w-3 h-3 text-orange-400 animate-spin" />}
-                      {idx > batchIndex && <span className="text-xs text-slate-600">⏳</span>}
-                    </div>
-                  ))}
+                <div className="max-h-40 overflow-y-auto">
+                  {batchQueue.map((item, idx) => {
+                    let statusIcon = <span className="text-xs text-slate-600">⏳</span>
+                    let statusClass = ''
+                    
+                    if (item.status === 'completed') {
+                      statusIcon = <span className="text-xs text-emerald-400">✓</span>
+                      statusClass = 'opacity-50'
+                    } else if (item.status === 'error') {
+                      statusIcon = <span className="text-xs text-red-400">✗</span>
+                      statusClass = 'opacity-50'
+                    } else if (idx === batchIndex && loading) {
+                      statusIcon = <Loader2 className="w-3 h-3 text-orange-400 animate-spin" />
+                      statusClass = 'bg-orange-500/10'
+                    }
+                    
+                    const platform = detectPlatform(item.url)
+                    const icon = PLATFORMS.find(p => p.id === platform)?.icon || '🔗'
+                    
+                    return (
+                      <div key={idx} className={`flex items-center gap-2 px-4 py-2 border-b border-slate-700/20 last:border-0 ${statusClass}`}>
+                        <span className="text-xs text-slate-500 w-5">{idx + 1}.</span>
+                        <span className="text-sm">{icon}</span>
+                        <span className="text-xs text-slate-400 truncate flex-1" title={item.url}>
+                          {item.url.replace(/^https?:\/\//, '').substring(0, 35)}...
+                        </span>
+                        {statusIcon}
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             )}
@@ -551,7 +721,7 @@ export default function App() {
                 <div className="space-y-2">
                   <div className="w-full h-2.5 bg-slate-700/50 rounded-full overflow-hidden">
                     <div 
-                      className="h-full bg-gradient-to-r from-orange-500 to-amber-400 rounded-full transition-all duration-500"
+                      className="h-full bg-orange-500 rounded-full transition-all duration-500"
                       style={{ width: `${task.progress}%` }}
                     />
                   </div>
@@ -713,7 +883,11 @@ export default function App() {
                       <div className="flex-1 min-w-0">
                         {/* 标题 - 长标题才跑马灯 */}
                         <div className="overflow-hidden">
-                          <p className={`text-sm text-slate-600 font-medium whitespace-nowrap ${(item.title || '').length > 20 ? 'animate-marquee' : 'truncate'}`}>{item.title || 'Untitled'}</p>
+                          <div className="overflow-hidden">
+                            <p className={`text-sm text-slate-600 font-medium whitespace-nowrap ${(item.title || '').length > 20 ? 'animate-marquee' : 'truncate'}`}>
+                              {(item.title || '').length > 20 ? <>{item.title}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{item.title}</> : (item.title || 'Untitled')}
+                            </p>
+                          </div>
                         </div>
                         <div className="flex items-center gap-2 mt-0.5">
                           {item.platform && <span className="text-xs text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded">{platformLabel(item.platform)}</span>}
