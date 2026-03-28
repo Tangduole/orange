@@ -86,9 +86,9 @@ async function createDownload(req, res) {
       return res.json({ code: 0, data: { taskId, status: 'pending', platform: finalPlatform } });
     }
 
-    // YouTube 链接：走 TikHub API
+    // YouTube 链接：走 yt-dlp
     if (/youtube\.com|youtu\.be/i.test(url)) {
-      processYouTube(taskId, url, wantsAsr, normalizedOptions, quality).catch(err => {
+      processDownload(taskId, url, wantsAsr, normalizedOptions, quality).catch(err => {
         console.error(`[task] ${taskId} youtube failed:`, err);
         store.update(taskId, { status: 'error', progress: 0, error: err.message });
       });
@@ -370,15 +370,15 @@ async function processX(taskId, url, needAsr, options = ['video']) {
  */
 async function processYouTube(taskId, url, needAsr, options = ['video'], quality = null) {
   try {
-    const { downloadYouTubeViaAPI } = require('../services/tikhub');
+    const { parseYouTube } = require('../services/tikhub');
     store.update(taskId, { status: 'parsing', progress: 5 });
 
-    const result = await downloadYouTubeViaAPI(url, taskId, (percent) => {
+    const result = await parseYouTube(url, taskId, (percent) => {
       store.update(taskId, {
         status: percent < 20 ? 'parsing' : 'downloading',
         progress: percent
       });
-    }, quality);
+    });
 
     const update = {
       status: 'completed',

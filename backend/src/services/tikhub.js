@@ -423,4 +423,4 @@ function downloadFile(url, outputPath, onProgress, headers = {}) {
   });
 }
 
-module.exports = { parseYouTube, parseXiaohongshu, tikhubRequest, downloadYouTubeViaAPI };
+module.exports = { parseYouTube, parseXiaohongshu, tikhubRequest };
