@@ -102,7 +102,7 @@ const OPTIONS: { id: string; label: string; icon: typeof Video }[] = [
 ]
 
 const QUALITY_OPTIONS = [
-  { value: 'best[ext=mp4]/best', label: 'Best 最高画质' },
+  { value: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', label: 'Best 最高画质' },
   { value: 'bestvideo[height<=2160]+bestaudio/best[height<=2160]', label: '4K' },
   { value: 'bestvideo[height<=1440]+bestaudio/best[height<=1440]', label: '2K' },
   { value: 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]', label: '1080p' },
@@ -136,7 +136,7 @@ export default function App() {
   const [showHistory, setShowHistory] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
   const [batchMode, setBatchMode] = useState(false)
-  const [quality, setQuality] = useState('best[ext=mp4]/best')
+  const [quality, setQuality] = useState('bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best')
   const [availableQualities, setAvailableQualities] = useState<Array<{quality: string, format: string, width: number, height: number, hasVideo: boolean, hasAudio: boolean}>>([])
   const [showQualityPicker, setShowQualityPicker] = useState(false)
   const [pendingUrl, setPendingUrl] = useState('')

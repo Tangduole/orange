@@ -60,7 +60,7 @@ function download(url, taskId, onProgress, quality = null) {
     
     args.push(
       '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      '--format', quality || 'best[ext=mp4]/best',
+      '--format', quality || 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
       '--write-thumbnail',      // 下载封面
       '--write-auto-subs',      // 下载自动字幕
       '--sub-langs', 'zh-Hans,zh-Hant,en',
