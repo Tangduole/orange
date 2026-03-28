@@ -104,14 +104,7 @@ async function createDownload(req, res) {
     }
 
     // Bilibili 链接：走 Bilibili API
-    if (/bilibili\.com|b23\.tv/i.test(url)) {
-      console.log(`[download] Bilibili URL detected: ${url}`);
-      processBilibili(taskId, url, wantsAsr, normalizedOptions).catch(err => {
-        console.error(`[task] ${taskId} bilibili failed:`, err);
-        store.update(taskId, { status: 'error', progress: 0, error: err.message });
-      });
-      return res.json({ code: 0, data: { taskId, status: 'pending', platform: 'bilibili' } });
-    }
+
 
     // 其他平台：走 yt-dlp
     processDownload(taskId, url, wantsAsr, normalizedOptions, quality).catch(err => {
@@ -449,42 +442,6 @@ async function processXiaohongshu(taskId, url, needAsr, options = ['video']) {
 }
 
 /**
- * 处理 Bilibili 下载 (Bilibili API - 免费)
- */
-async function processBilibili(taskId, url, needAsr, options = ['video']) {
-  try {
-    const { parseBilibili } = require('../services/bilibili');
-    store.update(taskId, { status: 'parsing', progress: 5 });
-
-    const result = await parseBilibili(url, taskId, (percent) => {
-      store.update(taskId, {
-        status: percent < 20 ? 'parsing' : 'downloading',
-        progress: percent
-      });
-    });
-
-    const update = {
-      status: 'completed',
-      progress: 100,
-      title: result.title,
-      thumbnailUrl: result.thumbnailUrl,
-    };
-
-    if (result.filePath) {
-      update.filePath = result.filePath;
-      update.ext = result.ext;
-      update.downloadUrl = `/download/${path.basename(result.filePath)}`;
-    }
-
-    store.update(taskId, update);
-    console.log(`[task] ${taskId} bilibili completed`);
-  } catch (error) {
-    console.error(`[task] ${taskId} bilibili failed:`, error);
-    store.update(taskId, { status: 'error', error: error.message });
-  }
-}
-
-/**
  * 平台自动识别
  */
 function detectPlatform(url) {
@@ -493,7 +450,7 @@ function detectPlatform(url) {
     tiktok: /tiktok\.com|tiktok\.cn/,
     x: /twitter\.com|x\.com/,
     youtube: /youtube\.com|youtu\.be/,
-    bilibili: /bilibili\.com|b23\.tv/,
+
     kuaishou: /kuaishou\.com|v\.kuaishou\.com/
   };
 
@@ -607,6 +564,86 @@ function clearHistory(req, res) {
   res.json({ code: 0, message: '已清除所有记录' });
 }
 
+/**
+ * 获取视频信息和可用画质
+ */
+async function getVideoInfo(req, res) {
+  try {
+    const { url } = req.body;
+    if (!url) return res.status(400).json({ code: -1, message: 'URL required' });
+    
+    const platform = detectPlatform(url);
+    
+    if (platform === 'youtube') {
+      const videoIdMatch = url.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/);
+      if (!videoIdMatch) return res.status(400).json({ code: -1, message: 'Invalid YouTube URL' });
+      
+      const API_KEY_YT = 'lrwNPvEUzE2ph0K5Oces5Q/RNRHRZ5tTzTTogR7aU/mj1li7O0XfZgWPCQ==';
+      const axios = require('axios');
+      const { data } = await axios.get(
+        `https://api.tikhub.io/api/v1/youtube/web/get_video_info?video_id=${videoIdMatch[1]}`,
+        { headers: { Authorization: `Bearer ${API_KEY_YT}` }, timeout: 30000 }
+      );
+      
+      const videos = data.videos?.items || [];
+      const qualities = videos
+        .filter(v => v.url) // Only include formats with download URLs
+        .map(v => ({
+          quality: v.qualityLabel || v.quality || 'unknown',
+          format: v.mimeType?.split(';')[0] || 'video/mp4',
+          width: v.width || 0,
+          height: v.height || 0,
+          hasVideo: v.hasVideo !== false,
+          hasAudio: v.hasAudio !== false,
+          size: v.contentLength || 0
+        }))
+        .sort((a, b) => (b.height || 0) - (a.height || 0)); // Sort by height descending
+      
+      // Add audio-only option if available
+      const audioOnly = videos.filter(v => !v.hasVideo && v.url);
+      if (audioOnly.length > 0) {
+        qualities.push({
+          quality: 'Audio Only',
+          format: 'audio/mp4',
+          width: 0,
+          height: 0,
+          hasVideo: false,
+          hasAudio: true,
+          size: audioOnly[0].contentLength || 0
+        });
+      }
+      
+      return res.json({
+        code: 0,
+        data: {
+          title: data.title || 'YouTube Video',
+          thumbnail: data.thumbnails?.[0]?.url || '',
+          duration: data.lengthSeconds ? parseInt(data.lengthSeconds) : 0,
+          platform: 'youtube',
+          qualities
+        }
+      });
+    }
+    
+    // For other platforms, return default quality
+    return res.json({
+      code: 0,
+      data: {
+        title: 'Video',
+        thumbnail: '',
+        duration: 0,
+        platform: platform || 'auto',
+        qualities: [
+          { quality: 'Best', format: 'video/mp4', width: 0, height: 0, hasVideo: true, hasAudio: true }
+        ]
+      }
+    });
+  } catch (e) {
+    console.error('[video-info] Error:', e.message);
+    return res.status(500).json({ code: -1, message: e.message });
+  }
+}
+
 module.exports = {
   createDownload,
   getInfo,
@@ -615,6 +652,7 @@ module.exports = {
   getSystemStatus,
   deleteTask,
   clearHistory,
-  detectPlatform
+  detectPlatform,
+  getVideoInfo
 };
 // force redeploy Thu Mar 26 13:57:07 CST 2026

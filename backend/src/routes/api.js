@@ -10,7 +10,8 @@ const {
   getHistory,
   getSystemStatus,
   deleteTask,
-  clearHistory
+  clearHistory,
+  getVideoInfo
 } = require('../controllers/download');
 
 const router = express.Router();
@@ -20,6 +21,7 @@ router.post('/download', createDownload);
 
 // 获取视频信息（不下载）
 router.get('/info', getInfo);
+router.post('/video-info', getVideoInfo);
 
 // 查询任务状态
 router.get('/status/:taskId', getStatus);

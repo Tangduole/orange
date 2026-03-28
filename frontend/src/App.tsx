@@ -87,7 +87,7 @@ const PLATFORMS = [
   { id: 'tiktok', label: 'TikTok', icon: '🎵' },
   { id: 'youtube', label: 'YouTube', icon: '▶️' },
   { id: 'x', label: 'X/Twitter', icon: '🐦' },
-  { id: 'bilibili', label: 'Bilibili', icon: '📺' },
+  // { id: 'bilibili', label: 'Bilibili', icon: '📺' },
   { id: 'instagram', label: 'Instagram', icon: '📸' },
   { id: 'xiaohongshu', label: '小紅書', icon: '📕' },
 ]
@@ -112,7 +112,7 @@ function detectPlatform(url: string): string {
   if (/tiktok\.com/i.test(url)) return 'tiktok'
   if (/youtube\.com|youtu\.be/i.test(url)) return 'youtube'
   if (/twitter\.com|x\.com/i.test(url)) return 'x'
-  if (/bilibili\.com|b23\.tv/i.test(url)) return 'bilibili'
+  // if (/bilibili\.com|b23\.tv/i.test(url)) return 'bilibili'
   if (/instagram\.com/i.test(url)) return 'instagram'
   if (/xiaohongshu\.com|xhslink\.com/i.test(url)) return 'xiaohongshu'
   return ''
@@ -125,18 +125,24 @@ export default function App() {
   const [task, setTask] = useState<Task | null>(null)
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [loading, setLoading] = useState(false)
+  const [showDupConfirm, setShowDupConfirm] = useState(false)
+  const [dupUrl, setDupUrl] = useState('')
+  const [pendingDownload, setPendingDownload] = useState<(() => void) | null>(null)
   const [downloading, setDownloading] = useState(false)
   const [error, setError] = useState('')
   const [showHistory, setShowHistory] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
   const [batchMode, setBatchMode] = useState(false)
   const [quality, setQuality] = useState('best[ext=mp4]/best')
+  const [availableQualities, setAvailableQualities] = useState<Array<{quality: string, format: string, width: number, height: number, hasVideo: boolean, hasAudio: boolean}>>([])
+  const [showQualityPicker, setShowQualityPicker] = useState(false)
+  const [pendingUrl, setPendingUrl] = useState('')
   const [batchUrls, setBatchUrls] = useState('')
 
   // 从文本中提取所有链接
   const extractUrls = (text: string): string[] => {
-    // 通用 URL 正则（支持所有平台）
-    const urlRegex = /(?:https?:\/\/|twitter\.com\/|x\.com\/|youtube\.com\/|youtu\.be\/|v\.douyin\.com\/|v\.kuaishou\.com\/|xhslink\.com\/|vt\.tiktok\.com\/|vm\.tiktok\.com\/|b23\.tv\/|bilibili\.com\/|instagram\.com\/)[^\s\n,，、；;）)】"']+/g
+    // 更宽松的 URL 正则
+    const urlRegex = /https?:\/\/[^\s\n,，、；;）)】"']+/g
     
     let matches = text.match(urlRegex) || []
     
@@ -155,33 +161,7 @@ export default function App() {
     return [...new Set(urls)]
   }
 
-  // 处理粘贴事件 - 自动提取链接并追加
-  const handleBatchPaste = (e: React.ClipboardEvent) => {
-    e.preventDefault()
-    const pastedText = e.clipboardData.getData('text')
-    const newUrls = extractUrls(pastedText)
-    
-    if (newUrls.length > 0) {
-      // 获取现有链接（去除数字前缀）
-      const existingUrls = batchUrls.split('\n')
-        .map(line => line.replace(/^\d+\.\s*/, '').trim())
-        .filter(u => u && extractUrls(u).length > 0)
-      
-      // 去重并追加
-      const allUrls = [...existingUrls]
-      for (const url of newUrls) {
-        if (!allUrls.includes(url)) {
-          allUrls.push(url)
-        }
-      }
-      
-      // 添加数字排序
-      setBatchUrls(allUrls.map((url, idx) => `${idx + 1}. ${url}`).join('\n'))
-    } else {
-      // 没有链接，追加原文
-      setBatchUrls(prev => prev ? prev + '\n' + pastedText : pastedText)
-    }
-  }
+  // 处理粘贴事件 - 自动提取链接
   const [batchQueue, setBatchQueue] = useState<Array<{url: string, status: string, progress: number, title?: string}>>([])
   const [batchIndex, setBatchIndex] = useState(0)
   const [saveLocation, setSaveLocation] = useState<string>('album')
@@ -328,12 +308,12 @@ export default function App() {
   // 单个输入框粘贴处理 - 自动提取链接
   const handleSinglePaste = (e: React.ClipboardEvent) => {
     const pastedText = e.clipboardData.getData('text')
-    const urls = extractUrls(pastedText)
+    const urls = pastedText.match(/https?:\/\/[^\s\n,，、；;）)】"']+/g) || []
     if (urls.length > 1) {
       // 多个链接 → 切换批量模式
       e.preventDefault()
       setBatchMode(true)
-      setBatchUrls(urls.join('\n'))
+      setBatchUrls(urls.map((url, idx) => `${idx + 1}. ${url}`).join('\n'))
     } else if (urls.length === 1) {
       // 单个链接 → 提取链接，去除文字
       e.preventDefault()
@@ -343,43 +323,105 @@ export default function App() {
     // 没有链接则使用默认粘贴行为
   }
 
-  // 批量输入框变化处理 - 智能追加
-  // 批量输入变化处理 - 允许自由编辑
+  // 批量输入变化处理 - 自动提取链接
   const handleBatchChange = (value: string) => {
-    setBatchUrls(value)
+    // 先在每个 https:// 前插入换行（除了第一个）
+    let processed = value.replace(/(?<!^)https:\/\//g, '\nhttps://')
+    
+    // 提取所有链接
+    const urlRegex = /https?:\/\/[^\s\n,，、；;）)】"']+/g
+    const urls = processed.match(urlRegex) || []
+    
+    if (urls.length > 0) {
+      // 去重、排序、换行
+      const unique = [...new Set(urls)]
+      setBatchUrls(unique.map((url, i) => `${i + 1}. ${url}`).join('\n'))
+    } else {
+      setBatchUrls(value)
+    }
+  }
+
+  const fetchVideoQualities = async (videoUrl: string) => {
+    try {
+      const r = await axios.post(`${API}/video-info`, { url: videoUrl }, { timeout: 30000 })
+      if (r.data.code === 0 && r.data.data.qualities.length > 1) {
+        setAvailableQualities(r.data.data.qualities)
+        setPendingUrl(videoUrl)
+        setShowQualityPicker(true)
+        return true
+      }
+    } catch (e) {
+      console.log('[quality] Failed to fetch qualities, using default')
+    }
+    return false
   }
 
   const handleSubmit = async () => {
     // 批量模式
     if (batchMode) {
-      // 提取纯链接（去除数字前缀）
       const urls = batchUrls.split('\n')
         .map(u => u.trim())
         .filter(u => u)
-        .map(u => u.replace(/^\d+\.\s*/, '')) // 移除数字前缀
-        .map(u => extractUrls(u)[0] || u) // 提取链接
+        .map(u => u.replace(/^\d+\.\s*/, ''))
+        .map(u => extractUrls(u)[0] || u)
         .filter(u => u)
       if (urls.length === 0) { setError('Please enter a video link'); return }
-      setBatchQueue(urls.map(u => ({ url: u, status: 'pending', progress: 0 })))
-      setBatchIndex(0)
-      // Start Download第一G
+      
+      // 检查第一个链接是否已下载
       const firstUrl = urls[0]
-      setLoading(true); setError('')
-      try {
-        const detectedFirst = detectPlatform(firstUrl)
-        const r = await axios.post(`${API}/download`, {
-          url: firstUrl, platform: detectedFirst || 'auto',
-          needAsr: selected.has('asr'), options: [...selected], quality,
-        }, { timeout: 120000 })
-        setTask(r.data.data)
-      } catch (e: any) {
-        setError(getErrorMessage(e.code === 'ECONNABORTED' ? 'timeout' : (e.response?.data?.message || e.message || 'Download failed')))
-        setLoading(false)
+      const dupItem = history.find(h => h.url === firstUrl || h.title && firstUrl.includes(h.taskId))
+      if (dupItem && dupItem.status === 'completed') {
+        setDupUrl(firstUrl)
+        setPendingDownload(() => () => doBatchDownload(urls))
+        setShowDupConfirm(true)
+        return
       }
+      doBatchDownload(urls)
       return
     }
+    
     // 单G模式
     if (!url.trim()) { setError('Please enter a video link'); return }
+    
+    // 检查是否已下载
+    const dupItem = history.find(h => h.url === url.trim() || h.title && url.trim().includes(h.taskId))
+    if (dupItem && dupItem.status === 'completed') {
+      setDupUrl(url.trim())
+      setPendingDownload(() => () => checkAndDownload(url.trim()))
+      setShowDupConfirm(true)
+      return
+    }
+    checkAndDownload(url.trim())
+
+  const checkAndDownload = async (videoUrl: string) => {
+    // 先尝试获取可用画质
+    const hasQualities = await fetchVideoQualities(videoUrl)
+    if (!hasQualities) {
+      // 没有多个画质，直接下载
+      doSingleDownload()
+    }
+    // 如果有多个画质，showQualityPicker 会显示选择器
+  }
+  }
+
+  const doBatchDownload = async (urls: string[]) => {
+    setBatchQueue(urls.map(u => ({ url: u, status: 'pending', progress: 0 })))
+    setBatchIndex(0)
+    setLoading(true); setError('')
+    try {
+      const detectedFirst = detectPlatform(urls[0])
+      const r = await axios.post(`${API}/download`, {
+        url: urls[0], platform: detectedFirst || 'auto',
+        needAsr: selected.has('asr'), options: [...selected], quality,
+      }, { timeout: 120000 })
+      setTask(r.data.data)
+    } catch (e: any) {
+      setError(getErrorMessage(e.code === 'ECONNABORTED' ? 'timeout' : (e.response?.data?.message || e.message || 'Download failed')))
+      setLoading(false)
+    }
+  }
+
+  const doSingleDownload = async () => {
     setLoading(true); setError('')
     try {
       const r = await axios.post(`${API}/download`, {
@@ -515,7 +557,6 @@ export default function App() {
                 <textarea
                   value={batchUrls}
                   onChange={(e) => handleBatchChange(e.target.value)}
-                  onPaste={handleBatchPaste}
                   placeholder="Paste links (auto-extract) or type one per line：&#10;https://v.douyin.com/xxx&#10;https://x.com/yyy"
                   className="w-full h-28 px-4 py-3 bg-slate-900/60 border-2 border-slate-600/50 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 outline-none text-white text-sm transition-all placeholder:text-slate-500 resize-none"
                 />
@@ -531,9 +572,9 @@ export default function App() {
                         ? displayUrl.substring(0, 20) + '...' + displayUrl.substring(displayUrl.length - 10)
                         : displayUrl
                       return (
-                        <div key={idx} className="flex items-center gap-2 px-3 py-2 bg-slate-700/30 rounded-xl border border-slate-700/60">
-                          <span className="text-xs text-slate-500">{idx + 1}.</span>
-                          <span className="flex-1 text-xs text-slate-400 truncate" title={cleanUrl}>{shortUrl}</span>
+                        <div key={idx} className="flex items-center gap-0.5 px-3 py-2 bg-slate-700/30 rounded-xl border border-slate-700/60">
+                          <span className="text-xs text-slate-500 w-6">{idx + 1}.</span>
+                          <span className="flex-1 text-xs text-slate-400 truncate text-left" title={cleanUrl}>{shortUrl}</span>
                           <button
                             onClick={() => {
                               const lines = batchUrls.split('\n')
@@ -901,6 +942,64 @@ export default function App() {
             )}
           </div>
         </main>
+
+        {/* 画质选择弹窗 */}
+        {showQualityPicker && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700">
+              <h3 className="text-lg font-bold text-white mb-4">选择画质</h3>
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {availableQualities.map((q, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => {
+                      setShowQualityPicker(false)
+                      // Set quality based on selection
+                      if (q.hasVideo) {
+                        setQuality(`best[height<=${q.height}][ext=mp4]/best`)
+                      } else {
+                        setQuality('bestaudio[ext=m4a]/bestaudio')
+                      }
+                      doSingleDownload()
+                    }}
+                    className="w-full flex items-center justify-between p-3 rounded-xl bg-slate-700/50 hover:bg-slate-700 transition text-left"
+                  >
+                    <div>
+                      <span className="text-white font-medium">{q.quality}</span>
+                      {q.width > 0 && <span className="text-slate-400 text-xs ml-2">{q.width}x{q.height}</span>}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {q.hasVideo && q.hasAudio && <span className="text-xs text-green-400">🎬</span>}
+                      {!q.hasVideo && q.hasAudio && <span className="text-xs text-blue-400">🎵</span>}
+                      <span className="text-xs text-slate-500">{q.format.split('/')[1]}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => { setShowQualityPicker(false); setPendingUrl('') }}
+                className="w-full mt-4 py-2 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 重复下载确认弹窗 */}
+        {showDupConfirm && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700">
+              <h3 className="text-lg font-bold text-white mb-2">已下载过</h3>
+              <p className="text-sm text-slate-400 mb-4">该视频已在下载历史中。是否还要下载？</p>
+              <p className="text-xs text-slate-500 mb-4 truncate">{dupUrl}</p>
+              <div className="flex gap-3">
+                <button onClick={() => { setShowDupConfirm(false); setPendingDownload(null) }} className="flex-1 py-2 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition">取消</button>
+                <button onClick={() => { setShowDupConfirm(false); if (pendingDownload) pendingDownload() }} className="flex-1 py-2 px-4 rounded-xl bg-orange-500 text-white hover:bg-orange-600 transition">继续下载</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Footer */}
         <footer className="text-center py-8 text-slate-600 text-xs">
