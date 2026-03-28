@@ -248,4 +248,156 @@ async function parseXiaohongshu(url, taskId, onProgress) {
   throw new Error('Failed to parse Xiaohongshu note');
 }
 
-module.exports = { parseYouTube, parseXiaohongshu, tikhubRequest };
+/**
+ * YouTube 下载（直接用 TikHub API）
+ */
+async function downloadYouTubeViaAPI(url, taskId, onProgress, quality) {
+  const https = require('https');
+  const http = require('http');
+  const fs = require('fs');
+  const path = require('path');
+  
+  const videoIdMatch = url.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/);
+  if (!videoIdMatch) throw new Error('Invalid YouTube URL');
+  const videoId = videoIdMatch[1];
+  
+  console.log(`[TikHub] Downloading YouTube: ${videoId} with quality: ${quality}`);
+  if (onProgress) onProgress(5);
+  
+  // 获取视频信息
+  const data = await tikhubRequest(`/api/v1/youtube/web/get_video_info?video_id=${videoId}`, API_KEY_YT);
+  if (onProgress) onProgress(15);
+  
+  const title = data.title || 'YouTube Video';
+  const thumbnails = data.thumbnails || [];
+  const thumbnail = thumbnails.length > 0 ? thumbnails[0].url : '';
+  const duration = data.lengthSeconds ? parseInt(data.lengthSeconds) : 0;
+  
+  // 选择最佳格式
+  const videos = data.videos?.items || [];
+  let selectedVideo = null;
+  
+  if (quality && quality.includes('height<=')) {
+    // 解析画质要求
+    const heightMatch = quality.match(/height<=(\d+)/);
+    const maxHeight = heightMatch ? parseInt(heightMatch[1]) : 99999;
+    
+    // 找到最佳匹配的格式
+    for (const v of videos) {
+      if (v.url && v.hasVideo && v.height <= maxHeight) {
+        if (!selectedVideo || v.height > selectedVideo.height) {
+          selectedVideo = v;
+        }
+      }
+    }
+  }
+  
+  // 如果没找到，选最高画质
+  if (!selectedVideo) {
+    for (const v of videos) {
+      if (v.url && v.hasVideo) {
+        if (!selectedVideo || v.height > selectedVideo.height) {
+          selectedVideo = v;
+        }
+      }
+    }
+  }
+  
+  if (!selectedVideo || !selectedVideo.url) {
+    throw new Error('No download URL found');
+  }
+  
+  console.log(`[TikHub] Selected: ${selectedVideo.width}x${selectedVideo.height}`);
+  if (onProgress) onProgress(25);
+  
+  // 下载视频
+  const outputPath = path.join(DOWNLOAD_DIR, `${taskId}.mp4`);
+  await downloadFile(selectedVideo.url, outputPath, (percent) => {
+    if (onProgress) onProgress(25 + Math.floor(percent * 0.7));
+  }, {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    'Referer': 'https://www.youtube.com/'
+  });
+  
+  // 下载封面
+  let thumbnailUrl = '';
+  if (thumbnail) {
+    const thumbPath = path.join(DOWNLOAD_DIR, `${taskId}_thumb.jpg`);
+    try {
+      await downloadFile(thumbnail, thumbPath, null, {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      });
+      thumbnailUrl = `/download/${taskId}_thumb.jpg`;
+    } catch (e) {
+      console.log(`[TikHub] Thumbnail failed: ${e.message}`);
+    }
+  }
+  
+  if (onProgress) onProgress(100);
+  
+  return {
+    title,
+    filePath: outputPath,
+    ext: 'mp4',
+    thumbnailUrl,
+    subtitleFiles: [],
+    duration
+  };
+}
+
+function downloadFile(url, outputPath, onProgress, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const https = require('https');
+    const http = require('http');
+    const fs = require('fs');
+    const protocol = url.startsWith('https') ? https : http;
+    
+    const options = {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        ...headers
+      }
+    };
+    
+    const file = fs.createWriteStream(outputPath);
+    let totalSize = 0;
+    let downloaded = 0;
+    
+    protocol.get(url, options, (response) => {
+      if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+        file.close();
+        fs.unlink(outputPath, () => {});
+        downloadFile(response.headers.location, outputPath, onProgress, headers).then(resolve).catch(reject);
+        return;
+      }
+      
+      if (response.statusCode !== 200) {
+        file.close();
+        fs.unlink(outputPath, () => {});
+        reject(new Error(`HTTP ${response.statusCode}`));
+        return;
+      }
+      
+      totalSize = parseInt(response.headers['content-length']) || 0;
+      
+      response.on('data', (chunk) => {
+        downloaded += chunk.length;
+        if (totalSize > 0 && onProgress) {
+          onProgress(Math.floor((downloaded / totalSize) * 100));
+        }
+      });
+      
+      response.pipe(file);
+      file.on('finish', () => {
+        file.close();
+        resolve();
+      });
+    }).on('error', (err) => {
+      file.close();
+      fs.unlink(outputPath, () => {});
+      reject(err);
+    });
+  });
+}
+
+module.exports = { parseYouTube, parseXiaohongshu, tikhubRequest, downloadYouTubeViaAPI };

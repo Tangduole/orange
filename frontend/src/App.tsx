@@ -102,8 +102,8 @@ const OPTIONS: { id: string; label: string; icon: typeof Video }[] = [
 
 const QUALITY_OPTIONS = [
   { value: 'best[ext=mp4]/best', label: 'Best 最高画质' },
-  { value: 'bestvideo[height<=2160][ext=mp4]+bestaudio[ext=m4a]/best[height<=2160]', label: '4K' },
-  { value: 'bestvideo[height<=1440][ext=mp4]+bestaudio[ext=m4a]/best[height<=1440]', label: '2K' },
+  { value: 'bestvideo[height<=2160]+bestaudio/best[height<=2160]', label: '4K' },
+  { value: 'bestvideo[height<=1440]+bestaudio/best[height<=1440]', label: '2K' },
   { value: 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]', label: '1080p' },
   { value: 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]', label: '720p' },
   { value: 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]', label: '480p' },
@@ -302,13 +302,6 @@ export default function App() {
     
     setUrl(finalUrl)
     setDetected(platform)
-    
-    // YouTube 链接：获取可用画质
-    if (platform === 'youtube' && finalUrl.length > 20) {
-      fetchVideoQualities(finalUrl)
-    } else {
-      setAvailableQualities([])
-    }
   }
 
   // 单个输入框粘贴处理 - 自动提取链接
@@ -393,21 +386,11 @@ export default function App() {
     const dupItem = history.find(h => h.url === url.trim() || h.title && url.trim().includes(h.taskId))
     if (dupItem && dupItem.status === 'completed') {
       setDupUrl(url.trim())
-      setPendingDownload(() => () => checkAndDownload(url.trim()))
+      setPendingDownload(() => () => doSingleDownload())
       setShowDupConfirm(true)
       return
     }
-    checkAndDownload(url.trim())
-
-  const checkAndDownload = async (videoUrl: string) => {
-    // 先尝试获取可用画质
-    const hasQualities = await fetchVideoQualities(videoUrl)
-    if (!hasQualities) {
-      // 没有多个画质，直接下载
-      doSingleDownload()
-    }
-    // 如果有多个画质，showQualityPicker 会显示选择器
-  }
+    doSingleDownload()
   }
 
   const doBatchDownload = async (urls: string[]) => {
@@ -638,28 +621,44 @@ export default function App() {
                 <Video className="w-3.5 h-3.5" />
                 Video Quality 画质
               </label>
-              <div className="relative mt-1.5">
-                <select
-                  value={quality}
-                  onChange={(e) => setQuality(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-900/60 border-2 border-slate-600/50 rounded-xl text-sm text-white outline-none focus:border-orange-500/70 cursor-pointer appearance-none"
-                >
-                  {availableQualities.length > 0 ? (
-                    <>
-                      <option value="best[ext=mp4]/best">Best 最高画质</option>
-                      {availableQualities.map((q, idx) => (
-                        <option key={idx} value={`bestvideo[height<=${q.height}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${q.height}]`}>
-                          {q.quality} ({q.width}x{q.height})
-                        </option>
-                      ))}
-                    </>
-                  ) : (
-                    QUALITY_OPTIONS.map(q => (
-                      <option key={q.value} value={q.value}>{q.label}</option>
-                    ))
-                  )}
-                </select>
-                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+              <div className="flex gap-2 mt-1.5">
+                <div className="relative flex-1">
+                  <select
+                    value={quality}
+                    onChange={(e) => setQuality(e.target.value)}
+                    className="w-full px-4 py-3 bg-slate-900/60 border-2 border-slate-600/50 rounded-xl text-sm text-white outline-none focus:border-orange-500/70 cursor-pointer appearance-none"
+                  >
+                    {availableQualities.length > 0 ? (
+                      <>
+                        <option value="best[ext=mp4]/best">Best 最高画质</option>
+                        {availableQualities.map((q, idx) => {
+                          const format = q.height >= 1440 
+                            ? `bestvideo[height<=${q.height}]+bestaudio/best[height<=${q.height}]`
+                            : `bestvideo[height<=${q.height}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${q.height}]`
+                          return (
+                            <option key={idx} value={format}>
+                              {q.quality} ({q.width}x{q.height})
+                            </option>
+                          )
+                        })}
+                      </>
+                    ) : (
+                      QUALITY_OPTIONS.map(q => (
+                        <option key={q.value} value={q.value}>{q.label}</option>
+                      ))
+                    )}
+                  </select>
+                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                </div>
+                {detected === 'youtube' && url.trim() && (
+                  <button
+                    onClick={() => fetchVideoQualities(url.trim())}
+                    className="px-3 py-3 bg-slate-700/50 hover:bg-slate-700 rounded-xl text-slate-400 text-sm transition"
+                    title="获取可用画质"
+                  >
+                    🔍
+                  </button>
+                )}
               </div>
             </div>
 
@@ -973,7 +972,10 @@ export default function App() {
                       setShowQualityPicker(false)
                       // Set quality based on selection
                       if (q.hasVideo) {
-                        setQuality(`best[height<=${q.height}][ext=mp4]/best`)
+                        const format = q.height >= 1440 
+                          ? `bestvideo[height<=${q.height}]+bestaudio/best[height<=${q.height}]`
+                          : `bestvideo[height<=${q.height}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${q.height}]`
+                        setQuality(format)
                       } else {
                         setQuality('bestaudio[ext=m4a]/bestaudio')
                       }
