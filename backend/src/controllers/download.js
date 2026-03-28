@@ -86,9 +86,9 @@ async function createDownload(req, res) {
       return res.json({ code: 0, data: { taskId, status: 'pending', platform: finalPlatform } });
     }
 
-    // YouTube 链接：走 yt-dlp
+    // YouTube 链接：走 TikHub API（直接链接）
     if (/youtube\.com|youtu\.be/i.test(url)) {
-      processDownload(taskId, url, wantsAsr, normalizedOptions, quality).catch(err => {
+      processYouTube(taskId, url, wantsAsr, normalizedOptions, quality).catch(err => {
         console.error(`[task] ${taskId} youtube failed:`, err);
         store.update(taskId, { status: 'error', progress: 0, error: err.message });
       });
@@ -370,31 +370,54 @@ async function processX(taskId, url, needAsr, options = ['video']) {
  */
 async function processYouTube(taskId, url, needAsr, options = ['video'], quality = null) {
   try {
-    const { parseYouTube } = require('../services/tikhub');
+    const axios = require('axios');
     store.update(taskId, { status: 'parsing', progress: 5 });
-
-    const result = await parseYouTube(url, taskId, (percent) => {
-      store.update(taskId, {
-        status: percent < 20 ? 'parsing' : 'downloading',
-        progress: percent
-      });
-    });
-
-    const update = {
+    
+    // 获取视频 ID
+    const videoIdMatch = url.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/);
+    if (!videoIdMatch) throw new Error('Invalid YouTube URL');
+    const videoId = videoIdMatch[1];
+    
+    // 从 TikHub 获取视频信息
+    const API_KEY_YT = 'nbwMHtwa3GuiuW/CKoyvygj8CWGeerdC7CXatWGcWNXgoE6uOCecUg+uLw==';
+    const { data } = await axios.get(
+      `https://api.tikhub.io/api/v1/youtube/web/get_video_info?video_id=${videoId}`,
+      { headers: { Authorization: `Bearer ${API_KEY_YT}` }, timeout: 30000 }
+    );
+    
+    if (data.code !== 200) throw new Error('Failed to get video info');
+    
+    const videoData = data.data;
+    const title = videoData.title || 'YouTube Video';
+    const videos = videoData.videos?.items || [];
+    
+    // 找到最佳画质
+    let bestVideo = null;
+    for (const v of videos) {
+      if (v.url && v.mimeType?.startsWith('video/')) {
+        if (!bestVideo || (v.height || 0) > (bestVideo.height || 0)) {
+          bestVideo = v;
+        }
+      }
+    }
+    
+    if (!bestVideo || !bestVideo.url) {
+      throw new Error('No download URL found');
+    }
+    
+    // 返回直接下载链接（用户浏览器下载）
+    store.update(taskId, {
       status: 'completed',
       progress: 100,
-      title: result.title,
-      thumbnailUrl: result.thumbnailUrl,
-    };
-
-    if (result.filePath) {
-      update.filePath = result.filePath;
-      update.ext = result.ext;
-      update.downloadUrl = `/download/${path.basename(result.filePath)}`;
-    }
-
-    store.update(taskId, update);
-    console.log(`[task] ${taskId} youtube completed`);
+      title: title,
+      thumbnailUrl: videoData.thumbnails?.[0]?.url || '',
+      downloadUrl: bestVideo.url,
+      directLink: true,
+      quality: `${bestVideo.width}x${bestVideo.height}`,
+      ext: bestVideo.extension || 'mp4'
+    });
+    
+    console.log(`[task] ${taskId} youtube completed (direct link)`);
   } catch (error) {
     console.error(`[task] ${taskId} youtube failed:`, error);
     store.update(taskId, { status: 'error', error: error.message });

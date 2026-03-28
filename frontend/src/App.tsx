@@ -76,6 +76,7 @@ interface Task {
   imageFiles?: Array<{ filename: string; url: string }>
   subtitleFiles?: Array<{ filename: string; url: string }>
   error?: string; createdAt: string | number
+  directLink?: boolean; quality?: string
 }
 interface HistoryItem {
   taskId: string; status: string; title?: string
@@ -808,14 +809,21 @@ export default function App() {
                 <button 
                   onClick={async () => {
                     setDownloading(true)
-                    await shareFile(task.downloadUrl, task.title || 'video')
-                    setDownloading(false)
+                    // 检查是否为直接链接（YouTube等）
+                    if (task.directLink) {
+                      // 直接在新窗口打开链接
+                      window.open(task.downloadUrl, '_blank')
+                      setDownloading(false)
+                    } else {
+                      await shareFile(task.downloadUrl, task.title || 'video')
+                      setDownloading(false)
+                    }
                   }}
                   disabled={downloading}
                   className="w-full py-3.5 rounded-2xl text-sm font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} 
-                  {downloading ? 'Downloading...' : 'Save to Device'}
+                  {downloading ? 'Downloading...' : (task.directLink ? '打开下载链接' : 'Save to Device')}
                 </button>
               )}
 
