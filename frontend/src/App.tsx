@@ -102,6 +102,8 @@ const OPTIONS: { id: string; label: string; icon: typeof Video }[] = [
 
 const QUALITY_OPTIONS = [
   { value: 'best[ext=mp4]/best', label: 'Best 最高画质' },
+  { value: 'bestvideo[height<=2160][ext=mp4]+bestaudio[ext=m4a]/best[height<=2160]', label: '4K' },
+  { value: 'bestvideo[height<=1440][ext=mp4]+bestaudio[ext=m4a]/best[height<=1440]', label: '2K' },
   { value: 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]', label: '1080p' },
   { value: 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]', label: '720p' },
   { value: 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]', label: '480p' },
@@ -295,13 +297,17 @@ export default function App() {
   const handleUrlChange = (value: string) => {
     // 检测是否有嵌入文字的链接
     const urls = extractUrls(value)
-    if (urls.length === 1 && urls[0] !== value.trim()) {
-      // 提取到链接且与原文不同 → 使用提取的链接
-      setUrl(urls[0])
-      setDetected(detectPlatform(urls[0]))
+    const finalUrl = urls.length === 1 ? urls[0] : value.trim()
+    const platform = detectPlatform(finalUrl)
+    
+    setUrl(finalUrl)
+    setDetected(platform)
+    
+    // YouTube 链接：获取可用画质
+    if (platform === 'youtube' && finalUrl.length > 20) {
+      fetchVideoQualities(finalUrl)
     } else {
-      setUrl(value)
-      setDetected(value.trim() ? detectPlatform(value) : '')
+      setAvailableQualities([])
     }
   }
 
@@ -638,9 +644,20 @@ export default function App() {
                   onChange={(e) => setQuality(e.target.value)}
                   className="w-full px-4 py-3 bg-slate-900/60 border-2 border-slate-600/50 rounded-xl text-sm text-white outline-none focus:border-orange-500/70 cursor-pointer appearance-none"
                 >
-                  {QUALITY_OPTIONS.map(q => (
-                    <option key={q.value} value={q.value}>{q.label}</option>
-                  ))}
+                  {availableQualities.length > 0 ? (
+                    <>
+                      <option value="best[ext=mp4]/best">Best 最高画质</option>
+                      {availableQualities.map((q, idx) => (
+                        <option key={idx} value={`bestvideo[height<=${q.height}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${q.height}]`}>
+                          {q.quality} ({q.width}x{q.height})
+                        </option>
+                      ))}
+                    </>
+                  ) : (
+                    QUALITY_OPTIONS.map(q => (
+                      <option key={q.value} value={q.value}>{q.label}</option>
+                    ))
+                  )}
                 </select>
                 <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
               </div>
