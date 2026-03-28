@@ -103,8 +103,6 @@ const OPTIONS: { id: string; label: string; icon: typeof Video }[] = [
 
 const QUALITY_OPTIONS = [
   { value: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', label: 'Best 最高画质' },
-  { value: 'bestvideo[height<=2160]+bestaudio/best[height<=2160]', label: '4K' },
-  { value: 'bestvideo[height<=1440]+bestaudio/best[height<=1440]', label: '2K' },
   { value: 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]', label: '1080p' },
   { value: 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]', label: '720p' },
   { value: 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]', label: '480p' },

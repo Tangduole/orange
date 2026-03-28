@@ -149,9 +149,13 @@ function download(url, taskId, onProgress, quality = null) {
         return;
       }
 
-      // 查找封面
-      if (fs.existsSync(thumbnailPath)) {
-        thumbnailUrl = `/download/${taskId}_thumb.jpg`;
+      // 查找封面（yt-dlp 可能保存为不同格式）
+      const thumbnailFiles = fs.readdirSync(DOWNLOAD_DIR).filter(
+        f => f.startsWith(taskId) && (f.endsWith('.jpg') || f.endsWith('.webp') || f.endsWith('.png'))
+      );
+      if (thumbnailFiles.length > 0) {
+        const thumbFile = thumbnailFiles[0];
+        thumbnailUrl = `/download/${thumbFile}`;
       }
 
       // 查找字幕
