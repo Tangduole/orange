@@ -16,6 +16,7 @@ const { validateInput } = require('../utils/validator');
 const { executeWithRetry, downloadWithLimit, getLimiterStatus } = require('../utils/limiter');
 const path = require('path');
 const fs = require('fs');
+const axios = require('axios');
 
 /**
  * 创建下载任务
@@ -587,17 +588,32 @@ async function getVideoInfo(req, res) {
       
       const videos = data.videos?.items || [];
       const qualities = videos
-        .filter(v => v.url) // Only include formats with download URLs
-        .map(v => ({
-          quality: v.qualityLabel || v.quality || 'unknown',
-          format: v.mimeType?.split(';')[0] || 'video/mp4',
-          width: v.width || 0,
-          height: v.height || 0,
-          hasVideo: v.hasVideo !== false,
-          hasAudio: v.hasAudio !== false,
-          size: v.contentLength || 0
-        }))
-        .sort((a, b) => (b.height || 0) - (a.height || 0)); // Sort by height descending
+        .filter(v => v.url)
+        .map(v => {
+          const w = v.width || 0
+          const h = v.height || 0
+          // Generate quality label from height
+          let qualityLabel = v.qualityLabel || ''
+          if (!qualityLabel && h > 0) {
+            if (h >= 2160) qualityLabel = '4K'
+            else if (h >= 1440) qualityLabel = '2K'
+            else if (h >= 1080) qualityLabel = '1080p'
+            else if (h >= 720) qualityLabel = '720p'
+            else if (h >= 480) qualityLabel = '480p'
+            else if (h >= 360) qualityLabel = '360p'
+            else qualityLabel = `${h}p`
+          }
+          return {
+            quality: qualityLabel || 'unknown',
+            format: v.mimeType?.split(';')[0] || 'video/mp4',
+            width: w,
+            height: h,
+            hasVideo: v.hasVideo !== false,
+            hasAudio: v.hasAudio !== false,
+            size: v.contentLength || 0
+          }
+        })
+        .sort((a, b) => (b.height || 0) - (a.height || 0));
       
       // Add audio-only option if available
       const audioOnly = videos.filter(v => !v.hasVideo && v.url);
