@@ -1,23 +1,54 @@
-# 小电驴 - Docker 配置
-FROM node:18-alpine
+# 橙子下载器 - Docker 配置
+# 多阶段构建
+
+# 阶段 1: 构建前端
+FROM node:18-alpine as frontend-builder
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm install
+COPY frontend/ .
+RUN npm run build
+
+# 阶段 2: 后端 + 全栈
+FROM python:3.11-slim as final
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    nodejs \
+    npm \
+    ffmpeg \
+    wget \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install yt-dlp
+RUN pip3 install --break-system-packages --upgrade yt-dlp
+
+# Install faster-whisper for ASR
+RUN pip install --no-cache-dir faster-whisper
 
 WORKDIR /app
 
-# 安装系统依赖
-RUN apk add --no-cache python3 py3-pip make g++ ffmpeg curl
-RUN pip3 install --break-system-packages --upgrade yt-dlp
-
-# 复制后端
-COPY backend/package*.json ./
+# Copy backend
+COPY backend/package*.json ./backend/
+WORKDIR /app/backend
 RUN npm install --production
+WORKDIR /app
 
-COPY backend/ ./backend/
+# Copy backend source
+COPY backend/src ./backend/src
 
-# 复制前端构建产物（稍后由构建命令生成）
-COPY frontend/dist/ ./frontend/dist/
+# Copy built frontend
+COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
-# 端口
+# Copy scripts
+COPY scripts ./scripts
+
+# Create downloads directory
+RUN mkdir -p /app/downloads
+
+# Expose port
 EXPOSE 3000
 
-# 启动
+# Start
 CMD ["node", "backend/src/app.js"]
