@@ -150,14 +150,22 @@ async function parseDouyinPage(url) {
       }
     }
 
-    // 高清视频
+    // 高清视频 - 选择最高画质
     if (obj.bit_rate && Array.isArray(obj.bit_rate)) {
-      for (const br of obj.bit_rate) {
-        if (br.play_addr?.url_list?.[0]) {
-          result.videoUrl = br.play_addr.url_list[0];
-          result.type = 'video';
-          break;
-        }
+      // 按画质排序（高度优先）
+      const sortedBr = obj.bit_rate
+        .filter(br => br.play_addr?.url_list?.[0])
+        .sort((a, b) => {
+          const heightA = a.play_addr?.height || a.height || 0;
+          const heightB = b.play_addr?.height || b.height || 0;
+          return heightB - heightA; // 降序排列
+        });
+      
+      if (sortedBr.length > 0) {
+        const bestBr = sortedBr[0];
+        result.videoUrl = bestBr.play_addr.url_list[0];
+        result.type = 'video';
+        result.quality = `${bestBr.play_addr?.width || bestBr.width || 0}x${bestBr.play_addr?.height || bestBr.height || 0}`;
       }
     }
 
