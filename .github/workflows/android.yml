@@ -1,4 +1,4 @@
-name: Android APK
+name: Build APK
 
 on:
   push:
@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
-      - name: Setup
+      - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -21,19 +21,31 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          
+      
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        
+      - name: Install SDK Components
+        run: |
+          sdkmanager --install "platforms;android-34"
+          sdkmanager --install "build-tools;34.0.0"
+          yes | sdkmanager --licenses
+      
       - name: Build
         run: |
           cd frontend
-          npm install
+          npm ci
           npm run build
-          npx cap add android || true
-          npx cap sync
-          cd android
-          ./gradlew assembleDebug --no-daemon
+          npx cap sync android
           
-      - name: Upload
+      - name: Gradle Build
+        run: |
+          cd frontend/android
+          chmod +x gradlew
+          ./gradlew assembleDebug -x lint
+          
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app
+          name: orange-downloader
           path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
