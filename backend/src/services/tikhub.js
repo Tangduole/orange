@@ -463,17 +463,27 @@ async function parseDouyin(url, taskId, onProgress) {
   const video = detail.video || {};
   const title = detail.desc || '抖音作品';
   
-  // 获取播放地址（优先使用 play_addr）
+  // 获取播放地址（优先使用 H.265 高画质）
   let videoUrl = '';
-  const playAddr = video.play_addr || {};
-  const urlList = playAddr.url_list || [];
-  if (urlList.length > 0) {
-    videoUrl = urlList[0];
+  
+  // 优先使用 H.265 (2K 画质)
+  const playAddr265 = video.play_addr_265 || {};
+  if (playAddr265.url_list && playAddr265.url_list.length > 0) {
+    videoUrl = playAddr265.url_list[0];
+    console.log(`[TikHub] Using H.265 (2K): ${playAddr265.width}x${playAddr265.height}`);
   }
   
-  // 如果没有 play_addr，尝试 bit_rate
+  // 如果没有 H.265，使用普通 play_addr (1080p)
+  if (!videoUrl) {
+    const playAddr = video.play_addr || {};
+    if (playAddr.url_list && playAddr.url_list.length > 0) {
+      videoUrl = playAddr.url_list[0];
+      console.log(`[TikHub] Using H.264 (1080p): ${playAddr.width}x${playAddr.height}`);
+    }
+  }
+  
+  // 如果还是没有，尝试 bit_rate
   if (!videoUrl && video.bit_rate && video.bit_rate.length > 0) {
-    // 按画质排序，选择最高的
     const sorted = video.bit_rate
       .filter(br => br.play_addr?.url_list?.[0])
       .sort((a, b) => (b.play_addr?.height || 0) - (a.play_addr?.height || 0));
