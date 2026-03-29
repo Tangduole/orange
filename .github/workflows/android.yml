@@ -24,8 +24,19 @@ jobs:
         run: |
           cd frontend
           npm install --legacy-peer-deps
-          npx cap sync android
         timeout-minutes: 25
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm run build
+        timeout-minutes: 10
+
+      - name: Sync Capacitor
+        run: |
+          cd frontend
+          npx cap sync android
+        timeout-minutes: 5
           
       - name: Setup Java
         uses: actions/setup-java@v4
