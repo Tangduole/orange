@@ -25,7 +25,7 @@ if (!fs.existsSync(DOWNLOAD_DIR)) {
  * 使用 yt-dlp 下载视频（支持实时进度）
  * @param {string} url 视频链接
  * @param {string} taskId 任务 ID
- * @param {function} onProgress 进度回调 (percent: number, speed: string, eta: string) => void
+ * @param {function} onProgress 进度回调 (percent: number, speed: string, eta: string, downloaded: number, total: number) => void
  * @returns {Promise<{title: string, filePath: string, ext: string, thumbnailUrl: string, duration: number}>}
  */
 function download(url, taskId, onProgress, quality = null) {
@@ -101,13 +101,24 @@ function download(url, taskId, onProgress, quality = null) {
       for (const line of lines) {
         // 解析下载进度行（yt-dlp --progress 格式）
         // 格式: [download]  45.2% of ~123.45MiB at 5.67MiB/s ETA 00:15
-        const progressMatch = line.match(/\[download\]\s+([\d.]+)%.*?at\s+([\d.]+\w+\/s).*?ETA\s+(\S+)/);
+        const progressMatch = line.match(/\[download\]\s+([\d.]+)%\s+of\s+~?([\d.]+)(\w+)\s+at\s+([\d.]+\w+\/s).*?ETA\s+(\S+)/);
         if (progressMatch && onProgress) {
           const percent = parseFloat(progressMatch[1]);
-          const speed = progressMatch[2];
-          const eta = progressMatch[3];
+          const size = parseFloat(progressMatch[2]);
+          const unit = progressMatch[3].toUpperCase();
+          const speed = progressMatch[4];
+          const eta = progressMatch[5];
+          
+          // 转换为字节
+          let totalBytes = size;
+          if (unit === 'KIB' || unit === 'KB') totalBytes *= 1024;
+          else if (unit === 'MIB' || unit === 'MB') totalBytes *= 1024 * 1024;
+          else if (unit === 'GIB' || unit === 'GB') totalBytes *= 1024 * 1024 * 1024;
+          
+          const downloadedBytes = Math.round(totalBytes * percent / 100);
+          
           // 映射到 0-90 的范围（留 10 给后续处理）
-          onProgress(Math.round(percent * 0.9), speed, eta);
+          onProgress(Math.round(percent * 0.9), speed, eta, downloadedBytes, totalBytes);
         }
 
         // 解析合并进度

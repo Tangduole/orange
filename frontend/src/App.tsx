@@ -77,6 +77,8 @@ interface Task {
   subtitleFiles?: Array<{ filename: string; url: string }>
   error?: string; createdAt: string | number
   directLink?: boolean; quality?: string
+  downloadedBytes?: number; totalBytes?: number
+  speed?: string; eta?: string
 }
 interface HistoryItem {
   taskId: string; status: string; title?: string
@@ -107,6 +109,14 @@ const QUALITY_OPTIONS = [
   { value: 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]', label: '720p' },
   { value: 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]', label: '480p' },
 ]
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return '0 B';
+  const k = 1024;
+  const sizes = ['B', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+}
 
 function detectPlatform(url: string): string {
   if (/douyin\.com|iesdouyin\.com/i.test(url)) return 'douyin'
@@ -783,7 +793,14 @@ export default function App() {
                   </div>
                   <div className="flex items-center justify-between text-xs text-slate-500">
                     <span>{task.title || 'Parsing...'}</span>
-                    <span className="text-orange-400 font-medium">{task.progress}%</span>
+                    <div className="flex items-center gap-2">
+                      {task.downloadedBytes && task.totalBytes ? (
+                        <span className="text-slate-400">
+                          {formatBytes(task.downloadedBytes)}/{formatBytes(task.totalBytes)}
+                        </span>
+                      ) : null}
+                      <span className="text-orange-400 font-medium">{task.progress}%</span>
+                    </div>
                   </div>
                 </div>
               )}

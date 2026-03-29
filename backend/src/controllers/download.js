@@ -173,12 +173,14 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
       result = await downloadWithLimit(async () => {
         try {
           return await executeWithRetry(async () => {
-            return await ytdlp.download(url, taskId, (percent, speed, eta) => {
+            return await ytdlp.download(url, taskId, (percent, speed, eta, downloaded, total) => {
               store.update(taskId, {
                 status: 'downloading',
                 progress: percent,
                 speed,
-                eta
+                eta,
+                downloadedBytes: downloaded || 0,
+                totalBytes: total || 0
               });
             }, quality);
           });
@@ -313,6 +315,45 @@ async function processDouyin(taskId, url, needAsr, options = ['video']) {
       update.filePath = result.filePath;
       update.ext = result.ext;
       update.downloadUrl = `/download/${path.basename(result.filePath)}`;
+    }
+
+    // 处理封面
+    if (options.includes('cover') && result.thumbnailUrl) {
+      update.coverUrl = result.thumbnailUrl;
+    }
+
+    // 处理文案
+    if (options.includes('copywriting')) {
+      update.copyText = result.title || '抖音作品';
+    }
+
+    // 处理 ASR
+    if (needAsr && result.filePath) {
+      try {
+        store.update(taskId, { status: 'asr', progress: 100 });
+        const asr = require('../services/asr');
+        const audioPath = path.join(path.dirname(result.filePath), `${taskId}.mp3`);
+        
+        // 提取音频
+        const ffmpeg = require('fluent-ffmpeg');
+        await new Promise((resolve, reject) => {
+          ffmpeg(result.filePath)
+            .noVideo()
+            .audioCodec('libmp3lame')
+            .audioBitrate('128k')
+            .output(audioPath)
+            .on('end', resolve)
+            .on('error', reject)
+            .run();
+        });
+
+        // ASR 转文字
+        const text = await asr.transcribe(audioPath);
+        update.asrText = text;
+      } catch (asrError) {
+        console.error(`[ASR] ${taskId} failed:`, asrError);
+        update.asrError = asrError.message;
+      }
     }
 
     store.update(taskId, update);
