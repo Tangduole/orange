@@ -10,6 +10,7 @@ const path = require('path');
 // API Keys - separate keys for different platforms
 const API_KEY_XHS = 'lrwNPvEUzE2ph0K5Oces5Q/RNRHRZ5tTzTTogR7aU/mj1li7O0XfZgWPCQ==';
 const API_KEY_YT = 'nbwMHtwa3GuiuW/CKoyvygj8CWGeerdC7CXatWGcWNXgoE6uOCecUg+uLw==';
+const API_KEY_DOUYIN = 'gJwSDZkq/lqqpVeVEL/M/CfBGQm0HrJdu0T2o0SxePqq0wmsNyagaDKaPw==';
 const API_KEY = API_KEY_XHS; // Default to XHS key
 const API_BASE = 'https://api.tikhub.io';
 const DOWNLOAD_DIR = path.join(__dirname, '../../downloads');
@@ -423,4 +424,166 @@ function downloadFile(url, outputPath, onProgress, headers = {}) {
   });
 }
 
-module.exports = { parseYouTube, parseXiaohongshu, tikhubRequest };
+/**
+ * 解析抖音视频 (TikHub API - 支持高画质)
+ */
+async function parseDouyin(url, taskId, onProgress) {
+  // 提取 aweme_id
+  let awemeId;
+  const videoMatch = url.match(/\/video\/(\d+)/);
+  const noteMatch = url.match(/\/note\/(\d+)/);
+  awemeId = videoMatch?.[1] || noteMatch?.[1];
+  
+  if (!awemeId) {
+    // 尝试解析短链接
+    const https = require('https');
+    const resolved = await new Promise((resolve, reject) => {
+      https.get(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)' }
+      }, (res) => {
+        const loc = res.headers.location || '';
+        const vm = loc.match(/\/video\/(\d+)/);
+        const nm = loc.match(/\/note\/(\d+)/);
+        resolve(vm?.[1] || nm?.[1]);
+      }).on('error', () => resolve(null));
+    });
+    awemeId = resolved;
+  }
+  
+  if (!awemeId) throw new Error('无法解析抖音作品 ID');
+  
+  console.log(`[TikHub] Parsing Douyin: ${awemeId}`);
+  if (onProgress) onProgress(10);
+  
+  // 获取视频信息
+  const data = await tikhubRequest(`/api/v1/douyin/web/fetch_one_video?aweme_id=${awemeId}`, API_KEY_DOUYIN);
+  if (onProgress) onProgress(20);
+  
+  const detail = data.aweme_detail || {};
+  const video = detail.video || {};
+  const title = detail.desc || '抖音作品';
+  
+  // 获取播放地址（优先使用 play_addr）
+  let videoUrl = '';
+  const playAddr = video.play_addr || {};
+  const urlList = playAddr.url_list || [];
+  if (urlList.length > 0) {
+    videoUrl = urlList[0];
+  }
+  
+  // 如果没有 play_addr，尝试 bit_rate
+  if (!videoUrl && video.bit_rate && video.bit_rate.length > 0) {
+    // 按画质排序，选择最高的
+    const sorted = video.bit_rate
+      .filter(br => br.play_addr?.url_list?.[0])
+      .sort((a, b) => (b.play_addr?.height || 0) - (a.play_addr?.height || 0));
+    if (sorted.length > 0) {
+      videoUrl = sorted[0].play_addr.url_list[0];
+    }
+  }
+  
+  if (!videoUrl) {
+    // 使用高画质 API
+    const hqData = await tikhubRequest(`/api/v1/douyin/web/fetch_video_high_quality_play_url?aweme_id=${awemeId}`, API_KEY_DOUYIN);
+    videoUrl = hqData.original_video_url || '';
+  }
+  
+  if (!videoUrl) throw new Error('No download URL found');
+  
+  console.log(`[TikHub] Found Douyin video URL`);
+  if (onProgress) onProgress(30);
+  
+  // 下载视频
+  const fs = require('fs');
+  const path = require('path');
+  const outputPath = path.join(DOWNLOAD_DIR, `${taskId}.mp4`);
+  
+  await downloadFile(videoUrl, outputPath, (percent) => {
+    if (onProgress) onProgress(30 + Math.floor(percent * 0.65));
+  }, {
+    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)',
+    'Referer': 'https://www.douyin.com/'
+  });
+  
+  // 下载封面
+  let thumbnailUrl = '';
+  const coverUrl = video.cover?.url_list?.[0] || video.origin_cover?.url_list?.[0] || '';
+  if (coverUrl) {
+    const thumbPath = path.join(DOWNLOAD_DIR, `${taskId}_thumb.jpg`);
+    try {
+      await downloadFile(coverUrl, thumbPath, null, {
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)'
+      });
+      thumbnailUrl = `/download/${taskId}_thumb.jpg`;
+    } catch (e) {
+      console.log(`[TikHub] Thumbnail failed: ${e.message}`);
+    }
+  }
+  
+  if (onProgress) onProgress(100);
+  
+  return {
+    title,
+    filePath: outputPath,
+    ext: 'mp4',
+    thumbnailUrl,
+    subtitleFiles: [],
+    duration: video.duration ? Math.floor(video.duration / 1000) : 0
+  };
+}
+
+// 下载文件工具函数
+async function downloadFile(url, outputPath, onProgress, headers = {}) {
+  const https = require('https');
+  const http = require('http');
+  const fs = require('fs');
+  const protocol = url.startsWith('https') ? https : http;
+  
+  return new Promise((resolve, reject) => {
+    const file = fs.createWriteStream(outputPath);
+    let totalSize = 0;
+    let downloaded = 0;
+    
+    protocol.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)',
+        ...headers
+      }
+    }, (response) => {
+      if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
+        file.close();
+        fs.unlink(outputPath, () => {});
+        downloadFile(response.headers.location, outputPath, onProgress, headers).then(resolve).catch(reject);
+        return;
+      }
+      
+      if (response.statusCode !== 200) {
+        file.close();
+        fs.unlink(outputPath, () => {});
+        reject(new Error(`HTTP ${response.statusCode}`));
+        return;
+      }
+      
+      totalSize = parseInt(response.headers['content-length']) || 0;
+      
+      response.on('data', (chunk) => {
+        downloaded += chunk.length;
+        if (totalSize > 0 && onProgress) {
+          onProgress(Math.floor((downloaded / totalSize) * 100));
+        }
+      });
+      
+      response.pipe(file);
+      file.on('finish', () => {
+        file.close();
+        resolve();
+      });
+    }).on('error', (err) => {
+      file.close();
+      fs.unlink(outputPath, () => {});
+      reject(err);
+    });
+  });
+}
+
+module.exports = { parseYouTube, parseXiaohongshu, parseDouyin, tikhubRequest, downloadFile };

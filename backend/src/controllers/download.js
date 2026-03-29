@@ -291,11 +291,11 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
  */
 async function processDouyin(taskId, url, needAsr, options = ['video']) {
   try {
-    const { downloadDouyin } = require('../services/douyin');
+    const { parseDouyin } = require('../services/tikhub');
 
     store.update(taskId, { status: 'parsing', progress: 5 });
 
-    const result = await downloadDouyin(url, taskId, (percent, msg) => {
+    const result = await parseDouyin(url, taskId, (percent) => {
       store.update(taskId, {
         status: percent < 30 ? 'parsing' : 'downloading',
         progress: percent
@@ -309,21 +309,14 @@ async function processDouyin(taskId, url, needAsr, options = ['video']) {
       thumbnailUrl: result.thumbnailUrl,
     };
 
-    if (result.isNote && result.images) {
-      update.isNote = true;
-      update.imageFiles = result.images;
-    }
-    if (result.downloadUrl) {
+    if (result.filePath) {
       update.filePath = result.filePath;
       update.ext = result.ext;
-      update.downloadUrl = result.downloadUrl;
-    }
-    if (result.audioUrl) {
-      update.audioUrl = result.audioUrl;
+      update.downloadUrl = `/download/${path.basename(result.filePath)}`;
     }
 
     store.update(taskId, update);
-    console.log(`[task] ${taskId} douyin completed (images=${result.images?.length || 0}, video=${!!result.downloadUrl})`);
+    console.log(`[task] ${taskId} douyin completed`);
   } catch (error) {
     console.error(`[task] ${taskId} douyin failed:`, error);
     store.update(taskId, { status: 'error', error: error.message });
