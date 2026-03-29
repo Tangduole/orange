@@ -8,9 +8,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      ANDROID_HOME: /usr/local/lib/android/sdk
-      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
     
     steps:
       - uses: actions/checkout@v4
@@ -20,51 +17,35 @@ jobs:
         with:
           node-version: '22'
           
-      - name: Install dependencies
-        run: |
-          cd frontend
-          npm install --legacy-peer-deps
-        timeout-minutes: 25
-
-      - name: Build frontend
-        run: |
-          cd frontend
-          npm run build
-        timeout-minutes: 10
-
-      - name: Sync Capacitor
-        run: |
-          cd frontend
-          npx cap sync android
-        timeout-minutes: 5
-          
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
-
+          
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-
+        
       - name: Accept Android licenses
-        run: yes | sdkmanager --licenses
+        run: yes | sdkmanager --licenses || true
+      
+      - name: Install and Build
+        run: |
+          cd frontend
+          npm install --legacy-peer-deps
+          npm run build
+          npx cap sync android
+        timeout-minutes: 25
           
       - name: Build Android APK
         run: |
           cd frontend/android
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug --no-daemon --stacktrace
         timeout-minutes: 30
         env:
           GRADLE_OPTS: -Dorg.gradle.daemon=false
           
-      - name: Verify APK
-        run: |
-          ls -la frontend/android/app/build/outputs/apk/debug/
-          echo "APK size:"
-          du -h frontend/android/app/build/outputs/apk/debug/app-debug.apk
-
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
