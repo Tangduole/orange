@@ -20,7 +20,6 @@ jobs:
       - name: Install dependencies
         run: |
           cd frontend
-          npm config set registry https://registry.npmmirror.com
           npm install --legacy-peer-deps
           npx cap sync android
         timeout-minutes: 25
@@ -37,7 +36,15 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
         timeout-minutes: 30
+        env:
+          GRADLE_OPTS: -Dorg.gradle.daemon=false
           
+      - name: Verify APK
+        run: |
+          ls -la frontend/android/app/build/outputs/apk/debug/
+          echo "APK size:"
+          du -h frontend/android/app/build/outputs/apk/debug/app-debug.apk
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
