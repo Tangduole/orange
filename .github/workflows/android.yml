@@ -22,19 +22,27 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
           
-      - name: Build APK
+      - name: Debug
+        run: |
+          echo "Node version: $(node -v)"
+          echo "NPM version: $(npm -v)"
+          echo "Java version: $(java -version 2>&1 | head -1)"
+          echo "Current dir: $(pwd)"
+          echo "Contents: $(ls -la)"
+          
+      - name: Build
         run: |
           cd frontend
+          echo "=== NPM Install ==="
           npm install
+          echo "=== NPM Build ==="
           npm run build
-          npx cap add android || true
+          echo "=== Dist contents ==="
+          ls -la dist/
+          echo "=== Cap Sync ==="
           npx cap sync android
+          echo "=== Android dir ==="
+          ls -la android/
+          echo "=== Gradle Build ==="
           cd android
-          chmod +x gradlew
-          ./gradlew assembleDebug
-          
-      - name: Upload
-        uses: actions/upload-artifact@v4
-        with:
-          name: apk
-          path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+          ./gradlew assembleDebug --info
