@@ -407,7 +407,7 @@ function downloadFile(url, outputPath, onProgress, headers = {}) {
       response.on('data', (chunk) => {
         downloaded += chunk.length;
         if (totalSize > 0 && onProgress) {
-          onProgress(Math.floor((downloaded / totalSize) * 100));
+          onProgress(Math.floor((downloaded / totalSize) * 100), downloaded, totalSize);
         }
       });
       
@@ -508,8 +508,8 @@ async function parseDouyin(url, taskId, onProgress) {
   const path = require('path');
   const outputPath = path.join(DOWNLOAD_DIR, `${taskId}.mp4`);
   
-  await downloadFile(videoUrl, outputPath, (percent) => {
-    if (onProgress) onProgress(30 + Math.floor(percent * 0.65));
+  await downloadFile(videoUrl, outputPath, (percent, downloaded, total) => {
+    if (onProgress) onProgress(30 + Math.floor(percent * 0.65), downloaded, total);
   }, {
     'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)',
     'Referer': 'https://www.douyin.com/'
@@ -579,7 +579,7 @@ async function downloadFile(url, outputPath, onProgress, headers = {}) {
       response.on('data', (chunk) => {
         downloaded += chunk.length;
         if (totalSize > 0 && onProgress) {
-          onProgress(Math.floor((downloaded / totalSize) * 100));
+          onProgress(Math.floor((downloaded / totalSize) * 100), downloaded, totalSize);
         }
       });
       

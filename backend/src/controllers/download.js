@@ -297,10 +297,12 @@ async function processDouyin(taskId, url, needAsr, options = ['video']) {
 
     store.update(taskId, { status: 'parsing', progress: 5 });
 
-    const result = await parseDouyin(url, taskId, (percent) => {
+    const result = await parseDouyin(url, taskId, (percent, downloaded, total) => {
       store.update(taskId, {
         status: percent < 30 ? 'parsing' : 'downloading',
-        progress: percent
+        progress: percent,
+        downloadedBytes: downloaded || 0,
+        totalBytes: total || 0
       });
     });
 
