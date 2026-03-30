@@ -286,29 +286,13 @@ async function downloadYouTubeViaAPI(url, taskId, onProgress, quality) {
   
   console.log(`[TikHub] Downloading from: ${downloadUrl.substring(0, 80)}...`);
   
-  // 使用 curl 下载（更可靠）
-  const { exec } = require('child_process');
-  const curlCmd = `curl -L -o "${outputPath}" --max-time 300 --retry 3 "${downloadUrl}" -H "User-Agent: Mozilla/5.0" -H "Referer: https://www.youtube.com/" 2>&1`;
-  
-  await new Promise((resolve, reject) => {
-    exec(curlCmd, (error, stdout, stderr) => {
-      if (error) {
-        console.error(`[TikHub] Download error: ${error.message}`);
-        reject(error);
-      } else {
-        console.log(`[TikHub] Download completed`);
-        resolve();
-      }
-    });
+  // 使用 downloadFile 下载（支持字节进度）
+  await downloadFile(downloadUrl, outputPath, (percent, downloaded, total) => {
+    if (onProgress) onProgress(30 + Math.floor(percent * 0.6), downloaded, total);
+  }, {
+    'User-Agent': 'Mozilla/5.0',
+    'Referer': 'https://www.douyin.com/'
   });
-  
-  // 检查文件大小
-  const stats = fs.statSync(outputPath);
-  console.log(`[TikHub] File size: ${stats.size} bytes`);
-  
-  if (stats.size < 1000) {
-    throw new Error('Download failed: file too small');
-  }
   
   if (onProgress) onProgress(90);
   
