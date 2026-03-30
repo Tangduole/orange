@@ -927,9 +927,22 @@ export default function App() {
                 <div className="p-3 bg-slate-900/60 rounded-xl">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs text-slate-500">Speech to Text</span>
-                    <button onClick={() => clip(task.asrText!, 'asr')} className="text-xs text-slate-500 hover:text-orange-400 transition">
-                      {copied === 'asr' ? <><Check className="w-3 h-3 inline" /> Copied</> : <><Copy className="w-3 h-3 inline" /> Copy</>}
-                    </button>
+                    <div className="flex gap-2">
+                      <button onClick={() => clip(task.asrText!, 'asr')} className="text-xs text-slate-500 hover:text-orange-400 transition">
+                        {copied === 'asr' ? <><Check className="w-3 h-3 inline" /> Copied</> : <><Copy className="w-3 h-3 inline" /> Copy</>}
+                      </button>
+                      <button onClick={() => {
+                        const blob = new Blob([task.asrText!], { type: 'text/plain' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `${task.title || 'asr'}.txt`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }} className="text-xs text-slate-500 hover:text-orange-400 transition">
+                        <Download className="w-3 h-3 inline" /> TXT
+                      </button>
+                    </div>
                   </div>
                   <p className="text-sm text-slate-500 whitespace-pre-wrap max-h-32 overflow-y-auto">{task.asrText}</p>
                 </div>
