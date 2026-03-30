@@ -103,6 +103,14 @@ const OPTIONS: { id: string; label: string; icon: typeof Video }[] = [
   { id: 'subtitle', label: 'Subtitle 字幕', icon: Languages },
 ]
 
+const ASR_LANGUAGE_OPTIONS = [
+  { value: 'zh', label: '中文' },
+  { value: 'en', label: 'English' },
+  { value: 'ja', label: '日本語' },
+  { value: 'ko', label: '한국어' },
+  { value: 'auto', label: '自动检测' },
+]
+
 const QUALITY_OPTIONS = [
   { value: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', label: 'Best 最高画质' },
   { value: 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]', label: '1080p' },
@@ -145,6 +153,7 @@ export default function App() {
   const [copied, setCopied] = useState<string | null>(null)
   const [batchMode, setBatchMode] = useState(false)
   const [quality, setQuality] = useState('bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best')
+  const [asrLanguage, setAsrLanguage] = useState('zh')
   const [availableQualities, setAvailableQualities] = useState<Array<{quality: string, format: string, width: number, height: number, hasVideo: boolean, hasAudio: boolean}>>([])
   const [showQualityPicker, setShowQualityPicker] = useState(false)
   const [pendingUrl, setPendingUrl] = useState('')
@@ -224,7 +233,7 @@ export default function App() {
           setUrl(nextUrl)
           axios.post(`${API}/download`, {
             url: nextUrl, platform: detectPlatform(nextUrl) || 'auto',
-            needAsr: selected.has('asr'), options: [...selected], quality,
+            needAsr: selected.has('asr'), options: [...selected], quality, asrLanguage,
           }, { timeout: 180000 }).then(r => {
             setTask(r.data.data)
           }).catch((e) => {
@@ -410,7 +419,7 @@ export default function App() {
       const detectedFirst = detectPlatform(urls[0])
       const r = await axios.post(`${API}/download`, {
         url: urls[0], platform: detectedFirst || 'auto',
-        needAsr: selected.has('asr'), options: [...selected], quality,
+        needAsr: selected.has('asr'), options: [...selected], quality, asrLanguage,
       }, { timeout: 120000 })
       setTask(r.data.data)
     } catch (e: any) {
@@ -424,7 +433,7 @@ export default function App() {
     try {
       const r = await axios.post(`${API}/download`, {
         url: url.trim(), platform: detected || 'auto',
-        needAsr: selected.has('asr'), options: [...selected], quality,
+        needAsr: selected.has('asr'), options: [...selected], quality, asrLanguage,
       }, { timeout: 120000 })
       setTask(r.data.data); setDetected('')
     } catch (e: any) {
@@ -622,6 +631,21 @@ export default function App() {
                   )
                 })}
               </div>
+              {/* ASR Language Selection */}
+              {selected.has('asr') && (
+                <div className="mt-3">
+                  <label className="text-xs text-slate-500 mb-1 block">ASR Language 語言</label>
+                  <select
+                    value={asrLanguage}
+                    onChange={(e) => setAsrLanguage(e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-900/60 border-2 border-slate-600/50 rounded-xl text-sm text-white outline-none focus:border-orange-500/70 cursor-pointer appearance-none"
+                  >
+                    {ASR_LANGUAGE_OPTIONS.map(opt => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
 
             {/* Quality Selection 画质选择 - 下拉菜单 */}

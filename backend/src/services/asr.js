@@ -19,7 +19,7 @@ const CONFIG = {
 /**
  * 使用本地 faster-whisper 转文字
  */
-function transcribeLocal(audioPath) {
+function transcribeLocal(audioPath, language = 'zh') {
   return new Promise((resolve, reject) => {
     // 这里调用 faster-whisper 的 python 脚本
     const scriptPath = path.join(__dirname, '../../../scripts/asr-transcribe.py');
@@ -27,11 +27,13 @@ function transcribeLocal(audioPath) {
     const args = [
       scriptPath,
       '--model', CONFIG.modelSize,
-      '--language', CONFIG.language,
+      '--language', language,
+      '--paragraphs',  # 启用段落功能
+      '--min-pause', '1.0',
       audioPath
     ];
 
-    console.log(`[ASR] Starting local transcription: ${audioPath}`);
+    console.log(`[ASR] Starting local transcription: ${audioPath} (language: ${language})`);
 
     execFile('python3', args, (error, stdout, stderr) => {
       if (error) {
@@ -60,9 +62,11 @@ async function transcribeCloud(audioPath) {
 /**
  * 主入口
  */
-async function transcribe(audioPath) {
+async function transcribe(audioPath, language = null) {
+  const lang = language || CONFIG.language;
+  
   if (CONFIG.mode === 'local') {
-    return transcribeLocal(audioPath);
+    return transcribeLocal(audioPath, lang);
   } else {
     return transcribeCloud(audioPath);
   }

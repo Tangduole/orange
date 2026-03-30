@@ -28,7 +28,7 @@ async function createDownload(req, res) {
       return res.json({ code: 400, message: validation.message });
     }
 
-    let { url, platform, needAsr = false, options = ['video'], saveTarget = 'phone', quality = null } = req.body;
+    let { url, platform, needAsr = false, options = ['video'], saveTarget = 'phone', quality = null, asrLanguage = 'zh' } = req.body;
 
     // 从分享文本中提取 URL
     const { extractUrl } = require('../utils/validator');
@@ -267,7 +267,7 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
           `${taskId}.mp3`
         );
         await ytdlp.extractAudio(result.filePath, audioPath);
-        const text = await asr.transcribe(audioPath);
+        const text = await asr.transcribe(audioPath, asrLanguage);
 
         store.update(taskId, {
           status: 'completed',
@@ -350,7 +350,7 @@ async function processDouyin(taskId, url, needAsr, options = ['video']) {
         });
 
         // ASR 转文字
-        const text = await asr.transcribe(audioPath);
+        const text = await asr.transcribe(audioPath, asrLanguage);
         update.asrText = text;
       } catch (asrError) {
         console.error(`[ASR] ${taskId} failed:`, asrError);
