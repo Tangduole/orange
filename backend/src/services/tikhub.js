@@ -368,29 +368,41 @@ async function parseDouyin(url, taskId, onProgress) {
     console.log(`[TikHub] Using H.265 (2K): ${playAddr265.width}x${playAddr265.height}`);
   }
   
-  // 如果没有 H.265，使用普通 play_addr (1080p)
-  if (!videoUrl) {
-    const playAddr = video.play_addr || {};
-    if (playAddr.url_list && playAddr.url_list.length > 0) {
-      videoUrl = playAddr.url_list[0];
-      console.log(`[TikHub] Using H.264 (1080p): ${playAddr.width}x${playAddr.height}`);
-    }
-  }
+  // 优先使用高画质 API 获取原始视频（8.15 MB vs 1.58 MB）
+  console.log(`[TikHub] Fetching high quality video...`);
+  if (onProgress) onProgress(15);
   
-  // 如果还是没有，尝试 bit_rate
-  if (!videoUrl && video.bit_rate && video.bit_rate.length > 0) {
-    const sorted = video.bit_rate
-      .filter(br => br.play_addr?.url_list?.[0])
-      .sort((a, b) => (b.play_addr?.height || 0) - (a.play_addr?.height || 0));
-    if (sorted.length > 0) {
-      videoUrl = sorted[0].play_addr.url_list[0];
-    }
-  }
+  const hqData = await tikhubRequest(`/api/v1/douyin/web/fetch_video_high_quality_play_url?aweme_id=${awemeId}`, API_KEY_DOUYIN);
   
-  if (!videoUrl) {
-    // 使用高画质 API
-    const hqData = await tikhubRequest(`/api/v1/douyin/web/fetch_video_high_quality_play_url?aweme_id=${awemeId}`, API_KEY_DOUYIN);
-    videoUrl = hqData.original_video_url || '';
+  if (hqData.original_video_url) {
+    videoUrl = hqData.original_video_url;
+    console.log(`[TikHub] Using original video: ${hqData.file_size_in_mb || 'N/A'} MB`);
+  } else {
+    // 备用：使用普通 play_addr_265
+    const playAddr265 = video.play_addr_265 || {};
+    if (playAddr265.url_list && playAddr265.url_list.length > 0) {
+      videoUrl = playAddr265.url_list[0];
+      console.log(`[TikHub] Using H.265 (2K): ${playAddr265.width}x${playAddr265.height}`);
+    }
+    
+    // 备用：使用普通 play_addr (1080p)
+    if (!videoUrl) {
+      const playAddr = video.play_addr || {};
+      if (playAddr.url_list && playAddr.url_list.length > 0) {
+        videoUrl = playAddr.url_list[0];
+        console.log(`[TikHub] Using H.264 (1080p): ${playAddr.width}x${playAddr.height}`);
+      }
+    }
+    
+    // 备用：尝试 bit_rate
+    if (!videoUrl && video.bit_rate && video.bit_rate.length > 0) {
+      const sorted = video.bit_rate
+        .filter(br => br.play_addr?.url_list?.[0])
+        .sort((a, b) => (b.play_addr?.height || 0) - (a.play_addr?.height || 0));
+      if (sorted.length > 0) {
+        videoUrl = sorted[0].play_addr.url_list[0];
+      }
+    }
   }
   
   if (!videoUrl) throw new Error('No download URL found');
