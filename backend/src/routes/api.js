@@ -42,7 +42,7 @@ router.get('/health', (req, res) => {
     code: 0,
     data: {
       status: 'ok',
-      version: '1.2.0'
+      version: '1.3.0'
     }
   });
 });
