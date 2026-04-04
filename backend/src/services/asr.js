@@ -28,7 +28,7 @@ function transcribeLocal(audioPath, language = 'zh') {
       scriptPath,
       '--model', CONFIG.modelSize,
       '--language', language,
-      '--paragraphs',  # 启用段落功能
+      '--paragraphs',  // 启用段落功能
       '--min-pause', '1.0',
       audioPath
     ];
