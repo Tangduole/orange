@@ -70,10 +70,10 @@ async function parseTweet(url) {
   const username = match ? match[1] : 'i';
   const id = match ? match[2] : tweetId;
 
-  // vxtwitter API（多个镜像）
+  // fxtwitter API（优先使用，更稳定）
   const apis = [
-    `https://api.vxtwitter.com/${username}/status/${id}`,
     `https://api.fxtwitter.com/${username}/status/${id}`,
+    `https://api.vxtwitter.com/${username}/status/${id}`,
   ];
 
   let lastError;
@@ -82,10 +82,16 @@ async function parseTweet(url) {
       const res = await httpGet(apiUrl, { timeout: 10000 });
       const data = JSON.parse(res.body);
 
+      // fxtwitter 格式：data.tweet.media.all[]
+      // vxtwitter 格式：data.media_extended[] 或 data.videos[]
+      const tweetMedia = data.tweet?.media?.all || [];
+      const legacyMedia = data.media_extended || data.media || [];
+      const legacyVideos = data.videos || [];
+
       const result = {
         tweetId: id,
         author: username,
-        title: data.text || data.tweet?.text || '',
+        title: data.text || data.tweet?.text || data.tweet?.raw_text?.text || '',
         tweetUrl: data.tweetURL || fullUrl,
         videoUrl: '',
         videoUrls: [],
@@ -93,9 +99,47 @@ async function parseTweet(url) {
         images: [],
       };
 
-      // 提取视频 - media_extended 格式
-      const media = data.media_extended || data.media || [];
-      for (const m of media) {
+      // 提取视频 - fxtwitter 格式（优先）
+      for (const m of tweetMedia) {
+        if (m.type === 'video' || m.type === 'video/mp4') {
+          // fxtwitter 直接在 media 对象提供 url（通常是最高画质）
+          // 同时检查 formats 中的 mp4 变体
+          const formats = m.formats || [];
+          const mp4Variants = formats.filter(f => f.container === 'mp4' || f.type === 'video/mp4');
+          
+          // 优先使用 direct url（最高画质），其次从 formats 选最高码率
+          if (m.url && m.url.includes('.mp4')) {
+            result.videoUrls.push({
+              url: m.url,
+              type: 'video',
+              width: m.width || 1920,
+              height: m.height || 1080,
+              thumbnail_url: m.thumbnail_url || '',
+              bitrate: m.bitrate || 0,
+            });
+          }
+          
+          // 从 formats 中提取 mp4 视频
+          for (const f of mp4Variants) {
+            if (f.url) {
+              result.videoUrls.push({
+                url: f.url,
+                type: 'video',
+                width: f.width || m.width || 0,
+                height: f.height || m.height || 0,
+                thumbnail_url: m.thumbnail_url || '',
+                bitrate: f.bitrate || f.quality || 0,
+              });
+            }
+          }
+        }
+        if (m.type === 'photo' || m.type === 'image') {
+          result.images.push(m.url || m.media_url || '');
+        }
+      }
+
+      // 提取视频 - legacy media_extended 格式
+      for (const m of legacyMedia) {
         if (m.type === 'video') {
           result.videoUrls.push({
             url: m.url,
@@ -110,9 +154,8 @@ async function parseTweet(url) {
         }
       }
 
-      // 提取视频 - videos 格式（vxtwitter）
-      const videos = data.videos || [];
-      for (const v of videos) {
+      // 提取视频 - legacy videos 格式（vxtwitter）
+      for (const v of legacyVideos) {
         result.videoUrls.push({
           url: v.url,
           type: v.type || 'video',
@@ -122,17 +165,22 @@ async function parseTweet(url) {
 
       // 选择最高清视频
       if (result.videoUrls.length > 0) {
-        // 按分辨率/码率排序，取最高
-        result.videoUrls.sort((a, b) => (b.width || b.bitrate || 0) - (a.width || a.bitrate || 0));
+        // 按分辨率*码率排序，取最高
+        result.videoUrls.sort((a, b) => {
+          const scoreA = (a.width || 0) * (a.height || 0) * (a.bitrate || 0);
+          const scoreB = (b.width || 0) * (b.height || 0) * (b.bitrate || 0);
+          return scoreB - scoreA;
+        });
         result.videoUrl = result.videoUrls[0].url;
       }
 
       // 封面
+      if (!result.coverUrl) {
+        const mediaItem = tweetMedia[0] || {};
+        result.coverUrl = mediaItem.thumbnail_url || mediaItem.thumbnailUrl || '';
+      }
       if (!result.coverUrl && data.tweet?.card) {
         result.coverUrl = data.tweet.card.binding_values?.thumbnail_image_original?.url || '';
-      }
-      if (!result.coverUrl && result.videoUrls[0]?.thumbnail_url) {
-        result.coverUrl = result.videoUrls[0].thumbnail_url;
       }
 
       if (result.videoUrls.length === 0 && result.images.length === 0) {
