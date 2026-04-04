@@ -402,31 +402,27 @@ async function parseDouyin(url, taskId, onProgress) {
     console.log(`[TikHub] High quality API failed:`, e.message);
   }
   
-  // 选择最佳 URL：高画质 > H.265 > H.264 > bit_rate
+  // 选择最佳 URL：高画质 > bit_rate(最高) > H.265 > play_addr
   if (hqVideoUrl) {
     videoUrl = hqVideoUrl;
+  } else if (video.bit_rate && video.bit_rate.length > 0) {
+    // 从 bit_rate 中选择最高画质
+    const sorted = video.bit_rate
+      .filter(br => br.play_addr?.url_list?.[0])
+      .sort((a, b) => (b.bit_rate || 0) - (a.bit_rate || 0));
+    if (sorted.length > 0) {
+      videoUrl = sorted[0].play_addr.url_list[0];
+      console.log(`[TikHub] Using bit_rate: ${sorted[0].gear_name || sorted[0].bit_rate}bps`);
+    }
   } else if (playAddr265Url) {
     videoUrl = playAddr265Url;
-    console.log(`[TikHub] Using H.265 (2K): ${playAddr265.width}x${playAddr265.height}`);
-  }
-  
-  // 备用：使用普通 play_addr (1080p)
-  if (!videoUrl) {
+    console.log(`[TikHub] Using H.265: ${playAddr265.width}x${playAddr265.height}`);
+  } else {
+    // 备用：使用普通 play_addr
     const playAddr = video.play_addr || {};
     if (playAddr.url_list && playAddr.url_list.length > 0) {
       videoUrl = playAddr.url_list[0];
-      console.log(`[TikHub] Using H.264 (1080p): ${playAddr.width}x${playAddr.height}`);
-    }
-  }
-  
-  // 备用：尝试 bit_rate
-  if (!videoUrl && video.bit_rate && video.bit_rate.length > 0) {
-    const sorted = video.bit_rate
-      .filter(br => br.play_addr?.url_list?.[0])
-      .sort((a, b) => (b.play_addr?.height || 0) - (a.play_addr?.height || 0));
-    if (sorted.length > 0) {
-      videoUrl = sorted[0].play_addr.url_list[0];
-      console.log(`[TikHub] Using bit_rate: ${sorted[0].play_addr.height}p`);
+      console.log(`[TikHub] Using play_addr: ${playAddr.width}x${playAddr.height}`);
     }
   }
   
