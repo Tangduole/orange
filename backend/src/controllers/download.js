@@ -557,6 +557,8 @@ function getStatus(req, res) {
       imageFiles: task.imageFiles,
       isNote: task.isNote,
       error: task.error,
+      downloadedBytes: task.downloadedBytes || 0,
+      totalBytes: task.totalBytes || 0,
       createdAt: task.createdAt
     }
   });
