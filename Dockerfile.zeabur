@@ -1,0 +1,30 @@
+# Orange Downloader Backend - Zeabur
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apk add --no-cache \
+    python3 \
+    py3-pip \
+    ffmpeg \
+    curl \
+    bash
+
+# Install yt-dlp
+RUN pip3 install --upgrade yt-dlp --break-system-packages
+
+# Copy backend files
+COPY backend/package*.json ./
+RUN npm install --production
+
+COPY backend/ ./backend/
+
+# Create downloads directory
+RUN mkdir -p /app/downloads
+
+# Expose port
+EXPOSE 3000
+
+# Start
+CMD ["node", "backend/src/app.js"]

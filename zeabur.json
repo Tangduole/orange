@@ -1,0 +1,16 @@
+{
+  "$schema": "https://istanbul.tools/zeabur/schema.json",
+  "services": [
+    {
+      "name": "orange-backend",
+      "port": 3000,
+      "dockerfilePath": "Dockerfile.zeabur",
+      "environmentVariables": [
+        {
+          "key": "NODE_ENV",
+          "value": "production"
+        }
+      ]
+    }
+  ]
+}
