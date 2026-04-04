@@ -1,10 +1,19 @@
 services:
   - type: web
-    name: orange
+    name: orange-backend
     runtime: docker
     plan: free
     region: oregon
-    dockerCommand: sh -c "cd frontend && npm install && npm run build && cd .. && npm install && node backend/src/app.js"
-    startCommand: node backend/src/app.js
-    branch: master
+    dockerfilePath: ./Dockerfile.railway
     healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: TIKHUB_API_KEY_DOUYIN
+        sync: false
+      - key: TIKHUB_API_KEY_TIKTOK
+        sync: false
+      - key: TIKHUB_API_KEY_YOUTUBE
+        sync: false
+      - key: TIKHUB_API_KEY_X
+        sync: false
