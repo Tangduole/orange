@@ -367,31 +367,46 @@ async function parseDouyin(url, taskId, onProgress) {
   // 获取播放地址（优先使用 H.265 高画质）
   let videoUrl = '';
   
-  // 优先使用 H.265 (2K 画质)
+  // 获取 H.265 画质 URL（作为备用）
   const playAddr265 = video.play_addr_265 || {};
-  if (playAddr265.url_list && playAddr265.url_list.length > 0) {
-    videoUrl = playAddr265.url_list[0];
-    console.log(`[TikHub] Using H.265 (2K): ${playAddr265.width}x${playAddr265.height}`);
-  }
+  const playAddr265Url = playAddr265.url_list?.[0] || '';
   
-  // 尝试使用高画质 API 获取原始视频（8.15 MB vs 1.58 MB）
+  // 尝试使用高画质 API 获取原始视频
   console.log(`[TikHub] Fetching high quality video...`);
   if (onProgress) onProgress(15);
   
+  let hqVideoUrl = '';
   try {
     const hqData = await tikhubRequest(`/api/v1/douyin/web/fetch_video_high_quality_play_url?aweme_id=${awemeId}`, API_KEY_DOUYIN);
     
     if (hqData.original_video_url) {
-      videoUrl = hqData.original_video_url;
-      console.log(`[TikHub] Using original video: ${hqData.file_size_in_mb || 'N/A'} MB`);
+      // 先测试 URL 是否可访问（403 时 fallback）
+      const https = require('https');
+      const hqUrl = hqData.original_video_url;
+      
+      const isAccessible = await new Promise((resolve) => {
+        const req = https.request(hqUrl, { method: 'HEAD', timeout: 5000 }, (res) => {
+          resolve(res.statusCode === 200 || res.statusCode === 302 || res.statusCode === 303);
+        }).on('error', () => resolve(false));
+        req.end();
+      });
+      
+      if (isAccessible) {
+        hqVideoUrl = hqUrl;
+        console.log(`[TikHub] Using original video: ${hqData.file_size_in_mb || 'N/A'} MB`);
+      } else {
+        console.log(`[TikHub] High quality URL not accessible, will use H.265 fallback`);
+      }
     }
   } catch (e) {
     console.log(`[TikHub] High quality API failed:`, e.message);
   }
   
-  // 备用：使用普通 play_addr_265
-  if (!videoUrl && playAddr265.url_list && playAddr265.url_list.length > 0) {
-    videoUrl = playAddr265.url_list[0];
+  // 选择最佳 URL：高画质 > H.265 > H.264 > bit_rate
+  if (hqVideoUrl) {
+    videoUrl = hqVideoUrl;
+  } else if (playAddr265Url) {
+    videoUrl = playAddr265Url;
     console.log(`[TikHub] Using H.265 (2K): ${playAddr265.width}x${playAddr265.height}`);
   }
   
