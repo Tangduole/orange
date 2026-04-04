@@ -9,8 +9,7 @@ RUN apk add --no-cache \
     py3-pip \
     ffmpeg \
     curl \
-    bash \
-    wget
+    bash
 
 # Install latest yt-dlp
 RUN pip3 install --upgrade yt-dlp --break-system-packages
@@ -26,10 +25,6 @@ RUN mkdir -p /app/downloads
 
 # Expose port
 EXPOSE 3000
-
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1
 
 # Start
 CMD ["node", "backend/src/app.js"]
