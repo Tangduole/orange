@@ -2,8 +2,6 @@ import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import { Share } from '@capacitor/share'
 import AuthModal from './components/AuthModal'
-import SubscriptionPage from './components/SubscriptionPage'
-import api from './api/auth'
 import {
   Download, Link2, CheckCircle2, XCircle, Loader2,
   Video, FileText, Image as ImageIcon, Mic, Languages,
@@ -161,75 +159,43 @@ export default function App() {
   const [showQualityPicker, setShowQualityPicker] = useState(false)
   const [pendingUrl, setPendingUrl] = useState('')
   const [batchUrls, setBatchUrls] = useState('')
-  
+
   // Auth state
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [authToken, setAuthToken] = useState<string | null>(localStorage.getItem('orange_token'))
   const [authUser, setAuthUser] = useState<any>(JSON.parse(localStorage.getItem('orange_user') || 'null'))
   const [showSubscription, setShowSubscription] = useState(false)
-  
-  // History search & filter state
   const [historySearch, setHistorySearch] = useState('')
   const [historyFilter, setHistoryFilter] = useState<'all' | 'completed' | 'error'>('all')
-  const [userUsage, setUserUsage] = useState<any>(null)
   const [favorites, setFavorites] = useState<Set<string>>(new Set(JSON.parse(localStorage.getItem('orange_favorites') || '[]')))
-  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set())
-  
-  // Computed filtered history
+
   const filteredHistory = history.filter(item => {
     if (historyFilter === 'favorites' && !favorites.has(item.taskId)) return false
     if (historyFilter !== 'all' && historyFilter !== 'favorites' && item.status !== historyFilter) return false
     if (historySearch && !(item.title || '').toLowerCase().includes(historySearch.toLowerCase())) return false
     return true
   })
-  
-  // Save favorites to localStorage
+
   const toggleFavorite = (taskId: string) => {
-    const newFavorites = new Set(favorites)
-    if (newFavorites.has(taskId)) {
-      newFavorites.delete(taskId)
-    } else {
-      newFavorites.add(taskId)
-    }
-    setFavorites(newFavorites)
-    localStorage.setItem('orange_favorites', JSON.stringify([...newFavorites]))
+    const nf = new Set(favorites)
+    nf.has(taskId) ? nf.delete(taskId) : nf.add(taskId)
+    setFavorites(nf)
+    localStorage.setItem('orange_favorites', JSON.stringify([...nf]))
   }
-  
-  // Load user usage on mount
-  useEffect(() => {
-    if (authToken) {
-      loadUserUsage()
-    }
-  }, [authToken])
-  
-  const loadUserUsage = async () => {
-    try {
-      const api = (await import('./api/auth')).default
-      const data = await api.getSubscriptionStatus(authToken)
-      setUserUsage(data.usage)
-    } catch (e) {
-      // ignore
-    }
-  }
-  
+
   const handleAuthSuccess = (token: string, user: any) => {
     setAuthToken(token)
     setAuthUser(user)
-    loadUserUsage()
+    localStorage.setItem('orange_token', token)
+    localStorage.setItem('orange_user', JSON.stringify(user))
   }
-  
+
   const handleLogout = () => {
     localStorage.removeItem('orange_token')
     localStorage.removeItem('orange_user')
     setAuthToken(null)
     setAuthUser(null)
-    setUserUsage(null)
-  }
-  
-  // Show subscription page
-  if (showSubscription && authToken) {
-    return <SubscriptionPage token={authToken} onBack={() => setShowSubscription(false)} />
   }
 
   // 从文本中提取所有链接
@@ -489,15 +455,11 @@ export default function App() {
     setBatchIndex(0)
     setLoading(true); setError('')
     try {
-      const headers: any = { timeout: 120000 }
-      if (authToken) {
-        headers.headers = { 'Authorization': `Bearer ${authToken}` }
-      }
       const detectedFirst = detectPlatform(urls[0])
       const r = await axios.post(`${API}/download`, {
         url: urls[0], platform: detectedFirst || 'auto',
         needAsr: selected.has('asr'), options: [...selected], quality, asrLanguage,
-      }, headers)
+      }, { timeout: 120000 })
       setTask(r.data.data)
     } catch (e: any) {
       setError(getErrorMessage(e.code === 'ECONNABORTED' ? 'timeout' : (e.response?.data?.message || e.message || 'Download failed')))
@@ -508,22 +470,10 @@ export default function App() {
   const doSingleDownload = async () => {
     setLoading(true); setError('')
     try {
-      const headers: any = { timeout: 120000 }
-      if (authToken) {
-        headers.headers = { 'Authorization': `Bearer ${authToken}` }
-      }
       const r = await axios.post(`${API}/download`, {
         url: url.trim(), platform: detected || 'auto',
         needAsr: selected.has('asr'), options: [...selected], quality, asrLanguage,
-      }, headers)
-      if (r.data.code === 403) {
-        setError(r.data.message || '下载次数已用完')
-        if (r.data.message?.includes('升级')) {
-          setShowSubscription(true)
-        }
-        setLoading(false)
-        return
-      }
+      }, { timeout: 120000 })
       setTask(r.data.data); setDetected('')
     } catch (e: any) {
       setError(getErrorMessage(e.code === 'ECONNABORTED' ? 'timeout' : (e.response?.data?.message || e.message || 'Download failed')))
@@ -538,7 +488,6 @@ export default function App() {
   const del = async (id: string) => {
     try { await axios.delete(`${API}/tasks/${id}`); fetchHistory(); if (task?.taskId === id) setTask(null) } catch {}
   }
-  // Batch delete selected tasks
   const deleteSelected = async () => {
     if (selectedTasks.size === 0) return
     if (!confirm(`Delete ${selectedTasks.size} item(s)?`)) return
@@ -546,38 +495,24 @@ export default function App() {
       await Promise.all([...selectedTasks].map(id => axios.delete(`${API}/tasks/${id}`)))
       setSelectedTasks(new Set())
       fetchHistory()
-    } catch (e) {
-      console.error('Batch delete failed:', e)
-    }
+    } catch {}
   }
-  const clearAllHistory = async () => {
-    try { await axios.delete(`${API}/history`); fetchHistory(); setTask(null) } catch {}
-  }
-  // Toggle select all visible items
   const toggleSelectAll = () => {
-    if (selectedTasks.size === filteredHistory.length) {
-      setSelectedTasks(new Set())
-    } else {
-      setSelectedTasks(new Set(filteredHistory.map(item => item.taskId)))
-    }
+    selectedTasks.size === filteredHistory.length
+      ? setSelectedTasks(new Set())
+      : setSelectedTasks(new Set(filteredHistory.map(item => item.taskId)))
   }
-  // Retry failed task
   const retryTask = async (item: HistoryItem) => {
     if (!item.url) return
     setLoading(true); setError('')
     try {
-      const headers: any = { timeout: 120000 }
-      if (authToken) {
-        headers.headers = { 'Authorization': `Bearer ${authToken}` }
-      }
-      const r = await axios.post(`${API}/download`, {
-        url: item.url, platform: item.platform || 'auto',
-        needAsr: false, options: ['video'],
-      }, headers)
+      const r = await axios.post(`${API}/download`, { url: item.url, platform: item.platform || 'auto', needAsr: false, options: ['video'] }, { timeout: 120000 })
       setTask(r.data.data)
-    } catch (e: any) {
-      setError(getErrorMessage(e.response?.data?.message || e.message || 'Download failed'))
-    } finally { setLoading(false) }
+    } catch (e: any) { setError(getErrorMessage(e.response?.data?.message || e.message)) }
+    finally { setLoading(false) }
+  }
+  const clearAllHistory = async () => {
+    try { await axios.delete(`${API}/history`); fetchHistory(); setTask(null) } catch {}
   }
   const openSavedFile = (item: HistoryItem) => {
     // 在新窗口打开视频文件
@@ -623,54 +558,16 @@ export default function App() {
               <h1 className="text-xl font-bold text-white">Orange Downloader</h1>
               <p className="text-xs text-slate-400">Multi-platform Video Downloader</p>
             </div>
-            {/* User Menu */}
             <div className="ml-auto flex items-center gap-2">
               {authToken ? (
                 <>
-                  <button
-                    onClick={() => setShowSubscription(true)}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                      authUser?.tier === 'pro'
-                        ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
-                        : 'bg-slate-700/50 text-slate-300 border border-slate-600/50 hover:bg-slate-700'
-                    }`}
-                  >
-                    {authUser?.tier === 'pro' ? '🎉 Pro' : 'Free'}
+                  <button className={"px-3 py-1.5 rounded-lg text-xs font-medium " + (authUser?.tier === 'pro' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50' : 'bg-slate-700/50 text-slate-300 border border-slate-600/50')}>
+                    {authUser?.tier === 'pro' ? 'Pro' : 'Free'}
                   </button>
-                  <div className="relative group">
-                    <button className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-slate-300 hover:bg-slate-600 transition-colors">
-                      <span className="text-sm">👤</span>
-                    </button>
-                    {/* Dropdown */}
-                    <div className="absolute right-0 top-full mt-1 w-48 py-1 bg-slate-800 border border-slate-700 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                      <div className="px-3 py-2 border-b border-slate-700">
-                        <p className="text-xs text-slate-400 truncate">{authUser?.email}</p>
-                        {userUsage && !userUsage.isPro && (
-                          <p className="text-xs text-slate-500 mt-0.5">
-                            今日剩余: {userUsage.remaining}/{userUsage.dailyLimit}次
-                          </p>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => setShowSubscription(true)}
-                        className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700/50 transition-colors"
-                      >
-                        💎 会员中心
-                      </button>
-                      <button
-                        onClick={handleLogout}
-                        className="w-full px-3 py-2 text-left text-sm text-slate-400 hover:bg-slate-700/50 hover:text-red-400 transition-colors"
-                      >
-                        退出登录
-                      </button>
-                    </div>
-                  </div>
+                  <button onClick={handleLogout} className="px-3 py-1.5 text-xs text-slate-400 hover:text-red-400">登出</button>
                 </>
               ) : (
-                <button
-                  onClick={() => setShowAuthModal(true)}
-                  className="px-4 py-2 bg-orange-500/20 text-orange-400 border border-orange-500/50 rounded-lg text-sm font-medium hover:bg-orange-500/30 transition-all"
-                >
+                <button onClick={() => setShowAuthModal(true)} className="px-4 py-2 text-sm bg-orange-500/20 text-orange-400 border border-orange-500/50 rounded-lg font-medium">
                   登录/注册
                 </button>
               )}
@@ -1159,121 +1056,37 @@ export default function App() {
             </button>
             {showHistory && (
               <div className="mt-2 bg-slate-900/60 rounded-2xl border border-slate-700/60 overflow-hidden">
-                {/* Search & Filter Bar */}
                 <div className="flex gap-2 p-3 border-b border-slate-700/30 items-center">
-                  {/* Select All checkbox */}
-                  {filtered.length > 0 && (
-                    <input
-                      type="checkbox"
-                      checked={selectedTasks.size === filtered.length && filtered.length > 0}
-                      onChange={toggleSelectAll}
-                      className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-orange-500 focus:ring-orange-500"
-                    />
-                  )}
-                  {/* Delete Selected button */}
-                  {selectedTasks.size > 0 && (
-                    <button
-                      onClick={deleteSelected}
-                      className="px-3 py-1.5 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg text-xs font-medium hover:bg-red-500/30 transition"
-                    >
-                      Delete ({selectedTasks.size})
-                    </button>
-                  )}
-                  {/* Search */}
+                  {filteredHistory.length > 0 && <input type="checkbox" checked={selectedTasks.size === filteredHistory.length} onChange={toggleSelectAll} className="w-4 h-4 rounded border-slate-600" />}
+                  {selectedTasks.size > 0 && <button onClick={deleteSelected} className="px-3 py-1.5 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg text-xs">Delete ({selectedTasks.size})</button>}
                   <div className="flex-1 relative">
-                    <input
-                      type="text"
-                      value={historySearch}
-                      onChange={(e) => setHistorySearch(e.target.value)}
-                      placeholder="Search..."
-                      className="w-full pl-8 pr-3 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-orange-500/50"
-                    />
+                    <input type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} placeholder="Search..." className="w-full pl-8 pr-3 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm text-white placeholder:text-slate-500" />
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                   </div>
-                  {/* Filter */}
-                  <select
-                    value={historyFilter}
-                    onChange={(e) => setHistoryFilter(e.target.value as any)}
-                    className="px-3 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm text-white focus:outline-none focus:border-orange-500/50"
-                  >
+                  <select value={historyFilter} onChange={(e) => setHistoryFilter(e.target.value as any)} className="px-3 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm text-white">
                     <option value="all">All</option>
-                    <option value="completed">Completed</option>
+                    <option value="completed">Done</option>
                     <option value="error">Failed</option>
-                    <option value="favorites">Favorites</option>
+                    <option value="favorites">Fav</option>
                   </select>
                 </div>
-                {/* History List */}
                 <div className="max-h-60 overflow-y-auto">
-                {filteredHistory.length === 0
-                  ? <p className="py-8 text-center text-sm text-slate-600">{historySearch || historyFilter !== 'all' ? 'No results found' : 'No download history'}</p>
-                  : filteredHistory.map(item => (
+                  {filteredHistory.length === 0 ? <p className="py-8 text-center text-sm text-slate-600">{historySearch || historyFilter !== 'all' ? 'No results' : 'No history'}</p> : filteredHistory.map(item => (
                     <div key={item.taskId} className={`flex items-center gap-3 px-4 py-3 border-b border-slate-700/20 last:border-0 hover:bg-slate-900/60 transition ${selectedTasks.has(item.taskId) ? 'bg-orange-500/10' : ''}`}>
-                      {/* Select checkbox */}
-                      <input
-                        type="checkbox"
-                        checked={selectedTasks.has(item.taskId)}
-                        onChange={() => {
-                          const newSelected = new Set(selectedTasks)
-                          if (newSelected.has(item.taskId)) {
-                            newSelected.delete(item.taskId)
-                          } else {
-                            newSelected.add(item.taskId)
-                          }
-                          setSelectedTasks(newSelected)
-                        }}
-                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-orange-500 focus:ring-orange-500 shrink-0"
-                      />
-                      {/* 缩略图 - 点击打开已保存的文件 */}
-                      {item.thumbnailUrl
-                        ? <button 
-                            onClick={() => openSavedFile(item)}
-                            className="relative shrink-0 group"
-                          >
-                            <img src={`${BASE_URL}${item.thumbnailUrl}`} alt="" className="w-14 h-10 object-cover rounded-lg" />
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 transition">
-                              <Play className="w-4 h-4 text-white" />
-                            </div>
-                          </button>
-                        : <div className="w-14 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0"><Video className="w-4 h-4 text-slate-600" /></div>
-                      }
+                      <input type="checkbox" checked={selectedTasks.has(item.taskId)} onChange={() => { const s = new Set(selectedTasks); selectedTasks.has(item.taskId) ? s.delete(item.taskId) : s.add(item.taskId); setSelectedTasks(s) }} className="w-4 h-4 rounded border-slate-600 shrink-0" />
+                      {item.thumbnailUrl ? <button onClick={() => openSavedFile(item)} className="relative shrink-0 group"><img src={`${BASE_URL}${item.thumbnailUrl}`} alt="" className="w-14 h-10 object-cover rounded-lg" /><div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 transition"><Play className="w-4 h-4 text-white" /></div></button> : <div className="w-14 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0"><Video className="w-4 h-4 text-slate-600" /></div>}
                       <div className="flex-1 min-w-0">
-                        {/* 标题 - 长标题才跑马灯 */}
-                        <div className="overflow-hidden">
-                          <div className="overflow-hidden">
-                            <p className={`text-sm text-slate-600 font-medium whitespace-nowrap ${(item.title || '').length > 20 ? 'animate-marquee' : 'truncate'}`}>
-                              {(item.title || '').length > 20 ? <>{item.title}&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;{item.title}</> : (item.title || 'Untitled')}
-                            </p>
-                          </div>
-                        </div>
+                        <p className={`text-sm text-slate-600 font-medium whitespace-nowrap ${(item.title || '').length > 20 ? 'animate-marquee' : 'truncate'}`}>{item.title || 'Untitled'}</p>
                         <div className="flex items-center gap-2 mt-0.5">
                           {item.platform && <span className="text-xs text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded">{platformLabel(item.platform)}</span>}
                           <span className="text-xs text-slate-600">{new Date(item.createdAt).toLocaleString('en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       </div>
-                      {/* Retry button for failed tasks */}
-                      {item.status === 'error' && (
-                        <button 
-                          onClick={() => retryTask(item)}
-                          className="p-1.5 text-orange-500 hover:text-orange-400 transition"
-                          title="Retry"
-                        >
-                          <Loader2 className="w-4 h-4" />
-                        </button>
-                      )}
-                      {/* Favorite button */}
-                      <button 
-                        onClick={() => toggleFavorite(item.taskId)}
-                        className={`p-1.5 transition ${favorites.has(item.taskId) ? 'text-yellow-400 hover:text-yellow-300' : 'text-slate-600 hover:text-yellow-400'}`}
-                        title={favorites.has(item.taskId) ? 'Remove from favorites' : 'Add to favorites'}
-                      >
-                        <svg className="w-4 h-4" fill={favorites.has(item.taskId) ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                        </svg>
-                      </button>
-                      <button onClick={() => del(item.taskId)} className="p-1.5 text-slate-600 hover:text-red-400 transition"><Trash2 className="w-4 h-4" /></button>
+                      {item.status === 'error' && <button onClick={() => retryTask(item)} className="p-1.5 text-orange-500 hover:text-orange-400"><Loader2 className="w-4 h-4" /></button>}
+                      <button onClick={() => toggleFavorite(item.taskId)} className={`p-1.5 ${favorites.has(item.taskId) ? 'text-yellow-400' : 'text-slate-600 hover:text-yellow-400'}`}><svg className="w-4 h-4" fill={favorites.has(item.taskId) ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg></button>
+                      <button onClick={() => del(item.taskId)} className="p-1.5 text-slate-600 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
                     </div>
-                  ))
-                }
+                  ))}
                 </div>
               </div>
             )}
@@ -1345,14 +1158,8 @@ export default function App() {
         <footer className="text-center py-8 text-slate-600 text-xs">
           <p>Orange Downloader v1.0 · For personal use only</p>
         </footer>
+        <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} onSuccess={handleAuthSuccess} />
       </div>
     </div>
-    
-    {/* Auth Modal */}
-    <AuthModal
-      isOpen={showAuthModal}
-      onClose={() => setShowAuthModal(false)}
-      onSuccess={handleAuthSuccess}
-    />
   )
 }
