@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import { Share } from '@capacitor/share'
 import AuthModal from './components/AuthModal'
+import SubscriptionPage from './components/SubscriptionPage'
 import {
   Download, Link2, CheckCircle2, XCircle, Loader2,
   Video, FileText, Image as ImageIcon, Mic, Languages,
@@ -539,6 +540,10 @@ export default function App() {
   }
   const platformLabel = (id: string) => PLATFORMS.find(p => p.id === id)?.label || ''
 
+  if (showSubscription && authToken) {
+    return <SubscriptionPage token={authToken} onBack={() => setShowSubscription(false)} />
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
       {/* 背景光晕 - 橙色主题 */}
@@ -561,7 +566,7 @@ export default function App() {
             <div className="ml-auto flex items-center gap-2">
               {authToken ? (
                 <>
-                  <button className={"px-3 py-1.5 rounded-lg text-xs font-medium " + (authUser?.tier === 'pro' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50' : 'bg-slate-700/50 text-slate-300 border border-slate-600/50')}>
+                  <button onClick={() => setShowSubscription(true)} className={"px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer " + (authUser?.tier === 'pro' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50' : 'bg-slate-700/50 text-slate-300 border border-slate-600/50')}>
                     {authUser?.tier === 'pro' ? 'Pro' : 'Free'}
                   </button>
                   <button onClick={handleLogout} className="px-3 py-1.5 text-xs text-slate-400 hover:text-red-400">登出</button>
