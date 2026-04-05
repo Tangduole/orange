@@ -507,7 +507,42 @@ export default function App() {
     if (!item.url) return
     setLoading(true); setError('')
     try {
-      const r = await axios.post(`${API}/download`, { url: item.url, platform: item.platform || 'auto', needAsr: false, options: ['video'] }, { timeout: 120000 })
+      let r;
+      // 尝试使用断点续传 API
+      if (item.taskId) {
+        try {
+          r = await axios.post(`${API}/download/${item.taskId}/retry`, {}, { timeout: 120000 });
+          if (r?.data?.code === 0) {
+            // 续传成功，获取新任务状态
+            const newTaskId = r.data.data.taskId;
+            // 轮询新任务状态
+            const pollTask = async () => {
+              const status = await axios.get(`${API}/status/${newTaskId}`);
+              if (status.data.data?.status === 'completed') {
+                setTask(status.data.data);
+                fetchHistory();
+                return;
+              }
+              if (status.data.data?.status === 'error') {
+                setError(status.data.data.error || 'Download failed');
+                return;
+              }
+              if (status.data.data?.status === 'downloading') {
+                setTask(status.data.data);
+              }
+              setTimeout(pollTask, 2000);
+            };
+            pollTask();
+            setLoading(false);
+            return;
+          }
+        } catch (e) {
+          // 续传 API 不可用，使用普通下载
+          console.log('[retry] Retry API not available, using regular download');
+        }
+      }
+      // 普通下载
+      r = await axios.post(`${API}/download`, { url: item.url, platform: item.platform || 'auto', needAsr: false, options: ['video'] }, { timeout: 120000 })
       setTask(r.data.data)
     } catch (e: any) { setError(getErrorMessage(e.response?.data?.message || e.message)) }
     finally { setLoading(false) }
