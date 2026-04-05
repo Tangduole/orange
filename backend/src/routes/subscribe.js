@@ -1,0 +1,185 @@
+/**
+ * 订阅路由 - Lemon Squeezy 集成
+ */
+
+const express = require('express');
+const router = express.Router();
+const axios = require('axios');
+const userDb = require('../userDb');
+const auth = require('../auth');
+
+// Lemon Squeezy 配置
+const LS_API_KEY = process.env.LEMON_SQUEEZY_API_KEY || '';
+const LS_STORE_ID = process.env.LEMON_SQUEEZY_STORE_ID || '';
+const LS_VARIANT_ID_PRO = process.env.LEMON_SQUEEZY_VARIANT_ID_PRO || ''; // Pro 版本产品变体ID
+const LS_WEBHOOK_SECRET = process.env.LEMON_SQUEEZY_WEBHOOK_SECRET || '';
+
+// Lemon Squeezy API Base
+const LS_API_BASE = 'https://api.lemonsqueezy.com/v1';
+
+/**
+ * 创建 Pro 订阅 checkout
+ * POST /api/subscribe/checkout
+ */
+router.post('/checkout', auth.required, async (req, res) => {
+  const { email } = req.user;
+  
+  if (!LS_API_KEY || !LS_STORE_ID || !LS_VARIANT_ID_PRO) {
+    return res.json({
+      code: 500,
+      message: '订阅服务未配置，请联系管理员'
+    });
+  }
+
+  try {
+    // 创建 Lemon Squeezy Checkout
+    const response = await axios.post(
+      `${LS_API_BASE}/checkouts`,
+      {
+        data: {
+          type: 'checkouts',
+          attributes: {
+            checkout_data: {
+              email: email,
+              custom: {
+                user_id: req.user.id
+              }
+            },
+            product_options: {
+              redirect_url: `${process.env.FRONTEND_URL || 'https://orange-app.vercel.app'}/subscription?success=true`
+            }
+          },
+          relationships: {
+            store: { data: { type: 'stores', id: LS_STORE_ID } },
+            variant: { data: { type: 'variants', id: LS_VARIANT_ID_PRO } }
+          }
+        }
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${LS_API_KEY}`,
+          'Accept': 'application/vnd.api+json',
+          'Content-Type': 'application/vnd.api+json'
+        }
+      }
+    );
+
+    const checkoutUrl = response.data.data.attributes.url;
+    const checkoutId = response.data.data.id;
+
+    res.json({
+      code: 0,
+      data: {
+        checkoutUrl,
+        checkoutId
+      }
+    });
+  } catch (e) {
+    console.error('[subscribe] Checkout error:', e.response?.data || e.message);
+    res.json({
+      code: 500,
+      message: '创建订阅失败，请稍后重试'
+    });
+  }
+});
+
+/**
+ * 获取当前订阅状态
+ * GET /api/subscribe/status
+ */
+router.get('/status', auth.required, (req, res) => {
+  const usage = userDb.getUsage(req.user.id);
+  
+  res.json({
+    code: 0,
+    data: {
+      tier: req.user.tier,
+      subscriptionStatus: req.user.subscription_status,
+      subscriptionEndsAt: req.user.subscription_ends_at,
+      usage
+    }
+  });
+});
+
+/**
+ * Lemon Squeezy Webhook - 处理订阅事件
+ * POST /api/subscribe/webhook
+ */
+router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
+  const signature = req.headers['x-signature'];
+  
+  // 验证签名（生产环境必须验证）
+  if (process.env.NODE_ENV === 'production' && LS_WEBHOOK_SECRET) {
+    const crypto = require('crypto');
+    const hmac = crypto.createHmac('sha256', LS_WEBHOOK_SECRET);
+    hmac.update(req.body);
+    const expectedSignature = hmac.digest('hex');
+    
+    if (signature !== expectedSignature) {
+      console.error('[webhook] Invalid signature');
+      return res.status(403).json({ error: 'Invalid signature' });
+    }
+  }
+
+  let event;
+  try {
+    event = JSON.parse(req.body.toString());
+  } catch (e) {
+    console.error('[webhook] Parse error:', e.message);
+    return res.status(400).json({ error: 'Invalid JSON' });
+  }
+
+  console.log('[webhook] Received event:', event.meta?.event_name);
+
+  const eventName = event.meta?.event_name;
+  const email = event.data?.attributes?.user_email?.toLowerCase();
+  const subscriptionStatus = event.data?.attributes?.status;
+  const endsAt = event.data?.attributes?.ends_at ? new Date(event.data.attributes.ends_at).getTime() : null;
+  const renewsAt = event.data?.attributes?.renews_at ? new Date(event.data.attributes.renews_at).getTime() : null;
+
+  if (!email) {
+    return res.status(400).json({ error: 'Missing email' });
+  }
+
+  try {
+    switch (eventName) {
+      case 'subscription_created':
+      case 'subscription_updated':
+        if (subscriptionStatus === 'active' || subscriptionStatus === 'past_due') {
+          userDb.upgradeToPro(email, renewsAt || endsAt);
+          console.log(`[webhook] Upgraded ${email} to Pro`);
+        } else if (subscriptionStatus === 'cancelled' || subscriptionStatus === 'expired') {
+          userDb.downgradeToFree(email);
+          console.log(`[webhook] Downgraded ${email} to Free`);
+        }
+        break;
+
+      case 'subscription_cancelled':
+        userDb.downgradeToFree(email);
+        console.log(`[webhook] Cancelled ${email}`);
+        break;
+
+      case 'subscription_payment_success':
+        // 续费成功，保持 Pro
+        if (renewsAt) {
+          userDb.upgradeToPro(email, renewsAt);
+        }
+        console.log(`[webhook] Payment success for ${email}`);
+        break;
+
+      case 'subscription_payment_failed':
+        console.log(`[webhook] Payment failed for ${email}`);
+        break;
+
+      default:
+        console.log(`[webhook] Unhandled event: ${eventName}`);
+    }
+  } catch (e) {
+    console.error('[webhook]处理失败:', e.message);
+    return res.status(500).json({ error: '处理失败' });
+  }
+
+  res.json({ success: true });
+});
+
+module.exports = router;

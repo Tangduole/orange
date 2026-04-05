@@ -46,6 +46,33 @@ async function createDownload(req, res) {
 
     const wantsAsr = needAsr;
 
+    // ========== 用户限额检查 ==========
+    let userId = null;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.slice(7);
+        const jwt = require('jsonwebtoken');
+        const JWT_SECRET = process.env.JWT_SECRET || 'orange-secret-key-change-in-production';
+        const payload = jwt.verify(token, JWT_SECRET);
+        const userDb = require('../userDb');
+        const user = userDb.getById(payload.sub);
+        if (user) {
+          userId = user.id;
+          const usage = userDb.getUsage(userId);
+          if (!usage.isPro && usage.remaining <= 0) {
+            return res.json({
+              code: 403,
+              message: `今日下载次数已用完（${usage.dailyLimit}次/天）。升级 Pro 解锁无限制下载`
+            });
+          }
+        }
+      } catch (e) {
+        // token 无效，继续作为游客
+      }
+    }
+    // ========== 用户限额检查结束 ==========
+
     const limitStatus = getLimiterStatus();
     if (limitStatus.queued >= 10) {
       return res.json({ code: 429, message: '任务队列已满，请稍后再试' });
