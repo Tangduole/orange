@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import axios from 'axios'
 import { Share } from '@capacitor/share'
+import AuthModal from './components/AuthModal'
+import SubscriptionPage from './components/SubscriptionPage'
+import api from './api/auth'
 import {
   Download, Link2, CheckCircle2, XCircle, Loader2,
   Video, FileText, Image as ImageIcon, Mic, Languages,
@@ -158,6 +161,49 @@ export default function App() {
   const [showQualityPicker, setShowQualityPicker] = useState(false)
   const [pendingUrl, setPendingUrl] = useState('')
   const [batchUrls, setBatchUrls] = useState('')
+  
+  // Auth state
+  const [showAuthModal, setShowAuthModal] = useState(false)
+  const [authToken, setAuthToken] = useState<string | null>(localStorage.getItem('orange_token'))
+  const [authUser, setAuthUser] = useState<any>(JSON.parse(localStorage.getItem('orange_user') || 'null'))
+  const [showSubscription, setShowSubscription] = useState(false)
+  const [userUsage, setUserUsage] = useState<any>(null)
+  
+  // Load user usage on mount
+  useEffect(() => {
+    if (authToken) {
+      loadUserUsage()
+    }
+  }, [authToken])
+  
+  const loadUserUsage = async () => {
+    try {
+      const api = (await import('./api/auth')).default
+      const data = await api.getSubscriptionStatus(authToken)
+      setUserUsage(data.usage)
+    } catch (e) {
+      // ignore
+    }
+  }
+  
+  const handleAuthSuccess = (token: string, user: any) => {
+    setAuthToken(token)
+    setAuthUser(user)
+    loadUserUsage()
+  }
+  
+  const handleLogout = () => {
+    localStorage.removeItem('orange_token')
+    localStorage.removeItem('orange_user')
+    setAuthToken(null)
+    setAuthUser(null)
+    setUserUsage(null)
+  }
+  
+  // Show subscription page
+  if (showSubscription && authToken) {
+    return <SubscriptionPage token={authToken} onBack={() => setShowSubscription(false)} />
+  }
 
   // 从文本中提取所有链接
   const extractUrls = (text: string): string[] => {
@@ -416,11 +462,15 @@ export default function App() {
     setBatchIndex(0)
     setLoading(true); setError('')
     try {
+      const headers: any = { timeout: 120000 }
+      if (authToken) {
+        headers.headers = { 'Authorization': `Bearer ${authToken}` }
+      }
       const detectedFirst = detectPlatform(urls[0])
       const r = await axios.post(`${API}/download`, {
         url: urls[0], platform: detectedFirst || 'auto',
         needAsr: selected.has('asr'), options: [...selected], quality, asrLanguage,
-      }, { timeout: 120000 })
+      }, headers)
       setTask(r.data.data)
     } catch (e: any) {
       setError(getErrorMessage(e.code === 'ECONNABORTED' ? 'timeout' : (e.response?.data?.message || e.message || 'Download failed')))
@@ -431,10 +481,22 @@ export default function App() {
   const doSingleDownload = async () => {
     setLoading(true); setError('')
     try {
+      const headers: any = { timeout: 120000 }
+      if (authToken) {
+        headers.headers = { 'Authorization': `Bearer ${authToken}` }
+      }
       const r = await axios.post(`${API}/download`, {
         url: url.trim(), platform: detected || 'auto',
         needAsr: selected.has('asr'), options: [...selected], quality, asrLanguage,
-      }, { timeout: 120000 })
+      }, headers)
+      if (r.data.code === 403) {
+        setError(r.data.message || '下载次数已用完')
+        if (r.data.message?.includes('升级')) {
+          setShowSubscription(true)
+        }
+        setLoading(false)
+        return
+      }
       setTask(r.data.data); setDetected('')
     } catch (e: any) {
       setError(getErrorMessage(e.code === 'ECONNABORTED' ? 'timeout' : (e.response?.data?.message || e.message || 'Download failed')))
@@ -495,6 +557,58 @@ export default function App() {
             <div className="text-left">
               <h1 className="text-xl font-bold text-white">Orange Downloader</h1>
               <p className="text-xs text-slate-400">Multi-platform Video Downloader</p>
+            </div>
+            {/* User Menu */}
+            <div className="ml-auto flex items-center gap-2">
+              {authToken ? (
+                <>
+                  <button
+                    onClick={() => setShowSubscription(true)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      authUser?.tier === 'pro'
+                        ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50'
+                        : 'bg-slate-700/50 text-slate-300 border border-slate-600/50 hover:bg-slate-700'
+                    }`}
+                  >
+                    {authUser?.tier === 'pro' ? '🎉 Pro' : 'Free'}
+                  </button>
+                  <div className="relative group">
+                    <button className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-slate-300 hover:bg-slate-600 transition-colors">
+                      <span className="text-sm">👤</span>
+                    </button>
+                    {/* Dropdown */}
+                    <div className="absolute right-0 top-full mt-1 w-48 py-1 bg-slate-800 border border-slate-700 rounded-xl shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
+                      <div className="px-3 py-2 border-b border-slate-700">
+                        <p className="text-xs text-slate-400 truncate">{authUser?.email}</p>
+                        {userUsage && !userUsage.isPro && (
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            今日剩余: {userUsage.remaining}/{userUsage.dailyLimit}次
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => setShowSubscription(true)}
+                        className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700/50 transition-colors"
+                      >
+                        💎 会员中心
+                      </button>
+                      <button
+                        onClick={handleLogout}
+                        className="w-full px-3 py-2 text-left text-sm text-slate-400 hover:bg-slate-700/50 hover:text-red-400 transition-colors"
+                      >
+                        退出登录
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <button
+                  onClick={() => setShowAuthModal(true)}
+                  className="px-4 py-2 bg-orange-500/20 text-orange-400 border border-orange-500/50 rounded-lg text-sm font-medium hover:bg-orange-500/30 transition-all"
+                >
+                  登录/注册
+                </button>
+              )}
             </div>
           </div>
           <p className="text-slate-500 text-sm">
@@ -1086,5 +1200,12 @@ export default function App() {
         </footer>
       </div>
     </div>
+    
+    {/* Auth Modal */}
+    <AuthModal
+      isOpen={showAuthModal}
+      onClose={() => setShowAuthModal(false)}
+      onSuccess={handleAuthSuccess}
+    />
   )
 }
