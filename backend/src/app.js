@@ -7,6 +7,8 @@ const cors = require('cors');
 const path = require('path');
 const fs = require('fs');
 const apiRouter = require('./routes/api');
+const authRouter = require('./routes/auth');
+const subscribeRouter = require('./routes/subscribe');
 const { DOWNLOAD_DIR } = require('./services/yt-dlp');
 
 const backend = require('path').join(__dirname, '..', '..');
@@ -26,6 +28,8 @@ app.use(express.json());
 
 // API 路由
 app.use('/api', apiRouter);
+app.use('/api/auth', authRouter);
+app.use('/api/subscribe', subscribeRouter);
 
 // 静态提供下载文件（带正确的 Content-Disposition 头）
 app.use('/download', (req, res, next) => {
