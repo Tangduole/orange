@@ -174,6 +174,15 @@ export default function App() {
   const [userUsage, setUserUsage] = useState<any>(null)
   const [favorites, setFavorites] = useState<Set<string>>(new Set(JSON.parse(localStorage.getItem('orange_favorites') || '[]')))
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false)
+  const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set())
+  
+  // Computed filtered history
+  const filteredHistory = history.filter(item => {
+    if (historyFilter === 'favorites' && !favorites.has(item.taskId)) return false
+    if (historyFilter !== 'all' && historyFilter !== 'favorites' && item.status !== historyFilter) return false
+    if (historySearch && !(item.title || '').toLowerCase().includes(historySearch.toLowerCase())) return false
+    return true
+  })
   
   // Save favorites to localStorage
   const toggleFavorite = (taskId: string) => {
@@ -529,8 +538,28 @@ export default function App() {
   const del = async (id: string) => {
     try { await axios.delete(`${API}/tasks/${id}`); fetchHistory(); if (task?.taskId === id) setTask(null) } catch {}
   }
+  // Batch delete selected tasks
+  const deleteSelected = async () => {
+    if (selectedTasks.size === 0) return
+    if (!confirm(`Delete ${selectedTasks.size} item(s)?`)) return
+    try {
+      await Promise.all([...selectedTasks].map(id => axios.delete(`${API}/tasks/${id}`)))
+      setSelectedTasks(new Set())
+      fetchHistory()
+    } catch (e) {
+      console.error('Batch delete failed:', e)
+    }
+  }
   const clearAllHistory = async () => {
     try { await axios.delete(`${API}/history`); fetchHistory(); setTask(null) } catch {}
+  }
+  // Toggle select all visible items
+  const toggleSelectAll = () => {
+    if (selectedTasks.size === filteredHistory.length) {
+      setSelectedTasks(new Set())
+    } else {
+      setSelectedTasks(new Set(filteredHistory.map(item => item.taskId)))
+    }
   }
   // Retry failed task
   const retryTask = async (item: HistoryItem) => {
@@ -1131,14 +1160,32 @@ export default function App() {
             {showHistory && (
               <div className="mt-2 bg-slate-900/60 rounded-2xl border border-slate-700/60 overflow-hidden">
                 {/* Search & Filter Bar */}
-                <div className="flex gap-2 p-3 border-b border-slate-700/30">
+                <div className="flex gap-2 p-3 border-b border-slate-700/30 items-center">
+                  {/* Select All checkbox */}
+                  {filtered.length > 0 && (
+                    <input
+                      type="checkbox"
+                      checked={selectedTasks.size === filtered.length && filtered.length > 0}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-orange-500 focus:ring-orange-500"
+                    />
+                  )}
+                  {/* Delete Selected button */}
+                  {selectedTasks.size > 0 && (
+                    <button
+                      onClick={deleteSelected}
+                      className="px-3 py-1.5 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg text-xs font-medium hover:bg-red-500/30 transition"
+                    >
+                      Delete ({selectedTasks.size})
+                    </button>
+                  )}
                   {/* Search */}
                   <div className="flex-1 relative">
                     <input
                       type="text"
                       value={historySearch}
                       onChange={(e) => setHistorySearch(e.target.value)}
-                      placeholder="Search title..."
+                      placeholder="Search..."
                       className="w-full pl-8 pr-3 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm text-white placeholder:text-slate-500 focus:outline-none focus:border-orange-500/50"
                     />
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
@@ -1152,24 +1199,30 @@ export default function App() {
                     <option value="all">All</option>
                     <option value="completed">Completed</option>
                     <option value="error">Failed</option>
-                    <option value="favorites">⭐ Favorites</option>
+                    <option value="favorites">Favorites</option>
                   </select>
                 </div>
                 {/* History List */}
                 <div className="max-h-60 overflow-y-auto">
-                {(() => {
-                  const filtered = history.filter(item => {
-                    // Filter by favorites
-                    if (historyFilter === 'favorites' && !favorites.has(item.taskId)) return false
-                    // Filter by status
-                    if (historyFilter !== 'all' && historyFilter !== 'favorites' && item.status !== historyFilter) return false
-                    // Filter by search
-                    if (historySearch && !(item.title || '').toLowerCase().includes(historySearch.toLowerCase())) return false
-                    return true
-                  })
-                  if (filtered.length === 0) return <p className="py-8 text-center text-sm text-slate-600">{historySearch || historyFilter !== 'all' ? 'No results found' : 'No download history'}</p>
-                  return filtered.map(item => (
-                    <div key={item.taskId} className="flex items-center gap-3 px-4 py-3 border-b border-slate-700/20 last:border-0 hover:bg-slate-900/60 transition">
+                {filteredHistory.length === 0
+                  ? <p className="py-8 text-center text-sm text-slate-600">{historySearch || historyFilter !== 'all' ? 'No results found' : 'No download history'}</p>
+                  : filteredHistory.map(item => (
+                    <div key={item.taskId} className={`flex items-center gap-3 px-4 py-3 border-b border-slate-700/20 last:border-0 hover:bg-slate-900/60 transition ${selectedTasks.has(item.taskId) ? 'bg-orange-500/10' : ''}`}>
+                      {/* Select checkbox */}
+                      <input
+                        type="checkbox"
+                        checked={selectedTasks.has(item.taskId)}
+                        onChange={() => {
+                          const newSelected = new Set(selectedTasks)
+                          if (newSelected.has(item.taskId)) {
+                            newSelected.delete(item.taskId)
+                          } else {
+                            newSelected.add(item.taskId)
+                          }
+                          setSelectedTasks(newSelected)
+                        }}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-700 text-orange-500 focus:ring-orange-500 shrink-0"
+                      />
                       {/* 缩略图 - 点击打开已保存的文件 */}
                       {item.thumbnailUrl
                         ? <button 
@@ -1220,7 +1273,7 @@ export default function App() {
                       <button onClick={() => del(item.taskId)} className="p-1.5 text-slate-600 hover:text-red-400 transition"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   ))
-                })}
+                }
                 </div>
               </div>
             )}
