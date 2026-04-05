@@ -7,11 +7,22 @@ export default {
   theme: {
     extend: {
       colors: {
-        primary: '#FF6B35',
-        'primary-dark': '#E55A2B',
-        success: '#10B981',
-        error: '#EF4444',
+        orange: {
+          DEFAULT: '#FF7D00',
+          light: '#FFA347',
+          dark: '#E56E00',
+        },
+        dark: {
+          bg: '#121212',
+          surface: '#1E1E1E',
+          input: '#2C2C2C',
+          border: '#3A3A3A',
+        },
       },
+      borderRadius: {
+        'xl': '12px',
+        '2xl': '16px',
+      }
     },
   },
   plugins: [],

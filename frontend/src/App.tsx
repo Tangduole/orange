@@ -545,7 +545,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className="min-h-screen bg-dark-bg">
       {/* 背景光晕 - 橙色主题 */}
       <div className="fixed inset-0 pointer-events-none">
         <div className="absolute top-0 right-0 w-96 h-96 bg-orange-500/8 rounded-full blur-3xl" />
@@ -556,7 +556,7 @@ export default function App() {
         {/* Header */}
         <header className="max-w-2xl mx-auto px-6 pt-16 pb-8 text-center">
           <div className="inline-flex items-center justify-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center shadow-lg shadow-orange-500/25">
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange to-orange-light flex items-center justify-center shadow-lg shadow-orange-500/25">
               <span className="text-2xl filter drop-shadow-lg">🍊</span>
             </div>
             <div className="text-left">
@@ -572,7 +572,7 @@ export default function App() {
                   <button onClick={handleLogout} className="px-3 py-1.5 text-xs text-slate-400 hover:text-red-400">登出</button>
                 </>
               ) : (
-                <button onClick={() => setShowAuthModal(true)} className="px-4 py-2 text-sm bg-orange-500/20 text-orange-400 border border-orange-500/50 rounded-lg font-medium">
+                <button onClick={() => setShowAuthModal(true)} className="px-4 py-2 text-sm bg-orange/20 text-orange border border-orange/50 rounded-lg font-medium">
                   登录/注册
                 </button>
               )}
@@ -585,7 +585,7 @@ export default function App() {
 
         {/* Main Card */}
         <main className="max-w-2xl mx-auto px-6 pb-10">
-          <div className="bg-slate-800/60 backdrop-blur-sm rounded-3xl p-6 border border-slate-700/60 shadow-xl">
+          <div className="bg-dark-surface rounded-2xl p-5 shadow-lg">
 
             {/* 单G/批量 Tab */}
             <div className="flex gap-2 mb-5">
