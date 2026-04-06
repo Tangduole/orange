@@ -26,44 +26,19 @@ const shareFile = async (url: string, title: string) => {
   
   if (isNativeApp()) {
     try {
-      // 下载视频文件
-      const resp = await fetch(fullUrl)
-      const blob = await resp.blob()
-      
-      // 转换为 base64
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onloadend = () => resolve(reader.result as string)
-        reader.onerror = reject
-        reader.readAsDataURL(blob)
+      // 使用分享功能，让用户选择保存位置
+      await Share.share({
+        title: title || 'Orange Video',
+        url: fullUrl,
       })
-      
-      // 保存到相册（Pictures 目录）
-      const { Filesystem, Directory } = await import('@capacitor/filesystem')
-      const timestamp = Date.now()
-      const ext = blob.type.includes('mp4') ? 'mp4' : 'jpg'
-      const fileName = `Orange_${timestamp}.${ext}`
-      
-      await Filesystem.writeFile({
-        path: fileName,
-        data: base64.split(',')[1],
-        directory: Directory.ExternalStorage,
-      })
-      
       return { success: true }
     } catch (e: any) {
-      console.error('Save to gallery failed:', e)
-      // 降级：尝试用分享方式
-      try {
-        await Share.share({
-          title: title || 'Orange Video',
-          url: fullUrl,
-        })
+      // 如果用户取消了分享，不算错误
+      if (e?.message?.includes('cancel') || e?.message?.includes('canceled')) {
         return { success: true }
-      } catch (e2: any) {
-        if (e2?.message?.includes('cancel')) return { success: true }
-        return { success: false, error: String(e) }
       }
+      console.error('Share failed:', e)
+      return { success: false, error: String(e) }
     }
   } else {
     // Web: fetch as blob → force download
