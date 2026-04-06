@@ -26,26 +26,38 @@ const shareFile = async (url: string, title: string) => {
   
   if (isNativeApp()) {
     try {
-      // Native app: 下载并直接保存到相册
+      // 下载文件到临时目录
       const resp = await fetch(fullUrl)
       const blob = await resp.blob()
+      
+      // 保存到 app 临时目录
+      const { Filesystem, Directory } = await import('@capacitor/filesystem')
+      const fileName = `Orange_${Date.now()}.mp4`
       const base64 = await new Promise<string>((resolve) => {
         const reader = new FileReader()
         reader.onloadend = () => resolve(reader.result as string)
         reader.readAsDataURL(blob)
       })
       
-      // 直接保存到 Pictures 目录（相册）
-      const { Filesystem, Directory } = await import('@capacitor/filesystem')
-      const fileName = `Orange_${Date.now()}.mp4`
+      const filePath = `${Directory.Cache}/${fileName}`
       await Filesystem.writeFile({
-        path: `Pictures/${fileName}`,
+        path: filePath,
         data: base64.split(',')[1],
-        directory: Directory.ExternalStorage,
+        directory: Directory.Cache,
+      })
+      
+      // 使用原生分享（会弹出系统菜单，可选"保存视频"）
+      await Share.share({
+        title: title || 'Orange Video',
+        files: [filePath],
       })
       
       return { success: true }
-    } catch (e) {
+    } catch (e: any) {
+      // 如果用户取消了分享，不算错误
+      if (e?.message?.includes('User cancelled')) {
+        return { success: true }
+      }
       console.error('Save failed:', e)
       return { success: false, error: String(e) }
     }
