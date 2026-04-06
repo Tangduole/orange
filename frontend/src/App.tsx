@@ -620,9 +620,9 @@ export default function App() {
       <div className="relative">
         {/* Header */}
         <header className="max-w-2xl mx-auto px-6 pt-16 pb-8 text-center">
-          <div className="inline-flex items-center justify-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange to-orange-light flex items-center justify-center shadow-lg shadow-orange-500/25">
-              <span className="text-2xl filter drop-shadow-lg">🍊</span>
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange to-orange-light flex items-center justify-center shadow-lg shadow-orange-500/25 flex-shrink-0 overflow-hidden">
+              <span className="text-3xl leading-none">🍊</span>
             </div>
             <div className="text-left">
               <h1 className="text-xl font-bold text-white">Orange Downloader</h1>
