@@ -27,11 +27,13 @@ const shareFile = async (url: string, title: string, isVideo: boolean = true) =>
   
   if (isNativeApp()) {
     try {
+      console.log('[GallerySaver] Calling native plugin, isVideo:', isVideo)
       // 使用原生插件直接保存到相册
       const result = isVideo 
         ? await GallerySaver.saveVideo({ url: fullUrl, filename: title || 'video' })
         : await GallerySaver.saveImage({ url: fullUrl, filename: title || 'image' })
       
+      console.log('[GallerySaver] Result:', result)
       if (result.success) {
         return { success: true }
       } else {
@@ -44,11 +46,11 @@ const shareFile = async (url: string, title: string, isVideo: boolean = true) =>
         return { success: true }
       }
     } catch (e: any) {
+      console.error('[GallerySaver] Error:', e?.message || e)
       // 如果用户取消了分享，不算错误
       if (e?.message?.includes('cancel') || e?.message?.includes('canceled')) {
         return { success: true }
       }
-      console.error('Share failed:', e)
       // 降级到分享功能
       try {
         await Share.share({
