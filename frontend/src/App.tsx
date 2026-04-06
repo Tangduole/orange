@@ -26,21 +26,44 @@ const shareFile = async (url: string, title: string) => {
   
   if (isNativeApp()) {
     try {
-      // Android: 使用原生分享功能
-      await Share.share({
-        title: title || 'Orange Video',
-        url: fullUrl,
+      // 下载视频文件
+      const resp = await fetch(fullUrl)
+      const blob = await resp.blob()
+      
+      // 转换为 base64
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result as string)
+        reader.onerror = reject
+        reader.readAsDataURL(blob)
       })
+      
+      // 保存到相册（Pictures 目录）
+      const { Filesystem, Directory } = await import('@capacitor/filesystem')
+      const timestamp = Date.now()
+      const ext = blob.type.includes('mp4') ? 'mp4' : 'jpg'
+      const fileName = `Orange_${timestamp}.${ext}`
+      
+      await Filesystem.writeFile({
+        path: fileName,
+        data: base64.split(',')[1],
+        directory: Directory.ExternalStorage,
+      })
+      
       return { success: true }
     } catch (e: any) {
-      // 如果用户取消了分享，不算错误
-      if (e?.message?.includes('cancel') || e?.message?.includes('canceled')) {
+      console.error('Save to gallery failed:', e)
+      // 降级：尝试用分享方式
+      try {
+        await Share.share({
+          title: title || 'Orange Video',
+          url: fullUrl,
+        })
         return { success: true }
+      } catch (e2: any) {
+        if (e2?.message?.includes('cancel')) return { success: true }
+        return { success: false, error: String(e) }
       }
-      console.error('Share failed:', e)
-      // 降级：直接在浏览器打开下载链接
-      window.open(fullUrl, '_blank')
-      return { success: false, error: String(e) }
     }
   } else {
     // Web: fetch as blob → force download
@@ -325,18 +348,32 @@ export default function App() {
   // 自动下载：当下载完成时自动触发保存 + 播放提示音
   // 使用 ref 追踪是否已自动下载过，避免重复触发
   const autoDownloaded = useRef(false)
+  const autoDownloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  
+  // 清理自动下载定时器
+  const clearAutoDownload = () => {
+    if (autoDownloadTimer.current) {
+      clearTimeout(autoDownloadTimer.current)
+      autoDownloadTimer.current = null
+    }
+  }
+  
   useEffect(() => {
+    // 每次 task 变化时，重置自动下载标记
+    autoDownloaded.current = false
+    clearAutoDownload()
+    
     if (task?.status === 'completed' && task.downloadUrl && !downloading && !autoDownloaded.current) {
       autoDownloaded.current = true
       // 播放提示音
       playNotificationSound()
       // 延迟 500ms 后自动下载
-      const timer = setTimeout(() => {
+      autoDownloadTimer.current = setTimeout(() => {
         setDownloading(true)
         shareFile(task.downloadUrl, task.title || 'video').finally(() => setDownloading(false))
       }, 500)
-      return () => clearTimeout(timer)
     }
+    return clearAutoDownload
   }, [task?.status, task?.downloadUrl, task?.taskId])
 
   const fetchHistory = useCallback(async () => {
@@ -960,6 +997,8 @@ export default function App() {
               {task.status === 'completed' && task.downloadUrl && (
                 <button 
                   onClick={async () => {
+                    clearAutoDownload()  // 取消自动下载
+                    autoDownloaded.current = true  // 标记为已处理
                     setDownloading(true)
                     // 检查是否为直接链接（YouTube等）
                     if (task.directLink) {
@@ -983,6 +1022,8 @@ export default function App() {
               {task.status === 'completed' && task.coverUrl && (
                 <button 
                   onClick={async () => {
+                    clearAutoDownload()
+                    autoDownloaded.current = true
                     setDownloading(true)
                     await shareFile(task.coverUrl, 'cover')
                     setDownloading(false)
@@ -999,6 +1040,8 @@ export default function App() {
               {task.status === 'completed' && task.audioUrl && (
                 <button 
                   onClick={async () => {
+                    clearAutoDownload()
+                    autoDownloaded.current = true
                     setDownloading(true)
                     await shareFile(task.audioUrl!, 'audio.mp3')
                     setDownloading(false)
