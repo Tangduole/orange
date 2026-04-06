@@ -330,8 +330,11 @@ export default function App() {
   }
 
   // 自动下载：当下载完成时自动触发保存 + 播放提示音
+  // 使用 ref 追踪是否已自动下载过，避免重复触发
+  const autoDownloaded = useRef(false)
   useEffect(() => {
-    if (task?.status === 'completed' && task.downloadUrl && !downloading) {
+    if (task?.status === 'completed' && task.downloadUrl && !downloading && !autoDownloaded.current) {
+      autoDownloaded.current = true
       // 播放提示音
       playNotificationSound()
       // 延迟 500ms 后自动下载
@@ -341,7 +344,7 @@ export default function App() {
       }, 500)
       return () => clearTimeout(timer)
     }
-  }, [task?.status, task?.downloadUrl])
+  }, [task?.status, task?.downloadUrl, task?.taskId])
 
   const fetchHistory = useCallback(async () => {
     try { 
@@ -414,6 +417,7 @@ export default function App() {
   }
 
   const handleSubmit = async () => {
+    autoDownloaded.current = false
     // 批量模式
     if (batchMode) {
       const urls = batchUrls.split('\n')
