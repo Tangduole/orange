@@ -3,6 +3,7 @@ import axios from 'axios'
 import { Share } from '@capacitor/share'
 import AuthModal from './components/AuthModal'
 import SubscriptionPage from './components/SubscriptionPage'
+import GallerySaver from './plugins/GallerySaver'
 import {
   Download, Link2, CheckCircle2, XCircle, Loader2,
   Video, FileText, Image as ImageIcon, Mic, Languages,
@@ -21,24 +22,44 @@ const isNativeApp = () => {
   } catch { return false }
 }
 
-const shareFile = async (url: string, title: string) => {
+const shareFile = async (url: string, title: string, isVideo: boolean = true) => {
   const fullUrl = url.startsWith('http') ? url : `${BASE_URL}${url}`
   
   if (isNativeApp()) {
     try {
-      // 使用分享功能，让用户选择保存位置
-      await Share.share({
-        title: title || 'Orange Video',
-        url: fullUrl,
-      })
-      return { success: true }
+      // 使用原生插件直接保存到相册
+      const result = isVideo 
+        ? await GallerySaver.saveVideo({ url: fullUrl, filename: title || 'video' })
+        : await GallerySaver.saveImage({ url: fullUrl, filename: title || 'image' })
+      
+      if (result.success) {
+        return { success: true }
+      } else {
+        console.error('Gallery save failed:', result.error)
+        // 降级到分享功能
+        await Share.share({
+          title: title || 'Orange Video',
+          url: fullUrl,
+        })
+        return { success: true }
+      }
     } catch (e: any) {
       // 如果用户取消了分享，不算错误
       if (e?.message?.includes('cancel') || e?.message?.includes('canceled')) {
         return { success: true }
       }
       console.error('Share failed:', e)
-      return { success: false, error: String(e) }
+      // 降级到分享功能
+      try {
+        await Share.share({
+          title: title || 'Orange Video',
+          url: fullUrl,
+        })
+        return { success: true }
+      } catch (e2: any) {
+        if (e2?.message?.includes('cancel')) return { success: true }
+        return { success: false, error: String(e) }
+      }
     }
   } else {
     // Web: fetch as blob → force download
@@ -1000,7 +1021,7 @@ export default function App() {
                     clearAutoDownload()
                     autoDownloaded.current = true
                     setDownloading(true)
-                    await shareFile(task.coverUrl, 'cover')
+                    await shareFile(task.coverUrl, 'cover', false)
                     setDownloading(false)
                   }}
                   disabled={downloading}
