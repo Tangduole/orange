@@ -4,6 +4,7 @@ import { Share } from '@capacitor/share'
 import AuthModal from './components/AuthModal'
 import SubscriptionPage from './components/SubscriptionPage'
 import GallerySaver from './plugins/GallerySaver'
+import { initNotifications, showDownloadComplete } from './plugins/Notifications'
 import {
   Download, Link2, CheckCircle2, XCircle, Loader2,
   Video, FileText, Image as ImageIcon, Mic, Languages,
