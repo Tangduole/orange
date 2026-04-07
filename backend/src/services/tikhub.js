@@ -403,26 +403,36 @@ async function parseDouyin(url, taskId, onProgress) {
   }
   
   // 选择最佳 URL：高画质 > bit_rate(最高) > H.265 > play_addr
+  // 同时记录实际使用的宽高
+  let selectedWidth = 0;
+  let selectedHeight = 0;
+  
   if (hqVideoUrl) {
     videoUrl = hqVideoUrl;
+    selectedWidth = playAddr265?.width || video.play_addr?.width || 0;
+    selectedHeight = playAddr265?.height || video.play_addr?.height || 0;
   } else if (video.bit_rate && video.bit_rate.length > 0) {
-    // 从 bit_rate 中选择最高画质
     const sorted = video.bit_rate
       .filter(br => br.play_addr?.url_list?.[0])
       .sort((a, b) => (b.bit_rate || 0) - (a.bit_rate || 0));
     if (sorted.length > 0) {
       videoUrl = sorted[0].play_addr.url_list[0];
-      console.log(`[TikHub] Using bit_rate: ${sorted[0].gear_name || sorted[0].bit_rate}bps`);
+      selectedWidth = sorted[0].play_addr?.width || 0;
+      selectedHeight = sorted[0].play_addr?.height || 0;
+      console.log(`[TikHub] Using bit_rate: ${sorted[0].gear_name || sorted[0].bit_rate}bps, ${selectedWidth}x${selectedHeight}`);
     }
   } else if (playAddr265Url) {
     videoUrl = playAddr265Url;
-    console.log(`[TikHub] Using H.265: ${playAddr265.width}x${playAddr265.height}`);
+    selectedWidth = playAddr265?.width || 0;
+    selectedHeight = playAddr265?.height || 0;
+    console.log(`[TikHub] Using H.265: ${selectedWidth}x${selectedHeight}`);
   } else {
-    // 备用：使用普通 play_addr
     const playAddr = video.play_addr || {};
     if (playAddr.url_list && playAddr.url_list.length > 0) {
       videoUrl = playAddr.url_list[0];
-      console.log(`[TikHub] Using play_addr: ${playAddr.width}x${playAddr.height}`);
+      selectedWidth = playAddr.width || 0;
+      selectedHeight = playAddr.height || 0;
+      console.log(`[TikHub] Using play_addr: ${selectedWidth}x${selectedHeight}`);
     }
   }
   
@@ -460,10 +470,7 @@ async function parseDouyin(url, taskId, onProgress) {
   
   if (onProgress) onProgress(100);
   
-  // 从实际视频源提取宽高
-  let videoWidth = playAddr265?.width || video.play_addr?.width || 0;
-  let videoHeight = playAddr265?.height || video.play_addr?.height || 0;
-  const qualityLabel = videoHeight >= 2160 ? '4K' : videoHeight >= 1440 ? '2K' : videoHeight >= 1080 ? '1080p' : videoHeight >= 720 ? '720p' : videoHeight >= 480 ? '480p' : videoHeight >= 360 ? '360p' : `${videoHeight || 0}p`;
+  const qualityLabel = selectedHeight >= 2160 ? '4K' : selectedHeight >= 1440 ? '2K' : selectedHeight >= 1080 ? '1080p' : selectedHeight >= 720 ? '720p' : selectedHeight >= 480 ? '480p' : selectedHeight >= 360 ? '360p' : `${selectedHeight || 0}p`;
   return {
     title,
     filePath: outputPath,
@@ -471,8 +478,8 @@ async function parseDouyin(url, taskId, onProgress) {
     thumbnailUrl,
     subtitleFiles: [],
     duration: video.duration ? Math.floor(video.duration / 1000) : 0,
-    width: videoWidth,
-    height: videoHeight,
+    width: selectedWidth,
+    height: selectedHeight,
     quality: qualityLabel
   };
 }
