@@ -460,6 +460,10 @@ async function parseDouyin(url, taskId, onProgress) {
   
   if (onProgress) onProgress(100);
   
+  // 从实际视频源提取宽高
+  let videoWidth = playAddr265?.width || video.play_addr?.width || 0;
+  let videoHeight = playAddr265?.height || video.play_addr?.height || 0;
+  const qualityLabel = videoHeight >= 2160 ? '4K' : videoHeight >= 1440 ? '2K' : videoHeight >= 1080 ? '1080p' : videoHeight >= 720 ? '720p' : videoHeight >= 480 ? '480p' : videoHeight >= 360 ? '360p' : `${videoHeight || 0}p`;
   return {
     title,
     filePath: outputPath,
@@ -467,9 +471,9 @@ async function parseDouyin(url, taskId, onProgress) {
     thumbnailUrl,
     subtitleFiles: [],
     duration: video.duration ? Math.floor(video.duration / 1000) : 0,
-    width: video.width || 0,
-    height: video.height || 0,
-    quality: video.height >= 2160 ? '4K' : video.height >= 1440 ? '2K' : video.height >= 1080 ? '1080p' : video.height >= 720 ? '720p' : video.height >= 480 ? '480p' : video.height >= 360 ? '360p' : `${video.height || 0}p`
+    width: videoWidth,
+    height: videoHeight,
+    quality: qualityLabel
   };
 }
 
