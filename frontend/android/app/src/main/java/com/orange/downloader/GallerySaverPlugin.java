@@ -32,6 +32,7 @@ public class GallerySaverPlugin extends Plugin {
 
     @PluginMethod
     public void saveVideo(PluginCall call) {
+        Log.i(TAG, "saveVideo called with URL: " + call.getString("url"));
         String urlStr = call.getString("url");
         String filename = call.getString("filename", "video_" + System.currentTimeMillis() + ".mp4");
 
