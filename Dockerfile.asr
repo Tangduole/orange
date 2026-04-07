@@ -1,0 +1,28 @@
+# ASR Service - 使用 faster-whisper 进行语音转文字
+# 依赖：Python 3.10+, faster-whisper, torch
+
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# 安装系统依赖
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# 安装 Python 依赖
+RUN pip install --no-cache-dir \
+    faster-whisper==1.0.3 \
+    torch==2.1.0 \
+    torchaudio==2.1.0 \
+    numpy==1.26.0
+
+# 复制脚本
+COPY backend/scripts/asr-transcribe.py /app/asr-transcribe.py
+
+# 设置权限
+RUN chmod +x /app/asr-transcribe.py
+
+# 默认命令
+CMD ["python", "/app/asr-transcribe.py", "--help"]
