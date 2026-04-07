@@ -247,6 +247,9 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
 
       const update = {
         status: 'completed',
+      width: result.width,
+      height: result.height,
+      quality: result.quality,
         progress: 100,
         title: result.title,
         duration: result.duration || 0,
@@ -300,6 +303,9 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
       const info = await ytdlp.getInfo(url);
       store.update(taskId, {
         status: 'completed',
+      width: result.width,
+      height: result.height,
+      quality: result.quality,
         progress: 100,
         title: info.title,
         duration: info.duration,
@@ -321,6 +327,9 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
 
         store.update(taskId, {
           status: 'completed',
+      width: result.width,
+      height: result.height,
+      quality: result.quality,
           asrText: text
         });
 
@@ -358,6 +367,9 @@ async function processDouyin(taskId, url, needAsr, options = ['video']) {
 
     const update = {
       status: 'completed',
+      width: result.width,
+      height: result.height,
+      quality: result.quality,
       progress: 100,
       title: result.title,
       thumbnailUrl: result.thumbnailUrl,
@@ -431,6 +443,9 @@ async function processX(taskId, url, needAsr, options = ['video']) {
     });
     const update = {
       status: 'completed',
+      width: result.width,
+      height: result.height,
+      quality: result.quality,
       progress: 100,
       title: result.title,
       thumbnailUrl: result.thumbnailUrl,
@@ -494,6 +509,9 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
     // 返回直接下载链接（用户浏览器下载）
     store.update(taskId, {
       status: 'completed',
+      width: result.width,
+      height: result.height,
+      quality: result.quality,
       progress: 100,
       title: title,
       thumbnailUrl: videoData.thumbnails?.[0]?.url || '',
@@ -527,6 +545,9 @@ async function processXiaohongshu(taskId, url, needAsr, options = ['video']) {
 
     const update = {
       status: 'completed',
+      width: result.width,
+      height: result.height,
+      quality: result.quality,
       progress: 100,
       title: result.title,
       thumbnailUrl: result.thumbnailUrl,

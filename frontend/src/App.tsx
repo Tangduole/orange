@@ -98,7 +98,7 @@ interface Task {
   imageFiles?: Array<{ filename: string; url: string }>
   subtitleFiles?: Array<{ filename: string; url: string }>
   error?: string; createdAt: string | number
-  directLink?: boolean; quality?: string
+  directLink?: boolean; quality?: string; width?: number; height?: number
   downloadedBytes?: number; totalBytes?: number
   speed?: string; eta?: string
 }
@@ -989,7 +989,14 @@ export default function App() {
                 </div>
               )}
 
-              {task.title && !isWorking(task.status) && <p className="text-sm text-slate-500">{task.title}</p>}
+              {task.title && !isWorking(task.status) && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  {task.quality && <span className={`text-xs px-2 py-0.5 rounded-full ${task.height >= 1080 ? 'bg-gradient-to-r from-yellow-500/20 to-orange-500/20 text-yellow-400 border border-yellow-500/30' : 'bg-slate-700/50 text-slate-400'}`}>
+                    {task.quality} {task.height >= 1080 ? '⭐' : ''}
+                  </span>}
+                  <p className="text-sm text-slate-500">{task.title}</p>
+                </div>
+              )}
 
               {/* 图文 */}
               {task.isNote && task.imageFiles?.length > 0 && (
