@@ -991,9 +991,11 @@ export default function App() {
 
               {task.title && !isWorking(task.status) && (
                 <div className="flex items-center gap-2 flex-wrap">
-                  {task.quality && <span className={`text-xs px-2 py-0.5 rounded-full ${task.height >= 1080 ? 'bg-gradient-to-r from-yellow-500/20 to-orange-500/20 text-yellow-400 border border-yellow-500/30' : 'bg-slate-700/50 text-slate-400'}`}>
-                    {task.quality} {task.height >= 1080 ? '⭐' : ''}
-                  </span>}
+                  {task.quality && (
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${task.height >= 720 ? 'bg-gradient-to-r from-yellow-500/20 to-orange-500/20 text-yellow-400 border border-yellow-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
+                      {task.quality} {task.height >= 720 ? '⭐ 会员' : '✓ 免费'}
+                    </span>
+                  )}
                   <p className="text-sm text-slate-500">{task.title}</p>
                 </div>
               )}
