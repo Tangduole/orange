@@ -67,6 +67,15 @@ app.use('/download', (req, res, next) => {
   }
 });
 
+// Root route - return a simple health check or welcome message
+app.get('/', (req, res) => {
+  res.json({ 
+    message: '小电驴后端运行中',
+    api: '/api',
+    status: 'ok'
+  });
+});
+
 // 前端静态文件 (生产环境)
 const frontendDist = path.join(__dirname, '../../frontend/dist');
 if (fs.existsSync(frontendDist)) {
