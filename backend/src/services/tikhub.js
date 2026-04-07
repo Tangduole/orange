@@ -466,7 +466,10 @@ async function parseDouyin(url, taskId, onProgress) {
     ext: 'mp4',
     thumbnailUrl,
     subtitleFiles: [],
-    duration: video.duration ? Math.floor(video.duration / 1000) : 0
+    duration: video.duration ? Math.floor(video.duration / 1000) : 0,
+    width: video.width || 0,
+    height: video.height || 0,
+    quality: video.height >= 2160 ? '4K' : video.height >= 1440 ? '2K' : video.height >= 1080 ? '1080p' : video.height >= 720 ? '720p' : video.height >= 480 ? '480p' : video.height >= 360 ? '360p' : `${video.height || 0}p`
   };
 }
 
