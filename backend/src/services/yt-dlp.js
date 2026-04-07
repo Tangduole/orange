@@ -273,6 +273,87 @@ function getDownloadPath(taskId, ext = 'mp4') {
 }
 
 /**
+ * 直接下载音频格式（不下载视频）
+ */
+function downloadAudio(url, taskId, onProgress) {
+  return new Promise((resolve, reject) => {
+    const outputPath = path.join(DOWNLOAD_DIR, `${taskId}.mp3`);
+    const thumbnailPath = path.join(DOWNLOAD_DIR, `${taskId}_thumb.jpg`);
+
+    const args = [
+      '--no-warnings',
+      '--newline',
+      '--progress',
+      '--ignore-errors',
+      '--retries', '5',
+      '--socket-timeout', '60',
+      '--no-check-certificates',
+      '--no-playlist',
+      '--extract-audio',
+      '--audio-format', 'mp3',
+      '--audio-quality', '0',  // 最好质量
+      '--embed-thumbnail',
+      '--add-metadata',
+      '--metadata-from-title', '%(title)s',
+      '-o', outputPath,
+      '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    ];
+
+    // YouTube 专用参数
+    if (/youtube\.com|youtu\.be/i.test(url)) {
+      args.push('--extractor-args', 'youtube:player_client=android');
+    }
+
+    args.push(url);
+
+    console.log(`[yt-dlp] Starting audio download: ${url} (taskId: ${taskId})`);
+
+    const proc = spawn('yt-dlp', args);
+
+    proc.stdout.on('data', (data) => {
+      const line = data.toString().trim();
+      console.log(`[yt-dlp] ${line}`);
+
+      // 解析进度
+      const progressMatch = line.match(/\[download\]\s+([\d.]+)%\s+of\s+~?([\d.]+)(\w+)\s+at\s+([\d.]+\w+\/s).*ETA\s+(\S+)/);
+      if (progressMatch) {
+        const percent = parseFloat(progressMatch[1]);
+        const speed = progressMatch[4];
+        const eta = progressMatch[5];
+        onProgress(percent, speed, eta, 0, 0);
+      }
+    });
+
+    proc.stderr.on('data', (data) => {
+      const line = data.toString().trim();
+      if (line && !line.includes('WARNING')) {
+        console.log(`[yt-dlp] ${line}`);
+      }
+    });
+
+    proc.on('close', (code) => {
+      if (code === 0) {
+        const stats = fs.statSync(outputPath);
+        resolve({
+          title: path.basename(outputPath, '.mp3'),
+          filePath: outputPath,
+          ext: 'mp3',
+          thumbnailUrl: null,
+          duration: 0,
+          size: stats.size
+        });
+      } else {
+        reject(new Error(`yt-dlp audio download failed with code ${code}`));
+      }
+    });
+
+    proc.on('error', (err) => {
+      reject(new Error(`yt-dlp process error: ${err.message}`));
+    });
+  });
+}
+
+/**
  * Invidious YouTube 备用下载方案
  */
 async function downloadViaInvidious(url, taskId, onProgress) {
@@ -381,4 +462,4 @@ async function downloadViaInvidious(url, taskId, onProgress) {
   throw new Error('All Invidious instances failed');
 }
 
-module.exports = { download, getInfo, extractAudio, getDownloadPath, downloadViaInvidious, DOWNLOAD_DIR };
+module.exports = { download, getInfo, extractAudio, getDownloadPath, downloadAudio, downloadViaInvidious, DOWNLOAD_DIR };

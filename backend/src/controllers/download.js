@@ -39,9 +39,9 @@ async function createDownload(req, res) {
     const detectedPlatform = detectPlatform(url);
     const finalPlatform = platform || detectedPlatform || 'auto';
 
-    // 兼容：前端 'audio' 选项
+    // 兼容：前端 'audio' 和 'audio_only' 选项
     const normalizedOptions = (Array.isArray(options) ? options : [options]).map(
-      o => o === 'asr' ? 'audio' : o
+      o => o === 'asr' || o === 'audio_only' ? 'audio' : o
     );
 
     const wantsAsr = needAsr;
@@ -181,6 +181,7 @@ async function getInfo(req, res) {
 async function processDownload(taskId, url, needAsr, options = ['video'], quality = null) {
   try {
     const wantsVideo = options.includes('video');
+    const wantsAudioOnly = options.includes('audio_only');
     const wantsCopywriting = options.includes('copywriting');
     const wantsCover = options.includes('cover');
     const wantsAudio = options.includes('audio');
@@ -192,13 +193,30 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
     let result = null;
 
     // 2. 需要实际下载的情况
-    if (wantsVideo || wantsCover || wantsSubtitle || wantsAudio || wantsCopywriting || needAsr) {
+    if (wantsVideo || wantsCover || wantsSubtitle || wantsAudio || wantsAudioOnly || wantsCopywriting || needAsr) {
       store.update(taskId, { status: 'downloading', progress: 10 });
 
       const isYouTube = /youtube\.com|youtu\.be/i.test(url);
 
+      // 如果只想要音频（不想要视频/字幕/封面）
+      const wantsOnlyAudio = wantsAudioOnly && !wantsVideo && !wantsCover && !wantsSubtitle;
+
       result = await downloadWithLimit(async () => {
         try {
+          // 如果只想要音频，使用专门的音频下载
+          if (wantsOnlyAudio) {
+            return await ytdlp.downloadAudio(url, taskId, (percent, speed, eta) => {
+              store.update(taskId, {
+                status: 'downloading',
+                progress: percent,
+                speed,
+                eta,
+                downloadedBytes: 0,
+                totalBytes: 0
+              });
+            });
+          }
+          
           return await executeWithRetry(async () => {
             return await ytdlp.download(url, taskId, (percent, speed, eta, downloaded, total) => {
               store.update(taskId, {
@@ -231,9 +249,14 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
         status: 'completed',
         progress: 100,
         title: result.title,
-        duration: result.duration,
+        duration: result.duration || 0,
         thumbnailUrl: result.thumbnailUrl,
       };
+
+      // 音频下载链接（只想要音频的情况）
+      if (wantsOnlyAudio) {
+        update.audioUrl = `/download/${path.basename(result.filePath)}`;
+      }
 
       // 视频下载链接
       if (wantsVideo) {
