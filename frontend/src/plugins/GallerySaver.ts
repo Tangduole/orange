@@ -3,7 +3,7 @@
  * Save videos and images directly to Android gallery
  */
 
-import { registerPlugin } from '@capacitor/core';
+import { registerPlugin, Plugin } from '@capacitor/core';
 
 export interface SaveOptions {
   url: string;
@@ -28,7 +28,7 @@ const { GallerySaver } = registerPlugin<GallerySaverPlugin>('GallerySaver', {
   web: {
     // Web fallback implementation
     saveVideo: async (options: SaveOptions): Promise<SaveResult> => {
-      // Try to trigger download via link
+      console.log('[GallerySaver-web] saveVideo called, but running on web - using fallback');
       const a = document.createElement('a');
       a.href = options.url;
       a.download = options.filename || 'video.mp4';
@@ -39,6 +39,7 @@ const { GallerySaver } = registerPlugin<GallerySaverPlugin>('GallerySaver', {
       return { success: true };
     },
     saveImage: async (options: SaveOptions): Promise<SaveResult> => {
+      console.log('[GallerySaver-web] saveImage called, but running on web - using fallback');
       const a = document.createElement('a');
       a.href = options.url;
       a.download = options.filename || 'image.jpg';
@@ -49,6 +50,7 @@ const { GallerySaver } = registerPlugin<GallerySaverPlugin>('GallerySaver', {
       return { success: true };
     },
     saveAudio: async (options: SaveOptions): Promise<SaveResult> => {
+      console.log('[GallerySaver-web] saveAudio called, but running on web - using fallback');
       const a = document.createElement('a');
       a.href = options.url;
       a.download = options.filename || 'audio.mp3';
@@ -59,6 +61,13 @@ const { GallerySaver } = registerPlugin<GallerySaverPlugin>('GallerySaver', {
       return { success: true };
     }
   }
+});
+
+// Debug: Log when plugin is loaded
+console.log('[GallerySaver] Plugin loaded, methods:', {
+  saveVideo: typeof GallerySaver?.saveVideo,
+  saveImage: typeof GallerySaver?.saveImage,
+  saveAudio: typeof GallerySaver?.saveAudio
 });
 
 export default GallerySaver;
