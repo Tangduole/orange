@@ -181,7 +181,7 @@ async function getInfo(req, res) {
 async function processDownload(taskId, url, needAsr, options = ['video'], quality = null) {
   try {
     const wantsVideo = options.includes('video');
-    const wantsAudioOnly = options.includes('audio_only');
+    const wantsAudioOnly = normalizedOptions.includes('audio_only');
     const wantsCopywriting = options.includes('copywriting');
     const wantsCover = options.includes('cover');
     const wantsAudio = options.includes('audio');

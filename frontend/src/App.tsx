@@ -22,16 +22,21 @@ const isNativeApp = () => {
   } catch { return false }
 }
 
-const shareFile = async (url: string, title: string, isVideo: boolean = true) => {
+const shareFile = async (url: string, title: string, fileType: 'video' | 'audio' | 'image' = 'video') => {
   const fullUrl = url.startsWith('http') ? url : `${BASE_URL}${url}`
   
   if (isNativeApp()) {
     try {
       console.log('[GallerySaver] Calling native plugin, isVideo:', isVideo)
       // 使用原生插件直接保存到相册
-      const result = isVideo 
-        ? await GallerySaver.saveVideo({ url: fullUrl, filename: title || 'video' })
-        : await GallerySaver.saveImage({ url: fullUrl, filename: title || 'image' })
+      let result
+      if (fileType === 'audio') {
+        result = await GallerySaver.saveAudio({ url: fullUrl, filename: title || 'audio' })
+      } else if (fileType === 'image') {
+        result = await GallerySaver.saveImage({ url: fullUrl, filename: title || 'image' })
+      } else {
+        result = await GallerySaver.saveVideo({ url: fullUrl, filename: title || 'video' })
+      }
       
       console.log('[GallerySaver] Result:', result)
       if (result.success) {
@@ -1005,7 +1010,7 @@ export default function App() {
                       window.open(task.downloadUrl, '_blank')
                       setDownloading(false)
                     } else {
-                      await shareFile(task.downloadUrl, task.title || 'video')
+                      await shareFile(task.downloadUrl, task.title || 'video', 'video')
                       setDownloading(false)
                     }
                   }}
@@ -1024,7 +1029,7 @@ export default function App() {
                     clearAutoDownload()
                     autoDownloaded.current = true
                     setDownloading(true)
-                    await shareFile(task.coverUrl, 'cover', false)
+                    await shareFile(task.coverUrl, 'cover', 'image')
                     setDownloading(false)
                   }}
                   disabled={downloading}
@@ -1042,7 +1047,7 @@ export default function App() {
                     clearAutoDownload()
                     autoDownloaded.current = true
                     setDownloading(true)
-                    await shareFile(task.audioUrl!, 'audio.mp3')
+                    await shareFile(task.audioUrl!, 'audio.mp3', 'audio')
                     setDownloading(false)
                   }}
                   disabled={downloading}

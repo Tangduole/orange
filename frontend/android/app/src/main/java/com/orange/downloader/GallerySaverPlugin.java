@@ -119,6 +119,50 @@ public class GallerySaverPlugin extends Plugin {
         }).start();
     }
 
+    @PluginMethod
+    public void saveAudio(PluginCall call) {
+        String urlStr = call.getString("url");
+        String filename = call.getString("filename", "audio_" + System.currentTimeMillis() + ".mp3");
+
+        if (urlStr == null || urlStr.isEmpty()) {
+            call.reject("URL is required");
+            return;
+        }
+
+        if (!filename.endsWith(".mp3")) {
+            filename = filename + ".mp3";
+        }
+
+        final String finalUrl = urlStr;
+        final String finalFilename = filename;
+        final Context context = getContext();
+
+        new Thread(() -> {
+            try {
+                File cacheFile = downloadFile(finalUrl, finalFilename);
+                if (cacheFile == null) {
+                    call.reject("Failed to download file");
+                    return;
+                }
+
+                String savedPath = saveToGallery(context, cacheFile, "audio/mpeg", "audio");
+                cacheFile.delete();
+
+                if (savedPath != null) {
+                    JSObject result = new JSObject();
+                    result.put("success", true);
+                    result.put("path", savedPath);
+                    call.resolve(result);
+                } else {
+                    call.reject("Failed to save to gallery");
+                }
+            } catch (Exception e) {
+                Log.e(TAG, "Error saving audio", e);
+                call.reject("Error: " + e.getMessage());
+            }
+        }).start();
+    }
+
     private File downloadFile(String urlStr, String filename) {
         try {
             URL url = new URL(urlStr);
@@ -165,6 +209,8 @@ public class GallerySaverPlugin extends Plugin {
         Uri collection;
         if (mediaType.equals("image")) {
             collection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
+        } else if (mediaType.equals("audio")) {
+            collection = MediaStore.Audio.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
         } else {
             collection = MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY);
         }
@@ -175,6 +221,8 @@ public class GallerySaverPlugin extends Plugin {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             if (mediaType.equals("image")) {
                 values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/" + ALBUM_NAME);
+            } else if (mediaType.equals("audio")) {
+                values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_MUSIC + "/" + ALBUM_NAME);
             } else {
                 values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_MOVIES + "/" + ALBUM_NAME);
             }
@@ -227,6 +275,8 @@ public class GallerySaverPlugin extends Plugin {
 
         if (mediaType.equals("image")) {
             dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+        } else if (mediaType.equals("audio")) {
+            dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC);
         } else {
             dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MOVIES);
         }

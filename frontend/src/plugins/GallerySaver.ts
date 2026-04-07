@@ -20,6 +20,7 @@ export interface SaveResult {
 export interface GallerySaverPlugin {
   saveVideo(options: SaveOptions): Promise<SaveResult>;
   saveImage(options: SaveOptions): Promise<SaveResult>;
+  saveAudio(options: SaveOptions): Promise<SaveResult>;
 }
 
 // Register the native plugin
@@ -41,6 +42,16 @@ const { GallerySaver } = registerPlugin<GallerySaverPlugin>('GallerySaver', {
       const a = document.createElement('a');
       a.href = options.url;
       a.download = options.filename || 'image.jpg';
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return { success: true };
+    },
+    saveAudio: async (options: SaveOptions): Promise<SaveResult> => {
+      const a = document.createElement('a');
+      a.href = options.url;
+      a.download = options.filename || 'audio.mp3';
       a.target = '_blank';
       document.body.appendChild(a);
       a.click();
