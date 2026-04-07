@@ -161,6 +161,7 @@ function detectPlatform(url: string): string {
 
 export default function App() {
   const [url, setUrl] = useState('')
+  useEffect(() => { initNotifications().catch(console.error); }, []);
   const [detected, setDetected] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set(['video']))
   const [task, setTask] = useState<Task | null>(null)
@@ -291,6 +292,7 @@ export default function App() {
           setBatchIndex(nextIdx)
           setLoading(true)
           setUrl(nextUrl)
+          showDownloadComplete(`start-${Date.now()}`, nextUrl, false).catch(console.error)
           axios.post(`${API}/download`, {
             url: nextUrl, platform: detectPlatform(nextUrl) || 'auto',
             needAsr: selected.has('asr'), options: [...selected], quality, asrLanguage,
@@ -298,6 +300,7 @@ export default function App() {
             setTask(r.data.data)
           }).catch((e) => {
             console.error('[batch] 下载失败:', e.message)
+            showDownloadComplete(`error-${Date.now()}`, 'Download Failed', true).catch(console.error)
             setTask({ 
               taskId: `error-${Date.now()}`, 
               status: 'error', 
@@ -371,6 +374,8 @@ export default function App() {
       autoDownloaded.current = true
       // 播放提示音
       playNotificationSound()
+      // 显示完成通知
+      showDownloadComplete(task.taskId, task.title || 'Download', false).catch(console.error)
       // 延迟 500ms 后自动下载
       autoDownloadTimer.current = setTimeout(() => {
         setDownloading(true)
