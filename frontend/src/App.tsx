@@ -26,7 +26,7 @@ const isNativeApp = () => {
 const shareFile = async (url: string, title: string, fileType: 'video' | 'audio' | 'image' = 'video') => {
   const fullUrl = url.startsWith('http') ? url : `${BASE_URL}${url}`
   
-  if (isNativeApp()) {
+  if (isNativeApp() && GallerySaver) {
     try {
       console.log('[GallerySaver] Calling native plugin, fileType: ' + fileType)
       // 使用原生插件直接保存到相册
