@@ -28,7 +28,7 @@ const shareFile = async (url: string, title: string, fileType: 'video' | 'audio'
   
   if (isNativeApp()) {
     try {
-      console.log('[GallerySaver] Calling native plugin, fileType: ' + fileType + ', url: ' + fullUrl)
+      console.log('[GallerySaver] Calling native plugin, fileType: ' + fileType)
       // 使用原生插件直接保存到相册
       let result
       if (fileType === 'audio') {
