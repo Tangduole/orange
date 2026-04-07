@@ -113,9 +113,10 @@ const PLATFORMS = [
 
 const OPTIONS: { id: string; label: string; icon: typeof Video }[] = [
   { id: 'video', label: 'Video 视频', icon: Video },
+  { id: 'audio_only', label: 'Audio 音频', icon: Mic },
   { id: 'copywriting', label: 'Copywriting 文案', icon: FileText },
   { id: 'cover', label: 'Cover 封面', icon: ImageIcon },
-  { id: 'asr', label: 'Audio 音轉文字', icon: Mic },
+  { id: 'asr', label: 'Audio 音轉文字', icon: Languages },
   { id: 'subtitle', label: 'Subtitle 字幕', icon: Languages },
 ]
 
