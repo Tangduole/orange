@@ -734,30 +734,35 @@ export default function App() {
                   {/* 头像按钮 */}
                   <button 
                     onClick={() => setShowUserMenu(!showUserMenu)}
-                    className={"w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold cursor-pointer " + (authUser?.tier === 'pro' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50' : 'bg-slate-700/50 text-slate-300 border border-slate-600/50')}
+                    className={"w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold cursor-pointer " + (authUser?.tier === 'pro' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50' : 'bg-slate-700/50 text-slate-300 border border-slate-600/50')}
                   >
                     {(authUser?.email || 'U').charAt(0).toUpperCase()}
                   </button>
                   {/* 用户菜单 */}
                   {showUserMenu && (
-                    <div className="absolute right-4 top-16 bg-slate-800 rounded-xl p-4 w-72 border border-slate-700 shadow-xl z-50">
-                      <div className="mb-3 pb-3 border-b border-slate-700">
-                        <p className="text-xs text-slate-500 mb-1">登录账号</p>
-                        <p className="text-sm text-white truncate">{authUser?.email || '未知的邮箱'}</p>
-                        <p className="text-xs text-orange-400 mt-1">{authUser?.tier === 'pro' ? '⭐ Pro 会员' : 'Free 用户'}</p>
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
+                      <div className="absolute right-0 top-10 bg-slate-800 rounded-xl py-2 w-56 border border-slate-700 shadow-xl z-50">
+                        <div className="px-3 py-2 border-b border-slate-700/50">
+                          <p className="text-xs text-slate-500">账号</p>
+                          <p className="text-sm text-white truncate">{authUser?.email || '未知的邮箱'}</p>
+                          <p className="text-xs text-orange-400 mt-0.5">{authUser?.tier === 'pro' ? '⭐ Pro 会员' : 'Free 用户'}</p>
+                        </div>
+                        <div className="py-1">
+                          <button onClick={() => { setShowUserMenu(false); setShowSubscription(true) }} className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700/50 transition flex items-center gap-2">
+                            <span>📊</span> 订阅管理
+                          </button>
+                          <button onClick={() => { setShowUserMenu(false); setShowResetPwd(true) }} className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700/50 transition flex items-center gap-2">
+                            <span>🔑</span> 修改密码
+                          </button>
+                        </div>
+                        <div className="pt-1 border-t border-slate-700/50">
+                          <button onClick={() => { setShowUserMenu(false); handleLogout() }} className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-slate-700/50 transition flex items-center gap-2">
+                            <span>🚪</span> 退出登录
+                          </button>
+                        </div>
                       </div>
-                      <div className="space-y-2">
-                        <button onClick={() => { setShowUserMenu(false); setShowSubscription(true) }} className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 rounded-lg transition">
-                          📊 订阅管理
-                        </button>
-                        <button onClick={() => { setShowUserMenu(false); setShowResetPwd(true) }} className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 rounded-lg transition">
-                          🔑 修改密码
-                        </button>
-                        <button onClick={() => { setShowUserMenu(false); handleLogout() }} className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-slate-700 rounded-lg transition">
-                          🚪 退出登录
-                        </button>
-                      </div>
-                    </div>
+                    </>
                   )}
                 </>
               ) : (
@@ -1417,45 +1422,48 @@ export default function App() {
         {/* 忘记密码弹窗 */}
         {showResetPwd && (
           <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-            <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700">
-              <h3 className="text-lg font-bold text-white mb-4">🔑 修改密码</h3>
-              {!resetPwdStep ? (
-                <>
-                  <p className="text-sm text-slate-400 mb-4">输入注册邮箱，我们会发送重置链接</p>
-                  <input
-                    type="email"
-                    value={resetEmail}
-                    onChange={(e) => setResetEmail(e.target.value)}
-                    placeholder="your@email.com"
-                    className="w-full px-4 py-3 bg-slate-900/60 border border-slate-600/50 rounded-xl text-white text-sm outline-none focus:border-orange-500/70 mb-4"
-                  />
-                  {resetPwdMsg && <p className={`text-sm mb-4 ${resetPwdMsg.includes('失败') ? 'text-red-400' : 'text-green-400'}`}>{resetPwdMsg}</p>}
-                  <div className="flex gap-3">
-                    <button onClick={() => setShowResetPwd(false)} className="flex-1 py-2.5 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition">取消</button>
-                    <button onClick={handleForgotPassword} disabled={resetPwdLoading} className="flex-1 py-2.5 px-4 rounded-xl bg-orange-500 text-white hover:bg-orange-600 transition disabled:opacity-50">
+            <div className="bg-slate-800 rounded-2xl w-full max-w-xs border border-slate-700 shadow-2xl">
+              {/* Header */}
+              <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-700">
+                <button onClick={() => setShowResetPwd(false)} className="text-slate-400 hover:text-white transition">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                </button>
+                <h3 className="text-base font-bold text-white">🔑 修改密码</h3>
+              </div>
+              {/* Content */}
+              <div className="p-4">
+                {!resetPwdStep ? (
+                  <>
+                    <p className="text-xs text-slate-400 mb-3">输入注册邮箱，我们会发送重置链接</p>
+                    <input
+                      type="email"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      placeholder="your@email.com"
+                      className="w-full px-3 py-2.5 bg-slate-900/60 border border-slate-600/50 rounded-lg text-white text-sm outline-none focus:border-orange-500/70 mb-3"
+                    />
+                    {resetPwdMsg && <p className={`text-xs mb-3 ${resetPwdMsg.includes('失败') ? 'text-red-400' : 'text-green-400'}`}>{resetPwdMsg}</p>}
+                    <button onClick={handleForgotPassword} disabled={resetPwdLoading} className="w-full py-2.5 rounded-lg bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 transition disabled:opacity-50">
                       {resetPwdLoading ? '发送中...' : '发送重置链接'}
                     </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-slate-400 mb-4">设置新密码</p>
-                  <input
-                    type="password"
-                    value={resetPwd}
-                    onChange={(e) => setResetPwd(e.target.value)}
-                    placeholder="新密码"
-                    className="w-full px-4 py-3 bg-slate-900/60 border border-slate-600/50 rounded-xl text-white text-sm outline-none focus:border-orange-500/70 mb-4"
-                  />
-                  {resetPwdMsg && <p className={`text-sm mb-4 ${resetPwdMsg.includes('失败') || resetPwdMsg.includes('无效') ? 'text-red-400' : 'text-green-400'}`}>{resetPwdMsg}</p>}
-                  <div className="flex gap-3">
-                    <button onClick={() => { setShowResetPwd(false); setResetPwdStep(false) }} className="flex-1 py-2.5 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition">取消</button>
-                    <button onClick={handleResetPassword} disabled={resetPwdLoading} className="flex-1 py-2.5 px-4 rounded-xl bg-orange-500 text-white hover:bg-orange-600 transition disabled:opacity-50">
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs text-slate-400 mb-3">设置新密码</p>
+                    <input
+                      type="password"
+                      value={resetPwd}
+                      onChange={(e) => setResetPwd(e.target.value)}
+                      placeholder="新密码"
+                      className="w-full px-3 py-2.5 bg-slate-900/60 border border-slate-600/50 rounded-lg text-white text-sm outline-none focus:border-orange-500/70 mb-3"
+                    />
+                    {resetPwdMsg && <p className={`text-xs mb-3 ${resetPwdMsg.includes('失败') || resetPwdMsg.includes('无效') ? 'text-red-400' : 'text-green-400'}`}>{resetPwdMsg}</p>}
+                    <button onClick={handleResetPassword} disabled={resetPwdLoading} className="w-full py-2.5 rounded-lg bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 transition disabled:opacity-50">
                       {resetPwdLoading ? '重置中...' : '确认重置'}
                     </button>
-                  </div>
-                </>
-              )}
+                  </>
+                )}
+              </div>
             </div>
           </div>
         )}
