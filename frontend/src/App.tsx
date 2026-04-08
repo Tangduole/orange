@@ -5,12 +5,13 @@ import AuthModal from './components/AuthModal'
 import SubscriptionPage from './components/SubscriptionPage'
 import GallerySaver from './plugins/GallerySaver'
 import { initNotifications, showDownloadComplete } from './plugins/Notifications'
+import api from './api/auth'
 import {
   Download, Link2, CheckCircle2, XCircle, Loader2,
   Video, FileText, Image as ImageIcon, Mic, Languages,
   Trash2, ChevronDown, ChevronUp, Clock, Copy, Check,
   X, Zap, AlertCircle, Eraser, FolderOpen, HardDrive, Smartphone,
-  Play, Search, Clipboard,
+  Play, Search, Clipboard, Crown,
 } from 'lucide-react'
 
 const API = 'https://orange-production-95b9.up.railway.app/api'
@@ -135,10 +136,10 @@ const ASR_LANGUAGE_OPTIONS = [
 ]
 
 const QUALITY_OPTIONS = [
-  { value: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', label: 'Best 最高画质' },
-  { value: 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]', label: '1080p' },
-  { value: 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]', label: '720p' },
-  { value: 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]', label: '480p' },
+  { value: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', label: 'Best 最高画质', vipOnly: true },
+  { value: 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]', label: '1080p', vipOnly: true },
+  { value: 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]', label: '720p', vipOnly: false },
+  { value: 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]', label: '480p', vipOnly: false },
 ]
 
 function formatBytes(bytes: number): string {
@@ -188,6 +189,18 @@ export default function App() {
   const [authToken, setAuthToken] = useState<string | null>(localStorage.getItem('orange_token'))
   const [authUser, setAuthUser] = useState<any>(JSON.parse(localStorage.getItem('orange_user') || 'null'))
   const [showSubscription, setShowSubscription] = useState(false)
+  const [isVip, setIsVip] = useState(false)
+
+  // Check VIP status when token changes
+  useEffect(() => {
+    if (authToken) {
+      api.getSubscriptionStatus(authToken).then(status => {
+        setIsVip(status?.subscriptionStatus === 'active')
+      }).catch(() => setIsVip(false))
+    } else {
+      setIsVip(false)
+    }
+  }, [authToken])
   const [historySearch, setHistorySearch] = useState('')
   const [historyFilter, setHistoryFilter] = useState<'all' | 'completed' | 'error'>('all')
   const [favorites, setFavorites] = useState<Set<string>>(new Set(JSON.parse(localStorage.getItem('orange_favorites') || '[]')))
@@ -846,26 +859,44 @@ export default function App() {
                 <div className="relative flex-1">
                   <select
                     value={quality}
-                    onChange={(e) => setQuality(e.target.value)}
-                    className="w-full px-4 py-3 bg-slate-900/60 border-2 border-slate-600/50 rounded-xl text-sm text-white outline-none focus:border-orange-500/70 cursor-pointer appearance-none"
+                    onChange={(e) => {
+                      const val = e.target.value
+                      // Check if selected option is VIP-only
+                      const isVipOnly = availableQualities.length > 0
+                        ? (val === 'best[ext=mp4]/best' || val.includes('height<=1080'))
+                        : (QUALITY_OPTIONS.find(q => q.value === val)?.vipOnly ?? false)
+                      if (isVipOnly && !isVip) {
+                        setShowSubscription(true)
+                        return
+                      }
+                      setQuality(val)
+                    }}
+                    className={`w-full px-4 py-3 bg-slate-900/60 border-2 border-slate-600/50 rounded-xl text-sm outline-none focus:border-orange-500/70 cursor-pointer appearance-none ${!isVip ? 'text-slate-400' : 'text-white'}`}
                   >
+                    {!isVip && <option value="">🚫 会员专享画质</option>}
                     {availableQualities.length > 0 ? (
                       <>
-                        <option value="best[ext=mp4]/best">Best 最高画质</option>
+                        <option value="best[ext=mp4]/best" disabled={!isVip}>
+                          {isVip ? 'Best 最高画质 ⭐' : '🚫 Best 最高画质 (会员专享)'}
+                        </option>
                         {availableQualities.map((q, idx) => {
                           const format = q.height >= 1440 
                             ? `bestvideo[height<=${q.height}]+bestaudio/best[height<=${q.height}]`
                             : `bestvideo[height<=${q.height}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${q.height}]`
+                          const isHighQuality = q.height >= 1080
+                          const canSelect = isVip || !isHighQuality
                           return (
-                            <option key={idx} value={format}>
-                              {q.quality} ({q.width}x{q.height})
+                            <option key={idx} value={format} disabled={!canSelect}>
+                              {q.quality} ({q.width}x{q.height}){isHighQuality ? (isVip ? ' ⭐' : ' 🚫会员') : ''}
                             </option>
                           )
                         })}
                       </>
                     ) : (
                       QUALITY_OPTIONS.map(q => (
-                        <option key={q.value} value={q.value}>{q.label}</option>
+                        <option key={q.value} value={q.value} disabled={q.vipOnly && !isVip}>
+                          {q.label}{q.vipOnly && !isVip ? ' (会员专享)' : (q.vipOnly ? ' ⭐' : '')}
+                        </option>
                       ))
                     )}
                   </select>
@@ -1224,41 +1255,60 @@ export default function App() {
         {showQualityPicker && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700">
-              <h3 className="text-lg font-bold text-white mb-4">选择画质</h3>
+              <h3 className="text-lg font-bold text-white mb-4">选择画质 {!isVip && <span className="text-xs text-orange-400 font-normal">(会员专享1080p+)</span>}</h3>
               <div className="space-y-2 max-h-60 overflow-y-auto">
-                {availableQualities.map((q, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => {
-                      setShowQualityPicker(false)
-                      // Set quality based on selection
-                      if (q.hasVideo) {
-                        const format = q.height >= 1440 
-                          ? `bestvideo[height<=${q.height}]+bestaudio/best[height<=${q.height}]`
-                          : `bestvideo[height<=${q.height}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${q.height}]`
-                        setQuality(format)
-                      } else {
-                        setQuality('bestaudio[ext=m4a]/bestaudio')
-                      }
-                      doSingleDownload()
-                    }}
-                    className="w-full flex items-center justify-between p-3 rounded-xl bg-slate-700/50 hover:bg-slate-700 transition text-left"
-                  >
-                    <div>
-                      <span className="text-white font-medium">{q.quality}</span>
-                      {q.width > 0 && <span className="text-slate-400 text-xs ml-2">{q.width}x{q.height}</span>}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {q.hasVideo && q.hasAudio && <span className="text-xs text-green-400">🎬</span>}
-                      {!q.hasVideo && q.hasAudio && <span className="text-xs text-blue-400">🎵</span>}
-                      <span className="text-xs text-slate-500">{q.format.split('/')[1]}</span>
-                    </div>
-                  </button>
-                ))}
+                {availableQualities.map((q, idx) => {
+                  const isHighQuality = q.height >= 1080
+                  const canSelect = isVip || !isHighQuality
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        if (!canSelect) {
+                          setShowQualityPicker(false)
+                          setShowSubscription(true)
+                          return
+                        }
+                        setShowQualityPicker(false)
+                        if (q.hasVideo) {
+                          const format = q.height >= 1440 
+                            ? `bestvideo[height<=${q.height}]+bestaudio/best[height<=${q.height}]`
+                            : `bestvideo[height<=${q.height}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${q.height}]`
+                          setQuality(format)
+                        } else {
+                          setQuality('bestaudio[ext=m4a]/bestaudio')
+                        }
+                        doSingleDownload()
+                      }}
+                      className={`w-full flex items-center justify-between p-3 rounded-xl transition text-left ${canSelect ? 'bg-slate-700/50 hover:bg-slate-700' : 'bg-slate-800/50 opacity-50 cursor-not-allowed'}`}
+                    >
+                      <div>
+                        <span className={`font-medium ${canSelect ? 'text-white' : 'text-slate-500'}`}>{q.quality}</span>
+                        {q.width > 0 && <span className={`text-xs ml-2 ${canSelect ? 'text-slate-400' : 'text-slate-600'}`}>{q.width}x{q.height}</span>}
+                        {isHighQuality && !isVip && <span className="ml-2 text-xs text-orange-400">🚫 会员专享</span>}
+                        {isHighQuality && isVip && <span className="ml-2 text-xs text-yellow-400">⭐</span>}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {q.hasVideo && q.hasAudio && <span className="text-xs text-green-400">🎬</span>}
+                        {!q.hasVideo && q.hasAudio && <span className="text-xs text-blue-400">🎵</span>}
+                        <span className="text-xs text-slate-500">{q.format.split('/')[1]}</span>
+                      </div>
+                    </button>
+                  )
+                })}
               </div>
+              {!isVip && (
+                <button
+                  onClick={() => { setShowQualityPicker(false); setShowSubscription(true) }}
+                  className="w-full mt-3 py-3 px-4 rounded-xl bg-gradient-to-r from-yellow-500/20 to-orange-500/20 text-orange-400 hover:from-yellow-500/30 hover:to-orange-500/30 transition border border-orange-500/30 flex items-center justify-center gap-2"
+                >
+                  <Crown className="w-4 h-4" />
+                  升级会员解锁高清画质
+                </button>
+              )}
               <button
                 onClick={() => { setShowQualityPicker(false); setPendingUrl('') }}
-                className="w-full mt-4 py-2 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition"
+                className="w-full mt-2 py-2 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition"
               >
                 取消
               </button>
