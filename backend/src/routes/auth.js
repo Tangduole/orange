@@ -135,14 +135,48 @@ router.post('/forgot-password', async (req, res) => {
       return res.json({ code: 0, message: '如果邮箱存在，重置链接已发送' });
     }
     
-    // 生成重置令牌（简单实现，实际应该用加密令牌）
+    // 生成重置令牌
     const resetToken = Buffer.from(`${user._id}:${Date.now()}`).toString('base64');
     await User.updateOne({ _id: user._id }, { resetToken });
     
-    // 实际应该发送邮件，这里返回令牌方便测试
-    console.log(`[auth] Password reset for ${email}: ${resetToken}`);
+    // 使用 Resend 发送邮件
+    const { Resend } = require('resend');
+    const resend = new Resend(process.env.RESEND_API_KEY || 're_6tYoitLj_NyyF5gNR9qX334p93tzMt2zL');
     
-    res.json({ code: 0, message: '重置链接已发送', resetToken }); // 测试用
+    const resetUrl = `https://frontend-roan-psi-68.vercel.app/reset?token=${resetToken}`;
+    
+    await resend.emails.send({
+      from: 'Orange <noreply@orange-downloader.com>',
+      to: email,
+      subject: '重置你的 Orange 密码',
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="color: #FF7D00; font-size: 32px; margin: 0;">🍊 Orange</h1>
+          </div>
+          <h2 style="color: #333;">重置密码</h2>
+          <p style="color: #666; line-height: 1.6;">
+            你请求了重置密码。请点击下面的按钮来设置新密码：
+          </p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${resetUrl}" style="display: inline-block; background: linear-gradient(135deg, #FF7D00, #FFA347); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: bold; font-size: 16px;">
+              重置密码
+            </a>
+          </div>
+          <p style="color: #999; font-size: 14px;">
+            如果你没有请求重置密码，请忽略这封邮件。<br>
+            此链接将在 1 小时后过期。
+          </p>
+          <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+          <p style="color: #999; font-size: 12px; text-align: center;">
+            Orange Downloader - 多平台视频下载工具
+          </p>
+        </div>
+      `
+    });
+    
+    console.log(`[auth] Password reset email sent to ${email}`);
+    res.json({ code: 0, message: '重置链接已发送到邮箱' });
   } catch (err) {
     console.error('[auth] Forgot password error:', err);
     res.status(500).json({ code: 500, message: '请求失败' });
