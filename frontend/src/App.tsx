@@ -203,6 +203,19 @@ export default function App() {
     return saved ? saved === 'dark' : true
   })
 
+  // 检查 URL 是否有重置密码 token
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const resetToken = params.get('reset')
+    if (resetToken) {
+      setResetPwdToken(resetToken)
+      setResetPwdStep(true)
+      setShowResetPwd(true)
+      // 清除 URL 参数
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [])
+
   // 切换主题
   const toggleTheme = () => {
     setIsDark(!isDark)
