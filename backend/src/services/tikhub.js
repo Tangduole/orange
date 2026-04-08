@@ -412,21 +412,13 @@ async function parseDouyin(url, taskId, onProgress) {
     selectedWidth = playAddr265?.width || video.play_addr?.width || 0;
     selectedHeight = playAddr265?.height || video.play_addr?.height || 0;
   } else if (video.bit_rate && video.bit_rate.length > 0) {
-    // 非会员默认选择 720p 画质
+    // 默认选择最高画质（会员默认）
     const bitrates = video.bit_rate.filter(br => br.play_addr?.url_list?.[0]);
     
-    // 优先找 720p 画质（非会员默认）
-    let selected = bitrates.find(br => {
-      const h = br.play_addr?.height || 0;
-      return h <= 720 && h > 0;
-    });
-    
-    // 如果没有 720p，选择最高的（会员）
-    if (!selected && bitrates.length > 0) {
-      selected = bitrates.sort((a, b) => (b.bit_rate || 0) - (a.bit_rate || 0))[0];
-    }
-    
-    if (selected) {
+    // 选择最高画质
+    if (bitrates.length > 0) {
+      const sorted = bitrates.sort((a, b) => (b.bit_rate || 0) - (a.bit_rate || 0));
+      const selected = sorted[0];
       videoUrl = selected.play_addr.url_list[0];
       selectedWidth = selected.play_addr?.width || 0;
       selectedHeight = selected.play_addr?.height || 0;
