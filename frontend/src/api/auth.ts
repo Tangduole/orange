@@ -97,6 +97,30 @@ export const api = {
   logout: () => {
     localStorage.removeItem('orange_token');
     localStorage.removeItem('orange_user');
+  },
+
+  // 忘记密码
+  async forgotPassword(email: string) {
+    const res = await fetch(`${API_BASE}/api/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if (data.code !== 0) throw new Error(data.message);
+    return data;
+  },
+
+  // 重置密码
+  async resetPassword(token: string, password: string) {
+    const res = await fetch(`${API_BASE}/api/auth/reset-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, password })
+    });
+    const data = await res.json();
+    if (data.code !== 0) throw new Error(data.message);
+    return data;
   }
 };
 

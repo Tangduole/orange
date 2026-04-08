@@ -189,6 +189,14 @@ export default function App() {
   const [authToken, setAuthToken] = useState<string | null>(localStorage.getItem('orange_token'))
   const [authUser, setAuthUser] = useState<any>(JSON.parse(localStorage.getItem('orange_user') || 'null'))
   const [showSubscription, setShowSubscription] = useState(false)
+  const [showUserMenu, setShowUserMenu] = useState(false)
+  const [showResetPwd, setShowResetPwd] = useState(false)
+  const [resetEmail, setResetEmail] = useState('')
+  const [resetPwdStep, setResetPwdStep] = useState(false) // false=发送邮件, true=设置新密码
+  const [resetPwdToken, setResetPwdToken] = useState('')
+  const [resetPwd, setResetPwd] = useState('')
+  const [resetPwdMsg, setResetPwdMsg] = useState('')
+  const [resetPwdLoading, setResetPwdLoading] = useState(false)
   const [isVip, setIsVip] = useState(false)
 
   // Check VIP status when token changes
@@ -225,6 +233,51 @@ export default function App() {
     setAuthUser(user)
     localStorage.setItem('orange_token', token)
     localStorage.setItem('orange_user', JSON.stringify(user))
+  }
+
+  // 忘记密码 - 发送重置邮件
+  const handleForgotPassword = async () => {
+    if (!resetEmail) return
+    setResetPwdLoading(true)
+    setResetPwdMsg('')
+    try {
+      const result = await api.forgotPassword(resetEmail)
+      if (result.resetToken) {
+        // 演示模式：直接显示token让用户重置
+        setResetPwdToken(result.resetToken)
+        setResetPwdStep(true)
+        setResetPwdMsg('演示模式：使用以下令牌重置密码')
+      } else {
+        setResetPwdMsg('重置链接已发送到邮箱')
+      }
+    } catch (err: any) {
+      setResetPwdMsg(err.message || '发送失败')
+    } finally {
+      setResetPwdLoading(false)
+    }
+  }
+
+  // 重置密码
+  const handleResetPassword = async () => {
+    if (!resetPwd || !resetPwdToken) return
+    setResetPwdLoading(true)
+    setResetPwdMsg('')
+    try {
+      await api.resetPassword(resetPwdToken, resetPwd)
+      setResetPwdMsg('密码已重置！请使用新密码登录')
+      setTimeout(() => {
+        setShowResetPwd(false)
+        setResetPwdStep(false)
+        setResetEmail('')
+        setResetPwd('')
+        setResetPwdToken('')
+        setResetPwdMsg('')
+      }, 1500)
+    } catch (err: any) {
+      setResetPwdMsg(err.message || '重置失败')
+    } finally {
+      setResetPwdLoading(false)
+    }
   }
 
   const handleLogout = () => {
@@ -678,10 +731,34 @@ export default function App() {
             <div className="ml-auto flex items-center gap-2">
               {authToken ? (
                 <>
-                  <button onClick={() => setShowSubscription(true)} className={"px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer " + (authUser?.tier === 'pro' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50' : 'bg-slate-700/50 text-slate-300 border border-slate-600/50')}>
-                    {authUser?.tier === 'pro' ? 'Pro' : 'Free'}
+                  {/* 头像按钮 */}
+                  <button 
+                    onClick={() => setShowUserMenu(!showUserMenu)}
+                    className={"w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold cursor-pointer " + (authUser?.tier === 'pro' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50' : 'bg-slate-700/50 text-slate-300 border border-slate-600/50')}
+                  >
+                    {(authUser?.email || 'U').charAt(0).toUpperCase()}
                   </button>
-                  <button onClick={handleLogout} className="px-3 py-1.5 text-xs text-slate-400 hover:text-red-400">登出</button>
+                  {/* 用户菜单 */}
+                  {showUserMenu && (
+                    <div className="absolute right-4 top-16 bg-slate-800 rounded-xl p-4 w-72 border border-slate-700 shadow-xl z-50">
+                      <div className="mb-3 pb-3 border-b border-slate-700">
+                        <p className="text-xs text-slate-500 mb-1">登录账号</p>
+                        <p className="text-sm text-white truncate">{authUser?.email || '未知的邮箱'}</p>
+                        <p className="text-xs text-orange-400 mt-1">{authUser?.tier === 'pro' ? '⭐ Pro 会员' : 'Free 用户'}</p>
+                      </div>
+                      <div className="space-y-2">
+                        <button onClick={() => { setShowUserMenu(false); setShowSubscription(true) }} className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 rounded-lg transition">
+                          📊 订阅管理
+                        </button>
+                        <button onClick={() => { setShowUserMenu(false); setShowResetPwd(true) }} className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700 rounded-lg transition">
+                          🔑 修改密码
+                        </button>
+                        <button onClick={() => { setShowUserMenu(false); handleLogout() }} className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-slate-700 rounded-lg transition">
+                          🚪 退出登录
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </>
               ) : (
                 <button onClick={() => setShowAuthModal(true)} className="px-4 py-2 text-sm bg-orange/20 text-orange border border-orange/50 rounded-lg font-medium">
@@ -1336,6 +1413,52 @@ export default function App() {
           <p>Orange Downloader v1.0 · For personal use only</p>
         </footer>
         <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} onSuccess={handleAuthSuccess} />
+
+        {/* 忘记密码弹窗 */}
+        {showResetPwd && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700">
+              <h3 className="text-lg font-bold text-white mb-4">🔑 修改密码</h3>
+              {!resetPwdStep ? (
+                <>
+                  <p className="text-sm text-slate-400 mb-4">输入注册邮箱，我们会发送重置链接</p>
+                  <input
+                    type="email"
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                    placeholder="your@email.com"
+                    className="w-full px-4 py-3 bg-slate-900/60 border border-slate-600/50 rounded-xl text-white text-sm outline-none focus:border-orange-500/70 mb-4"
+                  />
+                  {resetPwdMsg && <p className={`text-sm mb-4 ${resetPwdMsg.includes('失败') ? 'text-red-400' : 'text-green-400'}`}>{resetPwdMsg}</p>}
+                  <div className="flex gap-3">
+                    <button onClick={() => setShowResetPwd(false)} className="flex-1 py-2.5 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition">取消</button>
+                    <button onClick={handleForgotPassword} disabled={resetPwdLoading} className="flex-1 py-2.5 px-4 rounded-xl bg-orange-500 text-white hover:bg-orange-600 transition disabled:opacity-50">
+                      {resetPwdLoading ? '发送中...' : '发送重置链接'}
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-slate-400 mb-4">设置新密码</p>
+                  <input
+                    type="password"
+                    value={resetPwd}
+                    onChange={(e) => setResetPwd(e.target.value)}
+                    placeholder="新密码"
+                    className="w-full px-4 py-3 bg-slate-900/60 border border-slate-600/50 rounded-xl text-white text-sm outline-none focus:border-orange-500/70 mb-4"
+                  />
+                  {resetPwdMsg && <p className={`text-sm mb-4 ${resetPwdMsg.includes('失败') || resetPwdMsg.includes('无效') ? 'text-red-400' : 'text-green-400'}`}>{resetPwdMsg}</p>}
+                  <div className="flex gap-3">
+                    <button onClick={() => { setShowResetPwd(false); setResetPwdStep(false) }} className="flex-1 py-2.5 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition">取消</button>
+                    <button onClick={handleResetPassword} disabled={resetPwdLoading} className="flex-1 py-2.5 px-4 rounded-xl bg-orange-500 text-white hover:bg-orange-600 transition disabled:opacity-50">
+                      {resetPwdLoading ? '重置中...' : '确认重置'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
