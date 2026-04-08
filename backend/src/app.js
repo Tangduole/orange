@@ -70,7 +70,7 @@ app.use('/download', (req, res, next) => {
 // Root route - return a simple health check or welcome message
 app.get('/', (req, res) => {
   res.json({ 
-    message: '小电驴后端运行中',
+    message: 'Orange后端运行中',
     api: '/api',
     status: 'ok'
   });
@@ -87,7 +87,7 @@ if (fs.existsSync(frontendDist)) {
 
 // 启动
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 小电驴后端启动成功`);
+  console.log(`🚀 Orange后端启动成功`);
   console.log(`   http://0.0.0.0:${PORT}`);
   console.log(`   API: http://0.0.0.0:${PORT}/api`);
   console.log(`   下载目录: ${DOWNLOAD_DIR}`);
