@@ -1095,9 +1095,9 @@ export default function App() {
             {/* Batch progress indicator */}
             {/* Batch Progress 批量进度 */}
             {batchMode && batchQueue.length > 0 && (
-              <div className="mb-3 bg-slate-900/60 rounded-xl border border-slate-700/60 overflow-hidden">
-                <div className="px-4 py-2 border-b border-slate-700/60 flex justify-between items-center">
-                  <p className="text-xs text-slate-400">
+              <div className={`mb-3 rounded-xl border overflow-hidden ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-white border-gray-200'}`}>
+                <div className={`px-4 py-2 border-b flex justify-between items-center ${isDark ? 'border-slate-700/60' : 'border-gray-200'}`}>
+                  <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>
                     Batch Queue: {batchQueue.length} items
                   </p>
                   {loading && <span className="text-xs text-orange-400">Processing {batchIndex + 1}/{batchQueue.length}</span>}
@@ -1152,41 +1152,41 @@ export default function App() {
 
           {/* 任务状态 */}
           {task && (
-            <div className="mt-5 bg-slate-800/60 backdrop-blur-sm rounded-2xl p-5 border border-slate-700/60 shadow-xl space-y-3">
+            <div className={`mt-5 backdrop-blur-sm rounded-2xl p-5 border shadow-xl space-y-3 ${isDark ? 'bg-slate-800/60 border-slate-700/60' : 'bg-white border-gray-200'}`}>
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-slate-600 flex items-center gap-2">
+                <h3 className={`text-sm font-semibold flex items-center gap-2 ${isDark ? 'text-slate-600' : 'text-gray-700'}`}>
                   <Download className="w-4 h-4 text-orange-400" /> Download Progress
                 </h3>
-                <button onClick={() => setTask(null)}><X className="w-4 h-4 text-slate-500 hover:text-slate-300" /></button>
+                <button onClick={() => setTask(null)}><X className={`w-4 h-4 ${isDark ? 'text-slate-500 hover:text-slate-300' : 'text-gray-400 hover:text-gray-600'}`} /></button>
               </div>
 
               <div className="flex items-center gap-2">
                 {task.status === 'completed' && <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
                 {task.status === 'error' && <XCircle className="w-5 h-5 text-red-400" />}
                 {isWorking(task.status) && <Loader2 className="w-5 h-5 text-orange-400 animate-spin" />}
-                <span className="text-sm text-slate-600">{statusLabel(task.status)}</span>
+                <span className={`text-sm ${isDark ? 'text-slate-600' : 'text-gray-600'}`}>{statusLabel(task.status)}</span>
               </div>
 
               {/* 精细进度条 */}
               {isWorking(task.status) && (
                 <div className="space-y-2">
-                  <div className="w-full h-2.5 bg-slate-700/50 rounded-full overflow-hidden">
+                  <div className={`w-full h-2.5 rounded-full overflow-hidden ${isDark ? 'bg-slate-700/50' : 'bg-gray-200'}`}>
                     <div 
                       className="h-full bg-orange-500 rounded-full transition-all duration-500"
                       style={{ width: `${task.progress}%` }}
                     />
                   </div>
-                  <div className="flex items-center justify-between text-xs text-slate-500">
-                    <span>{task.title || 'Parsing...'}</span>
+                  <div className={`flex items-center justify-between text-xs ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>
+                    <span className={isDark ? 'text-slate-400' : 'text-gray-600'}>{task.title || 'Parsing...'}</span>
                     <div className="flex items-center gap-2">
                       {task.downloadedBytes && task.totalBytes ? (
-                        <span className="text-slate-400">
+                        <span className={isDark ? 'text-slate-400' : 'text-gray-500'}>
                           {formatBytes(task.downloadedBytes)}/{formatBytes(task.totalBytes)}
                         </span>
                       ) : null}
                       <span className="text-orange-400 font-medium">{task.progress}%</span>
                       {task.speed && <span className="text-emerald-400">{task.speed}/s</span>}
-                      {task.eta && <span className="text-slate-500">剩余 {task.eta}</span>}
+                      {task.eta && <span className={isDark ? 'text-slate-500' : 'text-gray-400'}>剩余 {task.eta}</span>}
                     </div>
                   </div>
                 </div>
@@ -1344,10 +1344,10 @@ export default function App() {
           {/* // Download History - Enhanced */}
           <div className="mt-5">
             <button onClick={() => setShowHistory(!showHistory)}
-              className="w-full flex items-center justify-between px-5 py-3 bg-slate-900/60 rounded-2xl border border-slate-700/60 text-sm text-slate-500 hover:text-slate-300 transition">
+              className={`w-full flex items-center justify-between px-5 py-3 rounded-2xl border text-sm transition ${isDark ? 'bg-slate-900/60 border-slate-700/60 text-slate-500 hover:text-slate-300' : 'bg-white border-gray-200 text-gray-600 hover:text-gray-900'}`}>
               <span className="flex items-center gap-2">
                 <Clock className="w-4 h-4" /> Download History
-                {history.length > 0 && <span className="bg-orange-500/20 text-orange-300 px-2 py-0.5 rounded text-xs">{history.length}</span>}
+                {history.length > 0 && <span className="bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded text-xs">{history.length}</span>}
               </span>
               <span className="flex items-center gap-2">
                 {history.length > 0 && showHistory && (
@@ -1357,15 +1357,15 @@ export default function App() {
               </span>
             </button>
             {showHistory && (
-              <div className="mt-2 bg-slate-900/60 rounded-2xl border border-slate-700/60 overflow-hidden">
-                <div className="flex gap-2 p-3 border-b border-slate-700/30 items-center">
-                  {filteredHistory.length > 0 && <input type="checkbox" checked={selectedTasks.size === filteredHistory.length} onChange={toggleSelectAll} className="w-4 h-4 rounded border-slate-600" />}
+              <div className={`mt-2 rounded-2xl border overflow-hidden ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-white border-gray-200'}`}>
+                <div className={`flex gap-2 p-3 border-b items-center ${isDark ? 'border-slate-700/30' : 'border-gray-100'}`}>
+                  {filteredHistory.length > 0 && <input type="checkbox" checked={selectedTasks.size === filteredHistory.length} onChange={toggleSelectAll} className={`w-4 h-4 rounded ${isDark ? 'border-slate-600' : 'border-gray-400'}`} />}
                   {selectedTasks.size > 0 && <button onClick={deleteSelected} className="px-3 py-1.5 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg text-xs">Delete ({selectedTasks.size})</button>}
                   <div className="flex-1 relative">
-                    <input type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} placeholder="Search..." className="w-full pl-8 pr-3 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm text-white placeholder:text-slate-500" />
+                    <input type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} placeholder="Search..." className={`w-full pl-8 pr-3 py-2 border rounded-lg text-sm placeholder:text-slate-500 ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-gray-50 border-gray-200 text-gray-900'}`} />
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                   </div>
-                  <select value={historyFilter} onChange={(e) => setHistoryFilter(e.target.value as any)} className="px-3 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm text-white">
+                  <select value={historyFilter} onChange={(e) => setHistoryFilter(e.target.value as any)} className={`px-3 py-2 border rounded-lg text-sm ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-gray-50 border-gray-200 text-gray-900'}`}>
                     <option value="all">All</option>
                     <option value="completed">Done</option>
                     <option value="error">Failed</option>
