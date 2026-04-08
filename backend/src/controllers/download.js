@@ -492,12 +492,35 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
     const title = videoData.title || 'YouTube Video';
     const videos = videoData.videos?.items || [];
     
-    // 找到最佳画质
+    // 解析用户选择的画质
+    let maxHeight = 1080; // 默认
+    if (quality) {
+      const heightMatch = quality.match(/height[<=]?(\d+)/i);
+      if (heightMatch) {
+        maxHeight = parseInt(heightMatch[1]);
+      }
+    }
+    
+    // 找到符合画质要求的最佳视频
     let bestVideo = null;
     for (const v of videos) {
       if (v.url && v.mimeType?.startsWith('video/')) {
-        if (!bestVideo || (v.height || 0) > (bestVideo.height || 0)) {
-          bestVideo = v;
+        const vHeight = v.height || 0;
+        if (vHeight <= maxHeight) {
+          if (!bestVideo || vHeight > (bestVideo.height || 0)) {
+            bestVideo = v;
+          }
+        }
+      }
+    }
+    
+    // 如果没有找到符合要求的，降级到最高画质
+    if (!bestVideo) {
+      for (const v of videos) {
+        if (v.url && v.mimeType?.startsWith('video/')) {
+          if (!bestVideo || (v.height || 0) > (bestVideo.height || 0)) {
+            bestVideo = v;
+          }
         }
       }
     }
