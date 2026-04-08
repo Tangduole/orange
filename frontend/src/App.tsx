@@ -781,7 +781,7 @@ export default function App() {
                   {/* 头像按钮 */}
                   <button 
                     onClick={() => setShowUserMenu(!showUserMenu)}
-                    className={"w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold cursor-pointer " + (authUser?.tier === 'pro' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50' : 'bg-slate-700/50 text-slate-300 border border-slate-600/50')}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold cursor-pointer ${authUser?.tier === 'pro' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50' : isDark ? 'bg-slate-700/50 text-slate-300 border border-slate-600/50' : 'bg-gray-200 text-gray-700 border-gray-300'}`}
                   >
                     {(authUser?.email || 'U').charAt(0).toUpperCase()}
                   </button>
@@ -813,7 +813,7 @@ export default function App() {
                   )}
                 </>
               ) : (
-                <button onClick={() => setShowAuthModal(true)} className="px-4 py-2 text-sm bg-orange/20 text-orange border border-orange/50 rounded-lg font-medium">
+                <button onClick={() => setShowAuthModal(true)} className="px-4 py-2 text-sm bg-gradient-to-r from-orange to-orange-light text-white border-0 rounded-lg font-medium shadow-md hover:shadow-lg transition-all">
                   登录/注册
                 </button>
               )}
@@ -832,13 +832,13 @@ export default function App() {
             <div className="flex gap-2 mb-5">
               <button
                 onClick={() => setBatchMode(false)}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${!batchMode ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : 'bg-slate-700/30 text-slate-500 border border-transparent'}`}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${!batchMode ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : isDark ? 'bg-slate-700/30 text-slate-500 border border-transparent' : 'bg-gray-100 text-gray-500 border border-transparent'}`}
               >
                 Single Download
               </button>
               <button
                 onClick={() => setBatchMode(true)}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${batchMode ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : 'bg-slate-700/30 text-slate-500 border border-transparent'}`}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${batchMode ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : isDark ? 'bg-slate-700/30 text-slate-500 border border-transparent' : 'bg-gray-100 text-gray-500 border border-transparent'}`}
               >
                 Batch Download
               </button>
@@ -865,7 +865,7 @@ export default function App() {
                     onChange={(e) => handleUrlChange(e.target.value)}
                     onPaste={handleSinglePaste}
                     placeholder="Paste video link..."
-                    className="w-full pl-24 pr-10 py-4 bg-slate-900/60 border-2 border-slate-600/50 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 outline-none text-white text-base transition-all placeholder:text-slate-500"
+                    className={`w-full pl-24 pr-10 py-4 border-2 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 outline-none text-base transition-all placeholder:text-slate-400 ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
                   />
                   {/* 清理按钮 - 最右边 */}
                   {url && !loading && (
@@ -895,7 +895,7 @@ export default function App() {
                   value={batchUrls}
                   onChange={(e) => handleBatchChange(e.target.value)}
                   placeholder="Paste links (auto-extract) or type one per line：&#10;https://v.douyin.com/xxx&#10;https://x.com/yyy"
-                  className="w-full h-28 px-4 py-3 bg-slate-900/60 border-2 border-slate-600/50 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 outline-none text-white text-sm transition-all placeholder:text-slate-500 resize-none"
+                  className={`w-full h-28 px-4 py-3 border-2 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 text-sm transition-all resize-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white placeholder:text-slate-500' : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400'}`}
                 />
                 {/* 链接预览列表 - 带数字排序 */}
                 {batchUrls.split('\n').filter(u => u.trim()).length > 0 && (
@@ -968,7 +968,7 @@ export default function App() {
                   <select
                     value={asrLanguage}
                     onChange={(e) => setAsrLanguage(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-900/60 border-2 border-slate-600/50 rounded-xl text-sm text-white outline-none focus:border-orange-500/70 cursor-pointer appearance-none"
+                    className={`w-full px-3 py-2 border-2 rounded-xl text-sm outline-none focus:border-orange-500/70 cursor-pointer appearance-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
                   >
                     {ASR_LANGUAGE_OPTIONS.map(opt => (
                       <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -1053,7 +1053,7 @@ export default function App() {
                 <select
                   value={saveLocation}
                   onChange={(e) => handleLocationChange(e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-900/60 border-2 border-slate-600/50 rounded-xl text-sm text-white outline-none focus:border-orange-500/70 cursor-pointer appearance-none"
+                  className={`w-full px-4 py-3 border-2 rounded-xl text-sm outline-none focus:border-orange-500/70 cursor-pointer appearance-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
                 >
                   <option value="album">📱 Phone Gallery 手機相冊</option>
                   <option value="download">💻 Download Folder 下載文件夾</option>
@@ -1318,8 +1318,8 @@ export default function App() {
           )}
 
           {/* How to Use - 精简版 */}
-          <div className="mt-5 bg-slate-900/60 rounded-2xl px-5 py-3 border border-slate-700/60">
-            <div className="flex items-center gap-4 text-xs text-slate-500">
+          <div className={`mt-5 rounded-2xl px-5 py-3 border ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-gray-100 border-gray-200'}`}>
+            <div className={`flex items-center gap-4 text-xs ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>
               <span className="flex items-center gap-1"><span className="text-orange-400 font-bold">1</span> Copy link</span>
               <span>→</span>
               <span className="flex items-center gap-1"><span className="text-orange-400 font-bold">2</span> Paste</span>
