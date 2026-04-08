@@ -4,13 +4,16 @@ import api from '../api/auth';
 interface SubscriptionPageProps {
   token: string;
   onBack: () => void;
+  onLogout: () => void;
 }
 
-export default function SubscriptionPage({ token, onBack }: SubscriptionPageProps) {
+export default function SubscriptionPage({ token, onBack, onLogout }: SubscriptionPageProps) {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<any>(null);
   const [error, setError] = useState('');
   const [upgrading, setUpgrading] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     loadStatus();
@@ -189,6 +192,62 @@ export default function SubscriptionPage({ token, onBack }: SubscriptionPageProp
             )}
           </div>
         </div>
+
+        {/* Delete Account */}
+        <div className="mt-12 pt-8 border-t border-slate-700">
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="w-full py-3 text-red-500 hover:text-red-400 font-medium text-center transition-colors"
+          >
+            注销账号
+          </button>
+        </div>
+
+        {/* Delete Confirmation Modal */}
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-red-500/50">
+              <h3 className="text-lg font-bold text-red-400 mb-4">⚠️ 确认注销账号</h3>
+              <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                <p className="text-red-400 text-sm font-medium mb-2">注销后将无法恢复！</p>
+                <ul className="text-slate-400 text-xs space-y-1">
+                  <li>• 您的所有下载记录将被删除</li>
+                  <li>• 您的订阅将被取消</li>
+                  <li>• 此操作不可撤销</li>
+                </ul>
+              </div>
+              <p className="text-white text-sm mb-4">确定要注销账号吗？</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={async () => {
+                    setDeleting(true)
+                    try {
+                      await fetch(`${import.meta.env.VITE_API_URL || 'https://orange-production-95b9.up.railway.app'}/api/auth/delete-account`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                      })
+                      onLogout()
+                    } catch (err) {
+                      setError('注销失败')
+                      setDeleting(false)
+                      setShowDeleteConfirm(false)
+                    }
+                  }}
+                  disabled={deleting}
+                  className="flex-1 py-2.5 px-4 rounded-xl bg-red-500 text-white hover:bg-red-600 transition disabled:opacity-50"
+                >
+                  {deleting ? '注销中...' : '确认注销'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* FAQ */}
         <div className="mt-12">

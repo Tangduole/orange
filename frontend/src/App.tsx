@@ -653,7 +653,7 @@ export default function App() {
   const platformLabel = (id: string) => PLATFORMS.find(p => p.id === id)?.label || ''
 
   if (showSubscription && authToken) {
-    return <SubscriptionPage token={authToken} onBack={() => setShowSubscription(false)} />
+    return <SubscriptionPage token={authToken} onBack={() => setShowSubscription(false)} onLogout={handleLogout} />
   }
 
   return (
