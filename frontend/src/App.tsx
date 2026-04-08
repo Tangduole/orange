@@ -10,7 +10,7 @@ import {
   Video, FileText, Image as ImageIcon, Mic, Languages,
   Trash2, ChevronDown, ChevronUp, Clock, Copy, Check,
   X, Zap, AlertCircle, Eraser, FolderOpen, HardDrive, Smartphone,
-  Play, Search,
+  Play, Search, Clipboard,
 } from 'lucide-react'
 
 const API = 'https://orange-production-95b9.up.railway.app/api'
@@ -405,6 +405,26 @@ export default function App() {
     setDetected(platform)
   }
 
+  // 点击粘贴按钮 - 从剪贴板粘贴
+  const handlePasteClick = async () => {
+    try {
+      const text = await navigator.clipboard.readText()
+      const urls = text.match(/https?:\/\/[^\s\n,，、；;）)】"']+/g) || []
+      if (urls.length > 1) {
+        setBatchMode(true)
+        setBatchUrls(urls.map((url, idx) => `${idx + 1}. ${url}`).join('\n'))
+      } else if (urls.length === 1) {
+        setUrl(urls[0])
+        setDetected(detectPlatform(urls[0]))
+      } else if (text) {
+        setUrl(text)
+        setDetected(detectPlatform(text))
+      }
+    } catch (e) {
+      console.error('[paste] failed:', e)
+    }
+  }
+
   // 单个输入框粘贴处理 - 自动提取链接
   const handleSinglePaste = (e: React.ClipboardEvent) => {
     const pastedText = e.clipboardData.getData('text')
@@ -686,7 +706,15 @@ export default function App() {
             {!batchMode && (
               <div className="mb-5">
                 <div className="relative">
-                  <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500">
+                  {/* 粘贴按钮 */}
+                  <button
+                    onClick={handlePasteClick}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-orange-400 transition-colors"
+                    title="Paste from clipboard"
+                  >
+                    <Clipboard className="w-5 h-5" />
+                  </button>
+                  <div className="absolute left-12 top-1/2 -translate-y-1/2 text-slate-500">
                     <Link2 className="w-5 h-5" />
                   </div>
                   <input
@@ -695,7 +723,7 @@ export default function App() {
                     onChange={(e) => handleUrlChange(e.target.value)}
                     onPaste={handleSinglePaste}
                     placeholder="Paste video link..."
-                    className="w-full pl-10 pr-10 py-4 bg-slate-900/60 border-2 border-slate-600/50 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 outline-none text-white text-base transition-all placeholder:text-slate-500"
+                    className="w-full pl-24 pr-10 py-4 bg-slate-900/60 border-2 border-slate-600/50 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 outline-none text-white text-base transition-all placeholder:text-slate-500"
                   />
                   {/* 清理按钮 - 最右边 */}
                   {url && !loading && (
