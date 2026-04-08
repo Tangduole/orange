@@ -19,7 +19,8 @@ const Database = require('better-sqlite3');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 
-const DATA_DIR = path.join(__dirname, '../../data');
+// Railway 持久化路径优先，否则用本地 data 目录
+const DATA_DIR = process.env.RAILWAY_VOLUME_MOUNT_PATH || path.join(__dirname, '../../data');
 const DB_PATH = path.join(DATA_DIR, 'users.db');
 
 // 确保目录存在

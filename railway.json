@@ -6,6 +6,12 @@
   "deploy": {
     "numInstances": 1,
     "restartPolicyType": "ON_FAILURE",
-    "restartPolicyLimit": 5
+    "restartPolicyLimit": 5,
+    "volumes": [
+      {
+        "mountPath": "/app/data",
+        "volumeId": "${{vol.persistent-data}}"
+      }
+    ]
   }
 }
