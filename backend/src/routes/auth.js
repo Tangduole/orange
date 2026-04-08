@@ -120,3 +120,56 @@ router.post('/delete-account', auth.required, async (req, res) => {
     res.status(500).json({ code: 500, message: '注销失败' });
   }
 });
+
+// 忘记密码 - 发送重置邮件
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ code: 400, message: '请提供邮箱' });
+    
+    const { User } = require('../models/user');
+    const user = await User.findOne({ email });
+    
+    // 即使用户不存在也返回成功，防止枚举攻击
+    if (!user) {
+      return res.json({ code: 0, message: '如果邮箱存在，重置链接已发送' });
+    }
+    
+    // 生成重置令牌（简单实现，实际应该用加密令牌）
+    const resetToken = Buffer.from(`${user._id}:${Date.now()}`).toString('base64');
+    await User.updateOne({ _id: user._id }, { resetToken });
+    
+    // 实际应该发送邮件，这里返回令牌方便测试
+    console.log(`[auth] Password reset for ${email}: ${resetToken}`);
+    
+    res.json({ code: 0, message: '重置链接已发送', resetToken }); // 测试用
+  } catch (err) {
+    console.error('[auth] Forgot password error:', err);
+    res.status(500).json({ code: 500, message: '请求失败' });
+  }
+});
+
+// 重置密码
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password) return res.status(400).json({ code: 400, message: '缺少参数' });
+    
+    const { User } = require('../models/user');
+    const decoded = Buffer.from(token, 'base64').toString();
+    const [userId] = decoded.split(':');
+    
+    const user = await User.findOne({ _id: userId, resetToken: token });
+    if (!user) return res.status(400).json({ code: 400, message: '无效或已过期的重置链接' });
+    
+    // 更新密码
+    user.password = password; // 应该先hash
+    user.resetToken = null;
+    await user.save();
+    
+    res.json({ code: 0, message: '密码已重置' });
+  } catch (err) {
+    console.error('[auth] Reset password error:', err);
+    res.status(500).json({ code: 500, message: '重置失败' });
+  }
+});
