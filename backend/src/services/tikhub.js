@@ -412,14 +412,25 @@ async function parseDouyin(url, taskId, onProgress) {
     selectedWidth = playAddr265?.width || video.play_addr?.width || 0;
     selectedHeight = playAddr265?.height || video.play_addr?.height || 0;
   } else if (video.bit_rate && video.bit_rate.length > 0) {
-    const sorted = video.bit_rate
-      .filter(br => br.play_addr?.url_list?.[0])
-      .sort((a, b) => (b.bit_rate || 0) - (a.bit_rate || 0));
-    if (sorted.length > 0) {
-      videoUrl = sorted[0].play_addr.url_list[0];
-      selectedWidth = sorted[0].play_addr?.width || 0;
-      selectedHeight = sorted[0].play_addr?.height || 0;
-      console.log(`[TikHub] Using bit_rate: ${sorted[0].gear_name || sorted[0].bit_rate}bps, ${selectedWidth}x${selectedHeight}`);
+    // 非会员默认选择 720p 画质
+    const bitrates = video.bit_rate.filter(br => br.play_addr?.url_list?.[0]);
+    
+    // 优先找 720p 画质（非会员默认）
+    let selected = bitrates.find(br => {
+      const h = br.play_addr?.height || 0;
+      return h <= 720 && h > 0;
+    });
+    
+    // 如果没有 720p，选择最高的（会员）
+    if (!selected && bitrates.length > 0) {
+      selected = bitrates.sort((a, b) => (b.bit_rate || 0) - (a.bit_rate || 0))[0];
+    }
+    
+    if (selected) {
+      videoUrl = selected.play_addr.url_list[0];
+      selectedWidth = selected.play_addr?.width || 0;
+      selectedHeight = selected.play_addr?.height || 0;
+      console.log(`[TikHub] Using bit_rate: ${selected.gear_name || selected.bit_rate}bps, ${selectedWidth}x${selectedHeight}`);
     }
   } else if (playAddr265Url) {
     videoUrl = playAddr265Url;
