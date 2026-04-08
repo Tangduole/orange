@@ -100,3 +100,23 @@ router.get('/me', auth.required, (req, res) => {
 });
 
 module.exports = router;
+
+// 注销账号
+router.post('/delete-account', auth.required, async (req, res) => {
+  try {
+    const { User } = require('../models/user');
+    const userId = req.user.id;
+    
+    // 删除用户及其数据
+    await User.deleteOne({ _id: userId });
+    
+    // 清除相关数据
+    const { Task } = require('../models/task');
+    await Task.deleteMany({ userId });
+    
+    res.json({ code: 0, message: '账号已注销' });
+  } catch (err) {
+    console.error('[auth] Delete account error:', err);
+    res.status(500).json({ code: 500, message: '注销失败' });
+  }
+});
