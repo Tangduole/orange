@@ -4,6 +4,7 @@ export default {
     "./index.html",
     "./src/**/*.{js,ts,jsx,tsx}",
   ],
+  darkMode: 'class',
   theme: {
     extend: {
       colors: {
@@ -17,6 +18,12 @@ export default {
           surface: '#1E1E1E',
           input: '#2C2C2C',
           border: '#3A3A3A',
+        },
+        light: {
+          bg: '#F5F5F5',
+          surface: '#FFFFFF',
+          input: '#EEEEEE',
+          border: '#E0E0E0',
         },
       },
       borderRadius: {

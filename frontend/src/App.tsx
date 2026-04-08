@@ -11,7 +11,7 @@ import {
   Video, FileText, Image as ImageIcon, Mic, Languages,
   Trash2, ChevronDown, ChevronUp, Clock, Copy, Check,
   X, Zap, AlertCircle, Eraser, FolderOpen, HardDrive, Smartphone,
-  Play, Search, Clipboard, Crown,
+  Play, Search, Clipboard, Crown, Sun, Moon, Keyboard,
 } from 'lucide-react'
 
 const API = 'https://orange-production-95b9.up.railway.app/api'
@@ -198,6 +198,43 @@ export default function App() {
   const [resetPwdMsg, setResetPwdMsg] = useState('')
   const [resetPwdLoading, setResetPwdLoading] = useState(false)
   const [isVip, setIsVip] = useState(false)
+  const [isDark, setIsDark] = useState(() => {
+    const saved = localStorage.getItem('orange_theme')
+    return saved ? saved === 'dark' : true
+  })
+
+  // 切换主题
+  const toggleTheme = () => {
+    setIsDark(!isDark)
+    localStorage.setItem('orange_theme', !isDark ? 'dark' : 'light')
+  }
+
+  // 键盘快捷键
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl/Cmd + V: 自动聚焦到输入框
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+        if (document.activeElement?.tagName !== 'INPUT') {
+          e.preventDefault()
+          document.querySelector<HTMLInputElement>('input[type="url"]')?.focus()
+        }
+      }
+      // Ctrl/Cmd + Enter: 触發下载
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        if (url.trim() && !loading) {
+          doSingleDownload()
+        }
+      }
+      // Escape: 关闭弹窗
+      if (e.key === 'Escape') {
+        setShowUserMenu(false)
+        setShowDupConfirm(false)
+        setShowResetPwd(false)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [url, loading])
 
   // Check VIP status when token changes
   useEffect(() => {
@@ -710,11 +747,11 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-dark-bg">
+    <div className={`min-h-screen ${isDark ? 'bg-dark-bg text-white' : 'bg-light-bg text-gray-900'}`}>
       {/* 背景光晕 - 橙色主题 */}
-      <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-orange-500/8 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-72 h-72 bg-amber-500/8 rounded-full blur-3xl" />
+      <div className={`fixed inset-0 pointer-events-none ${isDark ? '' : 'opacity-30'}`}>
+        <div className={`absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl ${isDark ? 'bg-orange-500/8' : 'bg-orange-200'}`} />
+        <div className={`absolute bottom-0 left-0 w-72 h-72 rounded-full blur-3xl ${isDark ? 'bg-amber-500/8' : 'bg-amber-200'}`} />
       </div>
 
       <div className="relative">
@@ -725,10 +762,20 @@ export default function App() {
               <span className="text-3xl leading-none">🍊</span>
             </div>
             <div className="text-left">
-              <h1 className="text-xl font-bold text-white">Orange Downloader</h1>
-              <p className="text-xs text-slate-400">Multi-platform Video Downloader</p>
+              <h1 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Orange Downloader</h1>
+              <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>Multi-platform Video Downloader</p>
             </div>
             <div className="ml-auto flex items-center gap-2">
+              {/* 主题切换 */}
+              <button
+                onClick={toggleTheme}
+                className={`p-2 rounded-lg transition ${isDark ? 'text-slate-400 hover:text-yellow-400' : 'text-gray-500 hover:text-orange-500'}`}
+                title={isDark ? '切换到浅色模式' : '切换到深色模式'}
+              >
+                {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              </button>
+              {/* 快捷键提示 */}
+              <span className={`text-xs hidden sm:inline ${isDark ? 'text-slate-600' : 'text-gray-400'}`} title="Ctrl+V 粘贴, Ctrl+Enter 下载">⌨️</span>
               {authToken ? (
                 <>
                   {/* 头像按钮 */}
@@ -779,7 +826,7 @@ export default function App() {
 
         {/* Main Card */}
         <main className="max-w-2xl mx-auto px-6 pb-10">
-          <div className="bg-dark-surface rounded-2xl p-5 shadow-lg">
+          <div className={`rounded-2xl p-5 shadow-lg ${isDark ? 'bg-dark-surface' : 'bg-white'}`}>
 
             {/* 单G/批量 Tab */}
             <div className="flex gap-2 mb-5">
@@ -1125,6 +1172,8 @@ export default function App() {
                         </span>
                       ) : null}
                       <span className="text-orange-400 font-medium">{task.progress}%</span>
+                      {task.speed && <span className="text-emerald-400">{task.speed}/s</span>}
+                      {task.eta && <span className="text-slate-500">剩余 {task.eta}</span>}
                     </div>
                   </div>
                 </div>
@@ -1414,7 +1463,7 @@ export default function App() {
         )}
 
         {/* Footer */}
-        <footer className="text-center py-8 text-slate-600 text-xs">
+        <footer className={`text-center py-8 text-xs ${isDark ? 'text-slate-600' : 'text-gray-400'}`}>
           <p>Orange Downloader v1.0 · For personal use only</p>
         </footer>
         <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} onSuccess={handleAuthSuccess} />
