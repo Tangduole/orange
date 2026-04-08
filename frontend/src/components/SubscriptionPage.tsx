@@ -49,7 +49,7 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
       {/* Header */}
-      <header className="p-4">
+      <header className="p-4 flex items-center justify-between">
         <button 
           onClick={onBack}
           className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors"
@@ -58,6 +58,15 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
           返回
+        </button>
+        <button 
+          onClick={onBack}
+          className="p-2 text-slate-400 hover:text-white transition-colors"
+          title="关闭"
+        >
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
         </button>
       </header>
 
