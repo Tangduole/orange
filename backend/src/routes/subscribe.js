@@ -183,3 +183,40 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 });
 
 module.exports = router;
+
+// 管理员：手动赋予会员资格
+router.post('/admin/grant-vip', async (req, res) => {
+  try {
+    const { email, days = 365 } = req.body;
+    if (!email) return res.status(400).json({ code: 400, message: '请提供邮箱' });
+    
+    const { User } = require('../models/user');
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) return res.status(404).json({ code: 404, message: '用户不存在' });
+    
+    const endsAt = Date.now() + days * 24 * 60 * 60 * 1000;
+    await userDb.upgradeToPro(email, endsAt);
+    
+    console.log(`[admin] VIP granted to ${email} for ${days} days`);
+    res.json({ code: 0, message: `已赋予 ${email} 会员资格 ${days} 天` });
+  } catch (err) {
+    console.error('[admin] Grant VIP error:', err);
+    res.status(500).json({ code: 500, message: '操作失败' });
+  }
+});
+
+// 管理员：撤销会员资格
+router.post('/admin/revoke-vip', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ code: 400, message: '请提供邮箱' });
+    
+    await userDb.downgradeToFree(email);
+    
+    console.log(`[admin] VIP revoked from ${email}`);
+    res.json({ code: 0, message: `已撤销 ${email} 会员资格` });
+  } catch (err) {
+    console.error('[admin] Revoke VIP error:', err);
+    res.status(500).json({ code: 500, message: '操作失败' });
+  }
+});

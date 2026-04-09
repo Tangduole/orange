@@ -14,6 +14,10 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
   const [upgrading, setUpgrading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminDays, setAdminDays] = useState(365);
+  const [adminMsg, setAdminMsg] = useState('');
 
   useEffect(() => {
     loadStatus();
@@ -40,6 +44,29 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
       setUpgrading(false);
     }
   };
+
+  const handleAdminGrant = async () => {
+    if (!adminEmail) return
+    setAdminMsg('')
+    try {
+      await api.adminGrantVip(token, adminEmail, adminDays)
+      setAdminMsg(`已赋予 ${adminEmail} ${adminDays} 天会员`)
+      setAdminEmail('')
+    } catch (err: any) {
+      setAdminMsg(err.message || '操作失败')
+    }
+  }
+
+  const handleAdminRevoke = async () => {
+    if (!adminEmail) return
+    setAdminMsg('')
+    try {
+      await api.adminRevokeVip(token, adminEmail)
+      setAdminMsg(`已撤销 ${adminEmail} 会员资格`)
+    } catch (err: any) {
+      setAdminMsg(err.message || '操作失败')
+    }
+  }
 
   const formatDate = (ts: number | null) => {
     if (!ts) return 'N/A';
@@ -257,6 +284,59 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
             </div>
           </div>
         )}
+
+        {/* 管理员面板 - 仅管理员可见 */}
+        <div className="mt-8 pt-8 border-t border-slate-700">
+          <button
+            onClick={() => setShowAdmin(!showAdmin)}
+            className="w-full py-3 text-center text-sm text-slate-500 hover:text-orange-400 transition-colors"
+          >
+            ⚙️ 管理员面板 {showAdmin ? '▲' : '▼'}
+          </button>
+          {showAdmin && (
+            <div className="mt-4 p-4 bg-slate-800/50 rounded-xl border border-slate-700">
+              <p className="text-sm text-slate-400 mb-3">手动赋予/撤销会员资格</p>
+              <div className="space-y-3">
+                <input
+                  type="email"
+                  value={adminEmail}
+                  onChange={(e) => setAdminEmail(e.target.value)}
+                  placeholder="输入用户邮箱"
+                  className="w-full px-3 py-2 bg-slate-900/50 border border-slate-700 rounded-lg text-sm text-white placeholder:text-slate-500"
+                />
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    value={adminDays}
+                    onChange={(e) => setAdminDays(parseInt(e.target.value) || 365)}
+                    placeholder="天数"
+                    className="w-24 px-3 py-2 bg-slate-900/50 border border-slate-700 rounded-lg text-sm text-white"
+                  />
+                  <span className="text-slate-500 text-sm py-2">天</span>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleAdminGrant}
+                    className="flex-1 py-2 px-4 bg-green-500/20 text-green-400 border border-green-500/50 rounded-lg text-sm hover:bg-green-500/30 transition"
+                  >
+                    赋予会员
+                  </button>
+                  <button
+                    onClick={handleAdminRevoke}
+                    className="flex-1 py-2 px-4 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg text-sm hover:bg-red-500/30 transition"
+                  >
+                    撤销会员
+                  </button>
+                </div>
+                {adminMsg && (
+                  <p className={`text-sm text-center ${adminMsg.includes('失败') ? 'text-red-400' : 'text-green-400'}`}>
+                    {adminMsg}
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* FAQ */}
         <div className="mt-12">

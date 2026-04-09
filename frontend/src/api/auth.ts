@@ -125,3 +125,33 @@ export const api = {
 };
 
 export default api;
+
+  // 管理员：赋予会员
+  async adminGrantVip(token: string, email: string, days: number = 365) {
+    const res = await fetch(`${API_BASE}/api/subscribe/admin/grant-vip`, {
+      method: 'POST',
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ email, days })
+    });
+    const data = await res.json();
+    if (data.code !== 0) throw new Error(data.message);
+    return data;
+  },
+
+  // 管理员：撤销会员
+  async adminRevokeVip(token: string, email: string) {
+    const res = await fetch(`${API_BASE}/api/subscribe/admin/revoke-vip`, {
+      method: 'POST',
+      headers: { 
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ email })
+    });
+    const data = await res.json();
+    if (data.code !== 0) throw new Error(data.message);
+    return data;
+  }
