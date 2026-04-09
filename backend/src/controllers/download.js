@@ -56,10 +56,10 @@ async function createDownload(req, res) {
         const JWT_SECRET = process.env.JWT_SECRET || 'orange-secret-key-change-in-production';
         const payload = jwt.verify(token, JWT_SECRET);
         const userDb = require('../userDb');
-        const user = userDb.getById(payload.sub);
+        const user = await userDb.getById(payload.sub);
         if (user) {
           userId = user.id;
-          const usage = userDb.getUsage(userId);
+          const usage = await userDb.getUsage(userId);
           if (!usage.isPro && usage.remaining <= 0) {
             return res.json({
               code: 403,

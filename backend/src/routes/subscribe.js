@@ -87,8 +87,8 @@ router.post('/checkout', auth.required, async (req, res) => {
  * 获取当前订阅状态
  * GET /api/subscribe/status
  */
-router.get('/status', auth.required, (req, res) => {
-  const usage = userDb.getUsage(req.user.id);
+router.get('/status', auth.required, async (req, res) => {
+  const usage = await userDb.getUsage(req.user.id);
   
   res.json({
     code: 0,
@@ -146,23 +146,23 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       case 'subscription_created':
       case 'subscription_updated':
         if (subscriptionStatus === 'active' || subscriptionStatus === 'past_due') {
-          userDb.upgradeToPro(email, renewsAt || endsAt);
+          await userDb.upgradeToPro(email, renewsAt || endsAt);
           console.log(`[webhook] Upgraded ${email} to Pro`);
         } else if (subscriptionStatus === 'cancelled' || subscriptionStatus === 'expired') {
-          userDb.downgradeToFree(email);
+          await userDb.downgradeToFree(email);
           console.log(`[webhook] Downgraded ${email} to Free`);
         }
         break;
 
       case 'subscription_cancelled':
-        userDb.downgradeToFree(email);
+        await userDb.downgradeToFree(email);
         console.log(`[webhook] Cancelled ${email}`);
         break;
 
       case 'subscription_payment_success':
         // 续费成功，保持 Pro
         if (renewsAt) {
-          userDb.upgradeToPro(email, renewsAt);
+          await userDb.upgradeToPro(email, renewsAt);
         }
         console.log(`[webhook] Payment success for ${email}`);
         break;
