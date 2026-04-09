@@ -121,10 +121,7 @@ export const api = {
     const data = await res.json();
     if (data.code !== 0) throw new Error(data.message);
     return data;
-  }
-};
-
-export default api;
+  },
 
   // 管理员：赋予会员
   async adminGrantVip(token: string, email: string, days: number = 365) {
@@ -155,3 +152,6 @@ export default api;
     if (data.code !== 0) throw new Error(data.message);
     return data;
   }
+};
+
+export default api;
