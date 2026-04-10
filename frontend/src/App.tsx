@@ -657,7 +657,28 @@ export default function App() {
   }
 
   const doSingleDownload = async () => {
+    // First get video info to show quality selection
     setLoading(true); setError('')
+    try {
+      const infoRes = await axios.post(`${API}/video-info`, { url: url.trim() }, { timeout: 30000 })
+      const qualities = infoRes.data.data?.qualities || []
+      
+      if (qualities.length > 1) {
+        // Multiple qualities - show picker
+        setAvailableQualities(qualities)
+        setPendingUrl(url.trim())
+        setShowQualityPicker(true)
+        setLoading(false)
+        return
+      } else if (qualities.length === 1) {
+        // Single quality - use it directly
+        setQuality(qualities[0].height >= 1080 ? 'height<=1080' : (qualities[0].height >= 720 ? 'height<=720' : ''))
+      }
+    } catch (e) {
+      console.log('[quality] Failed to fetch qualities, proceeding with default')
+    }
+    
+    // Proceed with download
     try {
       const r = await axios.post(`${API}/download`, {
         url: url.trim(), platform: detected || 'auto',
@@ -1340,6 +1361,78 @@ export default function App() {
         </main>
 
         {/* 重复下载确认弹窗 */}
+        {/* 画质选择弹窗 */}
+        {showQualityPicker && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700">
+              <h3 className="text-lg font-bold text-white mb-1">选择画质</h3>
+              <p className="text-xs text-slate-400 mb-4">
+                {!isVip && <span className="text-orange-400">1080p及以下 · </span>}会员可下载更高画质
+              </p>
+              <div className="space-y-2 max-h-60 overflow-y-auto">
+                {availableQualities.map((q, idx) => {
+                  const isHighQuality = q.height > 1080
+                  const canSelect = isVip || !isHighQuality
+                  const qualityLabel = q.quality || `${q.height}p`
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => {
+                        if (!canSelect) {
+                          setShowQualityPicker(false)
+                          setShowSubscription(true)
+                          return
+                        }
+                        setShowQualityPicker(false)
+                        // Set quality filter for download
+                        const qParam = q.height >= 1080 ? 'height<=1080' : (q.height >= 720 ? 'height<=720' : '')
+                        setQuality(qParam)
+                        // Proceed with download
+                        setLoading(true)
+                        axios.post(`${API}/download`, {
+                          url: pendingUrl, platform: detected || 'auto',
+                          needAsr: selected.has('asr'), options: [...selected], quality: qParam, asrLanguage,
+                        }, { timeout: 120000 }).then(r => {
+                          setTask(r.data.data)
+                          setDetected('')
+                        }).catch((e: any) => {
+                          setError(getErrorMessage(e.response?.data?.message || e.message || 'Download failed'))
+                        }).finally(() => setLoading(false))
+                      }}
+                      className={`w-full flex items-center justify-between p-3 rounded-xl transition text-left ${
+                        canSelect ? 'bg-slate-700/50 hover:bg-slate-700' : 'bg-slate-800/50 opacity-50 cursor-not-allowed'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={`font-medium ${canSelect ? 'text-white' : 'text-slate-500'}`}>{qualityLabel}</span>
+                        {q.width > 0 && <span className={`text-xs ${canSelect ? 'text-slate-400' : 'text-slate-600'}`}>{q.width}x{q.height}</span>}
+                        {isHighQuality && !isVip && <span className="text-xs text-orange-400 ml-1">🚫 会员专享</span>}
+                        {isHighQuality && isVip && <span className="text-xs text-yellow-400 ml-1">⭐</span>}
+                      </div>
+                      <span className="text-xs text-slate-500">{q.hasAudio ? '🎬' : '🎵'}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              {!isVip && (
+                <button
+                  onClick={() => { setShowQualityPicker(false); setShowSubscription(true) }}
+                  className="w-full mt-3 py-3 px-4 rounded-xl bg-gradient-to-r from-yellow-500/20 to-orange-500/20 text-orange-400 hover:from-yellow-500/30 hover:to-orange-500/30 transition border border-orange-500/30 flex items-center justify-center gap-2"
+                >
+                  <Crown className="w-4 h-4" />
+                  升级会员解锁高清画质
+                </button>
+              )}
+              <button
+                onClick={() => { setShowQualityPicker(false); setPendingUrl('') }}
+                className="w-full mt-2 py-2 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        )}
+
         {showDupConfirm && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700">
