@@ -402,40 +402,76 @@ async function parseDouyin(url, taskId, onProgress) {
     console.log(`[TikHub] High quality API failed:`, e.message);
   }
   
-  // 选择最佳 URL：高画质 > bit_rate(最高) > H.265 > play_addr
+  // 选择最佳 URL：根据quality参数选择
   // 同时记录实际使用的宽高
   let selectedWidth = 0;
   let selectedHeight = 0;
+  
+  // 解析quality参数获取最大高度限制
+  let maxHeight = 99999; // 默认无限制
+  if (quality) {
+    const heightMatch = quality.match(/height<=(\d+)/i);
+    if (heightMatch) {
+      maxHeight = parseInt(heightMatch[1]);
+      console.log(`[TikHub] Quality filter: max height = ${maxHeight}`);
+    }
+  }
   
   if (hqVideoUrl) {
     videoUrl = hqVideoUrl;
     selectedWidth = playAddr265?.width || video.play_addr?.width || 0;
     selectedHeight = playAddr265?.height || video.play_addr?.height || 0;
   } else if (video.bit_rate && video.bit_rate.length > 0) {
-    // 默认选择最高画质（会员默认）
+    // 根据quality参数筛选bitrate
     const bitrates = video.bit_rate.filter(br => br.play_addr?.url_list?.[0]);
     
-    // 选择最高画质
     if (bitrates.length > 0) {
-      const sorted = bitrates.sort((a, b) => (b.bit_rate || 0) - (a.bit_rate || 0));
+      // 如果有高度限制，先过滤，再排序
+      let filtered = bitrates;
+      if (maxHeight < 99999) {
+        filtered = bitrates.filter(br => {
+          const h = br.play_addr?.height || 0;
+          return h > 0 && h <= maxHeight;
+        });
+      }
+      
+      // 选择最高画质（bitrate最高的）
+      const sorted = filtered.sort((a, b) => (b.bit_rate || 0) - (a.bit_rate || 0));
       const selected = sorted[0];
-      videoUrl = selected.play_addr.url_list[0];
-      selectedWidth = selected.play_addr?.width || 0;
-      selectedHeight = selected.play_addr?.height || 0;
-      console.log(`[TikHub] Using bit_rate: ${selected.gear_name || selected.bit_rate}bps, ${selectedWidth}x${selectedHeight}`);
+      if (selected) {
+        videoUrl = selected.play_addr.url_list[0];
+        selectedWidth = selected.play_addr?.width || 0;
+        selectedHeight = selected.play_addr?.height || 0;
+        console.log(`[TikHub] Using bit_rate: ${selected.gear_name || selected.bit_rate}bps, ${selectedWidth}x${selectedHeight}`);
+      } else {
+        // 没有满足条件的bitrate，降级使用最低的
+        const lowest = bitrates.sort((a, b) => (a.bit_rate || 0) - (b.bit_rate || 0))[0];
+        if (lowest) {
+          videoUrl = lowest.play_addr.url_list[0];
+          selectedWidth = lowest.play_addr?.width || 0;
+          selectedHeight = lowest.play_addr?.height || 0;
+          console.log(`[TikHub] No matching bitrate, using lowest: ${selectedWidth}x${selectedHeight}`);
+        }
+      }
     }
   } else if (playAddr265Url) {
-    videoUrl = playAddr265Url;
-    selectedWidth = playAddr265?.width || 0;
-    selectedHeight = playAddr265?.height || 0;
-    console.log(`[TikHub] Using H.265: ${selectedWidth}x${selectedHeight}`);
-  } else {
+    // H.265通常720p，如果要求更低的画质则不用
+    const h265Height = playAddr265?.height || 0;
+    if (h265Height <= maxHeight || maxHeight >= 99999) {
+      videoUrl = playAddr265Url;
+      selectedWidth = playAddr265?.width || 0;
+      selectedHeight = h265Height;
+      console.log(`[TikHub] Using H.265: ${selectedWidth}x${selectedHeight}`);
+    }
+  }
+  
+  if (!videoUrl) {
     const playAddr = video.play_addr || {};
     if (playAddr.url_list && playAddr.url_list.length > 0) {
       videoUrl = playAddr.url_list[0];
       selectedWidth = playAddr.width || 0;
       selectedHeight = playAddr.height || 0;
-      console.log(`[TikHub] Using play_addr: ${selectedWidth}x${selectedHeight}`);
+      console.log(`[TikHub] Using play_addr fallback: ${selectedWidth}x${selectedHeight}`);
     }
   }
   

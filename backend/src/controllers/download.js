@@ -48,6 +48,7 @@ async function createDownload(req, res) {
 
     // ========== 用户限额检查 ==========
     let userId = null;
+    let isVip = false;
     const authHeader = req.headers.authorization;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       try {
@@ -59,6 +60,7 @@ async function createDownload(req, res) {
         const user = await userDb.getById(payload.sub);
         if (user) {
           userId = user.id;
+          isVip = user.tier === 'pro' && user.subscription_status === 'active';
           const usage = await userDb.getUsage(userId);
           if (!usage.isPro && usage.remaining <= 0) {
             return res.json({
@@ -71,7 +73,21 @@ async function createDownload(req, res) {
         // token 无效，继续作为游客
       }
     }
-    // ========== 用户限额检查结束 ==========
+    
+    // ========== 画质VIP限制检查 ==========
+    // 如果用户选择了720p以上画质，检查是否为VIP
+    if (quality) {
+      const heightMatch = quality.match(/height<=(\d+)/i);
+      const selectedHeight = heightMatch ? parseInt(heightMatch[1]) : 99999;
+      
+      if (selectedHeight >= 720 && !isVip) {
+        return res.json({
+          code: 403,
+          message: `720p及以上画质为会员专享。请升级Pro解锁高清下载。`
+        });
+      }
+    }
+    // ========== 画质VIP限制检查结束 ==========
 
     const limitStatus = getLimiterStatus();
     if (limitStatus.queued >= 10) {
