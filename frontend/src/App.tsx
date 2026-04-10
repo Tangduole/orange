@@ -206,7 +206,7 @@ export default function App() {
   // 检查 URL 是否有重置密码 token
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    const resetToken = params.get('reset')
+    const resetToken = params.get('token') || params.get('reset')
     if (resetToken) {
       setResetPwdToken(resetToken)
       setResetPwdStep(true)
