@@ -53,6 +53,7 @@ async function createDownload(req, res) {
     let userId = null;
     let isVip = false;
     const authHeader = req.headers.authorization;
+    let isGuest = true;
     if (authHeader && authHeader.startsWith('Bearer ')) {
       try {
         const token = authHeader.slice(7);
@@ -62,6 +63,7 @@ async function createDownload(req, res) {
         const userDb = require('../userDb');
         const user = await userDb.getById(payload.sub);
         if (user) {
+          isGuest = false;
           userId = user.id;
           isVip = user.tier === 'pro' && user.subscription_status === 'active';
           const usage = await userDb.getUsage(userId);
@@ -75,6 +77,22 @@ async function createDownload(req, res) {
       } catch (e) {
         // token 无效，继续作为游客
       }
+    }
+    
+    // 游客每日下载限制
+    let guestIp = null;
+    if (isGuest) {
+      guestIp = req.ip || req.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
+      const userDb = require('../userDb');
+      const guestUsage = await userDb.checkGuestDownload(guestIp);
+      if (!guestUsage.allowed) {
+        return res.json({
+          code: 403,
+          message: `今日下载次数已用完（${guestUsage.limit}次/天）。注册账号获得更多下载次数`
+        });
+      }
+      // 增加游客下载计数
+      await userDb.incrementGuestDownload(guestIp);
     }
     
     // ========== 画质VIP限制检查 ==========
