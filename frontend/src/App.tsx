@@ -198,6 +198,7 @@ export default function App() {
   const [resetPwdMsg, setResetPwdMsg] = useState('')
   const [resetPwdLoading, setResetPwdLoading] = useState(false)
   const [isVip, setIsVip] = useState(false)
+  const [remainingDownloads, setRemainingDownloads] = useState(-1) // -1 = unlimited, 0 = 0次, n = 剩余n次
   const [isDark, setIsDark] = useState(() => {
     const saved = localStorage.getItem('orange_theme')
     return saved ? saved === 'dark' : true
@@ -254,9 +255,11 @@ export default function App() {
     if (authToken) {
       api.getSubscriptionStatus(authToken).then(status => {
         setIsVip(status?.subscriptionStatus === 'active')
-      }).catch(() => setIsVip(false))
+        setRemainingDownloads(status?.usage?.remaining ?? -1)
+      }).catch(() => { setIsVip(false); setRemainingDownloads(-1) })
     } else {
       setIsVip(false)
+      setRemainingDownloads(-1)
     }
   }, [authToken])
   const [historySearch, setHistorySearch] = useState('')
@@ -1101,6 +1104,18 @@ export default function App() {
             )}
 
             {/* Download button */}
+            {/* 剩余下载次数提示 */}
+            {!isVip && remainingDownloads >= 0 && (
+              <div className={`mb-3 text-center text-xs py-2 rounded-xl ${isDark ? 'bg-slate-800/60 text-slate-400' : 'bg-gray-100 text-gray-500'}`}>
+                📊 今日剩余下载: <span className="text-orange-400 font-medium">{remainingDownloads}</span> 次
+                {remainingDownloads === 0 && <span className="ml-2 text-orange-400">· <button onClick={() => setShowSubscription(true)} className="underline hover:text-orange-300">升级Pro</button></span>}
+              </div>
+            )}
+            {isVip && (
+              <div className="mb-3 text-center text-xs py-2 rounded-xl bg-yellow-500/10 text-yellow-400">
+                ⭐ 会员无限制下载
+              </div>
+            )}
             <button
               onClick={handleSubmit}
               disabled={loading}
