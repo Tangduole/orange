@@ -78,12 +78,12 @@ async function createDownload(req, res) {
     }
     
     // ========== 画质VIP限制检查 ==========
-    // 如果用户选择了720p以上画质，检查是否为VIP
+    // 如果用户选择了1080p以上画质，检查是否为VIP
     if (quality) {
       const heightMatch = quality.match(/height<=(\d+)/i);
       const selectedHeight = heightMatch ? parseInt(heightMatch[1]) : 99999;
       
-      if (selectedHeight >= 720 && !isVip) {
+      if (selectedHeight > 1080 && !isVip) {
         return res.json({
           code: 403,
           message: `720p及以上画质为会员专享。请升级Pro解锁高清下载。`
