@@ -408,14 +408,7 @@ async function parseDouyin(url, taskId, onProgress) {
   let selectedHeight = 0;
   
   // 解析quality参数获取最大高度限制
-  let maxHeight = 99999; // 默认无限制
-  if (quality) {
-    const heightMatch = quality.match(/height<=(\d+)/i);
-    if (heightMatch) {
-      maxHeight = parseInt(heightMatch[1]);
-      console.log(`[TikHub] Quality filter: max height = ${maxHeight}`);
-    }
-  }
+  let maxHeight = 99999; // 默认无限制（不限制画质）
   
   if (hqVideoUrl) {
     // 检查是否有有效的高度信息
