@@ -1139,7 +1139,7 @@ export default function App() {
                 <div className="flex items-center gap-2 flex-wrap">
                   {task.quality && (
                     <span className={`text-xs px-2 py-0.5 rounded-full ${task.height >= 720 ? 'bg-gradient-to-r from-yellow-500/20 to-orange-500/20 text-yellow-400 border border-yellow-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
-                      {task.quality} {task.height >= 720 ? '⭐ 会员' : '✓ 免费'}
+                      🎬 {task.quality} {task.height >= 720 ? '⭐ 会员' : '✓ 免费'}
                     </span>
                   )}
                   <p className="text-sm text-slate-500">{task.title}</p>
@@ -1324,6 +1324,7 @@ export default function App() {
                         <p className={`text-sm text-slate-600 font-medium whitespace-nowrap ${(item.title || '').length > 20 ? 'animate-marquee' : 'truncate'}`}>{item.title || 'Untitled'}</p>
                         <div className="flex items-center gap-2 mt-0.5">
                           {item.platform && <span className="text-xs text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded">{platformLabel(item.platform)}</span>}
+                          {item.height && <span className={`text-xs px-1.5 py-0.5 rounded ${item.height >= 720 ? 'text-yellow-400 bg-yellow-500/10' : 'text-emerald-400 bg-emerald-500/10'}`}>🎬 {item.height}p {item.height >= 720 ? '⭐' : '✓'}</span>}
                           <span className="text-xs text-slate-600">{new Date(item.createdAt).toLocaleString('en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       </div>
