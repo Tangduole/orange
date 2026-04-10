@@ -418,10 +418,20 @@ async function parseDouyin(url, taskId, onProgress) {
   }
   
   if (hqVideoUrl) {
-    videoUrl = hqVideoUrl;
-    selectedWidth = playAddr265?.width || video.play_addr?.width || 0;
-    selectedHeight = playAddr265?.height || video.play_addr?.height || 0;
-  } else if (video.bit_rate && video.bit_rate.length > 0) {
+    // 检查是否有有效的高度信息
+    const hqHeight = playAddr265?.height || video.play_addr?.height || 0;
+    if (hqHeight > 0) {
+      videoUrl = hqVideoUrl;
+      selectedWidth = playAddr265?.width || video.play_addr?.width || 0;
+      selectedHeight = hqHeight;
+    } else {
+      // 高度为0，使用bit_rate获取高度信息
+      console.log(`[TikHub] hqVideoUrl has no height info, using bit_rate instead`);
+      hqVideoUrl = ''; // 忽略hqVideoUrl
+    }
+  }
+  
+  if (!videoUrl && video.bit_rate && video.bit_rate.length > 0) {
     // 根据quality参数筛选bitrate
     const bitrates = video.bit_rate.filter(br => br.play_addr?.url_list?.[0]);
     
