@@ -198,7 +198,8 @@ export default function App() {
   const [resetPwdMsg, setResetPwdMsg] = useState('')
   const [resetPwdLoading, setResetPwdLoading] = useState(false)
   const [isVip, setIsVip] = useState(false)
-  const [remainingDownloads, setRemainingDownloads] = useState(-1) // -1 = unlimited, 0 = 0次, n = 剩余n次
+  const [remainingDownloads, setRemainingDownloads] = useState(-1) // -1 = unlimited/no display, 0 = 0次, n = 剩余n次
+  const GUEST_DAILY_LIMIT = 3
   const [isDark, setIsDark] = useState(() => {
     const saved = localStorage.getItem('orange_theme')
     return saved ? saved === 'dark' : true
@@ -250,7 +251,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [url, loading])
 
-  // Check VIP status when token changes
+  // Check VIP status and remaining downloads
   useEffect(() => {
     if (authToken) {
       api.getSubscriptionStatus(authToken).then(status => {
@@ -259,7 +260,19 @@ export default function App() {
       }).catch(() => { setIsVip(false); setRemainingDownloads(-1) })
     } else {
       setIsVip(false)
-      setRemainingDownloads(-1)
+      // Check localStorage for guest remaining downloads
+      const today = new Date().toISOString().split('T')[0]
+      const guestData = localStorage.getItem('orange_guest_downloads')
+      if (guestData) {
+        const parsed = JSON.parse(guestData)
+        if (parsed.date === today) {
+          setRemainingDownloads(Math.max(0, GUEST_DAILY_LIMIT - parsed.count))
+        } else {
+          setRemainingDownloads(GUEST_DAILY_LIMIT)
+        }
+      } else {
+        setRemainingDownloads(GUEST_DAILY_LIMIT)
+      }
     }
   }, [authToken])
   const [historySearch, setHistorySearch] = useState('')
@@ -496,6 +509,15 @@ export default function App() {
       playNotificationSound()
       // 显示完成通知
       showDownloadComplete(task.taskId, task.title || 'Download', false).catch(console.error)
+      // 更新游客本地下载计数
+      if (!authToken) {
+        const today = new Date().toISOString().split('T')[0]
+        const guestData = localStorage.getItem('orange_guest_downloads')
+        const parsed = guestData ? JSON.parse(guestData) : { date: '', count: 0 }
+        const newCount = parsed.date === today ? parsed.count + 1 : 1
+        localStorage.setItem('orange_guest_downloads', JSON.stringify({ date: today, count: newCount }))
+        setRemainingDownloads(Math.max(0, GUEST_DAILY_LIMIT - newCount))
+      }
       // 延迟 500ms 后自动下载
       autoDownloadTimer.current = setTimeout(() => {
         setDownloading(true)
