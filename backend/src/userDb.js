@@ -27,7 +27,7 @@ const db = createClient({
 });
 
 // 免费用户每日下载次数限制
-const FREE_DAILY_LIMIT = 5;
+const FREE_DAILY_LIMIT = 3;
 
 // 初始化表
 async function initDb() {
@@ -45,6 +45,13 @@ async function initDb() {
         daily_downloads INTEGER DEFAULT 0,
         last_download_reset TEXT DEFAULT CURRENT_DATE,
         created_at INTEGER NOT NULL
+      )
+    `);
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS guest_downloads (
+        ip TEXT PRIMARY KEY,
+        download_date TEXT DEFAULT CURRENT_DATE,
+        download_count INTEGER DEFAULT 0
       )
     `);
     console.log('[userDb] Turso 数据库初始化完成');
@@ -217,6 +224,55 @@ const userDb = {
       sql: 'DELETE FROM users WHERE email = ?',
       args: [email.toLowerCase()]
     });
+  },
+
+  /**
+   * 检查游客下载次数
+   */
+  async checkGuestDownload(ip) {
+    if (!ip) return { allowed: true, remaining: -1 };
+    
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const result = await db.execute({
+        sql: `SELECT download_count FROM guest_downloads WHERE ip = ? AND download_date = ?`,
+        args: [ip, today]
+      });
+      
+      const count = result.rows?._array?.[0]?.download_count || 0;
+      const limit = FREE_DAILY_LIMIT;
+      const remaining = Math.max(0, limit - count);
+      
+      return {
+        allowed: count < limit,
+        remaining,
+        limit
+      };
+    } catch (e) {
+      console.error('[userDb] checkGuestDownload error:', e);
+      return { allowed: true, remaining: -1 };
+    }
+  },
+
+  /**
+   * 增加游客下载次数
+   */
+  async incrementGuestDownload(ip) {
+    if (!ip) return;
+    
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      await db.execute({
+        sql: `INSERT INTO guest_downloads (ip, download_date, download_count) 
+              VALUES (?, ?, 1) 
+              ON CONFLICT(ip) DO UPDATE SET 
+                download_count = CASE WHEN download_date = ? THEN download_count + 1 ELSE 1 END,
+                download_date = ?`,
+        args: [ip, today, today, today]
+      });
+    } catch (e) {
+      console.error('[userDb] incrementGuestDownload error:', e);
+    }
   }
 };
 
