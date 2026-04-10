@@ -1003,11 +1003,9 @@ export default function App() {
                     value={quality}
                     onChange={(e) => {
                       const val = e.target.value
-                      // Check if selected option is VIP-only
-                      const isVipOnly = availableQualities.length > 0
-                        ? (val === 'best[ext=mp4]/best' || val.includes('height<=1080'))
-                        : (QUALITY_OPTIONS.find(q => q.value === val)?.vipOnly ?? false)
-                      if (isVipOnly && !isVip) {
+                      // VIP限制检查：720p及以上需要会员
+                      const needsVip = val.includes('height<=720') || val.includes('height<=1080') || val.includes('Best')
+                      if (needsVip && !isVip) {
                         setShowSubscription(true)
                         return
                       }
@@ -1015,31 +1013,40 @@ export default function App() {
                     }}
                     className={`w-full px-4 py-3 bg-slate-900/60 border-2 border-slate-600/50 rounded-xl text-sm outline-none focus:border-orange-500/70 cursor-pointer appearance-none ${!isVip ? 'text-slate-400' : 'text-white'}`}
                   >
-                    {!isVip && <option value="">🚫 会员专享画质</option>}
-                    {availableQualities.length > 0 ? (
+                    {/* YouTube: 使用QUALITY_OPTIONS */}
+                    {detected === 'youtube' && (
                       <>
-                        <option value="best[ext=mp4]/best" disabled={!isVip}>
+                        <option value="bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" disabled={!isVip}>
                           {isVip ? 'Best 最高画质 ⭐' : '🚫 Best 最高画质 (会员专享)'}
                         </option>
-                        {availableQualities.map((q, idx) => {
-                          const format = q.height >= 1440 
-                            ? `bestvideo[height<=${q.height}]+bestaudio/best[height<=${q.height}]`
-                            : `bestvideo[height<=${q.height}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${q.height}]`
-                          const isHighQuality = q.height >= 1080
-                          const canSelect = isVip || !isHighQuality
-                          return (
-                            <option key={idx} value={format} disabled={!canSelect}>
-                              {q.quality} ({q.width}x{q.height}){isHighQuality ? (isVip ? ' ⭐' : ' 🚫会员') : ''}
-                            </option>
-                          )
-                        })}
-                      </>
-                    ) : (
-                      QUALITY_OPTIONS.map(q => (
-                        <option key={q.value} value={q.value} disabled={q.vipOnly && !isVip}>
-                          {q.label}{q.vipOnly && !isVip ? ' (会员专享)' : (q.vipOnly ? ' ⭐' : '')}
+                        <option value="bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]" disabled={!isVip}>
+                          1080p {isVip ? '⭐' : '🚫会员'}
                         </option>
-                      ))
+                        <option value="bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]">
+                          720p {!isVip && '✓'}
+                        </option>
+                        <option value="bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]">
+                          480p ✓
+                        </option>
+                      </>
+                    )}
+                    {/* Douyin: 使用availableQualities */}
+                    {detected !== 'youtube' && availableQualities.length > 0 && (
+                      availableQualities.map((q, idx) => {
+                        const format = `bestvideo[height<=${q.height}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${q.height}]`
+                        const isVipOnly = q.height >= 720
+                        return (
+                          <option key={idx} value={format} disabled={isVipOnly && !isVip}>
+                            {q.quality} ({q.width}x{q.height}) {isVipOnly ? (isVip ? '⭐' : '🚫会员') : '✓'}
+                          </option>
+                        )
+                      })
+                    )}
+                    {/* Douyin无信息时显示默认 */}
+                    {detected !== 'youtube' && availableQualities.length === 0 && (
+                      <option value="bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]">
+                        480p (推荐) ✓
+                      </option>
                     )}
                   </select>
                   <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
