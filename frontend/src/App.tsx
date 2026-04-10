@@ -1479,7 +1479,7 @@ export default function App() {
         <footer className={`text-center py-8 text-xs ${isDark ? 'text-slate-600' : 'text-gray-400'}`}>
           <p>Orange Downloader v1.0 · For personal use only</p>
         </footer>
-        <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} onSuccess={handleAuthSuccess} />
+        <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} onSuccess={handleAuthSuccess} onForgotPassword={() => { setShowAuthModal(false); setShowResetPwd(true); }} />
 
         {/* 忘记密码弹窗 */}
         {showResetPwd && (

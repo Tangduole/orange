@@ -5,9 +5,10 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (token: string, user: any) => void;
+  onForgotPassword: () => void;
 }
 
-export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
+export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword }: AuthModalProps) {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -101,6 +102,18 @@ export default function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps
             {loading ? '处理中...' : (mode === 'login' ? '登录' : '注册')}
           </button>
         </form>
+
+        {/* Forgot Password - Only in login mode */}
+        {mode === 'login' && (
+          <div className="mt-3 text-center">
+            <button
+              onClick={onForgotPassword}
+              className="text-xs text-slate-500 hover:text-orange-400 transition"
+            >
+              忘记密码？
+            </button>
+          </div>
+        )}
 
         {/* Switch Mode */}
         <div className="mt-4 text-center text-sm text-slate-400">
