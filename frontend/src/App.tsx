@@ -588,7 +588,7 @@ export default function App() {
   const fetchVideoQualities = async (videoUrl: string) => {
     try {
       const r = await axios.post(`${API}/video-info`, { url: videoUrl }, { timeout: 30000 })
-      if (r.data.code === 0 && r.data.data.qualities.length > 1) {
+      if (r.data.code === 0 && r.data.data.qualities && r.data.data.qualities.length > 0) {
         setAvailableQualities(r.data.data.qualities)
         setPendingUrl(videoUrl)
         setShowQualityPicker(true)
@@ -597,7 +597,15 @@ export default function App() {
     } catch (e) {
       console.log('[quality] Failed to fetch qualities, using default')
     }
-    return false
+    // 获取失败时：抖音默认给480p选项，YouTube给720p
+    const defaultQualities = [
+      { quality: '480p', width: 854, height: 480, hasVideo: true, hasAudio: true },
+      { quality: '720p', width: 1280, height: 720, hasVideo: true, hasAudio: true },
+    ]
+    setAvailableQualities(defaultQualities)
+    setPendingUrl(videoUrl)
+    setShowQualityPicker(true)
+    return true
   }
 
   const handleSubmit = async () => {
