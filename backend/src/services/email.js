@@ -5,7 +5,7 @@
 const { Resend } = require('resend');
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'Orange <noreply@orange-downloader.com>';
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'Orange <noreply@orangedl.com>';
 const APP_URL = process.env.APP_URL || 'https://frontend-roan-psi-68.vercel.app';
 
 /**
