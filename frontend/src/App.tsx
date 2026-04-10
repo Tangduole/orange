@@ -249,6 +249,14 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [url, loading])
 
+  // 自动获取视频画质 - 当检测到有效URL时
+  useEffect(() => {
+    if (detected && detected !== 'auto' && url.trim()) {
+      // 自动获取可选画质
+      fetchVideoQualities(url.trim())
+    }
+  }, [detected, url])
+
   // Check VIP status when token changes
   useEffect(() => {
     if (authToken) {
@@ -1051,15 +1059,6 @@ export default function App() {
                   </select>
                   <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
                 </div>
-                {detected === 'youtube' && url.trim() && (
-                  <button
-                    onClick={() => fetchVideoQualities(url.trim())}
-                    className="px-3 py-3 bg-slate-700/50 hover:bg-slate-700 rounded-xl text-slate-400 text-sm transition"
-                    title="获取可用画质"
-                  >
-                    🔍
-                  </button>
-                )}
               </div>
             </div>
 
