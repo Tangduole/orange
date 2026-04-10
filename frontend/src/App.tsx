@@ -177,7 +177,7 @@ export default function App() {
   const [showHistory, setShowHistory] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
   const [batchMode, setBatchMode] = useState(false)
-  const [quality, setQuality] = useState('bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best')
+  const [quality, setQuality] = useState('')
   const [asrLanguage, setAsrLanguage] = useState('zh')
   const [availableQualities, setAvailableQualities] = useState<Array<{quality: string, format: string, width: number, height: number, hasVideo: boolean, hasAudio: boolean}>>([])
   const [showQualityPicker, setShowQualityPicker] = useState(false)
@@ -248,14 +248,6 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [url, loading])
-
-  // 自动获取视频画质 - 当检测到有效URL时
-  useEffect(() => {
-    if (detected && detected !== 'auto' && url.trim()) {
-      // 自动获取可选画质
-      fetchVideoQualities(url.trim())
-    }
-  }, [detected, url])
 
   // Check VIP status when token changes
   useEffect(() => {
@@ -1007,69 +999,6 @@ export default function App() {
               )}
             </div>
 
-            {/* Quality Selection 画质选择 - 下拉菜单 */}
-            <div className="mb-5">
-              <label className="text-xs text-slate-500 mb-2 flex items-center gap-1.5">
-                <Video className="w-3.5 h-3.5" />
-                Video Quality 画质
-              </label>
-              <div className="flex gap-2 mt-1.5">
-                <div className="relative flex-1">
-                  <select
-                    value={quality}
-                    onChange={(e) => {
-                      const val = e.target.value
-                      // VIP限制检查：720p及以上需要会员
-                      const needsVip = val.includes('height<=720') || val.includes('height<=1080') || val.includes('Best')
-                      if (needsVip && !isVip) {
-                        setShowSubscription(true)
-                        return
-                      }
-                      setQuality(val)
-                    }}
-                    className={`w-full px-4 py-3 bg-slate-900/60 border-2 border-slate-600/50 rounded-xl text-sm outline-none focus:border-orange-500/70 cursor-pointer appearance-none ${!isVip ? 'text-slate-400' : 'text-white'}`}
-                  >
-                    {/* YouTube: 使用QUALITY_OPTIONS */}
-                    {detected === 'youtube' && (
-                      <>
-                        <option value="bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" disabled={!isVip}>
-                          {isVip ? 'Best 最高画质 ⭐' : '🚫 Best 最高画质 (会员专享)'}
-                        </option>
-                        <option value="bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]" disabled={!isVip}>
-                          1080p {isVip ? '⭐' : '🚫会员'}
-                        </option>
-                        <option value="bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]">
-                          720p {!isVip && '✓'}
-                        </option>
-                        <option value="bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]">
-                          480p ✓
-                        </option>
-                      </>
-                    )}
-                    {/* Douyin: 使用availableQualities */}
-                    {detected !== 'youtube' && availableQualities.length > 0 && (
-                      availableQualities.map((q, idx) => {
-                        const format = `bestvideo[height<=${q.height}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${q.height}]`
-                        const isVipOnly = q.height >= 720
-                        return (
-                          <option key={idx} value={format} disabled={isVipOnly && !isVip}>
-                            {q.quality} ({q.width}x{q.height}) {isVipOnly ? (isVip ? '⭐' : '🚫会员') : '✓'}
-                          </option>
-                        )
-                      })
-                    )}
-                    {/* Douyin无信息时显示默认 */}
-                    {detected !== 'youtube' && availableQualities.length === 0 && (
-                      <option value="bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]">
-                        480p (推荐) ✓
-                      </option>
-                    )}
-                  </select>
-                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
-                </div>
-              </div>
-            </div>
-
             {/* Save Location 保存位置 - 下拉式 */}
             <div className="mb-5">
               <label className="text-xs text-slate-500 mb-2 flex items-center gap-1.5">
@@ -1408,71 +1337,6 @@ export default function App() {
             )}
           </div>
         </main>
-
-        {/* 画质选择弹窗 */}
-        {showQualityPicker && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-            <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700">
-              <h3 className="text-lg font-bold text-white mb-4">选择画质 {!isVip && <span className="text-xs text-orange-400 font-normal">(会员专享1080p+)</span>}</h3>
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {availableQualities.map((q, idx) => {
-                  const isHighQuality = q.height >= 1080
-                  const canSelect = isVip || !isHighQuality
-                  return (
-                    <button
-                      key={idx}
-                      onClick={() => {
-                        if (!canSelect) {
-                          setShowQualityPicker(false)
-                          setShowSubscription(true)
-                          return
-                        }
-                        setShowQualityPicker(false)
-                        if (q.hasVideo) {
-                          const format = q.height >= 1440 
-                            ? `bestvideo[height<=${q.height}]+bestaudio/best[height<=${q.height}]`
-                            : `bestvideo[height<=${q.height}][ext=mp4]+bestaudio[ext=m4a]/best[height<=${q.height}]`
-                          setQuality(format)
-                        } else {
-                          setQuality('bestaudio[ext=m4a]/bestaudio')
-                        }
-                        doSingleDownload()
-                      }}
-                      className={`w-full flex items-center justify-between p-3 rounded-xl transition text-left ${canSelect ? 'bg-slate-700/50 hover:bg-slate-700' : 'bg-slate-800/50 opacity-50 cursor-not-allowed'}`}
-                    >
-                      <div>
-                        <span className={`font-medium ${canSelect ? 'text-white' : 'text-slate-500'}`}>{q.quality}</span>
-                        {q.width > 0 && <span className={`text-xs ml-2 ${canSelect ? 'text-slate-400' : 'text-slate-600'}`}>{q.width}x{q.height}</span>}
-                        {isHighQuality && !isVip && <span className="ml-2 text-xs text-orange-400">🚫 会员专享</span>}
-                        {isHighQuality && isVip && <span className="ml-2 text-xs text-yellow-400">⭐</span>}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {q.hasVideo && q.hasAudio && <span className="text-xs text-green-400">🎬</span>}
-                        {!q.hasVideo && q.hasAudio && <span className="text-xs text-blue-400">🎵</span>}
-                        <span className="text-xs text-slate-500">{q.format.split('/')[1]}</span>
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-              {!isVip && (
-                <button
-                  onClick={() => { setShowQualityPicker(false); setShowSubscription(true) }}
-                  className="w-full mt-3 py-3 px-4 rounded-xl bg-gradient-to-r from-yellow-500/20 to-orange-500/20 text-orange-400 hover:from-yellow-500/30 hover:to-orange-500/30 transition border border-orange-500/30 flex items-center justify-center gap-2"
-                >
-                  <Crown className="w-4 h-4" />
-                  升级会员解锁高清画质
-                </button>
-              )}
-              <button
-                onClick={() => { setShowQualityPicker(false); setPendingUrl('') }}
-                className="w-full mt-2 py-2 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition"
-              >
-                取消
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* 重复下载确认弹窗 */}
         {showDupConfirm && (
