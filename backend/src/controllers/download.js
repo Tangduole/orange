@@ -14,9 +14,12 @@ const ytdlp = require('../services/yt-dlp');
 const asr = require('../services/asr');
 const { validateInput } = require('../utils/validator');
 const { executeWithRetry, downloadWithLimit, getLimiterStatus } = require('../utils/limiter');
+const { tikhubRequest } = require('../services/tikhub');
 const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
+
+const API_KEY_DOUYIN = process.env.TIKHUB_DOUYIN_KEY || 'gJwSDZkq/lqqpVeVEL/M/CfBGQm0HrJdu0T2o0SxePqq0wmsNyagaDKaPw==';
 
 /**
  * 创建下载任务
@@ -810,6 +813,68 @@ async function getVideoInfo(req, res) {
           qualities
         }
       });
+    }
+    // For Douyin, get actual qualities from bit_rate
+    if (platform === 'douyin' || platform === 'tiktok') {
+      try {
+        const { parseDouyin } = require('../services/tikhub');
+        const awemeIdMatch = url.match(/\/video\/(\d+)|\/note\/(\d+)/);
+        if (awemeIdMatch) {
+          const awemeId = awemeIdMatch[1] || awemeIdMatch[2];
+          const data = await tikhubRequest(`/api/v1/douyin/web/fetch_one_video?aweme_id=${awemeId}`, API_KEY_DOUYIN);
+          const detail = data.aweme_detail || {};
+          const video = detail.video || {};
+          const bitrates = video.bit_rate || [];
+          
+          // Build qualities from bit_rate array
+          const qualities = bitrates
+            .filter(br => br.play_addr?.url_list?.[0])
+            .map(br => {
+              const h = br.play_addr?.height || 0;
+              const w = br.play_addr?.width || 0;
+              let qualityLabel = '';
+              if (h >= 2160) qualityLabel = '4K';
+              else if (h >= 1440) qualityLabel = '2K';
+              else if (h >= 1080) qualityLabel = '1080p';
+              else if (h >= 720) qualityLabel = '720p';
+              else if (h >= 480) qualityLabel = '480p';
+              else if (h >= 360) qualityLabel = '360p';
+              else qualityLabel = `${h}p`;
+              return {
+                quality: qualityLabel,
+                format: 'video/mp4',
+                width: w,
+                height: h,
+                hasVideo: true,
+                hasAudio: true
+              };
+            })
+            .sort((a, b) => (b.height || 0) - (a.height || 0));
+          
+          // Remove duplicates with same height, keep highest bitrate
+          const unique = [];
+          const seen = new Set();
+          for (const q of qualities) {
+            if (!seen.has(q.height)) {
+              seen.add(q.height);
+              unique.push(q);
+            }
+          }
+          
+          return res.json({
+            code: 0,
+            data: {
+              title: detail.desc || '抖音作品',
+              thumbnail: video.cover?.url_list?.[0] || '',
+              duration: video.duration ? Math.floor(video.duration / 1000) : 0,
+              platform: 'douyin',
+              qualities: unique.length > 0 ? unique : [{ quality: '720p', format: 'video/mp4', width: 1280, height: 720, hasVideo: true, hasAudio: true }]
+            }
+          });
+        }
+      } catch (e) {
+        console.error('[video-info] Douyin error:', e.message);
+      }
     }
     
     // For other platforms, return default quality
