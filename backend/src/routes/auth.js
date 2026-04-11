@@ -57,6 +57,23 @@ router.post('/register', async (req, res) => {
   
   try {
     const user = await userDb.create(email, password);
+    
+    // 发送邮箱验证（如果启用）
+    const emailVerificationEnabled = process.env.EMAIL_VERIFICATION_ENABLED === 'true';
+    if (emailVerificationEnabled) {
+      const { sendVerificationEmail } = require('../services/email');
+      const token = require('uuid').v4();
+      const expiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24小时过期
+      await userDb.storeVerificationToken(user.id, token, expiresAt);
+      await sendVerificationEmail(email, token);
+      
+      return res.json({
+        code: 0,
+        message: '注册成功，请查收验证邮件',
+        data: { needsVerification: true }
+      });
+    }
+    
     const token = auth.generateToken(user);
     
     res.json({

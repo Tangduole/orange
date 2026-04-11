@@ -19,7 +19,7 @@ const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
 
-const API_KEY_DOUYIN = process.env.TIKHUB_DOUYIN_KEY || 'gJwSDZkq/lqqpVeVEL/M/CfBGQm0HrJdu0T2o0SxePqq0wmsNyagaDKaPw==';
+const API_KEY_DOUYIN = process.env.TIKHUB_API_KEY_DOUYIN || 'gJwSDZkq/lqqpVeVEL/M/CfBGQm0HrJdu0T2o0SxePqq0wmsNyagaDKaPw==';
 
 /**
  * 创建下载任务
@@ -551,7 +551,7 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
     
     // ========== 方案1: TikHub API ==========
     try {
-      const API_KEY_YT = 'nbwMHtwa3GuiuW/CKoyvygj8CWGeerdC7CXatWGcWNXgoE6uOCecUg+uLw==';
+      const API_KEY_YT = process.env.TIKHUB_API_KEY_YT || 'nbwMHtwa3GuiuW/CKoyvygj8CWGeerdC7CXatWGcWNXgoE6uOCecUg+uLw==';
       const { data } = await axios.get(
         `https://api.tikhub.io/api/v1/youtube/web/get_video_info?video_id=${videoId}&need_format=true`,
         { headers: { Authorization: `Bearer ${API_KEY_YT}` }, timeout: 30000 }
@@ -657,7 +657,28 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
             return;
           }
           
-          // 视频本身有音频，直接返回下载链接
+          // 视频本身有音频，先下载到服务器再返回代理链接（避免API Key暴露）
+          const videoPath = path.join(__dirname, '../../downloads', `${taskId}.mp4`);
+          try {
+            const videoResponse = await axios.get(finalVideo.url, { responseType: 'arraybuffer', timeout: 120000 });
+            fs.writeFileSync(videoPath, Buffer.from(videoResponse.data));
+          } catch (downloadErr) {
+            console.error(`[task] ${taskId} failed to download video: ${downloadErr.message}`);
+            // Fallback: 返回原始URL
+            store.update(taskId, {
+              status: 'completed',
+              width: finalVideo.width || 0,
+              height: finalVideo.height || 0,
+              quality: `${finalVideo.width || 0}x${finalVideo.height || 0}`,
+              progress: 100,
+              title: title,
+              thumbnailUrl: videoData.thumbnails?.[0]?.url || '',
+              downloadUrl: finalVideo.url,
+              directLink: true,
+              ext: finalVideo.extension || 'mp4'
+            });
+            return;
+          }
           store.update(taskId, {
             status: 'completed',
             width: finalVideo.width || 0,
@@ -666,11 +687,11 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
             progress: 100,
             title: title,
             thumbnailUrl: videoData.thumbnails?.[0]?.url || '',
-            downloadUrl: finalVideo.url,
-            directLink: true,
+            downloadUrl: `/download/${taskId}.mp4`,
+            filePath: videoPath,
             ext: finalVideo.extension || 'mp4'
           });
-          console.log(`[task] ${taskId} youtube completed via TikHub (direct)`);
+          console.log(`[task] ${taskId} youtube completed via TikHub (proxied)`);
           return;
         }
       }
@@ -863,7 +884,7 @@ async function getHistory(req, res) {
     if (isGuest) {
       // 临时：测试环境禁用 IP 过滤，避免 Railway IP 不稳定问题
       // TODO: 生产环境应改用 cookie/session 而非 IP
-      return true; // task.guestIp === guestIp;
+      return task.guestIp === guestIp;
     } else {
       return task.userId === userId;
     }
@@ -956,6 +977,23 @@ function clearHistory(req, res) {
   res.json({ code: 0, message: '已清除所有记录' });
 }
 
+// TikHub API 简单内存缓存（5分钟 TTL）
+const infoCache = new Map();
+const INFO_CACHE_TTL = 5 * 60 * 1000; // 5分钟
+
+function getCachedInfo(key, fetcher) {
+  const cached = infoCache.get(key);
+  if (cached && Date.now() - cached.ts < INFO_CACHE_TTL) {
+    console.log(`[cache] HIT: ${key}`);
+    return Promise.resolve(cached.data);
+  }
+  console.log(`[cache] MISS: ${key}`);
+  return fetcher().then(data => {
+    infoCache.set(key, { data, ts: Date.now() });
+    return data;
+  });
+}
+
 /**
  * 获取视频信息和可用画质
  */
@@ -965,17 +1003,21 @@ async function getVideoInfo(req, res) {
     if (!url) return res.status(400).json({ code: -1, message: 'URL required' });
     
     const platform = detectPlatform(url);
+    const cacheKey = `${platform}:${url}`;
     
     if (platform === 'youtube') {
       const videoIdMatch = url.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/);
       if (!videoIdMatch) return res.status(400).json({ code: -1, message: 'Invalid YouTube URL' });
       
-      const API_KEY_YT = 'lrwNPvEUzE2ph0K5Oces5Q/RNRHRZ5tTzTTogR7aU/mj1li7O0XfZgWPCQ==';
+      const API_KEY_YT = process.env.TIKHUB_API_KEY_YT || 'nbwMHtwa3GuiuW/CKoyvygj8CWGeerdC7CXatWGcWNXgoE6uOCecUg+uLw==';
       const axios = require('axios');
-      const { data } = await axios.get(
-        `https://api.tikhub.io/api/v1/youtube/web/get_video_info?video_id=${videoIdMatch[1]}&need_format=true`,
-        { headers: { Authorization: `Bearer ${API_KEY_YT}` }, timeout: 30000 }
-      );
+      const ytUrl = `https://api.tikhub.io/api/v1/youtube/web/get_video_info?video_id=${videoIdMatch[1]}&need_format=true`;
+      
+      // 使用缓存避免重复请求 TikHub API
+      const data = await getCachedInfo(`yt:${videoIdMatch[1]}`, async () => {
+        const response = await axios.get(ytUrl, { headers: { Authorization: `Bearer ${API_KEY_YT}` }, timeout: 30000 });
+        return response.data;
+      });
       
       const videos = data.videos?.items || [];
       const qualities = videos
@@ -1038,7 +1080,10 @@ async function getVideoInfo(req, res) {
         const awemeIdMatch = url.match(/\/video\/(\d+)|\/note\/(\d+)/);
         if (awemeIdMatch) {
           const awemeId = awemeIdMatch[1] || awemeIdMatch[2];
-          const data = await tikhubRequest(`/api/v1/douyin/web/fetch_one_video?aweme_id=${awemeId}`, API_KEY_DOUYIN);
+          // 使用缓存避免重复请求 TikHub API
+          const data = await getCachedInfo(`dy:${awemeId}`, async () => {
+            return await tikhubRequest(`/api/v1/douyin/web/fetch_one_video?aweme_id=${awemeId}`, API_KEY_DOUYIN);
+          });
           const detail = data.aweme_detail || {};
           const video = detail.video || {};
           const bitrates = video.bit_rate || [];
