@@ -28,10 +28,11 @@ const auth = {
       const payload = jwt.verify(token, JWT_SECRET);
       const user = await userDb.getById(payload.sub);
       req.user = user || null;
+      return next();
     } catch (e) {
       req.user = null;
+      return next();
     }
-    next();
   },
 
   /**

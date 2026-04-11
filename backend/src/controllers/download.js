@@ -139,7 +139,7 @@ async function createDownload(req, res) {
     if (isDouyinUrl(url)) {
       // 非VIP用户限制画质为480p
       const maxQuality = isVip ? null : 'height<=480';
-      processDouyin(taskId, url, wantsAsr, normalizedOptions, maxQuality).catch(err => {
+      processDouyin(taskId, url, wantsAsr, normalizedOptions, maxQuality, asrLanguage).catch(err => {
         console.error(`[task] ${taskId} douyin failed:`, err);
         store.update(taskId, { status: 'error', progress: 0, error: err.message });
       });
@@ -408,7 +408,7 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
 /**
  * 处理抖音下载（视频/图文，不依赖 yt-dlp）
  */
-async function processDouyin(taskId, url, needAsr, options = ['video'], quality = null) {
+async function processDouyin(taskId, url, needAsr, options = ['video'], quality = null, asrLanguage = 'zh') {
   try {
     const { parseDouyin } = require('../services/tikhub');
 
