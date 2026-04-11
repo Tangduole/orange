@@ -190,11 +190,12 @@ const ADMIN_KEY = process.env.ADMIN_API_KEY;
 // 管理员密钥验证
 function requireAdmin(req, res, next) {
   const key = req.headers['x-admin-key'];
-  if (!ADMIN_KEY) {
+  const adminKey = ADMIN_KEY || process.env.ADMIN_API_KEY;
+  if (!adminKey) {
     console.error('[admin] ADMIN_API_KEY not configured!');
     return res.status(500).json({ code: 500, message: '管理员功能未配置' });
   }
-  if (key !== ADMIN_KEY) {
+  if (key !== adminKey) {
     return res.status(403).json({ code: 403, message: '无权访问' });
   }
   next();
