@@ -73,6 +73,8 @@ async function createDownload(req, res) {
               message: `今日下载次数已用完（${usage.dailyLimit}次/天）。升级 Pro 解锁无限制下载`
             });
           }
+          // 增加登录用户下载计数
+          await userDb.incrementDownloads(userId);
         }
       } catch (e) {
         // token 无效，继续作为游客
