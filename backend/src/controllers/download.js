@@ -859,7 +859,9 @@ async function getHistory(req, res) {
   // 过滤任务
   const allTasks = store.list().filter(task => {
     if (isGuest) {
-      return task.guestIp === guestIp;
+      // 临时：测试环境禁用 IP 过滤，避免 Railway IP 不稳定问题
+      // TODO: 生产环境应改用 cookie/session 而非 IP
+      return true; // task.guestIp === guestIp;
     } else {
       return task.userId === userId;
     }
