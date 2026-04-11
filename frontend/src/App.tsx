@@ -24,6 +24,13 @@ const isNativeApp = () => {
   } catch { return false }
 }
 
+// 检测 iOS Safari
+const isIOS = () => {
+  try {
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  } catch { return false }
+}
+
 const shareFile = async (url: string, title: string, fileType: 'video' | 'audio' | 'image' = 'video') => {
   const fullUrl = url.startsWith('http') ? url : `${BASE_URL}${url}`
   
@@ -71,7 +78,20 @@ const shareFile = async (url: string, title: string, fileType: 'video' | 'audio'
       }
     }
   } else {
-    // Web: fetch as blob → force download
+    // Web: iOS Safari special handling
+    if (isIOS()) {
+      // iOS Safari: 打开新窗口，让用户用分享菜单保存到照片
+      const a = document.createElement('a')
+      a.href = fullUrl
+      a.target = '_blank'
+      a.rel = 'noopener noreferrer'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      return { success: true }
+    }
+    
+    // Other browsers: fetch as blob → force download
     try {
       const resp = await fetch(fullUrl)
       const blob = await resp.blob()
@@ -1270,7 +1290,7 @@ export default function App() {
                   className="w-full py-3.5 rounded-2xl text-sm font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} 
-                  {downloading ? 'Downloading...' : (task.directLink ? '打开下载链接' : 'Save to Device')}
+                  {downloading ? '下载中...' : (task.directLink ? '打开链接' : (isIOS() ? '下载到手机' : 'Save to Device'))}
                 </button>
               )}
 
