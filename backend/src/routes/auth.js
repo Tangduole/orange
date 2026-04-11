@@ -55,6 +55,32 @@ router.post('/register', async (req, res) => {
     return res.json({ code: 400, message: '邮箱格式不正确' });
   }
   
+  // 验证邮箱域名有 MX 记录（防止虚假邮箱）
+  const domain = email.split('@')[1];
+  try {
+    const { Resolver } = require('dns').promises;
+    const resolver = new Resolver();
+    resolver.setServers(['8.8.8.8', '1.1.1.1']); // 使用公共 DNS
+    let hasMx = false;
+    try {
+      const mxRecords = await resolver.resolve(domain, 'MX');
+      hasMx = mxRecords && mxRecords.length > 0;
+    } catch (mxErr) {
+      // MX 查询失败，尝试 A 记录
+      try {
+        await resolver.resolve(domain, 'A');
+        hasMx = true; // 有 A 记录也算有效域名
+      } catch {}
+    }
+    if (!hasMx) {
+      return res.json({ code: 400, message: '邮箱域名无效，请使用真实邮箱' });
+    }
+  } catch (dnsErr) {
+    console.error('[auth] DNS validation error:', dnsErr.message);
+    // DNS 检查失败时拒绝注册，防止虚假邮箱
+    return res.json({ code: 400, message: '邮箱验证失败，请使用真实邮箱' });
+  }
+  
   try {
     const user = await userDb.create(email, password);
     
