@@ -255,9 +255,11 @@ export default function App() {
   useEffect(() => {
     if (authToken) {
       api.getSubscriptionStatus(authToken).then(status => {
-        setIsVip(status?.subscriptionStatus === 'active')
-        setRemainingDownloads(status?.usage?.remaining ?? -1)
-      }).catch(() => { setIsVip(false); setRemainingDownloads(-1) })
+        const isPro = status?.subscriptionStatus === 'active'
+        setIsVip(isPro)
+        // 非会员（未订阅）也限制每天3次，防止多注册账号绕过
+        setRemainingDownloads(isPro ? -1 : GUEST_DAILY_LIMIT)
+      }).catch(() => { setIsVip(false); setRemainingDownloads(GUEST_DAILY_LIMIT) })
     } else {
       setIsVip(false)
       // Check localStorage for guest remaining downloads
