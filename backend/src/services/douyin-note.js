@@ -7,6 +7,8 @@
 
 const https = require('https');
 const http = require('http');
+const fs = require('fs');
+const path = require('path');
 const { URL } = require('url');
 
 /**
@@ -69,9 +71,6 @@ function extractAwemeId(url) {
  * 下载抖音图文作品
  */
 async function downloadDouyinNote(url, taskId, onProgress) {
-  const fs = require('fs');
-  const path = require('path');
-  
   if (onProgress) onProgress(5);
   
   // 1. 解析短链接获取真实 URL
@@ -204,8 +203,4 @@ async function downloadDouyinNote(url, taskId, onProgress) {
   };
 }
 
-function isDouyinNote(url) {
-  return /douyin\.com\/note\//.test(url);
-}
-
-module.exports = { downloadDouyinNote, isDouyinNote };
+module.exports = { downloadDouyinNote };
