@@ -13,10 +13,14 @@ if (fs.existsSync(envPath)) {
   try { require('dotenv').config({ path: envPath }); } catch {}
 }
 
-// API Keys - 优先从环境变量读取，没有则用默认值（Railway 会配置环境变量）
-const API_KEY_XHS = process.env.TIKHUB_API_KEY_XHS || 'lrwNPvEUzE2ph0K5Oces5Q/RNRHRZ5tTzTTogR7aU/mj1li7O0XfZgWPCQ==';
-const API_KEY_YT = process.env.TIKHUB_API_KEY_YT || 'nbwMHtwa3GuiuW/CKoyvygj8CWGeerdC7CXatWGcWNXgoE6uOCecUg+uLw==';
-const API_KEY_DOUYIN = process.env.TIKHUB_API_KEY_DOUYIN || 'gJwSDZkq/lqqpVeVEL/M/CfBGQm0HrJdu0T2o0SxePqq0wmsNyagaDKaPw==';
+// API Keys - 必须从环境变量读取
+const API_KEY_XHS = process.env.TIKHUB_API_KEY_XHS;
+const API_KEY_YT = process.env.TIKHUB_API_KEY_YT;
+const API_KEY_DOUYIN = process.env.TIKHUB_API_KEY_DOUYIN;
+
+if (!API_KEY_XHS) throw new Error('TIKHUB_API_KEY_XHS not set');
+if (!API_KEY_YT) throw new Error('TIKHUB_API_KEY_YT not set');
+if (!API_KEY_DOUYIN) throw new Error('TIKHUB_API_KEY_DOUYIN not set');
 
 const API_KEY = API_KEY_XHS; // Default to XHS key
 const API_BASE = 'https://api.tikhub.io';
@@ -549,6 +553,7 @@ async function downloadFile(url, outputPath, onProgress, headers = {}) {
   const http = require('http');
   const fs = require('fs');
   const protocol = url.startsWith('https') ? https : http;
+  const MAX_SIZE = 500 * 1024 * 1024; // 500MB
   
   return new Promise((resolve, reject) => {
     const file = fs.createWriteStream(outputPath);
@@ -579,6 +584,13 @@ async function downloadFile(url, outputPath, onProgress, headers = {}) {
       
       response.on('data', (chunk) => {
         downloaded += chunk.length;
+        if (downloaded > MAX_SIZE) {
+          file.close();
+          fs.unlink(outputPath, () => {});
+          reject(new Error('File too large (max 500MB)'));
+          response.destroy();
+          return;
+        }
         if (onProgress) {
           onProgress(totalSize > 0 ? Math.floor((downloaded / totalSize) * 100) : 0, downloaded, totalSize);
         }
