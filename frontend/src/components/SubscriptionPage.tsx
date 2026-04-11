@@ -264,11 +264,18 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
                   onClick={async () => {
                     setDeleting(true)
                     try {
-                      await fetch(`/api/auth/delete-account`, {
+                      const res = await fetch(`/api/auth/delete-account`, {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${token}` }
                       })
-                      onLogout()
+                      const data = await res.json()
+                      if (data.code === 0) {
+                        onLogout()
+                      } else {
+                        setError(data.message || '注销失败')
+                        setDeleting(false)
+                        setShowDeleteConfirm(false)
+                      }
                     } catch (err) {
                       setError('注销失败')
                       setDeleting(false)
