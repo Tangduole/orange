@@ -1,6 +1,12 @@
 /**
  * X/Twitter 视频下载器（不依赖 yt-dlp）
- * 
+ *
+ * ⚠️ 注意：当前使用 fxtwitter/vxtwitter 免费 API，画质受限（通常是 540p 或 720p）
+ * 如果需要高清视频，需要：
+ * 1. 使用付费的 Twitter API
+ * 2. 提供已登录的 Cookie
+ * 3. 使用本地 yt-dlp（需要服务器有美国 IP）
+ *
  * 通过 vxtwitter.com API 解析推文，提取视频直链
  * 不需要登录 cookies
  */
@@ -71,33 +77,30 @@ async function parseTweet(url) {
   const id = match ? match[2] : tweetId;
 
   // fxtwitter API（优先使用，更稳定）
-  const apis = [
-    `https://api.fxtwitter.com/${username}/status/${id}`,
-    `https://api.vxtwitter.com/${username}/status/${id}`,
-  ];
+  // 注意：fxtwitter 和 vxtwitter 都是免费 API，画质都是中等（540p-720p）
+  // 不再 fallback 到 vxtwitter，因为两者画质相同
+  const apiUrl = `https://api.fxtwitter.com/${username}/status/${id}`;
 
-  let lastError;
-  for (const apiUrl of apis) {
-    try {
-      const res = await httpGet(apiUrl, { timeout: 10000 });
-      const data = JSON.parse(res.body);
+  try {
+    const res = await httpGet(apiUrl, { timeout: 10000 });
+    const data = JSON.parse(res.body);
 
-      // fxtwitter 格式：data.tweet.media.all[]
-      // vxtwitter 格式：data.media_extended[] 或 data.videos[]
-      const tweetMedia = data.tweet?.media?.all || [];
-      const legacyMedia = data.media_extended || data.media || [];
-      const legacyVideos = data.videos || [];
+    // fxtwitter 格式：data.tweet.media.all[]
+    const tweetMedia = data.tweet?.media?.all || [];
+    const legacyMedia = data.media_extended || data.media || [];
+    const legacyVideos = data.videos || [];
 
-      const result = {
-        tweetId: id,
-        author: username,
-        title: data.text || data.tweet?.text || data.tweet?.raw_text?.text || '',
-        tweetUrl: data.tweetURL || fullUrl,
-        videoUrl: '',
-        videoUrls: [],
-        coverUrl: '',
-        images: [],
-      };
+    const result = {
+      tweetId: id,
+      author: username,
+      title: data.text || data.tweet?.text || data.tweet?.raw_text?.text || '',
+      tweetUrl: data.tweetURL || fullUrl,
+      videoUrl: '',
+      videoUrls: [],
+      coverUrl: '',
+      images: [],
+      videoQuality: 'medium',  // 标注画质级别：免费 API 只能获取中等画质
+    };
 
       // 提取视频 - fxtwitter 格式（优先）
       for (const m of tweetMedia) {
@@ -189,12 +192,9 @@ async function parseTweet(url) {
 
       return result;
     } catch (e) {
-      lastError = e;
-      console.log(`[x-download] ${apiUrl} failed:`, e.message);
+      console.error(`[x-download] fxtwitter API failed:`, e.message);
+      throw new Error(`推文解析失败（免费 API 画质受限）: ${e.message}`);
     }
-  }
-
-  throw new Error(`推文解析失败: ${lastError?.message || '未知错误'}`);
 }
 
 /**

@@ -7,10 +7,32 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-// API Keys - separate keys for different platforms
-const API_KEY_XHS = 'lrwNPvEUzE2ph0K5Oces5Q/RNRHRZ5tTzTTogR7aU/mj1li7O0XfZgWPCQ==';
-const API_KEY_YT = 'nbwMHtwa3GuiuW/CKoyvygj8CWGeerdC7CXatWGcWNXgoE6uOCecUg+uLw==';
-const API_KEY_DOUYIN = 'gJwSDZkq/lqqpVeVEL/M/CfBGQm0HrJdu0T2o0SxePqq0wmsNyagaDKaPw==';
+// 检查环境变量文件
+const envPath = path.join(__dirname, '../../.env');
+const envExamplePath = path.join(__dirname, '../../.env.example');
+
+if (!fs.existsSync(envPath)) {
+  console.error('❌ .env file not found!');
+  console.error('   Please copy .env.example to .env and fill in your API keys:');
+  console.error(`   cp ${envExamplePath} ${envPath}`);
+  process.exit(1);
+}
+
+// 加载环境变量
+require('dotenv').config({ path: envPath });
+
+// API Keys - 从环境变量读取
+const API_KEY_XHS = process.env.TIKHUB_API_KEY_XHS;
+const API_KEY_YT = process.env.TIKHUB_API_KEY_YT;
+const API_KEY_DOUYIN = process.env.TIKHUB_API_KEY_DOUYIN;
+
+// 验证必需的 API Key
+if (!API_KEY_XHS || !API_KEY_YT || !API_KEY_DOUYIN) {
+  console.error('❌ Missing required API keys in .env file!');
+  console.error('   Required keys: TIKHUB_API_KEY_XHS, TIKHUB_API_KEY_YT, TIKHUB_API_KEY_DOUYIN');
+  process.exit(1);
+}
+
 const API_KEY = API_KEY_XHS; // Default to XHS key
 const API_BASE = 'https://api.tikhub.io';
 const DOWNLOAD_DIR = path.join(__dirname, '../../downloads');
