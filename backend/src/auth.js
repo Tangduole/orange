@@ -39,7 +39,7 @@ const auth = {
   /**
    * 要求登录
    */
-  required(req, res, next) {
+  async required(req, res, next) {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.json({ code: 401, message: '请先登录' });
@@ -48,7 +48,7 @@ const auth = {
     const token = authHeader.slice(7);
     try {
       const payload = jwt.verify(token, JWT_SECRET);
-      const user = userDb.getById(payload.sub);
+      const user = await userDb.getById(payload.sub);
       if (!user) {
         return res.json({ code: 401, message: '用户不存在，请重新登录' });
       }

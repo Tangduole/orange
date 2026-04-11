@@ -185,18 +185,29 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 module.exports = router;
 
 // 管理员 API 密钥验证中间件
-// 管理员密钥验证
+// 管理员密钥验证（同时验证请求者的身份）
 function requireAdmin(req, res, next) {
   const key = req.headers['x-admin-key'];
   const adminKey = process.env.ADMIN_API_KEY || 'f496277755941b1b79506fca8a55e2aee3301cf7344529790eec877b557c0a70';
+  
+  // 验证 admin key
   if (key !== adminKey) {
     return res.status(403).json({ code: 403, message: '无权访问' });
   }
+  
+  // 额外验证：检查调用者是否是管理员（通过 user.email）
+  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').filter(Boolean);
+  if (adminEmails.length > 0 && req.user) {
+    if (!adminEmails.includes(req.user.email)) {
+      return res.status(403).json({ code: 403, message: '无权限' });
+    }
+  }
+  
   next();
 }
 
 // 管理员：手动赋予会员资格
-router.post('/admin/grant-vip', requireAdmin, async (req, res) => {
+router.post('/admin/grant-vip', auth.required, requireAdmin, async (req, res) => {
   try {
     const { email, days = 365 } = req.body;
     if (!email) return res.status(400).json({ code: 400, message: '请提供邮箱' });
@@ -213,7 +224,7 @@ router.post('/admin/grant-vip', requireAdmin, async (req, res) => {
 });
 
 // 管理员：撤销会员资格
-router.post('/admin/revoke-vip', requireAdmin, async (req, res) => {
+router.post('/admin/revoke-vip', auth.required, requireAdmin, async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ code: 400, message: '请提供邮箱' });

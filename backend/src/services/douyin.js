@@ -11,9 +11,13 @@ const { URL } = require('url');
 const fs = require('fs');
 const path = require('path');
 
+// 视频下载最大 500MB
+const MAX_SIZE = 500 * 1024 * 1024;
+
 function httpGet(rawUrl, options = {}) {
   return new Promise((resolve, reject) => {
     const timeout = options.timeout || 15000;
+    const maxSize = options.maxSize || MAX_SIZE;
     let url;
     try { url = new URL(rawUrl); } catch { return reject(new Error('Invalid URL')); }
     const client = url.protocol === 'https:' ? https : http;
@@ -29,12 +33,28 @@ function httpGet(rawUrl, options = {}) {
       }
       if (res.statusCode !== 200) { res.resume(); return reject(new Error(`HTTP ${res.statusCode}`)); }
       if (options.responseType === 'arraybuffer') {
+        let downloaded = 0;
         const chunks = [];
-        res.on('data', c => chunks.push(c));
+        res.on('data', c => {
+          downloaded += c.length;
+          if (downloaded > maxSize) {
+            req.destroy();
+            return reject(new Error(`文件过大 (${Math.round(downloaded/1024/1024)}MB)，超过 ${Math.round(maxSize/1024/1024)}MB 限制`));
+          }
+          chunks.push(c);
+        });
         res.on('end', () => resolve(Buffer.concat(chunks)));
       } else {
+        let downloaded = 0;
         const chunks = [];
-        res.on('data', c => chunks.push(c));
+        res.on('data', c => {
+          downloaded += c.length;
+          if (downloaded > maxSize) {
+            req.destroy();
+            return reject(new Error(`响应过大，超过 ${Math.round(maxSize/1024/1024)}MB 限制`));
+          }
+          chunks.push(c);
+        });
         res.on('end', () => resolve({ body: Buffer.concat(chunks).toString('utf-8'), finalUrl: url.href }));
       }
     });
@@ -127,16 +147,10 @@ async function parseDouyinPage(url) {
     }
 
     // 视频播放地址
+    // 注意：bit_rate 数组已包含高清无水印视频，playwm替换逻辑无效已移除
     if (obj.play_addr && obj.play_addr.url_list) {
       const urls = obj.play_addr.url_list;
-      // 过滤 playwm（水印版），优先无水印
-      // 优先无水印：play → playwm 替换
-      let playUrl = urls[0] || '';
-      if (playUrl.includes('playwm')) {
-        const noWm = playUrl.replace('/playwm/', '/play/');
-        // 保留第一个用于尝试
-        playUrl = noWm;
-      }
+      const playUrl = urls[0] || '';
       if (playUrl && (playUrl.includes('.mp4') || playUrl.includes('video_id'))) {
         if (obj.bit_rate || obj.width > 0 || playUrl.includes('aweme')) {
           result.videoUrl = playUrl;
