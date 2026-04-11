@@ -161,7 +161,7 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
             
             <ul className="space-y-3 mb-6">
               <li className="flex items-center gap-2 text-sm">
-                <span className="text-green-400">✓</span> 每天 5 次下载
+                <span className="text-green-400">✓</span> 每天 3 次下载
               </li>
               <li className="flex items-center gap-2 text-sm">
                 <span className="text-green-400">✓</span> 抖音 / TikTok / X / YouTube
@@ -264,7 +264,7 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
                   onClick={async () => {
                     setDeleting(true)
                     try {
-                      await fetch(`${import.meta.env.VITE_API_URL || 'https://orange-production-95b9.up.railway.app'}/api/auth/delete-account`, {
+                      await fetch(`/api/auth/delete-account`, {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${token}` }
                       })
