@@ -518,72 +518,136 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
     if (!videoIdMatch) throw new Error('Invalid YouTube URL');
     const videoId = videoIdMatch[1];
     
-    // 从 TikHub 获取视频信息
-    const API_KEY_YT = 'nbwMHtwa3GuiuW/CKoyvygj8CWGeerdC7CXatWGcWNXgoE6uOCecUg+uLw==';
-    const { data } = await axios.get(
-      `https://api.tikhub.io/api/v1/youtube/web/get_video_info?video_id=${videoId}&need_format=true`,
-      { headers: { Authorization: `Bearer ${API_KEY_YT}` }, timeout: 30000 }
-    );
+    // ========== 方案1: TikHub API ==========
+    try {
+      const API_KEY_YT = 'nbwMHtwa3GuiuW/CKoyvygj8CWGeerdC7CXatWGcWNXgoE6uOCecUg+uLw==';
+      const { data } = await axios.get(
+        `https://api.tikhub.io/api/v1/youtube/web/get_video_info?video_id=${videoId}&need_format=true`,
+        { headers: { Authorization: `Bearer ${API_KEY_YT}` }, timeout: 30000 }
+      );
+      
+      if (data.code === 200) {
+        const videoData = data.data;
+        const title = videoData.title || 'YouTube Video';
+        const videos = videoData.videos?.items || [];
+        
+        // 解析用户选择的画质
+        let maxHeight = 1080; // 默认
+        if (quality) {
+          const heightMatch = quality.match(/height[<=]?(\d+)/i);
+          if (heightMatch) {
+            maxHeight = parseInt(heightMatch[1]);
+          }
+        }
+        
+        // 找到符合画质要求的最佳视频
+        let bestVideo = null;
+        for (const v of videos) {
+          if (v.url && v.mimeType?.startsWith('video/')) {
+            const vHeight = v.height || 0;
+            if (vHeight <= maxHeight) {
+              if (!bestVideo || vHeight > (bestVideo.height || 0)) {
+                bestVideo = v;
+              }
+            }
+          }
+        }
+        
+        // 如果没有找到符合要求的，降级到最高画质
+        if (!bestVideo) {
+          for (const v of videos) {
+            if (v.url && v.mimeType?.startsWith('video/')) {
+              if (!bestVideo || (v.height || 0) > (bestVideo.height || 0)) {
+                bestVideo = v;
+              }
+            }
+          }
+        }
+        
+        if (bestVideo && bestVideo.url) {
+          // TikHub 方案成功
+          store.update(taskId, {
+            status: 'completed',
+            width: bestVideo.width || 0,
+            height: bestVideo.height || 0,
+            quality: `${bestVideo.width || 0}x${bestVideo.height || 0}`,
+            progress: 100,
+            title: title,
+            thumbnailUrl: videoData.thumbnails?.[0]?.url || '',
+            downloadUrl: bestVideo.url,
+            directLink: true,
+            ext: bestVideo.extension || 'mp4'
+          });
+          console.log(`[task] ${taskId} youtube completed via TikHub`);
+          return;
+        }
+      }
+    } catch (tikhubErr) {
+      console.log(`[task] ${taskId} TikHub failed: ${tikhubErr.message}, trying yt-dlp...`);
+    }
     
-    if (data.code !== 200) throw new Error('Failed to get video info');
+    // ========== 方案2: yt-dlp 直接下载 ==========
+    console.log(`[task] ${taskId} using yt-dlp fallback for YouTube`);
+    const ytdlp = require('../services/yt-dlp');
+    const path = require('path');
+    const fs = require('fs');
     
-    const videoData = data.data;
-    const title = videoData.title || 'YouTube Video';
-    const videos = videoData.videos?.items || [];
+    const outputPath = path.join(__dirname, '../../downloads', `${taskId}.mp4`);
     
-    // 解析用户选择的画质
-    let maxHeight = 1080; // 默认
+    // 构建 yt-dlp 参数
+    const args = [
+      url,
+      '-o', outputPath,
+      '--no-warnings',
+      '--newline',
+      '--progress',
+      '--retries', '3',
+      '--fragment-retries', '3',
+      '--socket-timeout', '60'
+    ];
+    
+    // 解析画质参数
+    let maxHeight = 1080;
     if (quality) {
       const heightMatch = quality.match(/height[<=]?(\d+)/i);
       if (heightMatch) {
         maxHeight = parseInt(heightMatch[1]);
+        args.push('-f', `bestvideo[height<=${maxHeight}]+bestaudio/best[height<=${maxHeight}]`);
       }
+    } else {
+      // 默认 1080p
+      args.push('-f', `bestvideo[height<=1080]+bestaudio/best[height<=1080]`);
     }
     
-    // 找到符合画质要求的最佳视频
-    let bestVideo = null;
-    for (const v of videos) {
-      if (v.url && v.mimeType?.startsWith('video/')) {
-        const vHeight = v.height || 0;
-        if (vHeight <= maxHeight) {
-          if (!bestVideo || vHeight > (bestVideo.height || 0)) {
-            bestVideo = v;
-          }
-        }
-      }
-    }
+    await ytdlp.download(url, taskId, (percent, speed, eta, downloaded, total) => {
+      store.update(taskId, {
+        status: 'downloading',
+        progress: percent,
+        speed,
+        eta,
+        downloadedBytes: downloaded || 0,
+        totalBytes: total || 0
+      });
+    }, quality);
     
-    // 如果没有找到符合要求的，降级到最高画质
-    if (!bestVideo) {
-      for (const v of videos) {
-        if (v.url && v.mimeType?.startsWith('video/')) {
-          if (!bestVideo || (v.height || 0) > (bestVideo.height || 0)) {
-            bestVideo = v;
-          }
-        }
-      }
-    }
+    // 获取视频信息
+    const info = await ytdlp.getInfo(url);
     
-    if (!bestVideo || !bestVideo.url) {
-      throw new Error('No download URL found');
-    }
-    
-    // 返回直接下载链接（用户浏览器下载）
     store.update(taskId, {
       status: 'completed',
-      width: result.width,
-      height: result.height,
-      quality: result.quality,
+      width: info.width || 0,
+      height: info.height || 0,
+      quality: info.quality || '1080p',
       progress: 100,
-      title: title,
-      thumbnailUrl: videoData.thumbnails?.[0]?.url || '',
-      downloadUrl: bestVideo.url,
-      directLink: true,
-      quality: `${bestVideo.width}x${bestVideo.height}`,
-      ext: bestVideo.extension || 'mp4'
+      title: info.title || 'YouTube Video',
+      duration: info.duration || 0,
+      thumbnailUrl: info.thumbnail || '',
+      downloadUrl: `/download/${taskId}.mp4`,
+      filePath: outputPath,
+      ext: 'mp4'
     });
     
-    console.log(`[task] ${taskId} youtube completed (direct link)`);
+    console.log(`[task] ${taskId} youtube completed via yt-dlp`);
   } catch (error) {
     console.error(`[task] ${taskId} youtube failed:`, error);
     store.update(taskId, { status: 'error', error: error.message });
