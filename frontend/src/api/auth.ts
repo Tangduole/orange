@@ -2,7 +2,7 @@
  * API 服务 - 认证相关
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || 'https://orange-production-95b9.up.railway.app';
+const API_BASE = import.meta.env.VITE_API_URL || '';
 
 interface AuthResponse {
   token: string;

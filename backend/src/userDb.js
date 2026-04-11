@@ -54,6 +54,16 @@ async function initDb() {
         download_count INTEGER DEFAULT 0
       )
     `);
+    
+    // 密码重置令牌表
+    await db.execute({
+      sql: `CREATE TABLE IF NOT EXISTS password_resets (
+        token TEXT PRIMARY KEY,
+        email TEXT NOT NULL,
+        expires_at INTEGER NOT NULL,
+        created_at INTEGER DEFAULT (unixepoch())
+      )`
+    });
     console.log('[userDb] Turso 数据库初始化完成');
   } catch (err) {
     console.error('[userDb] 初始化表失败:', err);
@@ -215,6 +225,54 @@ const userDb = {
     await db.execute({
       sql: `UPDATE users SET tier = 'free', subscription_status = 'cancelled' WHERE email = ?`,
       args: [email.toLowerCase()]
+    });
+  },
+
+  /**
+   * 更新密码
+   */
+  async updatePassword(email, passwordHash) {
+    await db.execute({
+      sql: 'UPDATE users SET password_hash = ? WHERE email = ?',
+      args: [passwordHash, email.toLowerCase()]
+    });
+  },
+
+  /**
+   * 存储密码重置令牌
+   */
+  async storeResetToken(token, email, expiresAt) {
+    await db.execute({
+      sql: 'INSERT OR REPLACE INTO password_resets (token, email, expires_at) VALUES (?, ?, ?)',
+      args: [token, email.toLowerCase(), expiresAt]
+    });
+  },
+
+  /**
+   * 获取密码重置令牌
+   */
+  async getResetToken(token) {
+    const result = await db.execute({
+      sql: 'SELECT * FROM password_resets WHERE token = ?',
+      args: [token]
+    });
+    const row = result.rows?._array?.[0];
+    if (!row) return null;
+    // 检查是否过期
+    if (Date.now() > row.expires_at) {
+      await this.deleteResetToken(token);
+      return null;
+    }
+    return row;
+  },
+
+  /**
+   * 删除密码重置令牌
+   */
+  async deleteResetToken(token) {
+    await db.execute({
+      sql: 'DELETE FROM password_resets WHERE token = ?',
+      args: [token]
     });
   },
 
