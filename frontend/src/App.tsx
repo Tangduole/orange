@@ -628,6 +628,13 @@ export default function App() {
 
   const handleSubmit = async () => {
     autoDownloaded.current = false
+    
+    // 检查游客下载次数限制
+    if (!isVip && remainingDownloads === 0) {
+      setShowSubscription(true)
+      return
+    }
+    
     // 批量模式
     if (batchMode) {
       const urls = batchUrls.split('\n')
@@ -666,6 +673,11 @@ export default function App() {
   }
 
   const doBatchDownload = async (urls: string[]) => {
+    // 检查游客下载次数限制
+    if (!isVip && remainingDownloads === 0) {
+      setShowSubscription(true)
+      return
+    }
     setBatchQueue(urls.map(u => ({ url: u, status: 'pending', progress: 0 })))
     setBatchIndex(0)
     setLoading(true); setError('')
@@ -684,6 +696,12 @@ export default function App() {
   }
 
   const doSingleDownload = async (skipQualityPicker = false) => {
+    // 检查游客下载次数限制
+    if (!isVip && remainingDownloads === 0) {
+      setShowSubscription(true)
+      setLoading(false)
+      return
+    }
     // First get video info to show quality selection
     setLoading(true); setError('')
     
