@@ -499,18 +499,24 @@ async function processX(taskId, url, needAsr, options = ['video']) {
         progress: percent
       });
     });
+    
+    // 检查是否有可用的下载链接
+    if (!result.downloadUrl && (!result.images || result.images.length === 0)) {
+      throw new Error('X/Twitter 视频解析失败，无法下载');
+    }
+    
     const update = {
       status: 'completed',
-      width: result.width,
-      height: result.height,
-      quality: result.quality,
+      width: result.width || 0,
+      height: result.height || 0,
+      quality: result.quality || 'unknown',
       progress: 100,
       title: result.title,
-      thumbnailUrl: result.thumbnailUrl,
+      thumbnailUrl: result.thumbnailUrl || '',
     };
     if (result.downloadUrl) {
       update.filePath = result.filePath;
-      update.ext = result.ext;
+      update.ext = result.ext || 'mp4';
       update.downloadUrl = result.downloadUrl;
     }
     if (result.images) {
@@ -520,7 +526,7 @@ async function processX(taskId, url, needAsr, options = ['video']) {
     console.log(`[task] ${taskId} x completed`);
   } catch (error) {
     console.error(`[task] ${taskId} x failed:`, error);
-    store.update(taskId, { status: 'error', error: error.message });
+    store.update(taskId, { status: 'error', error: error.message || 'X/Twitter 下载失败' });
   }
 }
 
