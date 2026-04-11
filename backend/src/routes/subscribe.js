@@ -184,8 +184,24 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 
 module.exports = router;
 
+// 管理员 API 密钥验证中间件
+const ADMIN_KEY = process.env.ADMIN_API_KEY;
+
+// 管理员密钥验证
+function requireAdmin(req, res, next) {
+  const key = req.headers['x-admin-key'];
+  if (!ADMIN_KEY) {
+    console.error('[admin] ADMIN_API_KEY not configured!');
+    return res.status(500).json({ code: 500, message: '管理员功能未配置' });
+  }
+  if (key !== ADMIN_KEY) {
+    return res.status(403).json({ code: 403, message: '无权访问' });
+  }
+  next();
+}
+
 // 管理员：手动赋予会员资格
-router.post('/admin/grant-vip', async (req, res) => {
+router.post('/admin/grant-vip', requireAdmin, async (req, res) => {
   try {
     const { email, days = 365 } = req.body;
     if (!email) return res.status(400).json({ code: 400, message: '请提供邮箱' });
@@ -202,7 +218,7 @@ router.post('/admin/grant-vip', async (req, res) => {
 });
 
 // 管理员：撤销会员资格
-router.post('/admin/revoke-vip', async (req, res) => {
+router.post('/admin/revoke-vip', requireAdmin, async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ code: 400, message: '请提供邮箱' });
