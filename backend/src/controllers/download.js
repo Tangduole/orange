@@ -125,7 +125,9 @@ async function createDownload(req, res) {
       saveTarget,
       status: 'pending',
       progress: 0,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      userId: isGuest ? null : userId,
+      guestIp: isGuest ? guestIp : null
     };
 
     store.save(task);
@@ -700,7 +702,46 @@ function getStatus(req, res) {
  */
 function getHistory(req, res) {
   const { limit = 50, offset = 0 } = req.query;
-  const allTasks = store.list();
+  
+  // 获取用户身份
+  let userId = null;
+  let guestIp = null;
+  let isGuest = true;
+  
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      const token = authHeader.slice(7);
+      const jwt = require('jsonwebtoken');
+      const JWT_SECRET = process.env.JWT_SECRET || 'orange-secret-key-change-in-production';
+      const payload = jwt.verify(token, JWT_SECRET);
+      const userDb = require('../userDb');
+      const user = await userDb.getById(payload.sub);
+      if (user) {
+        isGuest = false;
+        userId = user.id;
+      }
+    } catch (e) {
+      // token 无效，继续作为游客
+    }
+  }
+  
+  if (isGuest) {
+    guestIp = req.ip || req.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
+  }
+  
+  // 过滤任务
+  const allTasks = store.list().filter(task => {
+    if (isGuest) {
+      return task.guestIp === guestIp;
+    } else {
+      return task.userId === userId;
+    }
+  });
+  
+  // 按时间倒序
+  allTasks.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  
   const tasks = allTasks.slice(parseInt(offset), parseInt(offset) + parseInt(limit));
 
   res.json({
@@ -742,6 +783,34 @@ function deleteTask(req, res) {
 
   if (!task) {
     return res.json({ code: 404, message: '任务不存在' });
+  }
+  
+  // 检查权限
+  const authHeader = req.headers.authorization;
+  let canDelete = false;
+  
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      const token = authHeader.slice(7);
+      const jwt = require('jsonwebtoken');
+      const JWT_SECRET = process.env.JWT_SECRET || 'orange-secret-key-change-in-production';
+      const payload = jwt.verify(token, JWT_SECRET);
+      const userDb = require('../userDb');
+      const user = await userDb.getById(payload.sub);
+      if (user && task.userId === user.id) {
+        canDelete = true;
+      }
+    } catch (e) {}
+  }
+  
+  // 游客只能删除自己的任务（通过IP判断）
+  const guestIp = req.ip || req.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
+  if (!canDelete && task.guestIp === guestIp) {
+    canDelete = true;
+  }
+  
+  if (!canDelete) {
+    return res.json({ code: 403, message: '无权删除此任务' });
   }
 
   store.removeWithFiles(taskId);
