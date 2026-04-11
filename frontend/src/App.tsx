@@ -749,7 +749,7 @@ export default function App() {
           return
         } else if (qualities.length === 1) {
           // Single quality - use it directly
-          setQuality(qualities[0].height >= 1080 ? 'height<=1080' : (qualities[0].height >= 720 ? 'height<=720' : ''))
+          setQuality(qualities[0].height >= 720 ? 'height<=720' : '')
         }
       } catch (e) {
         console.log('[quality] Failed to fetch qualities, proceeding with default')
@@ -1457,11 +1457,11 @@ export default function App() {
             <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700">
               <h3 className="text-lg font-bold text-white mb-1">选择画质</h3>
               <p className="text-xs text-slate-400 mb-4">
-                {!isVip && <span className="text-orange-400">1080p及以下 · </span>}会员可下载更高画质
+                {!isVip && <span className="text-orange-400">720p及以下 · </span>}会员可下载更高画质
               </p>
               <div className="space-y-2 max-h-60 overflow-y-auto">
                 {availableQualities.map((q, idx) => {
-                  const isHighQuality = q.height > 1080
+                  const isHighQuality = q.height > 720
                   const canSelect = isVip || !isHighQuality
                   const qualityLabel = q.quality || `${q.height}p`
                   return (
