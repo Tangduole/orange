@@ -263,7 +263,10 @@ export default function App() {
         } else {
           setRemainingDownloads(status?.usage?.remaining ?? GUEST_DAILY_LIMIT)
         }
-      }).catch(() => { setIsVip(false); setRemainingDownloads(GUEST_DAILY_LIMIT) })
+      }).catch(() => { 
+        // API 失败时不要把会员当游客处理，隐藏次数提示即可
+        setRemainingDownloads(-1);
+      })
     } else {
       setIsVip(false)
       // Check localStorage for guest remaining downloads
