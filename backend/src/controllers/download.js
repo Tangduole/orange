@@ -103,10 +103,10 @@ async function createDownload(req, res) {
       const heightMatch = quality.match(/height<=(\d+)/i);
       const selectedHeight = heightMatch ? parseInt(heightMatch[1]) : 99999;
       
-      if (selectedHeight > 1080 && !isVip) {
+      if (selectedHeight > 720 && !isVip) {
         return res.json({
           code: 403,
-          message: `720p及以上画质为会员专享。请升级Pro解锁高清下载。`
+          message: `720p以上画质为会员专享。请升级Pro解锁高清下载。`
         });
       }
     }
@@ -549,7 +549,7 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
     const videoId = videoIdMatch[1];
     
     // 解析用户选择的画质
-    let maxHeight = 1080; // 默认
+    let maxHeight = 720; // 非VIP默认720p
     if (quality) {
       const heightMatch = quality.match(/height[<=]?(\d+)/i);
       if (heightMatch) {
