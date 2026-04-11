@@ -425,6 +425,7 @@ export default function App() {
           setBatchIndex(nextIdx)
           setLoading(true)
           setUrl(nextUrl)
+          autoDownloaded.current = false  // 重置自动下载标记
           showDownloadComplete(`start-${Date.now()}`, nextUrl, false).catch(console.error)
           axios.post(`${API}/download`, {
             url: nextUrl, platform: detectPlatform(nextUrl) || 'auto',
@@ -668,6 +669,7 @@ export default function App() {
     setBatchQueue(urls.map(u => ({ url: u, status: 'pending', progress: 0 })))
     setBatchIndex(0)
     setLoading(true); setError('')
+    autoDownloaded.current = false  // 重置自动下载标记
     try {
       const detectedFirst = detectPlatform(urls[0])
       const r = await axios.post(`${API}/download`, {
