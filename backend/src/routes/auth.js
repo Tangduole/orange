@@ -151,9 +151,8 @@ router.post('/forgot-password', async (req, res) => {
     const token = require('uuid').v4();
     const expiresAt = Date.now() + 30 * 60 * 1000; // 30分钟过期
     
-    // TODO: 存储令牌到数据库（目前内存存储）
-    global.resetTokens = global.resetTokens || {};
-    global.resetTokens[token] = { email, expiresAt };
+    // 存储令牌到数据库
+    await userDb.storeResetToken(token, email, expiresAt);
     
     // 发送邮件
     const { sendPasswordResetEmail } = require('../services/email');
@@ -173,8 +172,8 @@ router.post('/reset-password', async (req, res) => {
     if (!token || !password) return res.status(400).json({ code: 400, message: '缺少参数' });
     
     // 验证令牌
-    const resetData = global.resetTokens?.[token];
-    if (!resetData || resetData.expiresAt < Date.now()) {
+    const resetData = await userDb.getResetToken(token);
+    if (!resetData) {
       return res.status(400).json({ code: 400, message: '令牌已过期' });
     }
     
@@ -188,15 +187,11 @@ router.post('/reset-password', async (req, res) => {
     const bcrypt = require('bcryptjs');
     const passwordHash = bcrypt.hashSync(password, 10);
     
-    // 使用 getByEmail 获取的用户更新
-    // 注意：需要在 userDb 添加 updatePassword 方法
-    await db.execute({
-      sql: 'UPDATE users SET password_hash = ? WHERE email = ?',
-      args: [passwordHash, resetData.email.toLowerCase()]
-    });
+    // 使用 userDb.updatePassword 更新密码
+    await userDb.updatePassword(resetData.email, passwordHash);
     
     // 删除令牌
-    delete global.resetTokens[token];
+    await userDb.deleteResetToken(token);
     
     res.json({ code: 0, message: '密码重置成功' });
   } catch (err) {
