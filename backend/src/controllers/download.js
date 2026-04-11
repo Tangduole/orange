@@ -137,7 +137,7 @@ async function createDownload(req, res) {
     // 抖音链接：走专用下载器（不依赖 yt-dlp）
     const { isDouyinUrl } = require('../services/douyin');
     if (isDouyinUrl(url)) {
-      processDouyin(taskId, url, wantsAsr, normalizedOptions).catch(err => {
+      processDouyin(taskId, url, wantsAsr, normalizedOptions, quality).catch(err => {
         console.error(`[task] ${taskId} douyin failed:`, err);
         store.update(taskId, { status: 'error', progress: 0, error: err.message });
       });
@@ -406,7 +406,7 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
 /**
  * 处理抖音下载（视频/图文，不依赖 yt-dlp）
  */
-async function processDouyin(taskId, url, needAsr, options = ['video']) {
+async function processDouyin(taskId, url, needAsr, options = ['video'], quality = null) {
   try {
     const { parseDouyin } = require('../services/tikhub');
 
