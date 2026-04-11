@@ -7,6 +7,34 @@ const router = express.Router();
 const userDb = require('../userDb');
 const auth = require('../auth');
 
+// 简单的登录频率限制（5分钟内失败5次封IP）
+const loginAttempts = new Map();
+const LOGIN_LIMIT = 5;
+const LOGIN_WINDOW = 5 * 60 * 1000; // 5分钟
+
+function checkLoginRateLimit(ip) {
+  const now = Date.now();
+  const record = loginAttempts.get(ip);
+  
+  if (!record) {
+    loginAttempts.set(ip, { count: 1, firstAttempt: now });
+    return true;
+  }
+  
+  // 超过窗口时间，重置
+  if (now - record.firstAttempt > LOGIN_WINDOW) {
+    loginAttempts.set(ip, { count: 1, firstAttempt: now });
+    return true;
+  }
+  
+  if (record.count >= LOGIN_LIMIT) {
+    return false;
+  }
+  
+  record.count++;
+  return true;
+}
+
 /**
  * POST /api/auth/register
  * 注册
@@ -52,6 +80,13 @@ router.post('/register', async (req, res) => {
  * 登录
  */
 router.post('/login', async (req, res) => {
+  const clientIp = req.ip || req.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
+  
+  // 检查频率限制
+  if (!checkLoginRateLimit(clientIp)) {
+    return res.status(429).json({ code: 429, message: '登录尝试过于频繁，请5分钟后再试' });
+  }
+  
   const { email, password } = req.body;
   
   if (!email || !password) {
