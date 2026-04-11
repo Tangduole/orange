@@ -257,8 +257,8 @@ export default function App() {
       api.getSubscriptionStatus(authToken).then(status => {
         const isPro = status?.subscriptionStatus === 'active'
         setIsVip(isPro)
-        // 非会员（未订阅）也限制每天3次，防止多注册账号绕过
-        setRemainingDownloads(isPro ? -1 : GUEST_DAILY_LIMIT)
+        // 从后端获取剩余下载次数（统一从后端计算，登录游客都是每天3次）
+        setRemainingDownloads(status?.usage?.remaining ?? GUEST_DAILY_LIMIT)
       }).catch(() => { setIsVip(false); setRemainingDownloads(GUEST_DAILY_LIMIT) })
     } else {
       setIsVip(false)
