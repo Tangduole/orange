@@ -46,7 +46,7 @@ router.post('/checkout', auth.required, async (req, res) => {
               }
             },
             product_options: {
-              redirect_url: `${process.env.FRONTEND_URL || 'https://orange-app.vercel.app'}/subscription?success=true`
+              redirect_url: `${process.env.FRONTEND_URL || 'https://orangedl.com'}/subscription?success=true`
             }
           },
           relationships: {
@@ -108,17 +108,20 @@ router.get('/status', auth.required, async (req, res) => {
 router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   const signature = req.headers['x-signature'];
   
-  // 验证签名（只要配置了 LS_WEBHOOK_SECRET 就验证）
-  if (LS_WEBHOOK_SECRET) {
-    const crypto = require('crypto');
-    const hmac = crypto.createHmac('sha256', LS_WEBHOOK_SECRET);
-    hmac.update(req.body);
-    const expectedSignature = hmac.digest('hex');
-    
-    if (signature !== expectedSignature) {
-      console.error('[webhook] Invalid signature');
-      return res.status(403).json({ error: 'Invalid signature' });
-    }
+  // 验证签名（必须有密钥才验证）
+  if (!LS_WEBHOOK_SECRET) {
+    console.error('[webhook] LEMON_SQUEEZY_WEBHOOK_SECRET not configured, webhook disabled');
+    return res.status(500).json({ error: 'Webhook not configured' });
+  }
+  
+  const crypto = require('crypto');
+  const hmac = crypto.createHmac('sha256', LS_WEBHOOK_SECRET);
+  hmac.update(req.body);
+  const expectedSignature = hmac.digest('hex');
+  
+  if (signature !== expectedSignature) {
+    console.error('[webhook] Invalid signature');
+    return res.status(403).json({ error: 'Invalid signature' });
   }
 
   let event;

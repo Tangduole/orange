@@ -100,6 +100,20 @@ export const api = {
     localStorage.removeItem('orange_user');
   },
 
+  // 注销账号
+  async deleteAccount(token: string) {
+    const res = await fetch(`/api/auth/delete-account`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    const data = await res.json();
+    if (data.code !== 0) throw new Error(data.message);
+    return data.data;
+  },
+
   // 忘记密码
   async forgotPassword(email: string) {
     const res = await fetch(`${API_BASE}/api/auth/forgot-password`, {
