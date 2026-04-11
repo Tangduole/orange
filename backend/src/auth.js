@@ -16,7 +16,7 @@ const auth = {
   /**
    * 验证 JWT token（可选，用于获取当前用户）
    */
-  optional(req, res, next) {
+  async optional(req, res, next) {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       req.user = null;
@@ -26,10 +26,8 @@ const auth = {
     const token = authHeader.slice(7);
     try {
       const payload = jwt.verify(token, JWT_SECRET);
-      req.user = userDb.getById(payload.sub);
-      if (!req.user) {
-        req.user = null;
-      }
+      const user = await userDb.getById(payload.sub);
+      req.user = user || null;
     } catch (e) {
       req.user = null;
     }
