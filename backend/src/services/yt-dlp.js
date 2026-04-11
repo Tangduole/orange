@@ -263,7 +263,18 @@ function extractAudio(inputPath, outputPath) {
       .audioBitrate('128k')
       .output(outputPath)
       .on('end', () => resolve(outputPath))
-      .on('error', (err) => reject(new Error(`FFmpeg audio extraction failed: ${err.message}`)))
+      .on('error', (err) => {
+        // 清理可能存在的无效临时文件
+        if (fs.existsSync(outputPath)) {
+          try {
+            fs.unlinkSync(outputPath);
+            console.log(`[extractAudio] Cleaned up partial file: ${outputPath}`);
+          } catch (cleanupErr) {
+            console.error(`[extractAudio] Failed to cleanup: ${cleanupErr.message}`);
+          }
+        }
+        reject(new Error(`FFmpeg audio extraction failed: ${err.message}`));
+      })
       .run();
   });
 }

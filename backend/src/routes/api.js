@@ -3,6 +3,8 @@
  */
 
 const express = require('express');
+const fs = require('fs');
+const path = require('path');
 const {
   createDownload,
   getInfo,
@@ -13,6 +15,10 @@ const {
   clearHistory,
   getVideoInfo
 } = require('../controllers/download');
+
+// 动态读取真实版本号
+const packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf8'));
+const APP_VERSION = packageJson.version || '1.0.0';
 
 const router = express.Router();
 
@@ -42,7 +48,7 @@ router.get('/health', (req, res) => {
     code: 0,
     data: {
       status: 'ok',
-      version: '1.3.0'
+      version: APP_VERSION
     }
   });
 });

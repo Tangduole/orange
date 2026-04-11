@@ -170,8 +170,20 @@ async function createDownload(req, res) {
       return res.json({ code: 0, data: { taskId, status: 'pending', platform: 'xiaohongshu' } });
     }
 
-    // Bilibili 链接：走 Bilibili API
+    // 快手链接：暂不支持
+    if (/kuaishou\.com|v\.kuaishou\.com/i.test(url)) {
+      store.update(taskId, { status: 'error', progress: 0, error: '快手平台暂不支持，请使用其他平台链接' });
+      return res.json({ code: 0, data: { taskId, status: 'error', platform: 'kuaishou', message: '快手平台暂不支持' } });
+    }
 
+    // Bilibili 链接：走 yt-dlp（待完善）
+    if (/bilibili\.com|b23\.tv/i.test(url)) {
+      processDownload(taskId, url, wantsAsr, normalizedOptions, quality).catch(err => {
+        console.error(`[task] ${taskId} bilibili failed:`, err);
+        store.update(taskId, { status: 'error', progress: 0, error: err.message });
+      });
+      return res.json({ code: 0, data: { taskId, status: 'pending', platform: 'bilibili' } });
+    }
 
     // 其他平台：走 yt-dlp
     processDownload(taskId, url, wantsAsr, normalizedOptions, quality).catch(err => {
@@ -219,12 +231,15 @@ async function getInfo(req, res) {
  */
 async function processDownload(taskId, url, needAsr, options = ['video'], quality = null) {
   try {
-    const wantsVideo = options.includes('video');
+    const normalizedOptions = (Array.isArray(options) ? options : [options]).map(
+      o => o === 'asr' || o === 'audio_only' ? 'audio' : o
+    );
+    const wantsVideo = normalizedOptions.includes('video');
     const wantsAudioOnly = normalizedOptions.includes('audio_only');
-    const wantsCopywriting = options.includes('copywriting');
-    const wantsCover = options.includes('cover');
-    const wantsAudio = options.includes('audio');
-    const wantsSubtitle = options.includes('subtitle');
+    const wantsCopywriting = normalizedOptions.includes('copywriting');
+    const wantsCover = normalizedOptions.includes('cover');
+    const wantsAudio = normalizedOptions.includes('audio');
+    const wantsSubtitle = normalizedOptions.includes('subtitle');
 
     // 1. 解析阶段
     store.update(taskId, { status: 'parsing', progress: 5 });
