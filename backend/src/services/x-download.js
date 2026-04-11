@@ -234,17 +234,30 @@ async function downloadX(url, taskId, onProgress) {
 
   // 下载视频
   const videoUrl = info.videoUrl || (info.videoUrls && info.videoUrls[0]?.url) || '';
-  if (videoUrl) {
+  if (videoUrl && videoUrl.startsWith('http')) {
     if (onProgress) onProgress(30, '下载视频');
-    const buf = await httpGet(videoUrl, { responseType: 'arraybuffer', timeout: 120000 });
-    const filename = `${taskId}.mp4`;
-    const filepath = path.join(downloadDir, filename);
-    fs.writeFileSync(filepath, buf);
-    result.filePath = filepath;
-    result.ext = 'mp4';
-    result.downloadUrl = `/download/${filename}`;
-    if (onProgress) onProgress(100);
-    return result;
+    try {
+      const buf = await httpGet(videoUrl, { responseType: 'arraybuffer', timeout: 120000 });
+      if (!buf || buf.length === 0) {
+        throw new Error('视频内容为空');
+      }
+      const filename = `${taskId}.mp4`;
+      const filepath = path.join(downloadDir, filename);
+      fs.writeFileSync(filepath, buf);
+      result.filePath = filepath;
+      result.ext = 'mp4';
+      result.downloadUrl = `/download/${filename}`;
+      result.width = info.width || 0;
+      result.height = info.height || 0;
+      result.quality = `${result.height || 0}p`;
+      if (onProgress) onProgress(100);
+      return result;
+    } catch (downloadErr) {
+      console.error(`[X] Video download failed: ${downloadErr.message}`);
+      // 继续尝试图片下载
+    }
+  } else {
+    console.log(`[X] No valid video URL found`);
   }
 
   // 下载图片
