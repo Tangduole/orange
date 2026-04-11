@@ -116,7 +116,8 @@
         
         if (res.ok && data.code === 0) {
           result.className = 'result success';
-          result.textContent = '✅ ' + data.message;
+          result.textContent = '✅ ' + (data.message || '设置成功！');
+          alert('🎉 设置成功！\n\n邮箱: ' + email + '\nVIP天数: ' + days + '天');
         } else {
           result.className = 'result error';
           result.textContent = '❌ ' + (data.message || '操作失败');
