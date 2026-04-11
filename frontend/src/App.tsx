@@ -681,26 +681,30 @@ export default function App() {
     }
   }
 
-  const doSingleDownload = async () => {
+  const doSingleDownload = async (skipQualityPicker = false) => {
     // First get video info to show quality selection
     setLoading(true); setError('')
-    try {
-      const infoRes = await axios.post(`${API}/video-info`, { url: url.trim() }, { timeout: 30000 })
-      const qualities = infoRes.data.data?.qualities || []
-      
-      if (qualities.length > 1) {
-        // Multiple qualities - show picker
-        setAvailableQualities(qualities)
-        setPendingUrl(url.trim())
-        setShowQualityPicker(true)
-        setLoading(false)
-        return
-      } else if (qualities.length === 1) {
-        // Single quality - use it directly
-        setQuality(qualities[0].height >= 1080 ? 'height<=1080' : (qualities[0].height >= 720 ? 'height<=720' : ''))
+    
+    // 批量模式：跳过画质选择，直接下载
+    if (!skipQualityPicker) {
+      try {
+        const infoRes = await axios.post(`${API}/video-info`, { url: url.trim() }, { timeout: 30000 })
+        const qualities = infoRes.data.data?.qualities || []
+        
+        if (qualities.length > 1) {
+          // Multiple qualities - show picker
+          setAvailableQualities(qualities)
+          setPendingUrl(url.trim())
+          setShowQualityPicker(true)
+          setLoading(false)
+          return
+        } else if (qualities.length === 1) {
+          // Single quality - use it directly
+          setQuality(qualities[0].height >= 1080 ? 'height<=1080' : (qualities[0].height >= 720 ? 'height<=720' : ''))
+        }
+      } catch (e) {
+        console.log('[quality] Failed to fetch qualities, proceeding with default')
       }
-    } catch (e) {
-      console.log('[quality] Failed to fetch qualities, proceeding with default')
     }
     
     // Proceed with download
