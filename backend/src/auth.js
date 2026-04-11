@@ -5,7 +5,12 @@
 const jwt = require('jsonwebtoken');
 const userDb = require('./userDb');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'orange-secret-key-change-in-production';
+// JWT_SECRET 必须设置，不允许 fallback
+if (!process.env.JWT_SECRET) {
+  console.error('❌ JWT_SECRET environment variable is required!');
+  process.exit(1);
+}
+const JWT_SECRET = process.env.JWT_SECRET;
 
 const auth = {
   /**

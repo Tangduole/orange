@@ -108,8 +108,8 @@ router.get('/status', auth.required, async (req, res) => {
 router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
   const signature = req.headers['x-signature'];
   
-  // 验证签名（生产环境必须验证）
-  if (process.env.NODE_ENV === 'production' && LS_WEBHOOK_SECRET) {
+  // 验证签名（只要配置了 LS_WEBHOOK_SECRET 就验证）
+  if (LS_WEBHOOK_SECRET) {
     const crypto = require('crypto');
     const hmac = crypto.createHmac('sha256', LS_WEBHOOK_SECRET);
     hmac.update(req.body);
