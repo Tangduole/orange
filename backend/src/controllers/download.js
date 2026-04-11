@@ -811,7 +811,7 @@ function getStatus(req, res) {
 /**
  * 获取历史记录
  */
-function getHistory(req, res) {
+async function getHistory(req, res) {
   const { limit = 50, offset = 0 } = req.query;
   
   // 获取用户身份
@@ -888,7 +888,7 @@ function getSystemStatus(req, res) {
 /**
  * 删除任务
  */
-function deleteTask(req, res) {
+async function deleteTask(req, res) {
   const { taskId } = req.params;
   const task = store.get(taskId);
 
