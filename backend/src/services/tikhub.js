@@ -418,17 +418,14 @@ async function parseDouyin(url, taskId, onProgress) {
   let maxHeight = 99999; // 默认无限制（不限制画质）
   
   if (hqVideoUrl) {
-    // 检查是否有有效的高度信息
-    const hqHeight = playAddr265?.height || video.play_addr?.height || 0;
-    if (hqHeight > 0) {
-      videoUrl = hqVideoUrl;
-      selectedWidth = playAddr265?.width || video.play_addr?.width || 0;
-      selectedHeight = hqHeight;
-    } else {
-      // 高度为0，使用bit_rate获取高度信息
-      console.log(`[TikHub] hqVideoUrl has no height info, using bit_rate instead`);
-      hqVideoUrl = ''; // 忽略hqVideoUrl
-    }
+    // 优先使用高清原始视频 URL（即使 height=0）
+    videoUrl = hqVideoUrl;
+    // 尝试从其他字段获取高度信息
+    const hqHeight = playAddr265?.height || video.play_addr?.height || 
+                     video.bit_rate?.[0]?.play_addr?.height || 0;
+    selectedWidth = playAddr265?.width || video.play_addr?.width || 0;
+    selectedHeight = hqHeight;
+    console.log(`[TikHub] Using hqVideoUrl with height=${selectedHeight}`);
   }
   
   if (!videoUrl && video.bit_rate && video.bit_rate.length > 0) {
