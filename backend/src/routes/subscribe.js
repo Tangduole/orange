@@ -185,12 +185,10 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
 module.exports = router;
 
 // 管理员 API 密钥验证中间件
-const ADMIN_KEY = process.env.ADMIN_API_KEY;
-
 // 管理员密钥验证
 function requireAdmin(req, res, next) {
   const key = req.headers['x-admin-key'];
-  const adminKey = ADMIN_KEY || process.env.ADMIN_API_KEY;
+  const adminKey = process.env.ADMIN_API_KEY;
   if (!adminKey) {
     console.error('[admin] ADMIN_API_KEY not configured!');
     return res.status(500).json({ code: 500, message: '管理员功能未配置' });
