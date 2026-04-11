@@ -342,9 +342,9 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
       const info = await ytdlp.getInfo(url);
       store.update(taskId, {
         status: 'completed',
-      width: result.width,
-      height: result.height,
-      quality: result.quality,
+        width: 0,
+        height: 0,
+        quality: 'N/A',
         progress: 100,
         title: info.title,
         duration: info.duration,
