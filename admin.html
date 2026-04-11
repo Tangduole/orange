@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>橙子下载器 - Admin</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #ff6b00 0%, #ff8c00 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .card {
+      background: white;
+      border-radius: 20px;
+      padding: 40px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    h1 { color: #ff6b00; margin-bottom: 30px; text-align: center; font-size: 24px; }
+    label { display: block; color: #666; margin-bottom: 8px; font-size: 14px; }
+    input {
+      width: 100%;
+      padding: 14px 16px;
+      border: 2px solid #eee;
+      border-radius: 12px;
+      font-size: 16px;
+      margin-bottom: 20px;
+      transition: border-color 0.3s;
+    }
+    input:focus { outline: none; border-color: #ff6b00; }
+    button {
+      width: 100%;
+      padding: 16px;
+      background: linear-gradient(135deg, #ff6b00, #ff8c00);
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    button:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(255,107,0,0.4); }
+    button:active { transform: translateY(0); }
+    button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .result {
+      margin-top: 20px;
+      padding: 14px;
+      border-radius: 12px;
+      font-size: 14px;
+      display: none;
+    }
+    .result.success { background: #e8f5e9; color: #2e7d32; display: block; }
+    .result.error { background: #ffebee; color: #c62828; display: block; }
+    .days-hint { font-size: 12px; color: #999; margin-top: -15px; margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🍊 Admin Panel</h1>
+    
+    <label>Admin Key</label>
+    <input type="password" id="adminKey" placeholder="输入 Admin Key">
+    
+    <label>用户邮箱</label>
+    <input type="email" id="email" placeholder="例如: 93979580@qq.com">
+    
+    <label>VIP 天数</label>
+    <input type="number" id="days" value="3" min="1" max="365">
+    <p class="days-hint">输入数字，如 3 表示 3 天会员</p>
+    
+    <button id="submit" onclick="grantVip()">设置会员</button>
+    
+    <div id="result" class="result"></div>
+  </div>
+
+  <script>
+    const API = 'https://orange-production-95b9.up.railway.app/api/subscribe';
+    
+    async function grantVip() {
+      const key = document.getElementById('adminKey').value;
+      const email = document.getElementById('email').value;
+      const days = parseInt(document.getElementById('days').value);
+      const btn = document.getElementById('submit');
+      const result = document.getElementById('result');
+      
+      if (!key || !email || !days) {
+        result.className = 'result error';
+        result.textContent = '请填写所有字段';
+        return;
+      }
+      
+      btn.disabled = true;
+      btn.textContent = '处理中...';
+      result.className = 'result';
+      result.style.display = 'none';
+      
+      try {
+        const res = await fetch(API + '/admin/grant-vip', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Admin-Key': key
+          },
+          body: JSON.stringify({ email, days })
+        });
+        
+        const data = await res.json();
+        
+        if (res.ok && data.code === 0) {
+          result.className = 'result success';
+          result.textContent = '✅ ' + data.message;
+        } else {
+          result.className = 'result error';
+          result.textContent = '❌ ' + (data.message || '操作失败');
+        }
+      } catch (e) {
+        result.className = 'result error';
+        result.textContent = '❌ 网络错误';
+      }
+      
+      btn.disabled = false;
+      btn.textContent = '设置会员';
+    }
+  </script>
+</body>
+</html>
