@@ -137,7 +137,9 @@ async function createDownload(req, res) {
     // 抖音链接：走专用下载器（不依赖 yt-dlp）
     const { isDouyinUrl } = require('../services/douyin');
     if (isDouyinUrl(url)) {
-      processDouyin(taskId, url, wantsAsr, normalizedOptions, quality).catch(err => {
+      // 非VIP用户限制画质为480p
+      const maxQuality = isVip ? null : 'height<=480';
+      processDouyin(taskId, url, wantsAsr, normalizedOptions, maxQuality).catch(err => {
         console.error(`[task] ${taskId} douyin failed:`, err);
         store.update(taskId, { status: 'error', progress: 0, error: err.message });
       });
@@ -419,7 +421,7 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
         downloadedBytes: downloaded || 0,
         totalBytes: total || 0
       });
-    });
+    }, quality);
 
     const update = {
       status: 'completed',

@@ -329,7 +329,16 @@ async function downloadYouTubeViaAPI(url, taskId, onProgress, quality) {
   };
 }
 
-async function parseDouyin(url, taskId, onProgress) {
+async function parseDouyin(url, taskId, onProgress, quality = null) {
+  // 解析画质限制
+  let maxHeight = 99999; // 默认无限制
+  if (quality && quality.includes('height<=')) {
+    const heightMatch = quality.match(/height<=(\d+)/);
+    if (heightMatch) {
+      maxHeight = parseInt(heightMatch[1]);
+    }
+  }
+  
   // 提取 aweme_id
   let awemeId;
   const videoMatch = url.match(/\/video\/(\d+)/);
@@ -414,18 +423,22 @@ async function parseDouyin(url, taskId, onProgress) {
   let selectedWidth = 0;
   let selectedHeight = 0;
   
-  // 解析quality参数获取最大高度限制
-  let maxHeight = 99999; // 默认无限制（不限制画质）
-  
   if (hqVideoUrl) {
     // 优先使用高清原始视频 URL（即使 height=0）
-    videoUrl = hqVideoUrl;
-    // 尝试从其他字段获取高度信息
+    // 但如果非VIP用户限制了画质，需要检查
     const hqHeight = playAddr265?.height || video.play_addr?.height || 
                      video.bit_rate?.[0]?.play_addr?.height || 0;
-    selectedWidth = playAddr265?.width || video.play_addr?.width || 0;
-    selectedHeight = hqHeight;
-    console.log(`[TikHub] Using hqVideoUrl with height=${selectedHeight}`);
+    
+    // 非VIP且画质受限，忽略hqVideoUrl
+    if (maxHeight < 99999 && hqHeight > maxHeight) {
+      console.log(`[TikHub] hqVideoUrl (${hqHeight}p) exceeds maxHeight (${maxHeight}p), ignoring`);
+      hqVideoUrl = '';
+    } else {
+      videoUrl = hqVideoUrl;
+      selectedWidth = playAddr265?.width || video.play_addr?.width || 0;
+      selectedHeight = hqHeight;
+      console.log(`[TikHub] Using hqVideoUrl with height=${selectedHeight}`);
+    }
   }
   
   if (!videoUrl && video.bit_rate && video.bit_rate.length > 0) {
