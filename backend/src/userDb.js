@@ -184,15 +184,17 @@ const userDb = {
    * 更新订阅状态
    */
   async updateSubscription(email, status, endsAt, lemonCustomerId, lemonSubscriptionId) {
+    // 取消或过期时显式降级
+    const newTier = (status === 'active' || status === 'past_due') ? 'pro' : 'free';
     await db.execute({
       sql: `UPDATE users SET 
         subscription_status = ?,
         subscription_ends_at = ?,
         lemon_customer_id = ?,
         lemon_subscription_id = ?,
-        tier = CASE WHEN ? = 'active' THEN 'pro' ELSE tier END
+        tier = ?
       WHERE email = ?`,
-      args: [status, endsAt, lemonCustomerId, lemonSubscriptionId, status, email.toLowerCase()]
+      args: [status, endsAt, lemonCustomerId, lemonSubscriptionId, newTier, email.toLowerCase()]
     });
   },
 
@@ -249,8 +251,9 @@ const userDb = {
         limit
       };
     } catch (e) {
-      console.error('[userDb] checkGuestDownload error:', e);
-      return { allowed: true, remaining: -1 };
+      console.error('[userDb] checkGuestDownload error:', e.message);
+      // 数据库异常时拒绝访问，等恢复后再放行
+      return { allowed: false, remaining: 0 };
     }
   },
 
