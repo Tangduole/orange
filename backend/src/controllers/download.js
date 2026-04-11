@@ -521,7 +521,7 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
     // 从 TikHub 获取视频信息
     const API_KEY_YT = 'nbwMHtwa3GuiuW/CKoyvygj8CWGeerdC7CXatWGcWNXgoE6uOCecUg+uLw==';
     const { data } = await axios.get(
-      `https://api.tikhub.io/api/v1/youtube/web/get_video_info?video_id=${videoId}`,
+      `https://api.tikhub.io/api/v1/youtube/web/get_video_info?video_id=${videoId}&need_format=true`,
       { headers: { Authorization: `Bearer ${API_KEY_YT}` }, timeout: 30000 }
     );
     
@@ -843,7 +843,7 @@ async function getVideoInfo(req, res) {
       const API_KEY_YT = 'lrwNPvEUzE2ph0K5Oces5Q/RNRHRZ5tTzTTogR7aU/mj1li7O0XfZgWPCQ==';
       const axios = require('axios');
       const { data } = await axios.get(
-        `https://api.tikhub.io/api/v1/youtube/web/get_video_info?video_id=${videoIdMatch[1]}`,
+        `https://api.tikhub.io/api/v1/youtube/web/get_video_info?video_id=${videoIdMatch[1]}&need_format=true`,
         { headers: { Authorization: `Bearer ${API_KEY_YT}` }, timeout: 30000 }
       );
       
