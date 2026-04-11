@@ -190,18 +190,14 @@ router.post('/admin/grant-vip', async (req, res) => {
     const { email, days = 365 } = req.body;
     if (!email) return res.status(400).json({ code: 400, message: '请提供邮箱' });
     
-    const { User } = require('../models/user');
-    const user = await User.findOne({ email: email.toLowerCase() });
-    if (!user) return res.status(404).json({ code: 404, message: '用户不存在' });
+    const endsAt = Math.floor(Date.now() / 1000) + days * 24 * 60 * 60;
+    await userDb.upgradeToPro(email.toLowerCase(), endsAt);
     
-    const endsAt = Date.now() + days * 24 * 60 * 60 * 1000;
-    await userDb.upgradeToPro(email, endsAt);
-    
-    console.log(`[admin] VIP granted to ${email} for ${days} days`);
+    console.log(`[admin] VIP granted to ${email} for ${days} days, expires: ${new Date(endsAt * 1000).toISOString()}`);
     res.json({ code: 0, message: `已赋予 ${email} 会员资格 ${days} 天` });
   } catch (err) {
     console.error('[admin] Grant VIP error:', err);
-    res.status(500).json({ code: 500, message: '操作失败' });
+    res.status(500).json({ code: 500, message: '操作失败: ' + err.message });
   }
 });
 
