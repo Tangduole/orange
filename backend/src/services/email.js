@@ -3,7 +3,14 @@
  */
 
 const { Resend } = require('resend');
-const resend = new Resend(process.env.RESEND_API_KEY);
+
+// Graceful fallback if RESEND_API_KEY is not configured
+let resend = null;
+if (!process.env.RESEND_API_KEY) {
+  console.warn('[email] RESEND_API_KEY not configured, email sending disabled');
+} else {
+  resend = new Resend(process.env.RESEND_API_KEY);
+}
 
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'Orange <noreply@orangedl.com>';
 const APP_URL = process.env.APP_URL || 'https://frontend-roan-psi-68.vercel.app';
@@ -12,6 +19,11 @@ const APP_URL = process.env.APP_URL || 'https://frontend-roan-psi-68.vercel.app'
  * 发送密码重置邮件
  */
 async function sendPasswordResetEmail(email, token) {
+  if (!resend) {
+    console.warn('[email] Resend not configured, skipping email send');
+    return { success: false, error: 'Email service not configured' };
+  }
+  
   const resetUrl = `${APP_URL}/reset-password?token=${token}`;
   
   const html = `

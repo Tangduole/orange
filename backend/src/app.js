@@ -33,7 +33,12 @@ app.use('/api/subscribe', subscribeRouter);
 
 // 静态提供下载文件（带正确的 Content-Disposition 头）
 app.use('/download', (req, res, next) => {
-  const filePath = path.join(DOWNLOAD_DIR, req.path);
+  // 防止路径遍历攻击
+  const normalized = path.normalize(req.path);
+  if (normalized.includes('..')) {
+    return res.status(403).send('Forbidden');
+  }
+  const filePath = path.join(DOWNLOAD_DIR, normalized);
   if (fs.existsSync(filePath)) {
     const filename = path.basename(filePath);
     const ext = path.extname(filename).toLowerCase();
