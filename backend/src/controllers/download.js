@@ -511,12 +511,26 @@ async function processX(taskId, url, needAsr, options = ['video']) {
 async function processYouTube(taskId, url, needAsr, options = ['video'], quality = null) {
   try {
     const axios = require('axios');
+    const path = require('path');
+    const fs = require('fs');
+    const { spawn } = require('child_process');
+    const ytdlp = require('../services/yt-dlp');
+    
     store.update(taskId, { status: 'parsing', progress: 5 });
     
     // 获取视频 ID
     const videoIdMatch = url.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/);
     if (!videoIdMatch) throw new Error('Invalid YouTube URL');
     const videoId = videoIdMatch[1];
+    
+    // 解析用户选择的画质
+    let maxHeight = 1080; // 默认
+    if (quality) {
+      const heightMatch = quality.match(/height[<=]?(\d+)/i);
+      if (heightMatch) {
+        maxHeight = parseInt(heightMatch[1]);
+      }
+    }
     
     // ========== 方案1: TikHub API ==========
     try {
@@ -530,55 +544,116 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
         const videoData = data.data;
         const title = videoData.title || 'YouTube Video';
         const videos = videoData.videos?.items || [];
+        const audios = videoData.audios?.items || [];
         
-        // 解析用户选择的画质
-        let maxHeight = 1080; // 默认
-        if (quality) {
-          const heightMatch = quality.match(/height[<=]?(\d+)/i);
-          if (heightMatch) {
-            maxHeight = parseInt(heightMatch[1]);
-          }
-        }
-        
-        // 找到符合画质要求的最佳视频
-        let bestVideo = null;
+        // 1. 先找符合画质要求且有音频的视频
+        let bestVideoWithAudio = null;
         for (const v of videos) {
-          if (v.url && v.mimeType?.startsWith('video/')) {
+          if (v.url && v.mimeType?.startsWith('video/') && v.hasAudio) {
             const vHeight = v.height || 0;
             if (vHeight <= maxHeight) {
-              if (!bestVideo || vHeight > (bestVideo.height || 0)) {
-                bestVideo = v;
+              if (!bestVideoWithAudio || vHeight > (bestVideoWithAudio.height || 0)) {
+                bestVideoWithAudio = v;
               }
             }
           }
         }
         
-        // 如果没有找到符合要求的，降级到最高画质
-        if (!bestVideo) {
-          for (const v of videos) {
-            if (v.url && v.mimeType?.startsWith('video/')) {
-              if (!bestVideo || (v.height || 0) > (bestVideo.height || 0)) {
-                bestVideo = v;
-              }
+        // 2. 如果没有带音频的，找最高的视频准备合并音频
+        let bestVideoNoAudio = null;
+        let bestVideoHeight = 0;
+        for (const v of videos) {
+          if (v.url && v.mimeType?.startsWith('video/') && !v.hasAudio) {
+            const vHeight = v.height || 0;
+            if (vHeight <= maxHeight && vHeight > bestVideoHeight) {
+              bestVideoNoAudio = v;
+              bestVideoHeight = vHeight;
             }
           }
         }
         
-        if (bestVideo && bestVideo.url) {
-          // TikHub 方案成功
+        // 选择最佳方案
+        let finalVideo = bestVideoWithAudio || bestVideoNoAudio;
+        
+        if (finalVideo && finalVideo.url) {
+          const outputPath = path.join(__dirname, '../../downloads', `${taskId}.mp4`);
+          
+          // 如果视频没有音频，需要下载并合并音频
+          if (!finalVideo.hasAudio && audios.length > 0) {
+            console.log(`[task] ${taskId} video has no audio, need to merge with audio`);
+            
+            // 获取最佳音频 (mp4 格式优先)
+            const bestAudio = audios.find(a => a.mimeType?.includes('mp4')) || audios[0];
+            const videoPath = path.join(__dirname, '../../downloads', `${taskId}_video.mp4`);
+            const audioPath = path.join(__dirname, '../../downloads', `${taskId}_audio.mp3`);
+            
+            // 下载视频
+            store.update(taskId, { status: 'downloading', progress: 10 });
+            
+            // 使用 axios 下载视频
+            const videoResponse = await axios.get(finalVideo.url, { responseType: 'arraybuffer', timeout: 120000 });
+            fs.writeFileSync(videoPath, Buffer.from(videoResponse.data));
+            store.update(taskId, { progress: 50 });
+            
+            // 下载音频
+            const audioResponse = await axios.get(bestAudio.url, { responseType: 'arraybuffer', timeout: 60000 });
+            fs.writeFileSync(audioPath, Buffer.from(audioResponse.data));
+            store.update(taskId, { progress: 70 });
+            
+            // 使用 ffmpeg 合并
+            await new Promise((resolve, reject) => {
+              const ffmpeg = spawn('ffmpeg', [
+                '-i', videoPath,
+                '-i', audioPath,
+                '-c:v', 'copy',
+                '-c:a', 'aac',
+                '-y',
+                outputPath
+              ]);
+              
+              ffmpeg.on('close', (code) => {
+                if (code === 0) {
+                  // 删除临时文件
+                  fs.unlinkSync(videoPath);
+                  fs.unlinkSync(audioPath);
+                  resolve();
+                } else {
+                  reject(new Error(`ffmpeg exited with code ${code}`));
+                }
+              });
+              ffmpeg.on('error', reject);
+            });
+            
+            store.update(taskId, {
+              status: 'completed',
+              width: finalVideo.width || 0,
+              height: finalVideo.height || 0,
+              quality: `${finalVideo.width || 0}x${finalVideo.height || 0}`,
+              progress: 100,
+              title: title,
+              thumbnailUrl: videoData.thumbnails?.[0]?.url || '',
+              downloadUrl: `/download/${taskId}.mp4`,
+              filePath: outputPath,
+              ext: 'mp4'
+            });
+            console.log(`[task] ${taskId} youtube completed via TikHub with audio merge`);
+            return;
+          }
+          
+          // 视频本身有音频，直接返回下载链接
           store.update(taskId, {
             status: 'completed',
-            width: bestVideo.width || 0,
-            height: bestVideo.height || 0,
-            quality: `${bestVideo.width || 0}x${bestVideo.height || 0}`,
+            width: finalVideo.width || 0,
+            height: finalVideo.height || 0,
+            quality: `${finalVideo.width || 0}x${finalVideo.height || 0}`,
             progress: 100,
             title: title,
             thumbnailUrl: videoData.thumbnails?.[0]?.url || '',
-            downloadUrl: bestVideo.url,
+            downloadUrl: finalVideo.url,
             directLink: true,
-            ext: bestVideo.extension || 'mp4'
+            ext: finalVideo.extension || 'mp4'
           });
-          console.log(`[task] ${taskId} youtube completed via TikHub`);
+          console.log(`[task] ${taskId} youtube completed via TikHub (direct)`);
           return;
         }
       }
@@ -588,37 +663,9 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
     
     // ========== 方案2: yt-dlp 直接下载 ==========
     console.log(`[task] ${taskId} using yt-dlp fallback for YouTube`);
-    const ytdlp = require('../services/yt-dlp');
-    const path = require('path');
-    const fs = require('fs');
-    
     const outputPath = path.join(__dirname, '../../downloads', `${taskId}.mp4`);
     
-    // 构建 yt-dlp 参数
-    const args = [
-      url,
-      '-o', outputPath,
-      '--no-warnings',
-      '--newline',
-      '--progress',
-      '--retries', '3',
-      '--fragment-retries', '3',
-      '--socket-timeout', '60'
-    ];
-    
-    // 解析画质参数
-    let maxHeight = 1080;
-    if (quality) {
-      const heightMatch = quality.match(/height[<=]?(\d+)/i);
-      if (heightMatch) {
-        maxHeight = parseInt(heightMatch[1]);
-        args.push('-f', `bestvideo[height<=${maxHeight}]+bestaudio/best[height<=${maxHeight}]`);
-      }
-    } else {
-      // 默认 1080p
-      args.push('-f', `bestvideo[height<=1080]+bestaudio/best[height<=1080]`);
-    }
-    
+    // yt-dlp 自动处理视频+音频合并
     await ytdlp.download(url, taskId, (percent, speed, eta, downloaded, total) => {
       store.update(taskId, {
         status: 'downloading',
