@@ -52,10 +52,11 @@ const auth = {
         return res.json({ code: 401, message: '用户不存在，请重新登录' });
       }
       req.user = user;
+      return next();
     } catch (e) {
+      console.error('[auth] required error:', e.message);
       return res.json({ code: 401, message: 'Token 无效或已过期' });
     }
-    next();
   },
 
   /**
