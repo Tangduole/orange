@@ -90,6 +90,15 @@ if (fs.existsSync(frontendDist)) {
   });
 }
 
+// 全局错误处理 - 防止未捕获的 async 错误导致进程崩溃
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] Uncaught Exception:', err.message);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[FATAL] Unhandled Rejection at:', promise, 'reason:', reason?.message || reason);
+});
+
 // 启动
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Orange后端启动成功`);
