@@ -13,14 +13,15 @@ if (fs.existsSync(envPath)) {
   try { require('dotenv').config({ path: envPath }); } catch {}
 }
 
-// API Keys - 必须从环境变量读取
+// API Keys - 从环境变量读取
 const API_KEY_XHS = process.env.TIKHUB_API_KEY_XHS;
 const API_KEY_YT = process.env.TIKHUB_API_KEY_YT;
 const API_KEY_DOUYIN = process.env.TIKHUB_API_KEY_DOUYIN;
 
-if (!API_KEY_XHS) throw new Error('TIKHUB_API_KEY_XHS not set');
-if (!API_KEY_YT) throw new Error('TIKHUB_API_KEY_YT not set');
-if (!API_KEY_DOUYIN) throw new Error('TIKHUB_API_KEY_DOUYIN not set');
+// 记录警告（不抛错，让服务能启动）
+if (!API_KEY_XHS) console.warn('[tikhub] TIKHUB_API_KEY_XHS not set');
+if (!API_KEY_YT) console.warn('[tikhub] TIKHUB_API_KEY_YT not set');
+if (!API_KEY_DOUYIN) console.warn('[tikhub] TIKHUB_API_KEY_DOUYIN not set');
 
 const API_KEY = API_KEY_XHS; // Default to XHS key
 const API_BASE = 'https://api.tikhub.io';
