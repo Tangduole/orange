@@ -44,7 +44,9 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
 
   const formatDate = (ts: number | null) => {
     if (!ts) return 'N/A';
-    return new Date(ts).toLocaleDateString('zh-CN');
+    // ts 可能是秒或毫秒，检测：如果大于10亿则是秒，转毫秒
+    const ms = ts > 10000000000 ? ts : ts * 1000;
+    return new Date(ms).toLocaleDateString('zh-CN');
   };
 
   return (
