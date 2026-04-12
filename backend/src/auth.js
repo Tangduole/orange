@@ -16,7 +16,7 @@ const auth = {
   /**
    * 验证 JWT token（可选，用于获取当前用户）
    */
-  async optional(req, res, next) {
+  optional(req, res, next) {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       req.user = null;
@@ -24,39 +24,45 @@ const auth = {
     }
 
     const token = authHeader.slice(7);
-    try {
-      const payload = jwt.verify(token, JWT_SECRET);
-      const user = await userDb.getById(payload.sub);
-      req.user = user || null;
-      return next();
-    } catch (e) {
-      req.user = null;
-      return next();
-    }
+    Promise.resolve()
+      .then(() => jwt.verify(token, JWT_SECRET))
+      .then(payload => userDb.getById(payload.sub))
+      .then(user => {
+        req.user = user || null;
+        next();
+      })
+      .catch(() => {
+        req.user = null;
+        next();
+      });
   },
 
   /**
    * 要求登录
    */
-  async required(req, res, next) {
+  required(req, res, next) {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.json({ code: 401, message: '请先登录' });
     }
 
     const token = authHeader.slice(7);
-    try {
-      const payload = jwt.verify(token, JWT_SECRET);
-      const user = await userDb.getById(payload.sub);
-      if (!user) {
-        return res.json({ code: 401, message: '用户不存在，请重新登录' });
-      }
-      req.user = user;
-      return next();
-    } catch (e) {
-      console.error('[auth] required error:', e.message);
-      return res.json({ code: 401, message: 'Token 无效或已过期' });
-    }
+
+    // 用 Promise 包裹确保所有异常都捕获
+    Promise.resolve()
+      .then(() => jwt.verify(token, JWT_SECRET))
+      .then(payload => userDb.getById(payload.sub))
+      .then(user => {
+        if (!user) {
+          return res.json({ code: 401, message: '用户不存在，请重新登录' });
+        }
+        req.user = user;
+        next();
+      })
+      .catch(e => {
+        console.error('[auth] required error:', e.message);
+        res.json({ code: 401, message: 'Token 无效或已过期' });
+      });
   },
 
   /**
