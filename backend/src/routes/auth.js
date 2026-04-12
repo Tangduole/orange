@@ -136,9 +136,14 @@ router.post('/login', async (req, res) => {
     return res.json({ code: 400, message: '邮箱和密码不能为空' });
   }
   
+  // 先检查邮箱是否存在，再验证密码
+  const userByEmail = await userDb.getByEmail(email);
+  if (!userByEmail) {
+    return res.json({ code: 401, message: '该邮箱未注册，请先注册' });
+  }
   const user = await userDb.verifyPassword(email, password);
   if (!user) {
-    return res.json({ code: 401, message: '邮箱或密码错误' });
+    return res.json({ code: 401, message: '密码错误' });
   }
   
   const token = auth.generateToken(user);
