@@ -266,8 +266,7 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
               </div>
             </div>
           </div>
-        )
-        </div>
+        )}
 
         {/* FAQ */}
         <div className="mt-12">
