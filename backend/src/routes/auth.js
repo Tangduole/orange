@@ -141,11 +141,6 @@ router.post('/login', async (req, res) => {
     return res.json({ code: 401, message: '密码错误' });
   }
   
-  // 检查邮箱是否已验证
-  if (user.email_verified !== 1) {
-    return res.json({ code: 403, message: '请先验证邮箱，验证链接已发送到您的邮箱' });
-  }
-  
   const token = auth.generateToken(user);
   
   res.json({
