@@ -337,7 +337,7 @@ const userDb = {
     } catch (e) {
       console.error('[userDb] incrementGuestDownload error:', e);
     }
-  }
+  },
 
   /**
    * 存储邮箱验证令牌
@@ -347,13 +347,17 @@ const userDb = {
       sql: `UPDATE users SET verification_token = ?, verification_expires_at = ? WHERE id = ?`,
       args: [token, expiresAt, userId]
     });
-  }
+  },
 
   /**
    * 验证邮箱令牌
    */
   async verifyEmail(token) {
-    const user = await db.getFirst(`SELECT * FROM users WHERE verification_token = ?`, [token]);
+    const result = await db.execute({
+      sql: 'SELECT * FROM users WHERE verification_token = ?',
+      args: [token]
+    });
+    const user = result.rows?.[0];
     if (!user) {
       return { success: false, error: 'Invalid token' };
     }
@@ -365,7 +369,18 @@ const userDb = {
       args: [user.id]
     });
     return { success: true, userId: user.id, email: user.email };
-  }
+  },
+
+  /**
+   * 直接验证邮箱（不检查token，用于邮件发送失败时绕过验证）
+   */
+  async verifyEmailDirectly(userId) {
+    await db.execute({
+      sql: `UPDATE users SET email_verified = 1, verification_token = NULL, verification_expires_at = NULL WHERE id = ?`,
+      args: [userId]
+    });
+    return { success: true };
+  },
 
   /**
    * 检查邮箱是否已验证
