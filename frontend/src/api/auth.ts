@@ -66,6 +66,16 @@ export const api = {
     return data.data;
   },
 
+  // 获取用户使用量（下载次数等）
+  async getUsage(token: string) {
+    const res = await fetch(`${API_BASE}/api/subscribe/status`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (data.code !== 0) throw new Error(data.message);
+    return data.data.usage;
+  },
+
   // 订阅 API
   async getSubscriptionStatus(token: string) {
     const res = await fetch(`${API_BASE}/api/subscribe/status`, {
