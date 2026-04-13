@@ -14,6 +14,7 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
   const [upgrading, setUpgrading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
   
 
   useEffect(() => {
@@ -229,9 +230,16 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
                 </ul>
               </div>
               <p className="text-white text-sm mb-4">确定要注销账号吗？</p>
+              <input
+                type="password"
+                value={deletePassword}
+                onChange={(e) => setDeletePassword(e.target.value)}
+                placeholder="请输入登录密码确认"
+                className="w-full px-3 py-2 mb-4 bg-slate-900/50 border border-slate-700 rounded-lg text-sm text-white placeholder:text-slate-500"
+              />
               <div className="flex gap-3">
                 <button
-                  onClick={() => setShowDeleteConfirm(false)}
+                  onClick={() => { setShowDeleteConfirm(false); setDeletePassword(''); setError(''); }}
                   className="flex-1 py-2.5 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition"
                 >
                   取消
@@ -239,13 +247,21 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
                 <button
                   onClick={async () => {
                     setDeleting(true)
+                    if (!deletePassword) {
+                      setError('请输入密码')
+                      return
+                    }
+                    setError('')
+                    setDeleting(true)
                     try {
+                      // 先验证密码
+                      await api.login(status?.email || '', deletePassword)
+                      // 密码正确，注销账号
                       await api.deleteAccount(token)
                       onLogout()
                     } catch (err: any) {
-                      setError(err.message || '注销失败')
+                      setError(err.message || '注销失败，密码可能不正确')
                       setDeleting(false)
-                      setShowDeleteConfirm(false)
                     }
                   }}
                   disabled={deleting}
