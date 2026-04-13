@@ -84,34 +84,17 @@ router.post('/register', async (req, res) => {
   try {
     const user = await userDb.create(email, password);
     
-    // 发送邮箱验证（如果启用）
-    const emailVerificationEnabled = process.env.EMAIL_VERIFICATION_ENABLED === 'true';
-    if (emailVerificationEnabled) {
-      const { sendVerificationEmail } = require('../services/email');
-      const token = require('uuid').v4();
-      const expiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24小时过期
-      await userDb.storeVerificationToken(user.id, token, expiresAt);
-      await sendVerificationEmail(email, token);
-      
-      return res.json({
-        code: 0,
-        message: '注册成功，请查收验证邮件',
-        data: { needsVerification: true }
-      });
-    }
+    // 发送邮箱验证邮件
+    const { sendVerificationEmail } = require('../services/email');
+    const token = require('uuid').v4();
+    const expiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24小时过期
+    await userDb.storeVerificationToken(user.id, token, expiresAt);
+    await sendVerificationEmail(email, token);
     
-    const token = auth.generateToken(user);
-    
-    res.json({
+    return res.json({
       code: 0,
-      data: {
-        token,
-        user: {
-          id: user.id,
-          email: user.email,
-          tier: user.tier
-        }
-      }
+      message: '注册成功，请查收验证邮件完成邮箱验证',
+      data: { needsVerification: true }
     });
   } catch (e) {
     res.json({ code: 400, message: e.message });
@@ -144,6 +127,11 @@ router.post('/login', async (req, res) => {
   const user = await userDb.verifyPassword(email, password);
   if (!user) {
     return res.json({ code: 401, message: '密码错误' });
+  }
+  
+  // 检查邮箱是否已验证
+  if (user.email_verified !== 1) {
+    return res.json({ code: 403, message: '请先验证邮箱，验证链接已发送到您的邮箱' });
   }
   
   const token = auth.generateToken(user);
@@ -249,6 +237,97 @@ router.post('/reset-password', async (req, res) => {
 });
 
 module.exports = router;
+
+// 验证邮箱
+router.get('/verify-email', async (req, res) => {
+  try {
+    const { token } = req.query;
+    if (!token) {
+      return res.status(400).json({ code: 400, message: 'Missing token' });
+    }
+    
+    const result = await userDb.verifyEmail(token);
+    if (!result.success) {
+      // 返回 HTML 页面显示错误
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <title>邮箱验证失败 - Orange</title>
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #1a1a2e; color: white; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; }
+            .container { text-align: center; padding: 40px; background: #16213e; border-radius: 16px; max-width: 400px; }
+            h1 { color: #ff6b35; margin-bottom: 20px; }
+            p { color: #ccc; line-height: 1.6; }
+            .btn { display: inline-block; background: #ff6b35; color: white; text-decoration: none; padding: 12px 24px; border-radius: 8px; margin-top: 20px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>❌ 验证失败</h1>
+            <p>${result.error}</p>
+            <p>可能原因：链接已过期或无效。</p>
+            <a href="https://orangedl.com" class="btn">返回首页</a>
+          </div>
+        </body>
+        </html>
+      `);
+    }
+    
+    // 返回成功 HTML 页面
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>邮箱验证成功 - Orange</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #1a1a2e; color: white; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; }
+          .container { text-align: center; padding: 40px; background: #16213e; border-radius: 16px; max-width: 400px; }
+          h1 { color: #4ade80; margin-bottom: 20px; }
+          p { color: #ccc; line-height: 1.6; }
+          .btn { display: inline-block; background: #ff6b35; color: white; text-decoration: none; padding: 12px 24px; border-radius: 8px; margin-top: 20px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>✅ 验证成功</h1>
+          <p>您的邮箱已验证成功！</p>
+          <p>现在可以登录账号使用 Orange 下载器了。</p>
+          <a href="https://orangedl.com" class="btn">开始使用</a>
+        </div>
+      </body>
+      </html>
+    `);
+  } catch (err) {
+    console.error('[auth] Verify email error:', err);
+    res.status(500).send(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>邮箱验证失败 - Orange</title>
+        <style>
+          body { font-family: sans-serif; background: #1a1a2e; color: white; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; }
+          .container { text-align: center; padding: 40px; }
+          h1 { color: #ff6b35; }
+          .btn { display: inline-block; background: #ff6b35; color: white; text-decoration: none; padding: 12px 24px; border-radius: 8px; margin-top: 20px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1>❌ 验证失败</h1>
+          <p>服务器错误，请稍后重试。</p>
+          <a href="https://orangedl.com" class="btn">返回首页</a>
+        </div>
+      </body>
+      </html>
+    `);
+  }
+});
 
 // 注销账号
 router.post('/delete-account', auth.required, async (req, res) => {
