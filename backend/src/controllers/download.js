@@ -551,7 +551,7 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
     // 解析用户选择的画质
     let maxHeight = 720; // 非VIP默认720p
     if (quality) {
-      const heightMatch = quality.match(/height[<=]?(\d+)/i);
+      const heightMatch = quality.match(/height<=?(\d+)/i);
       if (heightMatch) {
         maxHeight = parseInt(heightMatch[1]);
       }
