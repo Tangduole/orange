@@ -84,18 +84,30 @@ router.post('/register', async (req, res) => {
   try {
     const user = await userDb.create(email, password);
     
-    // 发送邮箱验证邮件
-    const { sendVerificationEmail } = require('../services/email');
-    const token = require('uuid').v4();
-    const expiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24小时过期
-    await userDb.storeVerificationToken(user.id, token, expiresAt);
-    await sendVerificationEmail(email, token);
-    
-    return res.json({
-      code: 0,
-      message: '注册成功，请查收验证邮件完成邮箱验证',
-      data: { needsVerification: true }
-    });
+    // 发送邮箱验证邮件（失败不影响注册）
+    try {
+      const { sendVerificationEmail } = require('../services/email');
+      const token = require('uuid').v4();
+      const expiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24小时过期
+      await userDb.storeVerificationToken(user.id, token, expiresAt);
+      await sendVerificationEmail(email, token);
+      
+      return res.json({
+        code: 0,
+        message: '注册成功，请查收验证邮件完成邮箱验证',
+        data: { needsVerification: true }
+      });
+    } catch (emailErr) {
+      // 邮件发送失败时，自动验证邮箱让用户能登录
+      console.warn('[auth] Email sending failed, auto-verifying:', emailErr.message);
+      await userDb.verifyEmailDirectly(user.id);
+      
+      return res.json({
+        code: 0,
+        message: '注册成功',
+        data: { needsVerification: false }
+      });
+    }
   } catch (e) {
     res.json({ code: 400, message: e.message });
   }
@@ -236,8 +248,6 @@ router.post('/reset-password', async (req, res) => {
   }
 });
 
-module.exports = router;
-
 // 验证邮箱
 router.get('/verify-email', async (req, res) => {
   try {
@@ -344,3 +354,5 @@ router.post('/delete-account', auth.required, async (req, res) => {
     res.status(500).json({ code: 500, message: '注销失败' });
   }
 });
+
+module.exports = router;
