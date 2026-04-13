@@ -9,7 +9,7 @@ interface SubscriptionPageProps {
 
 export default function SubscriptionPage({ token, onBack, onLogout }: SubscriptionPageProps) {
   const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState<any>(null);
+  const [userEmail, setUserEmail] = useState('');
   const [error, setError] = useState('');
   const [upgrading, setUpgrading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -23,7 +23,11 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
 
   const loadStatus = async () => {
     try {
-      const data = await api.getSubscriptionStatus(token);
+      const [userData, data] = await Promise.all([
+        api.getMe(token),
+        api.getSubscriptionStatus(token)
+      ]);
+      setUserEmail(userData.email || '');
       setStatus(data);
     } catch (err: any) {
       setError(err.message);
@@ -255,7 +259,7 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
                     setDeleting(true)
                     try {
                       // 先验证密码
-                      await api.login(status?.email || '', deletePassword)
+                      await api.login(userEmail, deletePassword)
                       // 密码正确，注销账号
                       await api.deleteAccount(token)
                       onLogout()
