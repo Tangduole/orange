@@ -71,7 +71,7 @@ async function parseYouTube(url, taskId, onProgress) {
   console.log(`[TikHub] Parsing YouTube: ${videoId}`);
   if (onProgress) onProgress(10);
 
-  const data = await tikhubRequest(`/api/v1/youtube/web/get_video_info?video_id=${videoId}`, API_KEY_YT);
+  const data = await tikhubRequest(`/api/v1/youtube/web/get_video_info?video_id=${videoId}&need_format=true`, API_KEY_YT);
   
   if (onProgress) onProgress(20);
 
@@ -247,7 +247,7 @@ async function downloadYouTubeViaAPI(url, taskId, onProgress, quality) {
   if (onProgress) onProgress(5);
   
   // 获取视频信息
-  const data = await tikhubRequest(`/api/v1/youtube/web/get_video_info?video_id=${videoId}`, API_KEY_YT);
+  const data = await tikhubRequest(`/api/v1/youtube/web/get_video_info?video_id=${videoId}&need_format=true`, API_KEY_YT);
   if (onProgress) onProgress(15);
   
   const title = data.title || 'YouTube Video';
@@ -303,7 +303,7 @@ async function downloadYouTubeViaAPI(url, taskId, onProgress, quality) {
     if (onProgress) onProgress(30 + Math.floor(percent * 0.6), downloaded, total);
   }, {
     'User-Agent': 'Mozilla/5.0',
-    'Referer': 'https://www.douyin.com/'
+    'Referer': 'https://www.youtube.com/'
   });
   
   if (onProgress) onProgress(90);
