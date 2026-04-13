@@ -67,6 +67,26 @@ async function initDb() {
         created_at INTEGER DEFAULT (unixepoch())
       )`
     });
+    
+    // 迁移：添加邮箱验证相关列（如果不存在）
+    try {
+      await db.execute({
+        sql: `ALTER TABLE users ADD COLUMN email_verified INTEGER DEFAULT 0`
+      });
+    } catch (e) {
+      // 列可能已存在，忽略错误
+    }
+    try {
+      await db.execute({
+        sql: `ALTER TABLE users ADD COLUMN verification_token TEXT`
+      });
+    } catch (e) {}
+    try {
+      await db.execute({
+        sql: `ALTER TABLE users ADD COLUMN verification_expires_at INTEGER`
+      });
+    } catch (e) {}
+    
     console.log('[userDb] Turso 数据库初始化完成');
   } catch (err) {
     console.error('[userDb] 初始化表失败:', err);
