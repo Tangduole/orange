@@ -112,7 +112,7 @@ export const api = {
 
   // 注销账号
   async deleteAccount(token: string) {
-    const res = await fetch(`/api/auth/delete-account`, {
+    const res = await fetch(`${API_BASE}/api/auth/delete-account`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
