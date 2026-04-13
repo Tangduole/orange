@@ -551,11 +551,21 @@ export default function App() {
       // 延迟 500ms 后自动下载
       autoDownloadTimer.current = setTimeout(() => {
         setDownloading(true)
-        shareFile(task.downloadUrl, task.title || 'video').finally(() => setDownloading(false))
+        shareFile(task.downloadUrl, task.title || 'video').finally(() => {
+          setDownloading(false)
+          // 下载完成后重新获取使用量
+          if (authToken) {
+            api.getUsage(authToken).then(u => {
+              if (u) {
+                setRemainingDownloads(u.isPro ? -1 : u.remaining)
+              }
+            }).catch(() => {})
+          }
+        })
       }, 500)
     }
     return clearAutoDownload
-  }, [task?.status, task?.downloadUrl, task?.taskId])
+  }, [task?.status, task?.downloadUrl, task?.taskId, authToken])
 
   const fetchHistory = useCallback(async () => {
     try { 
