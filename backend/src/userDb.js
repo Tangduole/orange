@@ -44,6 +44,9 @@ async function initDb() {
         lemon_subscription_id TEXT,
         daily_downloads INTEGER DEFAULT 0,
         last_download_reset TEXT DEFAULT CURRENT_DATE,
+        email_verified INTEGER DEFAULT 0,
+        verification_token TEXT,
+        verification_expires_at INTEGER,
         created_at INTEGER NOT NULL
       )
     `);
@@ -334,6 +337,42 @@ const userDb = {
     } catch (e) {
       console.error('[userDb] incrementGuestDownload error:', e);
     }
+  }
+
+  /**
+   * 存储邮箱验证令牌
+   */
+  async storeVerificationToken(userId, token, expiresAt) {
+    await db.execute({
+      sql: `UPDATE users SET verification_token = ?, verification_expires_at = ? WHERE id = ?`,
+      args: [token, expiresAt, userId]
+    });
+  }
+
+  /**
+   * 验证邮箱令牌
+   */
+  async verifyEmail(token) {
+    const user = await db.getFirst(`SELECT * FROM users WHERE verification_token = ?`, [token]);
+    if (!user) {
+      return { success: false, error: 'Invalid token' };
+    }
+    if (user.verification_expires_at < Date.now()) {
+      return { success: false, error: 'Token expired' };
+    }
+    await db.execute({
+      sql: `UPDATE users SET email_verified = 1, verification_token = NULL, verification_expires_at = NULL WHERE id = ?`,
+      args: [user.id]
+    });
+    return { success: true, userId: user.id, email: user.email };
+  }
+
+  /**
+   * 检查邮箱是否已验证
+   */
+  async isEmailVerified(userId) {
+    const user = await this.getById(userId);
+    return user ? user.email_verified === 1 : false;
   }
 };
 
