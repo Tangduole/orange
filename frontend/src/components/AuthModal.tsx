@@ -128,7 +128,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
 
         {/* Info */}
         <div className="mt-4 p-3 bg-slate-800/30 rounded-lg text-xs text-slate-500">
-          💡 注册即表示你同意我们的服务条款。Free 用户每天可下载 5 次。
+          💡 注册即表示你同意我们的服务条款。Free 用户每天可下载 3 次。
         </div>
       </div>
     </div>
