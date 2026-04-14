@@ -13,7 +13,8 @@ if (!process.env.RESEND_API_KEY) {
 }
 
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'Orange <noreply@orangedl.com>';
-const APP_URL = process.env.APP_URL || 'https://frontend-roan-psi-68.vercel.app';
+const APP_URL = process.env.APP_URL || 'https://orangedl.com';
+const API_URL = process.env.API_URL || 'https://orange-production-95b9.up.railway.app';
 
 /**
  * 发送密码重置邮件
@@ -101,7 +102,7 @@ async function sendVerificationEmail(email, token) {
     return { success: false, error: 'Email service not configured' };
   }
   
-  const verifyUrl = `${APP_URL}/verify-email?token=${token}`;
+  const verifyUrl = `${API_URL}/api/auth/verify-email?token=${token}`;
   
   const html = `
 <!DOCTYPE html>
