@@ -143,8 +143,11 @@ router.post('/login', async (req, res) => {
   }
   
   // 检查邮箱是否已验证
+  // 老账号（email_verified != 1）直接通过，视为已验证（兼容旧用户）
   if (user.email_verified !== 1) {
-    return res.json({ code: 403, message: '请先验证邮箱后再登录。查收注册邮箱点击验证链接。' });
+    // 将老账号标记为已验证，避免再次验证
+    await userDb.verifyEmailDirectly(user.id);
+    user.email_verified = 1;
   }
   
   const token = auth.generateToken(user);
