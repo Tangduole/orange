@@ -98,11 +98,11 @@ router.post('/register', async (req, res) => {
       console.warn('[auth] Email sending failed, user not verified:', emailErr.message);
     }
     
-    // 注册成功，自动登录
+    // 注册成功，不自动登录，提示用户去验证邮箱
     return res.json({
       code: 0,
-      message: '注册成功',
-      data: { token, user: { id: user.id, email: user.email, tier: user.tier } }
+      message: '注册成功，请查收验证邮件完成账号激活',
+      data: { needsEmailVerification: true }
     });
   } catch (e) {
     res.json({ code: 400, message: e.message });

@@ -35,6 +35,16 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
         ? await api.login(email, password)
         : await api.register(email, password);
       
+      // 注册后需要邮箱验证，不自动登录
+      if (data.needsEmailVerification) {
+        setLoading(false);
+        alert('注册成功！请查收验证邮件，点击邮件中的链接完成账号激活。');
+        setMode('login');
+        setPassword('');
+        setConfirmPassword('');
+        return;
+      }
+      
       api.saveToken(data.token);
       localStorage.setItem('orange_user', JSON.stringify(data.user));
       onSuccess(data.token, data.user);
