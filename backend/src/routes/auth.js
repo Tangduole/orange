@@ -299,15 +299,17 @@ router.get('/verify-email', async (req, res) => {
           body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #1a1a2e; color: white; min-height: 100vh; display: flex; align-items: center; justify-content: center; margin: 0; }
           .container { text-align: center; padding: 40px; background: #16213e; border-radius: 16px; max-width: 400px; }
           h1 { color: #4ade80; margin-bottom: 20px; }
-          p { color: #ccc; line-height: 1.6; }
-          .btn { display: inline-block; background: #ff6b35; color: white; text-decoration: none; padding: 12px 24px; border-radius: 8px; margin-top: 20px; }
+          p { color: #ccc; line-height: 1.6; margin: 10px 0; }
+          .note { background: #fff3cd; color: #856404; padding: 12px; border-radius: 8px; margin: 15px 0; font-size: 14px; }
+          .btn { display: inline-block; background: #ff6b35; color: white; text-decoration: none; padding: 12px 24px; border-radius: 8px; margin-top: 15px; }
+          .btn-secondary { background: #475569; margin-left: 10px; }
         </style>
       </head>
       <body>
         <div class="container">
           <h1>✅ 验证成功</h1>
           <p>您的邮箱已验证成功！</p>
-          <p>现在可以登录账号使用 Orange 下载器了。</p>
+          <div class="note">⚠️ 如果您之前登录过其他账号，请先登出旧账号，再用此邮箱登录。</div>
           <a href="https://orangedl.com" class="btn">开始使用</a>
         </div>
       </body>
