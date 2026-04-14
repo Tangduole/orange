@@ -65,6 +65,15 @@ async function createDownload(req, res) {
         if (user) {
           isGuest = false;
           userId = user.id;
+          
+          // 检查邮箱是否已验证
+          if (user.email_verified !== 1) {
+            return res.json({
+              code: 403,
+              message: '请先验证邮箱后再下载。查收注册邮箱点击验证链接。'
+            });
+          }
+          
           isVip = user.tier === 'pro' && user.subscription_status === 'active';
           const usage = await userDb.getUsage(userId);
           if (!usage.isPro && usage.remaining <= 0) {

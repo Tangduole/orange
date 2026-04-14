@@ -85,17 +85,17 @@ router.post('/register', async (req, res) => {
     const user = await userDb.create(email, password);
     const token = auth.generateToken(user);
     
-    // 发送邮箱验证邮件（失败不影响注册）
+    // 发送邮箱验证邮件（失败时用户保持未验证状态）
+    const verifyToken = require('uuid').v4();
+    const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
+    await userDb.storeVerificationToken(user.id, verifyToken, expiresAt);
+    
     try {
       const { sendVerificationEmail } = require('../services/email');
-      const verifyToken = require('uuid').v4();
-      const expiresAt = Date.now() + 24 * 60 * 60 * 1000; // 24小时过期
-      await userDb.storeVerificationToken(user.id, verifyToken, expiresAt);
       await sendVerificationEmail(email, verifyToken);
     } catch (emailErr) {
-      // 邮件发送失败时，自动验证邮箱让用户能登录
-      console.warn('[auth] Email sending failed, auto-verifying:', emailErr.message);
-      await userDb.verifyEmailDirectly(user.id);
+      // 邮件发送失败时，只记录日志，不自动验证
+      console.warn('[auth] Email sending failed, user not verified:', emailErr.message);
     }
     
     // 注册成功，自动登录
