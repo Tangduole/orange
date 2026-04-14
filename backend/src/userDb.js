@@ -279,7 +279,7 @@ const userDb = {
       sql: 'SELECT * FROM password_resets WHERE token = ?',
       args: [token]
     });
-    const row = result.rows?._array?.[0];
+    const row = result.rows?.[0];
     if (!row) return null;
     // 检查是否过期
     if (Date.now() > row.expires_at) {
@@ -322,7 +322,7 @@ const userDb = {
         args: [ip, today]
       });
       
-      const count = result.rows?._array?.[0]?.download_count || 0;
+      const count = result.rows?.[0]?.download_count || 0;
       const limit = FREE_DAILY_LIMIT;
       const remaining = Math.max(0, limit - count);
       
