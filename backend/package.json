@@ -1,6 +1,6 @@
 {
   "name": "xiaodianlv-backend",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "小电驴视频下载后端",
   "main": "src/app.js",
   "scripts": {

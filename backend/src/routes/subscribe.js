@@ -191,7 +191,16 @@ module.exports = router;
 // 管理员密钥验证（同时验证请求者的身份）
 function requireAdmin(req, res, next) {
   const key = req.headers['x-admin-key'];
-  const adminKey = process.env.ADMIN_API_KEY || 'f496277755941b1b79506fca8a55e2aee3301cf7344529790eec877b557c0a70';
+  const adminKey = process.env.ADMIN_API_KEY;
+  
+  // Production 环境必须设置 ADMIN_API_KEY
+  if (!adminKey) {
+    console.error('[admin] ADMIN_API_KEY not set! Production requires this environment variable.');
+    if (process.env.NODE_ENV === 'production') {
+      process.exit(1);
+    }
+    return res.status(500).json({ code: 500, message: '管理员功能未配置' });
+  }
   
   // 验证 admin key
   if (key !== adminKey) {

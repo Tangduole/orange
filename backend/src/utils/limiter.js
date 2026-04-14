@@ -44,8 +44,11 @@ class ConcurrencyLimiter {
         .then(resolve)
         .catch(reject)
         .finally(() => {
-          this.currentConcurrent--;
-          this.processNext();
+          // 用 setImmediate 延迟执行，避免 race condition
+          setImmediate(() => {
+            this.currentConcurrent--;
+            this.processNext();
+          });
         });
     }
   }
