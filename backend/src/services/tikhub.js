@@ -397,11 +397,14 @@ async function parseDouyin(url, taskId, onProgress, quality = null) {
   if (onProgress) onProgress(15);
   
   let hqVideoUrl = '';
+  // 注意：hqVideoUrl 是原始素材（无音频），抖音创作者上传的是视频+音频分离的
+  // 为了保证用户体验，优先使用 bit_rate（有音频），跳过 hqVideoUrl
+  // 如果未来需要无音频的原画，再单独处理
+  /*
   try {
     const hqData = await tikhubRequest(`/api/v1/douyin/web/fetch_video_high_quality_play_url?aweme_id=${awemeId}`, API_KEY_DOUYIN);
     
     if (hqData.original_video_url) {
-      // 先测试 URL 是否可访问（403 时 fallback）
       const https = require('https');
       const hqUrl = hqData.original_video_url;
       
@@ -422,6 +425,7 @@ async function parseDouyin(url, taskId, onProgress, quality = null) {
   } catch (e) {
     console.log(`[TikHub] High quality API failed:`, e.message);
   }
+  */
   
   // 选择最佳 URL：根据quality参数选择
   // 同时记录实际使用的宽高
