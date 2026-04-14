@@ -15,6 +15,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   if (!isOpen) return null;
 
@@ -38,7 +39,8 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
       // 注册后需要邮箱验证，不自动登录
       if (data.needsEmailVerification) {
         setLoading(false);
-        alert('注册成功！请查收验证邮件，点击邮件中的链接完成账号激活。');
+        setSuccessMessage('注册成功！请查收验证邮件，点击链接完成激活。');
+        setError('');
         setMode('login');
         setPassword('');
         setConfirmPassword('');
@@ -78,6 +80,13 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
         {error && (
           <div className="mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm">
             {error}
+          </div>
+        )}
+
+        {/* Success */}
+        {successMessage && (
+          <div className="mb-4 p-3 bg-green-500/20 border border-green-500/50 rounded-lg text-green-400 text-sm">
+            {successMessage}
           </div>
         )}
 
@@ -154,7 +163,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
         <div className="mt-4 text-center text-sm text-slate-400">
           {mode === 'login' ? '还没有账号？' : '已有账号？'}
           <button
-            onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); setPassword(''); setConfirmPassword(''); }}
+            onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); setSuccessMessage(''); setPassword(''); setConfirmPassword(''); }}
             className="text-orange-400 hover:text-orange-300 ml-1 font-medium"
           >
             {mode === 'login' ? '注册' : '登录'}
