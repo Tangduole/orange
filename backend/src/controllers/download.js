@@ -167,7 +167,9 @@ async function createDownload(req, res) {
 
     // YouTube 链接：走 TikHub API（直接链接）
     if (/youtube\.com|youtu\.be/i.test(url)) {
-      processYouTube(taskId, url, wantsAsr, normalizedOptions, quality).catch(err => {
+      // VIP用户不传quality限制，后端自动使用最高画质
+      const ytQuality = isVip ? null : quality;
+      processYouTube(taskId, url, wantsAsr, normalizedOptions, ytQuality).catch(err => {
         console.error(`[task] ${taskId} youtube failed:`, err);
         store.update(taskId, { status: 'error', progress: 0, error: err.message });
       });
@@ -578,13 +580,15 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
     const videoId = videoIdMatch[1];
     
     // 解析用户选择的画质
-    let maxHeight = 720; // 非VIP默认720p
+    let maxHeight = 99999; // 默认无限制（VIP）
     if (quality) {
       const heightMatch = quality.match(/height<=?(\d+)/i);
       if (heightMatch) {
         maxHeight = parseInt(heightMatch[1]);
       }
     }
+    // 保存用户请求的画质参数
+    store.update(taskId, { requestedQuality: quality });
     
     // ========== 方案1: TikHub API ==========
     try {
