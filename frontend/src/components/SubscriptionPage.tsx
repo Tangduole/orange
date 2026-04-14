@@ -9,6 +9,7 @@ interface SubscriptionPageProps {
 
 export default function SubscriptionPage({ token, onBack, onLogout }: SubscriptionPageProps) {
   const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<any>(null);
   const [userEmail, setUserEmail] = useState('');
   const [error, setError] = useState('');
   const [upgrading, setUpgrading] = useState(false);
