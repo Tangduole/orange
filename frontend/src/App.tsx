@@ -122,6 +122,7 @@ interface Task {
   directLink?: boolean; quality?: string; width?: number; height?: number
   downloadedBytes?: number; totalBytes?: number
   speed?: string; eta?: string
+  qualityAdjusted?: string // 'downgrade' | 'upgrade' | null
 }
 interface HistoryItem {
   taskId: string; status: string; title?: string
@@ -758,8 +759,8 @@ export default function App() {
           setLoading(false)
           return
         } else if (qualities.length === 1) {
-          // Single quality - use it directly
-          setQuality(qualities[0].height >= 720 ? 'height<=720' : '')
+          // Single quality - VIP用户不限画质，非VIP限制720p
+          setQuality(isVip ? '' : (qualities[0].height >= 720 ? 'height<=720' : ''))
         }
       } catch (e) {
         console.log('[quality] Failed to fetch qualities, proceeding with default')
@@ -768,9 +769,11 @@ export default function App() {
     
     // Proceed with download
     try {
+      // VIP用户不传quality参数，后端自动使用最高画质；非VIP用户传quality限制画质
+      const downloadQuality = isVip ? null : quality
       const r = await axios.post(`${API}/download`, {
         url: url.trim(), platform: detected || 'auto',
-        needAsr: selected.has('asr'), options: [...selected], quality, asrLanguage,
+        needAsr: selected.has('asr'), options: [...selected], quality: downloadQuality, asrLanguage,
       }, { timeout: 120000 })
       setTask(r.data.data); setDetected('')
     } catch (e: any) {
@@ -1257,13 +1260,33 @@ export default function App() {
               )}
 
               {task.title && !isWorking(task.status) && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  {task.quality && (
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${task.height >= 720 ? 'bg-gradient-to-r from-yellow-500/20 to-orange-500/20 text-yellow-400 border border-yellow-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
-                      🎬 {task.quality} {task.height >= 720 ? '⭐ 会员' : '✓ 免费'}
-                    </span>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {task.quality && (
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${task.height >= 720 ? 'bg-gradient-to-r from-yellow-500/20 to-orange-500/20 text-yellow-400 border border-yellow-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
+                        🎬 {task.quality} {task.height >= 720 ? '⭐' : '✓'}
+                      </span>
+                    )}
+                    <p className="text-sm text-slate-500">{task.title}</p>
+                  </div>
+                  {/* 画质调整提示 - 需求2 */}
+                  {task.qualityAdjusted === 'downgrade' && (
+                    <div className="text-xs text-orange-400 bg-orange-500/10 px-3 py-2 rounded-xl">
+                      💡 您选择的画质不可用，已自动降级到 {task.height}p
+                    </div>
                   )}
-                  <p className="text-sm text-slate-500">{task.title}</p>
+                  {task.qualityAdjusted === 'upgrade' && (
+                    <div className="text-xs text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded-xl">
+                      💡 已自动升级到最佳可用画质 {task.height}p
+                    </div>
+                  )}
+                  {/* Free用户下载限制提示 - 需求3 */}
+                  {!isVip && task.height && task.height < 1080 && (
+                    <div className="text-xs text-slate-400 bg-slate-700/30 px-3 py-2 rounded-xl flex items-center justify-between">
+                      <span>🔒 Pro 专享更高画质</span>
+                      <button onClick={() => setShowSubscription(true)} className="text-orange-400 hover:text-orange-300 underline">升级 Pro</button>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1484,8 +1507,12 @@ export default function App() {
                           return
                         }
                         setShowQualityPicker(false)
-                        // Set quality filter for download
-                        const qParam = q.height >= 1080 ? 'height<=1080' : (q.height >= 720 ? 'height<=720' : '')
+                        // Set quality filter for download - VIP用户直接传高度限制，不限制最高画质
+                        // 4K=2160, 2K=1440, 1080p=1080, 720p=720
+                        let qParam = ''
+                        if (q.height >= 1440) qParam = `height<=${q.height}` // 4K/2K
+                        else if (q.height >= 1080) qParam = 'height<=1080'
+                        else if (q.height >= 720) qParam = 'height<=720'
                         setQuality(qParam)
                         // Proceed with download
                         setLoading(true)

@@ -148,7 +148,7 @@ async function createDownload(req, res) {
     if (isDouyinUrl(url)) {
       // 非VIP用户限制画质为480p
       const maxQuality = isVip ? null : 'height<=480';
-      processDouyin(taskId, url, wantsAsr, normalizedOptions, maxQuality, asrLanguage).catch(err => {
+      processDouyin(taskId, url, wantsAsr, normalizedOptions, maxQuality, asrLanguage, quality).catch(err => {
         console.error(`[task] ${taskId} douyin failed:`, err);
         store.update(taskId, { status: 'error', progress: 0, error: err.message });
       });
@@ -417,11 +417,12 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
 /**
  * 处理抖音下载（视频/图文，不依赖 yt-dlp）
  */
-async function processDouyin(taskId, url, needAsr, options = ['video'], quality = null, asrLanguage = 'zh') {
+async function processDouyin(taskId, url, needAsr, options = ['video'], quality = null, asrLanguage = 'zh', requestedQuality = null) {
   try {
     const { parseDouyin } = require('../services/tikhub');
 
-    store.update(taskId, { status: 'parsing', progress: 5 });
+    // 保存用户请求的画质参数
+    store.update(taskId, { status: 'parsing', progress: 5, requestedQuality });
 
     const result = await parseDouyin(url, taskId, (percent, downloaded, total) => {
       store.update(taskId, {
@@ -432,11 +433,30 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
       });
     }, quality);
 
+    // 获取用户请求的画质
+    const task = store.get(taskId) || {};
+    const reqQ = task.requestedQuality || requestedQuality;
+    
+    // 计算画质调整提示
+    let qualityAdjusted = null;
+    if (reqQ && result.height) {
+      const reqMatch = reqQ.match(/height<=(\d+)/i);
+      if (reqMatch) {
+        const reqHeight = parseInt(reqMatch[1]);
+        if (result.height < reqHeight) {
+          qualityAdjusted = 'downgrade'; // 降级
+        } else if (result.height > reqHeight) {
+          qualityAdjusted = 'upgrade'; // 升级
+        }
+      }
+    }
+
     const update = {
       status: 'completed',
       width: result.width,
       height: result.height,
       quality: result.quality,
+      qualityAdjusted,
       progress: 100,
       title: result.title,
       thumbnailUrl: result.thumbnailUrl,
