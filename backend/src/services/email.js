@@ -98,8 +98,8 @@ async function sendPasswordResetEmail(email, token) {
  */
 async function sendVerificationEmail(email, token) {
   if (!resend) {
-    console.warn('[email] Resend not configured, skipping email send');
-    return { success: false, error: 'Email service not configured' };
+    console.error('[email] Resend not configured, cannot send verification email');
+    throw new Error('Email service not configured. Please contact administrator.');
   }
   
   const verifyUrl = `${API_URL}/api/auth/verify-email?token=${token}`;
