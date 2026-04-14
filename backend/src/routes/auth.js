@@ -85,17 +85,22 @@ router.post('/register', async (req, res) => {
     const user = await userDb.create(email, password);
     const token = auth.generateToken(user);
     
-    // 发送邮箱验证邮件（失败时用户保持未验证状态）
+    // 生成验证令牌
     const verifyToken = require('uuid').v4();
     const expiresAt = Date.now() + 24 * 60 * 60 * 1000;
     await userDb.storeVerificationToken(user.id, verifyToken, expiresAt);
     
+    // 发送验证邮件
+    let emailSent = false;
     try {
       const { sendVerificationEmail } = require('../services/email');
       await sendVerificationEmail(email, verifyToken);
+      emailSent = true;
     } catch (emailErr) {
-      // 邮件发送失败时，只记录日志，不自动验证
-      console.warn('[auth] Email sending failed, user not verified:', emailErr.message);
+      // 邮件发送失败，删除已创建的用户
+      console.error('[auth] Email send failed, deleting user:', emailErr.message);
+      await userDb.deleteUser(email);
+      return res.json({ code: 500, message: '验证邮件发送失败，请检查邮箱是否有效' });
     }
     
     // 注册成功，不自动登录，提示用户去验证邮箱
