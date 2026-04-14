@@ -12,6 +12,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -21,6 +22,13 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
     e.preventDefault();
     setError('');
     setLoading(true);
+
+    // 注册时检查两次密码是否一致
+    if (mode === 'register' && password !== confirmPassword) {
+      setError('两次输入的密码不一致');
+      setLoading(false);
+      return;
+    }
 
     try {
       const data = mode === 'login' 
@@ -94,6 +102,23 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
             />
           </div>
 
+          {mode === 'register' && (
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                确认密码
+              </label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                minLength={6}
+                className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600/50 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/70 transition-all"
+              />
+            </div>
+          )}
+
           <button
             type="submit"
             disabled={loading}
@@ -119,7 +144,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
         <div className="mt-4 text-center text-sm text-slate-400">
           {mode === 'login' ? '还没有账号？' : '已有账号？'}
           <button
-            onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}
+            onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); setPassword(''); setConfirmPassword(''); }}
             className="text-orange-400 hover:text-orange-300 ml-1 font-medium"
           >
             {mode === 'login' ? '注册' : '登录'}
