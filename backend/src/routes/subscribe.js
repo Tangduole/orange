@@ -227,7 +227,7 @@ function requireAdmin(req, res, next) {
 }
 
 // 管理员：手动赋予会员资格
-router.post('/admin/grant-vip', auth.required, requireAdmin, async (req, res) => {
+router.post('/admin/grant-vip', requireAdmin, async (req, res) => {
   try {
     const { email, days = 365 } = req.body;
     if (!email) return res.status(400).json({ code: 400, message: '请提供邮箱' });
@@ -244,7 +244,7 @@ router.post('/admin/grant-vip', auth.required, requireAdmin, async (req, res) =>
 });
 
 // 管理员：撤销会员资格
-router.post('/admin/revoke-vip', auth.required, requireAdmin, async (req, res) => {
+router.post('/admin/revoke-vip', requireAdmin, async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ code: 400, message: '请提供邮箱' });
