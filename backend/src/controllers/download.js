@@ -703,9 +703,7 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
           try {
             const videoResponse = await axios.get(finalVideo.url, { responseType: 'arraybuffer', timeout: 120000 });
             fs.writeFileSync(videoPath, Buffer.from(videoResponse.data));
-          } catch (downloadErr) {
-            console.error(`[task] ${taskId} failed to download video: ${downloadErr.message}`);
-            // Fallback: 返回原始URL
+            
             store.update(taskId, {
               status: 'completed',
               width: finalVideo.width || 0,
@@ -714,26 +712,16 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
               progress: 100,
               title: title,
               thumbnailUrl: videoData.thumbnails?.[0]?.url || '',
-              downloadUrl: finalVideo.url,
-              directLink: true,
+              downloadUrl: `/download/${taskId}.mp4`,
+              filePath: videoPath,
               ext: finalVideo.extension || 'mp4'
             });
+            console.log(`[task] ${taskId} youtube completed via TikHub (proxied)`);
             return;
+          } catch (downloadErr) {
+            console.error(`[task] ${taskId} TikHub URL failed (${downloadErr.message}), falling back to yt-dlp...`);
+            // Fallthrough to yt-dlp fallback below
           }
-          store.update(taskId, {
-            status: 'completed',
-            width: finalVideo.width || 0,
-            height: finalVideo.height || 0,
-            quality: `${finalVideo.width || 0}x${finalVideo.height || 0}`,
-            progress: 100,
-            title: title,
-            thumbnailUrl: videoData.thumbnails?.[0]?.url || '',
-            downloadUrl: `/download/${taskId}.mp4`,
-            filePath: videoPath,
-            ext: finalVideo.extension || 'mp4'
-          });
-          console.log(`[task] ${taskId} youtube completed via TikHub (proxied)`);
-          return;
         }
       }
     } catch (tikhubErr) {
