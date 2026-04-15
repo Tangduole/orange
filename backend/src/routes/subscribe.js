@@ -90,11 +90,19 @@ router.post('/checkout', auth.required, async (req, res) => {
 router.get('/status', auth.required, async (req, res) => {
   const usage = await userDb.getUsage(req.user.id);
   
+  // 检查订阅是否过期
+  let subscriptionStatus = req.user.subscription_status;
+  const endsAt = req.user.subscription_ends_at;
+  if (endsAt && endsAt > 0 && endsAt * 1000 < Date.now()) {
+    // 订阅已过期，降级为 free
+    subscriptionStatus = 'expired';
+  }
+  
   res.json({
     code: 0,
     data: {
       tier: req.user.tier,
-      subscriptionStatus: req.user.subscription_status,
+      subscriptionStatus,
       subscriptionEndsAt: req.user.subscription_ends_at,
       usage
     }
