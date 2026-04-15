@@ -74,7 +74,7 @@ async function createDownload(req, res) {
             });
           }
           
-          isVip = user.tier === 'pro' && user.subscription_status === 'active';
+          isVip = user.tier === 'pro' && (user.subscription_status === 'active' || user.subscription_status === 'past_due');
           const usage = await userDb.getUsage(userId);
           if (!usage.isPro && usage.remaining <= 0) {
             return res.json({
