@@ -284,8 +284,10 @@ export default function App() {
         } else {
           setRemainingDownloads(status?.usage?.remaining ?? GUEST_DAILY_LIMIT)
         }
-      }).catch(() => { 
+      }).catch((err) => { 
         // API 失败时不要把会员当游客处理，隐藏次数提示即可
+        console.error('[VIP] getSubscriptionStatus failed:', err);
+        setIsVip(false);
         setRemainingDownloads(-1);
       })
     } else {
