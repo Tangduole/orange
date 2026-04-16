@@ -25,7 +25,7 @@ const isNativeApp = () => {
   } catch { return false }
 }
 
-// 检测 iOS Safari
+// Detect iOS Safari
 const isIOS = () => {
   try {
     return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
@@ -53,7 +53,7 @@ const shareFile = async (url: string, title: string, fileType: 'video' | 'audio'
         return { success: true }
       } else {
         console.error('Gallery save failed:', result.error)
-        // 降级到分享功能
+        // Fallback to share
         await Share.share({
           title: title || 'Orange Video',
           url: fullUrl,
@@ -62,11 +62,11 @@ const shareFile = async (url: string, title: string, fileType: 'video' | 'audio'
       }
     } catch (e: any) {
       console.error('[GallerySaver] Error:', e?.message || e)
-      // 如果用户取消了分享，不算Error
+      // 如果User cancelled了分享，不算Error
       if (e?.message?.includes('cancel') || e?.message?.includes('canceled')) {
         return { success: true }
       }
-      // 降级到分享功能
+      // Fallback to share
       try {
         await Share.share({
           title: title || 'Orange Video',
@@ -143,9 +143,9 @@ const PLATFORMS = [
 const OPTIONS: { id: string; label: string; icon: typeof Video }[] = [
   { id: 'video', label: 'Video 视频', icon: Video },
   { id: 'audio_only', label: 'Audio 音频', icon: Mic },
-  { id: 'copywriting', label: 'Copywriting 文案', icon: FileText },
-  { id: 'cover', label: 'Cover 封面', icon: ImageIcon },
-  { id: 'asr', label: 'Audio 音轉文字', icon: Languages },
+  { id: 'copywriting', label: 'Copywriting Copywriting', icon: FileText },
+  { id: 'cover', label: 'Cover Cover', icon: ImageIcon },
+  { id: 'asr', label: 'Audio Audio to Text', icon: Languages },
   { id: 'subtitle', label: 'Subtitle Subtitle', icon: Languages },
 ]
 
@@ -433,8 +433,8 @@ export default function App() {
 
   const locationLabels: Record<string, { label: string; icon: typeof Smartphone; desc: string }> = {
     album: { label: '手机相册', icon: Smartphone, desc: '默认Save到相册' },
-    downloads: { label: 'Download Folder 下File夾', icon: HardDrive, desc: 'Browser默认DownloadLocation' },
-    desktop: { label: 'Desktop 桌面', icon: HardDrive, desc: 'Save到桌面' },
+    downloads: { label: 'Download Folder Download Folder', icon: HardDrive, desc: 'Browser默认DownloadLocation' },
+    desktop: { label: 'Desktop Desktop', icon: HardDrive, desc: 'Save到Desktop' },
     documents: { label: 'Documents', icon: FolderOpen, desc: 'Save到DocumentsFile夹' },
   }
 
@@ -1158,9 +1158,9 @@ export default function App() {
                   onChange={(e) => handleLocationChange(e.target.value)}
                   className={`w-full px-4 py-3 border-2 rounded-xl text-sm outline-none focus:border-orange-500/70 cursor-pointer appearance-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
                 >
-                  <option value="album">📱 Phone Gallery 手機相冊</option>
-                  <option value="download">💻 Download Folder 下File夾</option>
-                  <option value="desktop">🖥️ Desktop 桌面</option>
+                  <option value="album">📱 Phone Gallery Photos</option>
+                  <option value="download">💻 Download Folder Download Folder</option>
+                  <option value="desktop">🖥️ Desktop Desktop</option>
                 </select>
                 <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 pointer-events-none" />
               </div>
