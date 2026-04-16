@@ -43,7 +43,7 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
       // 跳转到 Lemon Squeezy checkout
       window.location.href = data.checkoutUrl;
     } catch (err: any) {
-      setError(err.message || '创建订阅失败');
+      setError(err.message || '创建SubscribeFailed');
       setUpgrading(false);
     }
   };
@@ -80,8 +80,8 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold text-center mb-2">会员订阅</h1>
-        <p className="text-slate-400 text-center mb-8">解锁无限下载，高清画质</p>
+        <h1 className="text-3xl font-bold text-center mb-2">MemberSubscribe</h1>
+        <p className="text-slate-400 text-center mb-8">UnlockUnlimitedDownload，高清Quality</p>
 
         {error && (
           <div className="mb-6 p-4 bg-red-500/20 border border-red-500/50 rounded-xl text-red-400 text-center">
@@ -104,7 +104,7 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-sm text-slate-400">订阅状态</p>
+                <p className="text-sm text-slate-400">Subscribe状态</p>
                 <p className="font-medium capitalize">{status.subscriptionStatus || 'none'}</p>
               </div>
             </div>
@@ -112,7 +112,7 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
             {status.tier === 'free' && (
               <div className="mt-4 pt-4 border-t border-slate-700">
                 <p className="text-sm text-slate-400 mb-2">
-                  今日下载: {status.usage?.dailyDownloads || 0} / {status.usage?.dailyLimit || 5}
+                  TodayDownload: {status.usage?.dailyDownloads || 0} / {status.usage?.dailyLimit || 5}
                 </p>
                 <div className="w-full bg-slate-700 rounded-full h-2">
                   <div 
@@ -127,7 +127,7 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
 
             {status.subscriptionEndsAt && (
               <p className="mt-3 text-sm text-slate-500">
-                订阅到期: {formatDate(status.subscriptionEndsAt)}
+                Subscribe到期: {formatDate(status.subscriptionEndsAt)}
               </p>
             )}
           </div>
@@ -139,17 +139,17 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
           <div className="bg-slate-800/50 rounded-2xl p-6 border border-slate-700/50">
             <h3 className="text-xl font-bold mb-2">Free</h3>
             <p className="text-3xl font-bold mb-4">¥0<span className="text-base text-slate-400 font-normal">/永久</span></p>
-            <p className="text-slate-400 text-sm mb-6">适合轻度使用</p>
+            <p className="text-slate-400 text-sm mb-6">适合轻度Use</p>
             
             <ul className="space-y-3 mb-6">
               <li className="flex items-center gap-2 text-sm">
-                <span className="text-green-400">✓</span> 每天 3 次下载
+                <span className="text-green-400">✓</span> 每天 3 次Download
               </li>
               <li className="flex items-center gap-2 text-sm">
                 <span className="text-green-400">✓</span> 抖音 / TikTok / X / YouTube
               </li>
               <li className="flex items-center gap-2 text-sm text-slate-500">
-                <span>✗</span> 最高画质（720p）
+                <span>✗</span> 最高Quality（720p）
               </li>
               <li className="flex items-center gap-2 text-sm text-slate-500">
                 <span>✗</span> 无广告
@@ -176,10 +176,10 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
             
             <ul className="space-y-3 mb-6">
               <li className="flex items-center gap-2 text-sm">
-                <span className="text-green-400">✓</span> <strong>无限</strong> 下载
+                <span className="text-green-400">✓</span> <strong>Unlimited</strong> Download
               </li>
               <li className="flex items-center gap-2 text-sm">
-                <span className="text-green-400">✓</span> 支持所有平台
+                <span className="text-green-400">✓</span> Support所有Platform
               </li>
               <li className="flex items-center gap-2 text-sm">
                 <span className="text-green-400">✓</span> 最高 1080p 原画
@@ -188,7 +188,7 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
                 <span className="text-green-400">✓</span> 无广告
               </li>
               <li className="flex items-center gap-2 text-sm">
-                <span className="text-green-400">✓</span> 优先客服支持
+                <span className="text-green-400">✓</span> 优先客服Support
               </li>
             </ul>
 
@@ -197,7 +197,7 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
                 disabled
                 className="w-full py-3 bg-green-500/20 text-green-400 font-semibold rounded-xl border border-green-500/50"
               >
-                ✓ 已升级
+                ✓ 已Upgrade
               </button>
             ) : (
               <button
@@ -205,7 +205,7 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
                 disabled={upgrading}
                 className="w-full py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-xl transition-all disabled:opacity-50"
               >
-                {upgrading ? '跳转中...' : '立即升级'}
+                {upgrading ? '跳转中...' : 'NowUpgrade'}
               </button>
             )}
           </div>
@@ -217,7 +217,7 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
             onClick={() => setShowDeleteConfirm(true)}
             className="w-full py-3 text-red-500 hover:text-red-400 font-medium text-center transition-colors"
           >
-            注销账号
+            注销Account
           </button>
         </div>
 
@@ -225,21 +225,21 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
         {showDeleteConfirm && (
           <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
             <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-red-500/50">
-              <h3 className="text-lg font-bold text-red-400 mb-4">⚠️ 确认注销账号</h3>
+              <h3 className="text-lg font-bold text-red-400 mb-4">⚠️ Confirm注销Account</h3>
               <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
                 <p className="text-red-400 text-sm font-medium mb-2">注销后将无法恢复！</p>
                 <ul className="text-slate-400 text-xs space-y-1">
-                  <li>• 您的所有下载记录将被删除</li>
-                  <li>• 您的订阅将被取消</li>
+                  <li>• 您的所有Download记录将被删除</li>
+                  <li>• 您的Subscribe将被Cancel</li>
                   <li>• 此操作不可撤销</li>
                 </ul>
               </div>
-              <p className="text-white text-sm mb-4">确定要注销账号吗？</p>
+              <p className="text-white text-sm mb-4">确定要注销Account吗？</p>
               <input
                 type="password"
                 value={deletePassword}
                 onChange={(e) => setDeletePassword(e.target.value)}
-                placeholder="请输入登录密码确认"
+                placeholder="请inLoginPasswordConfirm"
                 className="w-full px-3 py-2 mb-4 bg-slate-900/50 border border-slate-700 rounded-lg text-sm text-white placeholder:text-slate-500"
               />
               <div className="flex gap-3">
@@ -247,32 +247,32 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
                   onClick={() => { setShowDeleteConfirm(false); setDeletePassword(''); setError(''); }}
                   className="flex-1 py-2.5 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition"
                 >
-                  取消
+                  Cancel
                 </button>
                 <button
                   onClick={async () => {
                     setDeleting(true)
                     if (!deletePassword) {
-                      setError('请输入密码')
+                      setError('请inPassword')
                       return
                     }
                     setError('')
                     setDeleting(true)
                     try {
-                      // 先验证密码
+                      // 先VerifyPassword
                       await api.login(userEmail, deletePassword)
-                      // 密码正确，注销账号
+                      // Password正确，注销Account
                       await api.deleteAccount(token)
                       onLogout()
                     } catch (err: any) {
-                      setError(err.message || '注销失败，密码可能不正确')
+                      setError(err.message || '注销Failed，Password可能不正确')
                       setDeleting(false)
                     }
                   }}
                   disabled={deleting}
                   className="flex-1 py-2.5 px-4 rounded-xl bg-red-500 text-white hover:bg-red-600 transition disabled:opacity-50"
                 >
-                  {deleting ? '注销中...' : '确认注销'}
+                  {deleting ? '注销中...' : 'Confirm注销'}
                 </button>
               </div>
             </div>
@@ -284,21 +284,21 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
           <h3 className="text-lg font-bold mb-4">常见问题</h3>
           <div className="space-y-3">
             <details className="bg-slate-800/30 rounded-lg">
-              <summary className="p-4 cursor-pointer font-medium">订阅可以取消吗？</summary>
+              <summary className="p-4 cursor-pointer font-medium">Subscribe可以Cancel吗？</summary>
               <p className="px-4 pb-4 text-sm text-slate-400">
-                可以随时取消。取消后，在当前计费周期结束前你仍可享受 Pro 功能。
+                可以随时Cancel。Cancel后，在当前计费周期结束前你仍可享受 Pro Feature。
               </p>
             </details>
             <details className="bg-slate-800/30 rounded-lg">
-              <summary className="p-4 cursor-pointer font-medium">支持哪些支付方式？</summary>
+              <summary className="p-4 cursor-pointer font-medium">Support哪些支付方式？</summary>
               <p className="px-4 pb-4 text-sm text-slate-400">
-                支持 Visa、Mastercard、American Express 等国际信用卡，以及 PayPal。
+                Support Visa、Mastercard、American Express 等国际信用卡，以及 PayPal。
               </p>
             </details>
             <details className="bg-slate-800/30 rounded-lg">
-              <summary className="p-4 cursor-pointer font-medium">下载的视频有水印吗？</summary>
+              <summary className="p-4 cursor-pointer font-medium">Download的视频有水印吗？</summary>
               <p className="px-4 pb-4 text-sm text-slate-400">
-                无水印。Pro 用户下载的视频均为原始高清版本。
+                无水印。Pro 用户Download的视频均为原始高清版本。
               </p>
             </details>
           </div>

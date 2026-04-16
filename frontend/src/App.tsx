@@ -38,7 +38,7 @@ const shareFile = async (url: string, title: string, fileType: 'video' | 'audio'
   if (isNativeApp() && GallerySaver) {
     try {
       console.log('[GallerySaver] Calling native plugin, fileType: ' + fileType)
-      // 使用原生插件直接保存到相册
+      // Use原生插件直接Save到相册
       let result
       if (fileType === 'audio') {
         result = await GallerySaver.saveAudio({ url: fullUrl, filename: title || 'audio' })
@@ -62,7 +62,7 @@ const shareFile = async (url: string, title: string, fileType: 'video' | 'audio'
       }
     } catch (e: any) {
       console.error('[GallerySaver] Error:', e?.message || e)
-      // 如果用户取消了分享，不算错误
+      // 如果用户取消了分享，不算Error
       if (e?.message?.includes('cancel') || e?.message?.includes('canceled')) {
         return { success: true }
       }
@@ -81,7 +81,7 @@ const shareFile = async (url: string, title: string, fileType: 'video' | 'audio'
   } else {
     // Web: iOS Safari special handling
     if (isIOS()) {
-      // iOS Safari: 打开新窗口，让用户用分享菜单保存到照片
+      // iOS Safari: 打开新窗口，让用户用分享菜单Save到照片
       const a = document.createElement('a')
       a.href = fullUrl
       a.target = '_blank'
@@ -146,7 +146,7 @@ const OPTIONS: { id: string; label: string; icon: typeof Video }[] = [
   { id: 'copywriting', label: 'Copywriting 文案', icon: FileText },
   { id: 'cover', label: 'Cover 封面', icon: ImageIcon },
   { id: 'asr', label: 'Audio 音轉文字', icon: Languages },
-  { id: 'subtitle', label: 'Subtitle 字幕', icon: Languages },
+  { id: 'subtitle', label: 'Subtitle Subtitle', icon: Languages },
 ]
 
 const ASR_LANGUAGE_OPTIONS = [
@@ -154,11 +154,11 @@ const ASR_LANGUAGE_OPTIONS = [
   { value: 'en', label: 'English' },
   { value: 'ja', label: '日本語' },
   { value: 'ko', label: '한국어' },
-  { value: 'auto', label: '自动检测' },
+  { value: 'auto', label: 'Auto检测' },
 ]
 
 const QUALITY_OPTIONS = [
-  { value: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', label: 'Best 最高画质', vipOnly: true },
+  { value: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', label: 'Best', vipOnly: true },
   { value: 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]', label: '1080p', vipOnly: true },
   { value: 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]', label: '720p', vipOnly: false },
 ]
@@ -213,13 +213,13 @@ export default function App() {
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showResetPwd, setShowResetPwd] = useState(false)
   const [resetEmail, setResetEmail] = useState('')
-  const [resetPwdStep, setResetPwdStep] = useState(false) // false=发送邮件, true=设置新密码
+  const [resetPwdStep, setResetPwdStep] = useState(false) // false=Send邮件, true=Settings新Password
   const [resetPwdToken, setResetPwdToken] = useState('')
   const [resetPwd, setResetPwd] = useState('')
   const [resetPwdMsg, setResetPwdMsg] = useState('')
   const [resetPwdLoading, setResetPwdLoading] = useState(false)
   const [isVip, setIsVip] = useState(false)
-  const [remainingDownloads, setRemainingDownloads] = useState(-1) // -1 = unlimited/no display, 0 = 0次, n = 剩余n次
+  const [remainingDownloads, setRemainingDownloads] = useState(-1) // -1 = unlimited/no display, 0 = 0次, n = Remainingn次
   const GUEST_DAILY_LIMIT = 3
   const [isDark, setIsDark] = useState(() => {
     const saved = localStorage.getItem('orange_theme')
@@ -233,7 +233,7 @@ export default function App() {
     setShowLangMenu(false)
   }
 
-  // 检查 URL 是否有重置密码 token
+  // 检查 URL 是否有重置Password token
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const resetToken = params.get('token') || params.get('reset')
@@ -246,7 +246,7 @@ export default function App() {
     }
   }, [])
 
-  // 切换主题
+  // 切换Theme
   const toggleTheme = () => {
     setIsDark(!isDark)
     localStorage.setItem('orange_theme', !isDark ? 'dark' : 'light')
@@ -255,14 +255,14 @@ export default function App() {
   // 键盘快捷键
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ctrl/Cmd + V: 自动聚焦到输入框
+      // Ctrl/Cmd + V: Auto聚焦到输入框
       if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
         if (document.activeElement?.tagName !== 'INPUT') {
           e.preventDefault()
           document.querySelector<HTMLInputElement>('input[type="url"]')?.focus()
         }
       }
-      // Ctrl/Cmd + Enter: 触發下载
+      // Ctrl/Cmd + Enter: 触發Download
       if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
         if (url.trim() && !loading) {
           doSingleDownload()
@@ -285,14 +285,14 @@ export default function App() {
       api.getSubscriptionStatus(authToken).then(status => {
         const isPro = status?.subscriptionStatus === 'active'
         setIsVip(isPro)
-        // VIP用户显示无限制（-1），非VIP显示剩余次数
+        // VIP用户Show无限制（-1），非VIPShowRemainingTimes
         if (isPro) {
           setRemainingDownloads(-1) // VIP无限制
         } else {
           setRemainingDownloads(status?.usage?.remaining ?? GUEST_DAILY_LIMIT)
         }
       }).catch((err) => { 
-        // API 失败时不要把会员当游客处理，隐藏次数提示即可
+        // API Failed时不要把Member当GuestProcess，HideTimesPrompt即可
         console.error('[VIP] getSubscriptionStatus failed:', err);
         setIsVip(false);
         setRemainingDownloads(-1);
@@ -340,7 +340,7 @@ export default function App() {
     localStorage.setItem('orange_user', JSON.stringify(user))
   }
 
-  // 忘记密码 - 发送重置邮件
+  // 忘记Password - Send重置邮件
   const handleForgotPassword = async () => {
     if (!resetEmail) return
     setResetPwdLoading(true)
@@ -348,28 +348,28 @@ export default function App() {
     try {
       const result = await api.forgotPassword(resetEmail)
       if (result.resetToken) {
-        // 演示模式：直接显示token让用户重置
+        // Demo mode：直接Showtoken让用户重置
         setResetPwdToken(result.resetToken)
         setResetPwdStep(true)
-        setResetPwdMsg('演示模式：使用以下令牌重置密码')
+        setResetPwdMsg('Demo mode：Use以下token重置Password')
       } else {
-        setResetPwdMsg('重置链接已发送到邮箱')
+        setResetPwdMsg('重置Link已Send到Email')
       }
     } catch (err: any) {
-      setResetPwdMsg(err.message || '发送失败')
+      setResetPwdMsg(err.message || 'SendFailed')
     } finally {
       setResetPwdLoading(false)
     }
   }
 
-  // 重置密码
+  // 重置Password
   const handleResetPassword = async () => {
     if (!resetPwd || !resetPwdToken) return
     setResetPwdLoading(true)
     setResetPwdMsg('')
     try {
       await api.resetPassword(resetPwdToken, resetPwd)
-      setResetPwdMsg('密码已重置！请使用新密码登录')
+      setResetPwdMsg('Password已重置！请Use新PasswordLogin')
       setTimeout(() => {
         setShowResetPwd(false)
         setResetPwdStep(false)
@@ -379,7 +379,7 @@ export default function App() {
         setResetPwdMsg('')
       }, 1500)
     } catch (err: any) {
-      setResetPwdMsg(err.message || '重置失败')
+      setResetPwdMsg(err.message || '重置Failed')
     } finally {
       setResetPwdLoading(false)
     }
@@ -392,14 +392,14 @@ export default function App() {
     setAuthUser(null)
   }
 
-  // 从文本中提取所有链接
+  // 从Text中Extract所有Link
   const extractUrls = (text: string): string[] => {
     // 更宽松的 URL 正则
     const urlRegex = /https?:\/\/[^\s\n,，、；;）)】"']+/g
     
     let matches = text.match(urlRegex) || []
     
-    // 清理和补全
+    // Clear和补全
     const urls = matches.map(u => {
       // 移除末尾的标点符号
       let cleaned = u.trim().replace(/[，。、,.\s;；）)】"']+$/g, '')
@@ -414,39 +414,39 @@ export default function App() {
     return [...new Set(urls)]
   }
 
-  // 处理粘贴事件 - 自动提取链接
+  // ProcessPaste事件 - AutoExtractLink
   const [batchQueue, setBatchQueue] = useState<Array<{url: string, status: string, progress: number, title?: string}>>([])
   const [batchIndex, setBatchIndex] = useState(0)
   const [saveLocation, setSaveLocation] = useState<string>('album')
 
-  // 读取保存的位置偏好
+  // ReadSave的LocationPreference
   useEffect(() => {
     const saved = localStorage.getItem('xiaodianlv_saveLocation')
     if (saved) setSaveLocation(saved)
   }, [])
 
-  // Save Location 保存位置偏好
+  // Save Location SaveLocationPreference
   const handleLocationChange = (loc: string) => {
     setSaveLocation(loc)
     localStorage.setItem('xiaodianlv_saveLocation', loc)
   }
 
   const locationLabels: Record<string, { label: string; icon: typeof Smartphone; desc: string }> = {
-    album: { label: '手机相册', icon: Smartphone, desc: '默认保存到相册' },
-    downloads: { label: 'Download Folder 下載文件夾', icon: HardDrive, desc: '浏览器默认下载位置' },
-    desktop: { label: 'Desktop 桌面', icon: HardDrive, desc: '保存到桌面' },
-    documents: { label: 'Documents', icon: FolderOpen, desc: '保存到Documents文件夹' },
+    album: { label: '手机相册', icon: Smartphone, desc: '默认Save到相册' },
+    downloads: { label: 'Download Folder 下File夾', icon: HardDrive, desc: 'Browser默认DownloadLocation' },
+    desktop: { label: 'Desktop 桌面', icon: HardDrive, desc: 'Save到桌面' },
+    documents: { label: 'Documents', icon: FolderOpen, desc: 'Save到DocumentsFile夹' },
   }
 
-  // 批量下载：自动处理下一个（完成或失败都继续）
+  // 批量Download：AutoProcess下一个（Completed或Failed都继续）
   useEffect(() => {
     if ((task?.status === 'completed' || task?.status === 'error') && batchMode && batchQueue.length > 0) {
-      // 更新当前任务状态
+      // Update当前任务状态
       setBatchQueue(prev => prev.map((item, idx) => 
         idx === batchIndex ? { ...item, status: task.status } : item
       ))
       
-      // 完成后从链接框删除已处理的链接
+      // Completed后从Link框删除已Process的Link
       if (task?.status === 'completed') {
         setBatchUrls(prev => {
           const lines = prev.split('\n').filter(u => u.trim())
@@ -464,7 +464,7 @@ export default function App() {
           setBatchIndex(nextIdx)
           setLoading(true)
           setUrl(nextUrl)
-          autoDownloaded.current = false  // 重置自动下载标记
+          autoDownloaded.current = false  // 重置AutoDownloadMark
           showDownloadComplete(`start-${Date.now()}`, nextUrl, false).catch(console.error)
           axios.post(`${API}/download`, {
             url: nextUrl, platform: detectPlatform(nextUrl) || 'auto',
@@ -472,7 +472,7 @@ export default function App() {
           }, { timeout: 180000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} }).then(r => {
             setTask(r.data.data)
           }).catch((e) => {
-            console.error('[batch] 下载失败:', e.message)
+            console.error('[batch] DownloadFailed:', e.message)
             showDownloadComplete(`error-${Date.now()}`, 'Download Failed', true).catch(console.error)
             setTask({ 
               taskId: `error-${Date.now()}`, 
@@ -484,7 +484,7 @@ export default function App() {
           }).finally(() => setLoading(false))
         }, 3000)
       } else {
-        // 所有任务完成 - 保留队列显示结果
+        // 所有任务Completed - Keep队列Show结果
         setLoading(false)
       }
     }
@@ -508,7 +508,7 @@ export default function App() {
     return () => clearInterval(t)
   }, [task?.taskId])
 
-  // 播放提示音
+  // PlayPrompt音
   const playNotificationSound = () => {
     try {
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
@@ -525,12 +525,12 @@ export default function App() {
     } catch {}
   }
 
-  // 自动下载：当下载完成时自动触发保存 + 播放提示音
-  // 使用 ref 追踪是否已自动下载过，避免重复触发
+  // AutoDownload：当DownloadCompleted时AutoTriggerSave + PlayPrompt音
+  // Use ref Track是否已AutoDownload过，AvoidDuplicateTrigger
   const autoDownloaded = useRef(false)
   const autoDownloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   
-  // 清理自动下载定时器
+  // ClearAutoDownload定时器
   const clearAutoDownload = () => {
     if (autoDownloadTimer.current) {
       clearTimeout(autoDownloadTimer.current)
@@ -539,17 +539,17 @@ export default function App() {
   }
   
   useEffect(() => {
-    // 每次 task 变化时，重置自动下载标记
+    // 每次 task 变化时，重置AutoDownloadMark
     autoDownloaded.current = false
     clearAutoDownload()
     
     if (task?.status === 'completed' && task.downloadUrl && !downloading && !autoDownloaded.current) {
       autoDownloaded.current = true
-      // 播放提示音
+      // PlayPrompt音
       playNotificationSound()
-      // 显示完成通知
+      // ShowCompleted通知
       showDownloadComplete(task.taskId, task.title || 'Download', false).catch(console.error)
-      // 更新游客本地下载计数
+      // UpdateGuest本地DownloadCount
       if (!authToken) {
         const today = new Date().toISOString().split('T')[0]
         const guestData = localStorage.getItem('orange_guest_downloads')
@@ -558,12 +558,12 @@ export default function App() {
         localStorage.setItem('orange_guest_downloads', JSON.stringify({ date: today, count: newCount }))
         setRemainingDownloads(Math.max(0, GUEST_DAILY_LIMIT - newCount))
       }
-      // 延迟 500ms 后自动下载
+      // 延迟 500ms 后AutoDownload
       autoDownloadTimer.current = setTimeout(() => {
         setDownloading(true)
         shareFile(task.downloadUrl, task.title || 'video').finally(() => {
           setDownloading(false)
-          // 下载完成后重新获取使用量
+          // DownloadCompleted后重新获取Use量
           if (authToken) {
             api.getUsage(authToken).then(u => {
               if (u) {
@@ -587,7 +587,7 @@ export default function App() {
   useEffect(() => { fetchHistory() }, [fetchHistory])
 
   const handleUrlChange = (value: string) => {
-    // 检测是否有嵌入文字的链接
+    // 检测是否有嵌入文字的Link
     const urls = extractUrls(value)
     const finalUrl = urls.length === 1 ? urls[0] : value.trim()
     const platform = detectPlatform(finalUrl)
@@ -596,7 +596,7 @@ export default function App() {
     setDetected(platform)
   }
 
-  // 点击粘贴按钮 - 从剪贴板粘贴
+  // ClickPaste按钮 - 从剪贴板Paste
   const handlePasteClick = async () => {
     try {
       const text = await navigator.clipboard.readText()
@@ -616,30 +616,30 @@ export default function App() {
     }
   }
 
-  // 单个输入框粘贴处理 - 自动提取链接
+  // 单个输入框PasteProcess - AutoExtractLink
   const handleSinglePaste = (e: React.ClipboardEvent) => {
     const pastedText = e.clipboardData.getData('text')
     const urls = pastedText.match(/https?:\/\/[^\s\n,，、；;）)】"']+/g) || []
     if (urls.length > 1) {
-      // 多个链接 → 切换批量模式
+      // 多个Link → 切换批量模式
       e.preventDefault()
       setBatchMode(true)
       setBatchUrls(urls.map((url, idx) => `${idx + 1}. ${url}`).join('\n'))
     } else if (urls.length === 1) {
-      // 单个链接 → 提取链接，去除文字
+      // 单个Link → ExtractLink，去除文字
       e.preventDefault()
       setUrl(urls[0])
       setDetected(detectPlatform(urls[0]))
     }
-    // 没有链接则使用默认粘贴行为
+    // 没有Link则Use默认Paste行为
   }
 
-  // 批量输入变化处理 - 自动提取链接
+  // 批量输入变化Process - AutoExtractLink
   const handleBatchChange = (value: string) => {
     // 先在每个 https:// 前插入换行（除了第一个）
     let processed = value.replace(/(?<!^)https:\/\//g, '\nhttps://')
     
-    // 提取所有链接
+    // Extract所有Link
     const urlRegex = /https?:\/\/[^\s\n,，、；;）)】"']+/g
     const urls = processed.match(urlRegex) || []
     
@@ -664,7 +664,7 @@ export default function App() {
     } catch (e) {
       console.log('[quality] Failed to fetch qualities, using default')
     }
-    // 获取失败时：抖音默认给720p选项，YouTube给720p
+    // 获取Failed时：抖音默认给720pOption，YouTube给720p
     const defaultQualities = [
       { quality: '720p', width: 1280, height: 720, hasVideo: true, hasAudio: true },
     ]
@@ -677,7 +677,7 @@ export default function App() {
   const handleSubmit = async () => {
     autoDownloaded.current = false
     
-    // 检查游客下载次数限制
+    // 检查GuestDownloadTimes限制
     if (!isVip && remainingDownloads === 0) {
       setShowSubscription(true)
       return
@@ -693,7 +693,7 @@ export default function App() {
         .filter(u => u)
       if (urls.length === 0) { setError('Please enter a video link'); return }
       
-      // 检查第一个链接是否已下载
+      // 检查第一个Link是否已Download
       const firstUrl = urls[0]
       const dupItem = history.find(h => h.url === firstUrl || h.title && firstUrl.includes(h.taskId))
       if (dupItem && dupItem.status === 'completed') {
@@ -709,7 +709,7 @@ export default function App() {
     // 单G模式
     if (!url.trim()) { setError('Please enter a video link'); return }
     
-    // 检查是否已下载
+    // 检查是否已Download
     const dupItem = history.find(h => h.url === url.trim() || h.title && url.trim().includes(h.taskId))
     if (dupItem && dupItem.status === 'completed') {
       setDupUrl(url.trim())
@@ -721,7 +721,7 @@ export default function App() {
   }
 
   const doBatchDownload = async (urls: string[]) => {
-    // 检查游客下载次数限制
+    // 检查GuestDownloadTimes限制
     if (!isVip && remainingDownloads === 0) {
       setShowSubscription(true)
       return
@@ -729,7 +729,7 @@ export default function App() {
     setBatchQueue(urls.map(u => ({ url: u, status: 'pending', progress: 0 })))
     setBatchIndex(0)
     setLoading(true); setError('')
-    autoDownloaded.current = false  // 重置自动下载标记
+    autoDownloaded.current = false  // 重置AutoDownloadMark
     try {
       const detectedFirst = detectPlatform(urls[0])
       const r = await axios.post(`${API}/download`, {
@@ -744,7 +744,7 @@ export default function App() {
   }
 
   const doSingleDownload = async (skipQualityPicker = false) => {
-    // 检查游客下载次数限制
+    // 检查GuestDownloadTimes限制
     if (!isVip && remainingDownloads === 0) {
       setShowSubscription(true)
       setLoading(false)
@@ -753,7 +753,7 @@ export default function App() {
     // First get video info to show quality selection
     setLoading(true); setError('')
     
-    // 批量模式：跳过画质选择，直接下载
+    // 批量模式：跳过Quality选择，直接Download
     if (!skipQualityPicker) {
       try {
         const infoRes = await axios.post(`${API}/video-info`, { url: url.trim() }, { timeout: 30000 })
@@ -767,7 +767,7 @@ export default function App() {
           setLoading(false)
           return
         } else if (qualities.length === 1) {
-          // Single quality - VIP直接使用，非VIP限制720p
+          // Single quality - VIP直接Use，非VIP限制720p
           setQuality(isVip ? 'height<=99999' : (qualities[0].height >= 720 ? 'height<=720' : ''))
         }
       } catch (e) {
@@ -777,7 +777,7 @@ export default function App() {
     
     // Proceed with download
     try {
-      // VIP用户使用用户选择的画质，非VIP用户限制画质
+      // VIP用户Use用户选择的Quality，非VIP用户限制Quality
       const downloadQuality = isVip ? quality : (quality || 'height<=720')
       const r = await axios.post(`${API}/download`, {
         url: url.trim(), platform: detected || 'auto',
@@ -816,12 +816,12 @@ export default function App() {
     setLoading(true); setError('')
     try {
       let r;
-      // 尝试使用断点续传 API
+      // 尝试Use断点续传 API
       if (item.taskId) {
         try {
           r = await axios.post(`${API}/download/${item.taskId}/retry`, {}, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} });
           if (r?.data?.code === 0) {
-            // 续传成功，获取新任务状态
+            // 续传Success，获取新任务状态
             const newTaskId = r.data.data.taskId;
             // 轮询新任务状态
             const pollTask = async () => {
@@ -845,11 +845,11 @@ export default function App() {
             return;
           }
         } catch (e) {
-          // 续传 API 不可用，使用普通下载
+          // 续传 API 不可用，Use普通Download
           console.log('[retry] Retry API not available, using regular download');
         }
       }
-      // 普通下载
+      // 普通Download
       r = await axios.post(`${API}/download`, { url: item.url, platform: item.platform || 'auto', needAsr: false, options: ['video'] }, { timeout: 120000 })
       setTask(r.data.data)
     } catch (e: any) { setError(getErrorMessage(e.response?.data?.message || e.message)) }
@@ -859,7 +859,7 @@ export default function App() {
     try { await axios.delete(`${API}/history`); fetchHistory(); setTask(null) } catch {}
   }
   const openSavedFile = (item: HistoryItem) => {
-    // 在新窗口打开视频文件
+    // 在新窗口打开视频File
     const videoUrl = `${BASE_URL}/download/${item.taskId}.mp4`
     window.open(videoUrl, '_blank')
   }
@@ -889,7 +889,7 @@ export default function App() {
 
   return (
     <div className={`min-h-screen ${isDark ? 'bg-dark-bg text-white' : 'bg-light-bg text-gray-900'}`}>
-      {/* 背景光晕 - 橙色主题 */}
+      {/* 背景光晕 - 橙色Theme */}
       <div className={`fixed inset-0 pointer-events-none ${isDark ? '' : 'opacity-30'}`}>
         <div className={`absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl ${isDark ? 'bg-orange-500/8' : 'bg-orange-200'}`} />
         <div className={`absolute bottom-0 left-0 w-72 h-72 rounded-full blur-3xl ${isDark ? 'bg-amber-500/8' : 'bg-amber-200'}`} />
@@ -907,15 +907,15 @@ export default function App() {
               <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-gray-500'}`}>{t('appDesc')}</p>
             </div>
             <div className="ml-auto flex items-center gap-2">
-              {/* 主题切换 */}
+              {/* Theme切换 */}
               <button
                 onClick={toggleTheme}
                 className={`p-2 rounded-lg transition ${isDark ? 'text-slate-300 hover:text-yellow-400' : 'text-gray-500 hover:text-orange-500'}`}
-                title={isDark ? '切换到浅色模式' : '切换到深色模式'}
+                title={isDark ? '切换到Light模式' : '切换到Dark模式'}
               >
                 {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
-              {/* 语言切换 */}
+              {/* Language切换 */}
               <div className="relative">
                 <button
                   onClick={() => setShowLangMenu(!showLangMenu)}
@@ -942,8 +942,8 @@ export default function App() {
                   </>
                 )}
               </div>
-              {/* 快捷键提示 */}
-              <span className={`text-xs hidden sm:inline ${isDark ? 'text-slate-500' : 'text-gray-400'}`} title="Ctrl+V 粘贴, Ctrl+Enter 下载">⌨️</span>
+              {/* 快捷键Prompt */}
+              <span className={`text-xs hidden sm:inline ${isDark ? 'text-slate-500' : 'text-gray-400'}`} title="Ctrl+V Paste, Ctrl+Enter Download">⌨️</span>
               {authToken ? (
                 <>
                   {/* 头像按钮 */}
@@ -959,21 +959,21 @@ export default function App() {
                       <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
                       <div className="absolute right-0 top-10 bg-slate-800 rounded-xl py-2 w-56 border border-slate-700 shadow-xl z-50">
                         <div className="px-3 py-2 border-b border-slate-700/50">
-                          <p className="text-xs text-slate-300">账号</p>
-                          <p className="text-sm text-white truncate">{authUser?.email || '未知的邮箱'}</p>
-                          <p className="text-xs text-orange-400 mt-0.5">{authUser?.tier === 'pro' ? '⭐ Pro 会员' : 'Free 用户'}</p>
+                          <p className="text-xs text-slate-300">Account</p>
+                          <p className="text-sm text-white truncate">{authUser?.email || '未知的Email'}</p>
+                          <p className="text-xs text-orange-400 mt-0.5">{authUser?.tier === 'pro' ? '⭐ Pro Member' : 'Free User'}</p>
                         </div>
                         <div className="py-1">
                           <button onClick={() => { setShowUserMenu(false); setShowSubscription(true) }} className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700/50 transition flex items-center gap-2">
                             <span>📊</span> 订阅管理
                           </button>
                           <button onClick={() => { setShowUserMenu(false); setShowResetPwd(true) }} className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700/50 transition flex items-center gap-2">
-                            <span>🔑</span> 修改密码
+                            <span>🔑</span> 修改Password
                           </button>
                         </div>
                         <div className="pt-1 border-t border-slate-700/50">
                           <button onClick={() => { setShowUserMenu(false); handleLogout() }} className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-slate-700/50 transition flex items-center gap-2">
-                            <span>🚪</span> 退出登录
+                            <span>🚪</span> 退出Login
                           </button>
                         </div>
                       </div>
@@ -982,7 +982,7 @@ export default function App() {
                 </>
               ) : (
                 <button onClick={() => setShowAuthModal(true)} className="px-4 py-2 text-sm bg-gradient-to-r from-orange to-orange-light text-white border-0 rounded-lg font-medium shadow-md hover:shadow-lg transition-all">
-                  登录/注册
+                  Login/Register
                 </button>
               )}
             </div>
@@ -1016,7 +1016,7 @@ export default function App() {
             {!batchMode && (
               <div className="mb-5">
                 <div className="relative">
-                  {/* 粘贴按钮 */}
+                  {/* Paste按钮 */}
                   <button
                     onClick={handlePasteClick}
                     className="absolute left-3 top-1/2 -translate-y-1/2 p-2 text-slate-300 hover:text-orange-400 transition-colors"
@@ -1035,7 +1035,7 @@ export default function App() {
                     placeholder="Paste video link..."
                     className={`w-full pl-24 pr-10 py-4 border-2 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 outline-none text-base transition-all placeholder:text-slate-300 ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
                   />
-                  {/* 清理按钮 - 最右边 */}
+                  {/* Clear按钮 - 最右边 */}
                   {url && !loading && (
                     <button
                       onClick={clearUrl}
@@ -1045,7 +1045,7 @@ export default function App() {
                       <Eraser className="w-4 h-4" />
                     </button>
                   )}
-                  {/* 解析状态指示 */}
+                  {/* Parsing状态指示 */}
                   {loading && (
                     <div className="absolute right-2 top-1/2 -translate-y-1/2">
                       <Loader2 className="w-5 h-5 text-orange-400 animate-spin" />
@@ -1058,20 +1058,20 @@ export default function App() {
             {/* Batch Download模式 */}
             {batchMode && (
               <div className="mb-5">
-                {/* 粘贴区域 */}
+                {/* Paste区域 */}
                 <textarea
                   value={batchUrls}
                   onChange={(e) => handleBatchChange(e.target.value)}
                   placeholder="Paste links (auto-extract) or type one per line：&#10;https://v.douyin.com/xxx&#10;https://x.com/yyy"
                   className={`w-full h-28 px-4 py-3 border-2 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 text-sm transition-all resize-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white placeholder:text-slate-300' : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400'}`}
                 />
-                {/* 链接预览列表 - 带数字排序 */}
+                {/* Link预览列表 - 带数字排序 */}
                 {batchUrls.split('\n').filter(u => u.trim()).length > 0 && (
                   <div className="mt-2 max-h-48 overflow-y-auto space-y-1.5">
                     {batchUrls.split('\n').filter(u => u.trim()).map((url, idx) => {
-                      // 去除数字前缀获取纯链接
+                      // 去除数字前缀获取纯Link
                       const cleanUrl = url.replace(/^\d+\.\s*/, '').trim()
-                      // 截取显示
+                      // 截取Show
                       const displayUrl = cleanUrl.replace(/^https?:\/\//, '')
                       const shortUrl = displayUrl.length > 35 
                         ? displayUrl.substring(0, 20) + '...' + displayUrl.substring(displayUrl.length - 10)
@@ -1114,7 +1114,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* 下载选项 */}
+            {/* DownloadOption */}
             <div className="mb-5">
               <p className="text-xs text-slate-300 mb-2">Download Content</p>
               <div className="flex flex-wrap gap-1.5">
@@ -1146,11 +1146,11 @@ export default function App() {
               )}
             </div>
 
-            {/* Save Location 保存位置 - 下拉式 */}
+            {/* Save Location SaveLocation - 下拉式 */}
             <div className="mb-5">
               <label className="text-xs text-slate-300 mb-2 flex items-center gap-1.5">
                 <FolderOpen className="w-3.5 h-3.5" />
-                Save Location 保存位置
+                Save Location SaveLocation
               </label>
               <div className="relative mt-1.5">
                 <select
@@ -1159,7 +1159,7 @@ export default function App() {
                   className={`w-full px-4 py-3 border-2 rounded-xl text-sm outline-none focus:border-orange-500/70 cursor-pointer appearance-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
                 >
                   <option value="album">📱 Phone Gallery 手機相冊</option>
-                  <option value="download">💻 Download Folder 下載文件夾</option>
+                  <option value="download">💻 Download Folder 下File夾</option>
                   <option value="desktop">🖥️ Desktop 桌面</option>
                 </select>
                 <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 pointer-events-none" />
@@ -1173,7 +1173,7 @@ export default function App() {
               )}
             </div>
 
-            {/* 错误提示 */}
+            {/* ErrorPrompt */}
             {error && (
               <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-2">
                 <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
@@ -1181,7 +1181,7 @@ export default function App() {
               </div>
             )}
 
-            {/* 批量进度提示 */}
+            {/* 批量进度Prompt */}
             {/* Batch progress indicator */}
             {/* Batch Progress 批量进度 */}
             {batchMode && batchQueue.length > 0 && (
@@ -1227,7 +1227,7 @@ export default function App() {
             )}
 
             {/* Download button */}
-            {/* 剩余下载次数提示 */}
+            {/* RemainingDownloadTimesPrompt */}
             {!isVip && remainingDownloads >= 0 && (
               <div className={`mb-3 text-center text-xs py-2 rounded-xl ${isDark ? 'bg-slate-800/60 text-slate-300' : 'bg-gray-100 text-gray-500'}`}>
                 {remainingDownloads === -1 ? t('unlimited') : `${t('downloadsRemaining', { count: remainingDownloads })}`}
@@ -1288,7 +1288,7 @@ export default function App() {
                       ) : null}
                       <span className="text-orange-400 font-medium">{task.progress}%</span>
                       {task.speed && <span className="text-emerald-400">{task.speed}/s</span>}
-                      {task.eta && <span className={isDark ? 'text-slate-300' : 'text-gray-400'}>剩余 {task.eta}</span>}
+                      {task.eta && <span className={isDark ? 'text-slate-300' : 'text-gray-400'}>Remaining {task.eta}</span>}
                     </div>
                   </div>
                 </div>
@@ -1304,22 +1304,22 @@ export default function App() {
                     )}
                     <p className="text-sm text-slate-300">{task.title}</p>
                   </div>
-                  {/* 画质调整提示 - 需求2 */}
+                  {/* Quality调整Prompt - 需求2 */}
                   {task.qualityAdjusted === 'downgrade' && (
                     <div className="text-xs text-orange-400 bg-orange-500/10 px-3 py-2 rounded-xl">
-                      💡 您选择的画质不可用，已自动降级到 {task.height}p
+                      💡 Your selected Quality is unavailable, downgraded to {task.height}p
                     </div>
                   )}
                   {task.qualityAdjusted === 'upgrade' && (
                     <div className="text-xs text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded-xl">
-                      💡 已自动升级到最佳可用画质 {task.height}p
+                      💡 Upgraded to best available Quality {task.height}p
                     </div>
                   )}
-                  {/* Free用户下载限制提示 - 需求3 */}
+                  {/* Free User Download limit Prompt */}
                   {!isVip && task.height && task.height < 1080 && (
                     <div className="text-xs text-slate-300 bg-slate-700/30 px-3 py-2 rounded-xl flex items-center justify-between">
-                      <span>🔒 Pro 专享更高画质</span>
-                      <button onClick={() => setShowSubscription(true)} className="text-orange-400 hover:text-orange-300 underline">升级 Pro</button>
+                      <span>🔒 Pro exclusive higher Quality</span>
+                      <button onClick={() => setShowSubscription(true)} className="text-orange-400 hover:text-orange-300 underline">Upgrade Pro</button>
                     </div>
                   )}
                 </div>
@@ -1337,16 +1337,16 @@ export default function App() {
                 </div>
               )}
 
-              {/* Video下载 */}
+              {/* VideoDownload */}
               {task.status === 'completed' && task.downloadUrl && (
                 <button 
                   onClick={async () => {
-                    clearAutoDownload()  // 取消自动下载
-                    autoDownloaded.current = true  // 标记为已处理
+                    clearAutoDownload()  // 取消AutoDownload
+                    autoDownloaded.current = true  // Mark为已Process
                     setDownloading(true)
-                    // 检查是否为直接链接（YouTube等）
+                    // 检查是否为直接Link（YouTube等）
                     if (task.directLink) {
-                      // 直接在新窗口打开链接
+                      // 直接在新窗口打开Link
                       window.open(task.downloadUrl, '_blank')
                       setDownloading(false)
                     } else {
@@ -1518,8 +1518,8 @@ export default function App() {
           </div>
         </main>
 
-        {/* 重复下载确认弹窗 */}
-        {/* 画质选择弹窗 */}
+        {/* DuplicateDownload确认弹窗 */}
+        {/* Quality选择弹窗 */}
         {showQualityPicker && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700">
@@ -1542,7 +1542,7 @@ export default function App() {
                           return
                         }
                         setShowQualityPicker(false)
-                        // Set quality filter for download - VIP用户直接传高度限制，不限制最高画质
+                        // Set quality filter for download - VIP用户直接传高度限制，不限制最高Quality
                         // 4K=2160, 2K=1440, 1080p=1080, 720p=720
                         let qParam = ''
                         if (q.height >= 1440) qParam = `height<=${q.height}` // 4K/2K
@@ -1582,14 +1582,14 @@ export default function App() {
                   className="w-full mt-3 py-3 px-4 rounded-xl bg-gradient-to-r from-yellow-500/20 to-orange-500/20 text-orange-400 hover:from-yellow-500/30 hover:to-orange-500/30 transition border border-orange-500/30 flex items-center justify-center gap-2"
                 >
                   <Crown className="w-4 h-4" />
-                  升级会员解锁高清画质
+                  UpgradeMember解锁高清Quality
                 </button>
               )}
               <button
                 onClick={() => { setShowQualityPicker(false); setPendingUrl('') }}
                 className="w-full mt-2 py-2 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition"
               >
-                取消
+                Cancel
               </button>
             </div>
           </div>
@@ -1598,12 +1598,12 @@ export default function App() {
         {showDupConfirm && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700">
-              <h3 className="text-lg font-bold text-white mb-2">已下载过</h3>
-              <p className="text-sm text-slate-300 mb-4">该视频已在下载历史中。是否还要下载？</p>
+              <h3 className="text-lg font-bold text-white mb-2">Already Downloaded</h3>
+              <p className="text-sm text-slate-300 mb-4">This video is in your download history. Download again?</p>
               <p className="text-xs text-slate-300 mb-4 truncate">{dupUrl}</p>
               <div className="flex gap-3">
-                <button onClick={() => { setShowDupConfirm(false); setPendingDownload(null) }} className="flex-1 py-2 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition">取消</button>
-                <button onClick={() => { setShowDupConfirm(false); if (pendingDownload) pendingDownload() }} className="flex-1 py-2 px-4 rounded-xl bg-orange-500 text-white hover:bg-orange-600 transition">继续下载</button>
+                <button onClick={() => { setShowDupConfirm(false); setPendingDownload(null) }} className="flex-1 py-2 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition">Cancel</button>
+                <button onClick={() => { setShowDupConfirm(false); if (pendingDownload) pendingDownload() }} className="flex-1 py-2 px-4 rounded-xl bg-orange-500 text-white hover:bg-orange-600 transition">Download Again</button>
               </div>
             </div>
           </div>
@@ -1615,7 +1615,7 @@ export default function App() {
         </footer>
         <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} onSuccess={handleAuthSuccess} onForgotPassword={() => { setShowAuthModal(false); setShowResetPwd(true); }} />
 
-        {/* 忘记密码弹窗 */}
+        {/* 忘记Password弹窗 */}
         {showResetPwd && (
           <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
             <div className="bg-slate-800 rounded-2xl w-full max-w-xs border border-slate-700 shadow-2xl">
@@ -1624,13 +1624,13 @@ export default function App() {
                 <button onClick={() => setShowResetPwd(false)} className="text-slate-300 hover:text-white transition">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                 </button>
-                <h3 className="text-base font-bold text-white">🔑 修改密码</h3>
+                <h3 className="text-base font-bold text-white">🔑 修改Password</h3>
               </div>
               {/* Content */}
               <div className="p-4">
                 {!resetPwdStep ? (
                   <>
-                    <p className="text-xs text-slate-300 mb-3">输入注册邮箱，我们会发送重置链接</p>
+                    <p className="text-xs text-slate-300 mb-3">输入RegisterEmail，我们会Send重置Link</p>
                     <input
                       type="email"
                       value={resetEmail}
@@ -1638,22 +1638,22 @@ export default function App() {
                       placeholder="your@email.com"
                       className="w-full px-3 py-2.5 bg-slate-900/60 border border-slate-600/50 rounded-lg text-white text-sm outline-none focus:border-orange-500/70 mb-3"
                     />
-                    {resetPwdMsg && <p className={`text-xs mb-3 ${resetPwdMsg.includes('失败') ? 'text-red-400' : 'text-green-400'}`}>{resetPwdMsg}</p>}
+                    {resetPwdMsg && <p className={`text-xs mb-3 ${resetPwdMsg.includes('Failed') ? 'text-red-400' : 'text-green-400'}`}>{resetPwdMsg}</p>}
                     <button onClick={handleForgotPassword} disabled={resetPwdLoading} className="w-full py-2.5 rounded-lg bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 transition disabled:opacity-50">
-                      {resetPwdLoading ? '发送中...' : '发送重置链接'}
+                      {resetPwdLoading ? 'Send中...' : 'Send重置Link'}
                     </button>
                   </>
                 ) : (
                   <>
-                    <p className="text-xs text-slate-300 mb-3">设置新密码</p>
+                    <p className="text-xs text-slate-300 mb-3">Settings新Password</p>
                     <input
                       type="password"
                       value={resetPwd}
                       onChange={(e) => setResetPwd(e.target.value)}
-                      placeholder="新密码"
+                      placeholder="新Password"
                       className="w-full px-3 py-2.5 bg-slate-900/60 border border-slate-600/50 rounded-lg text-white text-sm outline-none focus:border-orange-500/70 mb-3"
                     />
-                    {resetPwdMsg && <p className={`text-xs mb-3 ${resetPwdMsg.includes('失败') || resetPwdMsg.includes('无效') ? 'text-red-400' : 'text-green-400'}`}>{resetPwdMsg}</p>}
+                    {resetPwdMsg && <p className={`text-xs mb-3 ${resetPwdMsg.includes('Failed') || resetPwdMsg.includes('无效') ? 'text-red-400' : 'text-green-400'}`}>{resetPwdMsg}</p>}
                     <button onClick={handleResetPassword} disabled={resetPwdLoading} className="w-full py-2.5 rounded-lg bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 transition disabled:opacity-50">
                       {resetPwdLoading ? '重置中...' : '确认重置'}
                     </button>
