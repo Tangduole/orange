@@ -761,8 +761,8 @@ export default function App() {
           setLoading(false)
           return
         } else if (qualities.length === 1) {
-          // Single quality - VIP用户不限画质，非VIP限制720p
-          setQuality(isVip ? '' : (qualities[0].height >= 720 ? 'height<=720' : ''))
+          // Single quality - VIP直接使用，非VIP限制720p
+          setQuality(isVip ? 'height<=99999' : (qualities[0].height >= 720 ? 'height<=720' : ''))
         }
       } catch (e) {
         console.log('[quality] Failed to fetch qualities, proceeding with default')
@@ -771,8 +771,8 @@ export default function App() {
     
     // Proceed with download
     try {
-      // VIP用户不传quality参数，后端自动使用最高画质；非VIP用户传quality限制画质
-      const downloadQuality = isVip ? null : quality
+      // VIP用户使用用户选择的画质，非VIP用户限制画质
+      const downloadQuality = isVip ? quality : (quality || 'height<=720')
       const r = await axios.post(`${API}/download`, {
         url: url.trim(), platform: detected || 'auto',
         needAsr: selected.has('asr'), options: [...selected], quality: downloadQuality, asrLanguage,
