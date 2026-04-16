@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import axios from 'axios'
+import { useTranslation } from 'react-i18next'
 import { Share } from '@capacitor/share'
 import AuthModal from './components/AuthModal'
 import SubscriptionPage from './components/SubscriptionPage'
@@ -224,6 +225,13 @@ export default function App() {
     const saved = localStorage.getItem('orange_theme')
     return saved ? saved === 'dark' : true
   })
+  const { t, i18n } = useTranslation()
+  const [showLangMenu, setShowLangMenu] = useState(false)
+  const changeLanguage = (lng: string) => {
+    i18n.changeLanguage(lng)
+    localStorage.setItem('orange_language', lng)
+    setShowLangMenu(false)
+  }
 
   // 检查 URL 是否有重置密码 token
   useEffect(() => {
@@ -907,6 +915,33 @@ export default function App() {
               >
                 {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
+              {/* 语言切换 */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowLangMenu(!showLangMenu)}
+                  className={`p-2 rounded-lg transition ${isDark ? 'text-slate-300 hover:text-orange-400' : 'text-gray-500 hover:text-orange-500'}`}
+                  title={t('language')}
+                >
+                  <Languages className="w-4 h-4" />
+                </button>
+                {showLangMenu && (
+                  <>
+                    <div className="fixed inset-0 z-40" onClick={() => setShowLangMenu(false)} />
+                    <div className="absolute right-0 top-10 bg-slate-800 rounded-xl py-2 w-40 border border-slate-700 shadow-xl z-50">
+                      {[{ code: 'en', label: 'English' }, { code: 'ko', label: '한국어' }, { code: 'ja', label: '日本語' }, { code: 'hi', label: 'हिन्दी' }, { code: 'zh-TW', label: '繁體中文' }, { code: 'zh-CN', label: '简体中文' }].map(lang => (
+                        <button
+                          key={lang.code}
+                          onClick={() => changeLanguage(lang.code)}
+                          className={`w-full px-3 py-2 text-left text-sm hover:bg-slate-700/50 transition flex items-center gap-2 ${i18n.language === lang.code ? 'text-orange-400' : 'text-slate-300'}`}
+                        >
+                          {lang.label}
+                          {i18n.language === lang.code && <Check className="w-3 h-3 ml-auto" />}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
               {/* 快捷键提示 */}
               <span className={`text-xs hidden sm:inline ${isDark ? 'text-slate-500' : 'text-gray-400'}`} title="Ctrl+V 粘贴, Ctrl+Enter 下载">⌨️</span>
               {authToken ? (
