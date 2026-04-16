@@ -1521,7 +1521,7 @@ export default function App() {
                         axios.post(`${API}/download`, {
                           url: pendingUrl, platform: detected || 'auto',
                           needAsr: selected.has('asr'), options: [...selected], quality: qParam, asrLanguage,
-                        }, { timeout: 120000 }).then(r => {
+                        }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} }).then(r => {
                           setTask(r.data.data)
                           setDetected('')
                         }).catch((e: any) => {
