@@ -24,9 +24,9 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
     setError('');
     setLoading(true);
 
-    // Register时检查两次Password是否一致
+    // RegistertwoPasswordisone
     if (mode === 'register' && password !== confirmPassword) {
-      setError('两次in的Password不一致');
+      setError('twoinPassworddo not match');
       setLoading(false);
       return;
     }
@@ -36,10 +36,10 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
         ? await api.login(email, password)
         : await api.register(email, password);
       
-      // Register后需要EmailVerify，不AutoLogin
+      // RegisterwantEmailVerify，notAutoLogin
       if (data.needsEmailVerification) {
         setLoading(false);
-        setSuccessMessage('RegisterSuccess！请查收Verify邮件，点击LinkCompleted激活。');
+        setSuccessMessage('RegisterSuccess！PleasecheckVerify，clickLinkCompletedactivate。');
         setError('');
         setMode('login');
         setPassword('');
@@ -52,7 +52,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
       onSuccess(data.token, data.user);
       onClose();
     } catch (err: any) {
-      setError(err.message || '操作Failed');
+      setError(err.message || 'OperationFailed');
     } finally {
       setLoading(false);
     }
@@ -143,7 +143,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
             disabled={loading}
             className="w-full py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? '处理中...' : (mode === 'login' ? 'Login' : 'Register')}
+            {loading ? 'ing...' : (mode === 'login' ? 'Login' : 'Register')}
           </button>
         </form>
 
@@ -154,14 +154,14 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
               onClick={onForgotPassword}
               className="text-xs text-slate-500 hover:text-orange-400 transition"
             >
-              忘记Password？
+              Password？
             </button>
           </div>
         )}
 
         {/* Switch Mode */}
         <div className="mt-4 text-center text-sm text-slate-400">
-          {mode === 'login' ? '还没有Account？' : '已有Account？'}
+          {mode === 'login' ? 'stillnoneAccount？' : 'alreadyAccount？'}
           <button
             onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); setSuccessMessage(''); setPassword(''); setConfirmPassword(''); }}
             className="text-orange-400 hover:text-orange-300 ml-1 font-medium"
@@ -172,7 +172,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
 
         {/* Info */}
         <div className="mt-4 p-3 bg-slate-800/30 rounded-lg text-xs text-slate-500">
-          💡 Register即表示你同意我们的服务条款。Free 用户每天可Download 3 次。
+          💡 RegisteryouI。Free canDownload 3 。
         </div>
       </div>
     </div>
