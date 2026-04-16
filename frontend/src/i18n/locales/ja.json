@@ -75,5 +75,15 @@
   "verifyEmailFirst": "先にメールを認証してください",
   "guestMode": "ゲストモード",
   "or": "または",
-  "continueAsGuest": "ゲストとして続行"
+  "continueAsGuest": "ゲストとして続行",
+  "passwordMismatch": "Passwords do not match",
+  "registerSuccess": "Registration successful! Please check your email and click the link to activate.",
+  "operationFailed": "Operation failed",
+  "registerInfo": "Register now. Free users can download 3 videos per day.",
+  "loading": "読み込み中",
+  "hasAccount": "已有账号？登录",
+  "noAccount": "没有账号？注册",
+  "batchProgress": "バッチ処理",
+  "downloadProgress": "ダウンロード進捗",
+  "memberExclusiveQuality": "メンバーのみの更高画質"
 }

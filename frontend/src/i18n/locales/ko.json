@@ -75,5 +75,15 @@
   "verifyEmailFirst": "먼저 이메일을 인증하세요",
   "guestMode": "게스트 모드",
   "or": "또는",
-  "continueAsGuest": "게스트로 계속하기"
+  "continueAsGuest": "게스트로 계속하기",
+  "passwordMismatch": "Passwords do not match",
+  "registerSuccess": "Registration successful! Please check your email and click the link to activate.",
+  "operationFailed": "Operation failed",
+  "registerInfo": "Register now. Free users can download 3 videos per day.",
+  "loading": "로딩 중",
+  "hasAccount": "已有账号？登录",
+  "noAccount": "没有账号？注册",
+  "batchProgress": "배치 진행",
+  "downloadProgress": "다운로드 진행",
+  "memberExclusiveQuality": "회원 전용 고화질"
 }

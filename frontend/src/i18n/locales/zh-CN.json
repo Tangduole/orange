@@ -75,5 +75,15 @@
   "verifyEmailFirst": "请先验证邮箱",
   "guestMode": "游客模式",
   "or": "或",
-  "continueAsGuest": "以游客身份继续"
+  "continueAsGuest": "以游客身份继续",
+  "passwordMismatch": "两次密码输入不一致",
+  "registerSuccess": "注册成功！请查看邮箱并点击链接完成激活。",
+  "operationFailed": "操作失败",
+  "registerInfo": "立即注册。免费用户每天可下载 3 条视频。",
+  "loading": "加载中",
+  "hasAccount": "已有账号？登录",
+  "noAccount": "没有账号？注册",
+  "batchProgress": "批量进度",
+  "downloadProgress": "下载进度",
+  "memberExclusiveQuality": "会员专享更高画质"
 }

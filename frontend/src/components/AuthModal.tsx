@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import api from '../api/auth';
 
 interface AuthModalProps {
@@ -9,6 +10,7 @@ interface AuthModalProps {
 }
 
 export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword }: AuthModalProps) {
+  const { t } = useTranslation();
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -26,7 +28,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
 
     // RegistertwoPasswordisone
     if (mode === 'register' && password !== confirmPassword) {
-      setError('twoinPassworddo not match');
+      setError(t('passwordMismatch'));
       setLoading(false);
       return;
     }
@@ -39,7 +41,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
       // RegisterwantEmailVerify，notAutoLogin
       if (data.needsEmailVerification) {
         setLoading(false);
-        setSuccessMessage('RegisterSuccess！PleasecheckVerify，clickLinkCompletedactivate。');
+        setSuccessMessage(t('registerSuccess'));
         setError('');
         setMode('login');
         setPassword('');
@@ -52,7 +54,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
       onSuccess(data.token, data.user);
       onClose();
     } catch (err: any) {
-      setError(err.message || 'OperationFailed');
+      setError(err.message || t('operationFailed'));
     } finally {
       setLoading(false);
     }
@@ -64,7 +66,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-white">
-            {mode === 'login' ? 'Login' : 'Register'}
+            {mode === 'login' ? t('login') : t('register')}
           </h2>
           <button 
             onClick={onClose}
@@ -94,7 +96,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-1.5">
-              Email
+              {t('email')}
             </label>
             <input
               type="email"
@@ -108,7 +110,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
 
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-1.5">
-              Password
+              {t('password')}
             </label>
             <input
               type="password"
@@ -124,7 +126,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
           {mode === 'register' && (
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1.5">
-                ConfirmPassword
+                {t('confirmPassword')}
               </label>
               <input
                 type="password"
@@ -143,7 +145,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
             disabled={loading}
             className="w-full py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'ing...' : (mode === 'login' ? 'Login' : 'Register')}
+            {loading ? t('loading') + '...' : (mode === 'login' ? t('login') : t('register'))}
           </button>
         </form>
 
@@ -154,25 +156,25 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
               onClick={onForgotPassword}
               className="text-xs text-slate-500 hover:text-orange-400 transition"
             >
-              Password？
+              {t('forgotPassword')}
             </button>
           </div>
         )}
 
         {/* Switch Mode */}
         <div className="mt-4 text-center text-sm text-slate-400">
-          {mode === 'login' ? 'stillnoneAccount？' : 'alreadyAccount？'}
+          {mode === 'login' ? t('noAccount') : t('hasAccount')}
           <button
             onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); setSuccessMessage(''); setPassword(''); setConfirmPassword(''); }}
             className="text-orange-400 hover:text-orange-300 ml-1 font-medium"
           >
-            {mode === 'login' ? 'Register' : 'Login'}
+            {mode === 'login' ? t('register') : t('login')}
           </button>
         </div>
 
         {/* Info */}
         <div className="mt-4 p-3 bg-slate-800/30 rounded-lg text-xs text-slate-500">
-          💡 RegisteryouI。Free canDownload 3 。
+          💡 {t('registerInfo')}
         </div>
       </div>
     </div>
