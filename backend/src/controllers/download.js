@@ -148,7 +148,7 @@ async function createDownload(req, res) {
     if (isDouyinUrl(url)) {
       // 非VIP用户限制画质为720p，VIP用户不限制（最高画质）
       const maxQuality = isVip ? null : 'height<=720';
-      processDouyin(taskId, url, wantsAsr, normalizedOptions, maxQuality, asrLanguage, quality).catch(err => {
+      processDouyin(taskId, url, wantsAsr, normalizedOptions, quality, asrLanguage).catch(err => {
         console.error(`[task] ${taskId} douyin failed:`, err);
         store.update(taskId, { status: 'error', progress: 0, error: err.message });
       });
