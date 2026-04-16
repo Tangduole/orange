@@ -77,5 +77,13 @@
   "verifyEmailFirst": "Please verify your email first",
   "guestMode": "Guest Mode",
   "or": "or",
-  "continueAsGuest": "Continue as Guest"
+  "continueAsGuest": "Continue as Guest",
+  "passwordMismatch": "Passwords do not match",
+  "registerSuccess": "Registration successful! Please check your email and click the link to activate.",
+  "operationFailed": "Operation failed",
+  "registerInfo": "Register now. Free users can download 3 videos per day.",
+  "loading": "Loading",
+  "batchProgress": "Batch Progress",
+  "downloadProgress": "Download Progress",
+  "memberExclusiveQuality": "Member exclusive higher quality"
 }

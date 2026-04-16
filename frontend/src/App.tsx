@@ -965,7 +965,7 @@ export default function App() {
                         </div>
                         <div className="py-1">
                           <button onClick={() => { setShowUserMenu(false); setShowSubscription(true) }} className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700/50 transition flex items-center gap-2">
-                            <span>📊</span> 订阅管理
+                            <span>📊</span> {t('settings')}
                           </button>
                           <button onClick={() => { setShowUserMenu(false); setShowResetPwd(true) }} className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700/50 transition flex items-center gap-2">
                             <span>🔑</span> 修改Password
@@ -1183,7 +1183,7 @@ export default function App() {
 
             {/* 批量进度Prompt */}
             {/* Batch progress indicator */}
-            {/* Batch Progress 批量进度 */}
+            {/* {t('batchProgress')} */}
             {batchMode && batchQueue.length > 0 && (
               <div className={`mb-3 rounded-xl border overflow-hidden ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-white border-gray-200'}`}>
                 <div className={`px-4 py-2 border-b flex justify-between items-center ${isDark ? 'border-slate-700/60' : 'border-gray-200'}`}>
@@ -1257,7 +1257,7 @@ export default function App() {
             <div className={`mt-5 backdrop-blur-sm rounded-2xl p-5 border shadow-xl space-y-3 ${isDark ? 'bg-slate-800/60 border-slate-700/60' : 'bg-white border-gray-200'}`}>
               <div className="flex items-center justify-between">
                 <h3 className={`text-sm font-semibold flex items-center gap-2 ${isDark ? 'text-slate-500' : 'text-gray-700'}`}>
-                  <Download className="w-4 h-4 text-orange-400" /> Download Progress
+                  <Download className="w-4 h-4 text-orange-400" /> {t('downloadProgress')}
                 </h3>
                 <button onClick={() => setTask(null)}><X className={`w-4 h-4 ${isDark ? 'text-slate-300 hover:text-slate-300' : 'text-gray-400 hover:text-gray-600'}`} /></button>
               </div>
@@ -1318,8 +1318,8 @@ export default function App() {
                   {/* Free User Download limit Prompt */}
                   {!isVip && task.height && task.height < 1080 && (
                     <div className="text-xs text-slate-300 bg-slate-700/30 px-3 py-2 rounded-xl flex items-center justify-between">
-                      <span>🔒 Pro exclusive higher Quality</span>
-                      <button onClick={() => setShowSubscription(true)} className="text-orange-400 hover:text-orange-300 underline">Upgrade Pro</button>
+                      <span>🔒 {t('memberExclusiveQuality')}</span>
+                      <button onClick={() => setShowSubscription(true)} className="text-orange-400 hover:text-orange-300 underline">{t('upgradeToPro')}</button>
                     </div>
                   )}
                 </div>

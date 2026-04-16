@@ -75,5 +75,15 @@
   "verifyEmailFirst": "कृपया पहले अपना ईमेल सत्यापित करें",
   "guestMode": "गेस्ट मोड",
   "or": "या",
-  "continueAsGuest": "गेस्ट के रूप में जारी रखें"
+  "continueAsGuest": "गेस्ट के रूप में जारी रखें",
+  "passwordMismatch": "Passwords do not match",
+  "registerSuccess": "Registration successful! Please check your email and click the link to activate.",
+  "operationFailed": "Operation failed",
+  "registerInfo": "Register now. Free users can download 3 videos per day.",
+  "loading": "लोड हो रहा है",
+  "hasAccount": "已有账号？登录",
+  "noAccount": "没有账号？注册",
+  "batchProgress": "बैच प्रगति",
+  "downloadProgress": "डाउनलोड प्रगति",
+  "memberExclusiveQuality": "सदस्य विशेष उच्च गुणवत्ता"
 }

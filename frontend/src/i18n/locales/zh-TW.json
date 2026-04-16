@@ -75,5 +75,15 @@
   "verifyEmailFirst": "請先驗證電子郵件",
   "guestMode": "訪客模式",
   "or": "或",
-  "continueAsGuest": "以訪客身份繼續"
+  "continueAsGuest": "以訪客身份繼續",
+  "passwordMismatch": "兩次密碼輸入不一致",
+  "registerSuccess": "註冊成功！請查看郵箱並點擊連結完成激活。",
+  "operationFailed": "操作失敗",
+  "registerInfo": "立即註冊。免費用戶每天可下載 3 條影片。",
+  "loading": "載入中",
+  "hasAccount": "已有账号？登录",
+  "noAccount": "没有账号？注册",
+  "batchProgress": "批量進度",
+  "downloadProgress": "下載進度",
+  "memberExclusiveQuality": "會員專屬更高畫質"
 }
