@@ -462,7 +462,7 @@ export default function App() {
           axios.post(`${API}/download`, {
             url: nextUrl, platform: detectPlatform(nextUrl) || 'auto',
             needAsr: selected.has('asr'), options: [...selected], quality, asrLanguage,
-          }, { timeout: 180000 }).then(r => {
+          }, { timeout: 180000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} }).then(r => {
             setTask(r.data.data)
           }).catch((e) => {
             console.error('[batch] 下载失败:', e.message)
@@ -729,7 +729,7 @@ export default function App() {
       const r = await axios.post(`${API}/download`, {
         url: urls[0], platform: detectedFirst || 'auto',
         needAsr: selected.has('asr'), options: [...selected], quality, asrLanguage,
-      }, { timeout: 120000 })
+      }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} })
       setTask(r.data.data)
     } catch (e: any) {
       setError(getErrorMessage(e.code === 'ECONNABORTED' ? 'timeout' : (e.response?.data?.message || e.message || 'Download failed')))
@@ -776,7 +776,7 @@ export default function App() {
       const r = await axios.post(`${API}/download`, {
         url: url.trim(), platform: detected || 'auto',
         needAsr: selected.has('asr'), options: [...selected], quality: downloadQuality, asrLanguage,
-      }, { timeout: 120000 })
+      }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} })
       setTask(r.data.data); setDetected('')
     } catch (e: any) {
       setError(getErrorMessage(e.code === 'ECONNABORTED' ? 'timeout' : (e.response?.data?.message || e.message || 'Download failed')))
@@ -813,7 +813,7 @@ export default function App() {
       // 尝试使用断点续传 API
       if (item.taskId) {
         try {
-          r = await axios.post(`${API}/download/${item.taskId}/retry`, {}, { timeout: 120000 });
+          r = await axios.post(`${API}/download/${item.taskId}/retry`, {}, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} });
           if (r?.data?.code === 0) {
             // 续传成功，获取新任务状态
             const newTaskId = r.data.data.taskId;
