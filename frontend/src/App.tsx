@@ -903,8 +903,8 @@ export default function App() {
               <span className="text-3xl leading-none">🍊</span>
             </div>
             <div className="text-left">
-              <h1 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Orange Downloader</h1>
-              <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-gray-500'}`}>Multi-platform Video Downloader</p>
+              <h1 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{t('appName')}</h1>
+              <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-gray-500'}`}>{t('appDesc')}</p>
             </div>
             <div className="ml-auto flex items-center gap-2">
               {/* 主题切换 */}
@@ -988,7 +988,7 @@ export default function App() {
             </div>
           </div>
           <p className="text-slate-300 text-sm">
-            Paste link → One-click download. Support multiple platforms
+            <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-gray-500'}`}>{t('tagline')}</p>
           </p>
         </header>
 
@@ -1002,13 +1002,13 @@ export default function App() {
                 onClick={() => setBatchMode(false)}
                 className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${!batchMode ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : isDark ? 'bg-slate-700/30 text-slate-300 border border-transparent' : 'bg-gray-100 text-gray-500 border border-transparent'}`}
               >
-                Single Download
+                {t('singleDownload')}
               </button>
               <button
                 onClick={() => setBatchMode(true)}
                 className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${batchMode ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : isDark ? 'bg-slate-700/30 text-slate-300 border border-transparent' : 'bg-gray-100 text-gray-500 border border-transparent'}`}
               >
-                Batch Download
+                {t('batchDownload')}
               </button>
             </div>
 
@@ -1103,7 +1103,7 @@ export default function App() {
 
             {/* Supported Platforms */}
             <div className="mb-5">
-              <p className="text-xs text-slate-300 mb-2">Supported Platforms</p>
+              <p className="text-xs text-slate-300 mb-2">{t('supportedPlatforms')}</p>
               <div className="flex flex-wrap gap-1.5">
                 {PLATFORMS.map((p) => (
                   <span key={p.id} className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-700/30 text-slate-300 text-xs rounded-lg">
@@ -1245,9 +1245,9 @@ export default function App() {
               className="w-full py-4 rounded-2xl font-bold text-white text-base bg-orange-500 hover:bg-orange-600 active:bg-orange-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-orange-500/25 active:scale-[0.98]"
             >
               {loading ? (
-                <><Loader2 className="w-5 h-5 animate-spin" />{batchMode ? `Processing ${batchIndex + 1}/${batchQueue.length}...` : 'Processing...'}</>
+                <><Loader2 className="w-5 h-5 animate-spin" />{batchMode ? `${t('processing')} ${batchIndex + 1}/${batchQueue.length}...` : t('processing')}</>
               ) : (
-                <><Zap className="w-5 h-5" />Start Download</>
+                <><Zap className="w-5 h-5" />{t('startDownload')}</>
               )}
             </button>
           </div>
