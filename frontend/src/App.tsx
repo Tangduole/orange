@@ -353,7 +353,7 @@ export default function App() {
         setResetPwdStep(true)
         setResetPwdMsg('Demo mode：Use以下token重置Password')
       } else {
-        setResetPwdMsg('重置Link已Send到Email')
+        setResetPwdMsg('Reset link Sent to Email')
       }
     } catch (err: any) {
       setResetPwdMsg(err.message || 'SendFailed')
@@ -369,7 +369,7 @@ export default function App() {
     setResetPwdMsg('')
     try {
       await api.resetPassword(resetPwdToken, resetPwd)
-      setResetPwdMsg('Password已重置！请Use新PasswordLogin')
+      setResetPwdMsg('Password reset! Please login with new Password')
       setTimeout(() => {
         setShowResetPwd(false)
         setResetPwdStep(false)

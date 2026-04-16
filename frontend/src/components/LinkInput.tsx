@@ -9,7 +9,7 @@ interface LinkInputProps {
 
 export default function LinkInput({ value, onChange, platform, onClear }: LinkInputProps) {
   const platformNames: Record<string, string> = {
-    douyin: '抖音',
+    douyin: '',
     tiktok: 'TikTok',
     youtube: 'YouTube',
     x: 'X',
@@ -33,7 +33,7 @@ export default function LinkInput({ value, onChange, platform, onClear }: LinkIn
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="Paste视频Link..."
+          placeholder="PasteVideoLink..."
           className="w-full h-12 bg-dark-input rounded-lg px-4 pr-10 text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-orange/50"
         />
         {value && (
@@ -50,7 +50,7 @@ export default function LinkInput({ value, onChange, platform, onClear }: LinkIn
         <div className="mt-3 flex items-center gap-2">
           <span className="text-lg">{platformIcons[platform] || '🔗'}</span>
           <span className="text-sm text-text-secondary">
-            已识别：{platformNames[platform] || platform}
+            already：{platformNames[platform] || platform}
           </span>
         </div>
       )}
