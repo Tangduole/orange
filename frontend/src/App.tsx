@@ -896,19 +896,19 @@ export default function App() {
             </div>
             <div className="text-left">
               <h1 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Orange Downloader</h1>
-              <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-500'}`}>Multi-platform Video Downloader</p>
+              <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-gray-500'}`}>Multi-platform Video Downloader</p>
             </div>
             <div className="ml-auto flex items-center gap-2">
               {/* 主题切换 */}
               <button
                 onClick={toggleTheme}
-                className={`p-2 rounded-lg transition ${isDark ? 'text-slate-400 hover:text-yellow-400' : 'text-gray-500 hover:text-orange-500'}`}
+                className={`p-2 rounded-lg transition ${isDark ? 'text-slate-300 hover:text-yellow-400' : 'text-gray-500 hover:text-orange-500'}`}
                 title={isDark ? '切换到浅色模式' : '切换到深色模式'}
               >
                 {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
               {/* 快捷键提示 */}
-              <span className={`text-xs hidden sm:inline ${isDark ? 'text-slate-600' : 'text-gray-400'}`} title="Ctrl+V 粘贴, Ctrl+Enter 下载">⌨️</span>
+              <span className={`text-xs hidden sm:inline ${isDark ? 'text-slate-500' : 'text-gray-400'}`} title="Ctrl+V 粘贴, Ctrl+Enter 下载">⌨️</span>
               {authToken ? (
                 <>
                   {/* 头像按钮 */}
@@ -924,7 +924,7 @@ export default function App() {
                       <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
                       <div className="absolute right-0 top-10 bg-slate-800 rounded-xl py-2 w-56 border border-slate-700 shadow-xl z-50">
                         <div className="px-3 py-2 border-b border-slate-700/50">
-                          <p className="text-xs text-slate-500">账号</p>
+                          <p className="text-xs text-slate-300">账号</p>
                           <p className="text-sm text-white truncate">{authUser?.email || '未知的邮箱'}</p>
                           <p className="text-xs text-orange-400 mt-0.5">{authUser?.tier === 'pro' ? '⭐ Pro 会员' : 'Free 用户'}</p>
                         </div>
@@ -952,7 +952,7 @@ export default function App() {
               )}
             </div>
           </div>
-          <p className="text-slate-500 text-sm">
+          <p className="text-slate-300 text-sm">
             Paste link → One-click download. Support multiple platforms
           </p>
         </header>
@@ -965,13 +965,13 @@ export default function App() {
             <div className="flex gap-2 mb-5">
               <button
                 onClick={() => setBatchMode(false)}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${!batchMode ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : isDark ? 'bg-slate-700/30 text-slate-500 border border-transparent' : 'bg-gray-100 text-gray-500 border border-transparent'}`}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${!batchMode ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : isDark ? 'bg-slate-700/30 text-slate-300 border border-transparent' : 'bg-gray-100 text-gray-500 border border-transparent'}`}
               >
                 Single Download
               </button>
               <button
                 onClick={() => setBatchMode(true)}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${batchMode ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : isDark ? 'bg-slate-700/30 text-slate-500 border border-transparent' : 'bg-gray-100 text-gray-500 border border-transparent'}`}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${batchMode ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : isDark ? 'bg-slate-700/30 text-slate-300 border border-transparent' : 'bg-gray-100 text-gray-500 border border-transparent'}`}
               >
                 Batch Download
               </button>
@@ -984,12 +984,12 @@ export default function App() {
                   {/* 粘贴按钮 */}
                   <button
                     onClick={handlePasteClick}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-orange-400 transition-colors"
+                    className="absolute left-3 top-1/2 -translate-y-1/2 p-2 text-slate-300 hover:text-orange-400 transition-colors"
                     title="Paste from clipboard"
                   >
                     <Clipboard className="w-5 h-5" />
                   </button>
-                  <div className="absolute left-12 top-1/2 -translate-y-1/2 text-slate-500">
+                  <div className="absolute left-12 top-1/2 -translate-y-1/2 text-slate-300">
                     <Link2 className="w-5 h-5" />
                   </div>
                   <input
@@ -998,13 +998,13 @@ export default function App() {
                     onChange={(e) => handleUrlChange(e.target.value)}
                     onPaste={handleSinglePaste}
                     placeholder="Paste video link..."
-                    className={`w-full pl-24 pr-10 py-4 border-2 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 outline-none text-base transition-all placeholder:text-slate-400 ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                    className={`w-full pl-24 pr-10 py-4 border-2 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 outline-none text-base transition-all placeholder:text-slate-300 ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
                   />
                   {/* 清理按钮 - 最右边 */}
                   {url && !loading && (
                     <button
                       onClick={clearUrl}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-500 hover:text-slate-300 transition"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-300 hover:text-slate-300 transition"
                       title="Clear link"
                     >
                       <Eraser className="w-4 h-4" />
@@ -1028,7 +1028,7 @@ export default function App() {
                   value={batchUrls}
                   onChange={(e) => handleBatchChange(e.target.value)}
                   placeholder="Paste links (auto-extract) or type one per line：&#10;https://v.douyin.com/xxx&#10;https://x.com/yyy"
-                  className={`w-full h-28 px-4 py-3 border-2 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 text-sm transition-all resize-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white placeholder:text-slate-500' : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400'}`}
+                  className={`w-full h-28 px-4 py-3 border-2 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 text-sm transition-all resize-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white placeholder:text-slate-300' : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400'}`}
                 />
                 {/* 链接预览列表 - 带数字排序 */}
                 {batchUrls.split('\n').filter(u => u.trim()).length > 0 && (
@@ -1043,15 +1043,15 @@ export default function App() {
                         : displayUrl
                       return (
                         <div key={idx} className="flex items-center gap-0.5 px-3 py-2 bg-slate-700/30 rounded-xl border border-slate-700/60">
-                          <span className="text-xs text-slate-500 w-6">{idx + 1}.</span>
-                          <span className="flex-1 text-xs text-slate-400 truncate text-left" title={cleanUrl}>{shortUrl}</span>
+                          <span className="text-xs text-slate-300 w-6">{idx + 1}.</span>
+                          <span className="flex-1 text-xs text-slate-300 truncate text-left" title={cleanUrl}>{shortUrl}</span>
                           <button
                             onClick={() => {
                               const lines = batchUrls.split('\n')
                               lines.splice(idx, 1)
                               setBatchUrls(lines.filter(l => l.trim()).join('\n'))
                             }}
-                            className="text-slate-600 hover:text-red-400 transition"
+                            className="text-slate-500 hover:text-red-400 transition"
                           >
                             <X className="w-3.5 h-3.5" />
                           </button>
@@ -1060,7 +1060,7 @@ export default function App() {
                     })}
                   </div>
                 )}
-                <p className="text-xs text-slate-500 mt-2">
+                <p className="text-xs text-slate-300 mt-2">
                   💡 One link per line, max 10 items. {batchUrls.split('\n').filter(u => u.trim()).length}/10
                 </p>
               </div>
@@ -1068,10 +1068,10 @@ export default function App() {
 
             {/* Supported Platforms */}
             <div className="mb-5">
-              <p className="text-xs text-slate-500 mb-2">Supported Platforms</p>
+              <p className="text-xs text-slate-300 mb-2">Supported Platforms</p>
               <div className="flex flex-wrap gap-1.5">
                 {PLATFORMS.map((p) => (
-                  <span key={p.id} className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-700/30 text-slate-500 text-xs rounded-lg">
+                  <span key={p.id} className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-700/30 text-slate-300 text-xs rounded-lg">
                     <span>{p.icon}</span>
                     <span>{p.label}</span>
                   </span>
@@ -1081,14 +1081,14 @@ export default function App() {
 
             {/* 下载选项 */}
             <div className="mb-5">
-              <p className="text-xs text-slate-500 mb-2">Download Content</p>
+              <p className="text-xs text-slate-300 mb-2">Download Content</p>
               <div className="flex flex-wrap gap-1.5">
                 {OPTIONS.map(o => {
                   const Icon = o.icon; const on = selected.has(o.id)
                   return (
                     <button key={o.id} onClick={() => toggle(o.id)}
                       className={`flex items-center gap-1 px-3 py-2 text-xs rounded-lg transition-all
-                        ${on ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : 'bg-slate-700/30 text-slate-500 border border-transparent hover:text-slate-300'}`}>
+                        ${on ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : 'bg-slate-700/30 text-slate-300 border border-transparent hover:text-slate-300'}`}>
                       <Icon className="w-3.5 h-3.5" />{o.label}
                     </button>
                   )
@@ -1097,7 +1097,7 @@ export default function App() {
               {/* ASR Language Selection */}
               {selected.has('asr') && (
                 <div className="mt-3">
-                  <label className="text-xs text-slate-500 mb-1 block">ASR Language 語言</label>
+                  <label className="text-xs text-slate-300 mb-1 block">ASR Language 語言</label>
                   <select
                     value={asrLanguage}
                     onChange={(e) => setAsrLanguage(e.target.value)}
@@ -1113,7 +1113,7 @@ export default function App() {
 
             {/* Save Location 保存位置 - 下拉式 */}
             <div className="mb-5">
-              <label className="text-xs text-slate-500 mb-2 flex items-center gap-1.5">
+              <label className="text-xs text-slate-300 mb-2 flex items-center gap-1.5">
                 <FolderOpen className="w-3.5 h-3.5" />
                 Save Location 保存位置
               </label>
@@ -1127,11 +1127,11 @@ export default function App() {
                   <option value="download">💻 Download Folder 下載文件夾</option>
                   <option value="desktop">🖥️ Desktop 桌面</option>
                 </select>
-                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 pointer-events-none" />
               </div>
               {saveLocation === 'download' && (
                 <div className="mt-2 p-2.5 bg-slate-700/30 rounded-xl border border-slate-700/60">
-                  <p className="text-xs text-slate-500 leading-relaxed">
+                  <p className="text-xs text-slate-300 leading-relaxed">
                     💡 <span className="text-orange-400">Tip:</span>To change download path, set default download location in browser settings. Chrome: Settings → Advanced → Downloads.
                   </p>
                 </div>
@@ -1152,14 +1152,14 @@ export default function App() {
             {batchMode && batchQueue.length > 0 && (
               <div className={`mb-3 rounded-xl border overflow-hidden ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-white border-gray-200'}`}>
                 <div className={`px-4 py-2 border-b flex justify-between items-center ${isDark ? 'border-slate-700/60' : 'border-gray-200'}`}>
-                  <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-gray-600'}`}>
+                  <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-gray-600'}`}>
                     Batch Queue: {batchQueue.length} items
                   </p>
                   {loading && <span className="text-xs text-orange-400">Processing {batchIndex + 1}/{batchQueue.length}</span>}
                 </div>
                 <div className="max-h-40 overflow-y-auto">
                   {batchQueue.map((item, idx) => {
-                    let statusIcon = <span className="text-xs text-slate-600">⏳</span>
+                    let statusIcon = <span className="text-xs text-slate-500">⏳</span>
                     let statusClass = ''
                     
                     if (item.status === 'completed') {
@@ -1178,9 +1178,9 @@ export default function App() {
                     
                     return (
                       <div key={idx} className={`flex items-center gap-2 px-4 py-2 border-b border-slate-700/20 last:border-0 ${statusClass}`}>
-                        <span className="text-xs text-slate-500 w-5">{idx + 1}.</span>
+                        <span className="text-xs text-slate-300 w-5">{idx + 1}.</span>
                         <span className="text-sm">{icon}</span>
-                        <span className="text-xs text-slate-400 truncate flex-1" title={item.url}>
+                        <span className="text-xs text-slate-300 truncate flex-1" title={item.url}>
                           {item.url.replace(/^https?:\/\//, '').substring(0, 35)}...
                         </span>
                         {statusIcon}
@@ -1194,7 +1194,7 @@ export default function App() {
             {/* Download button */}
             {/* 剩余下载次数提示 */}
             {!isVip && remainingDownloads >= 0 && (
-              <div className={`mb-3 text-center text-xs py-2 rounded-xl ${isDark ? 'bg-slate-800/60 text-slate-400' : 'bg-gray-100 text-gray-500'}`}>
+              <div className={`mb-3 text-center text-xs py-2 rounded-xl ${isDark ? 'bg-slate-800/60 text-slate-300' : 'bg-gray-100 text-gray-500'}`}>
                 📊 今日剩余下载: <span className="text-orange-400 font-medium">{remainingDownloads}</span> 次
                 {remainingDownloads === 0 && <span className="ml-2 text-orange-400">· <button onClick={() => setShowSubscription(true)} className="underline hover:text-orange-300">升级Pro</button></span>}
               </div>
@@ -1221,17 +1221,17 @@ export default function App() {
           {task && (
             <div className={`mt-5 backdrop-blur-sm rounded-2xl p-5 border shadow-xl space-y-3 ${isDark ? 'bg-slate-800/60 border-slate-700/60' : 'bg-white border-gray-200'}`}>
               <div className="flex items-center justify-between">
-                <h3 className={`text-sm font-semibold flex items-center gap-2 ${isDark ? 'text-slate-600' : 'text-gray-700'}`}>
+                <h3 className={`text-sm font-semibold flex items-center gap-2 ${isDark ? 'text-slate-500' : 'text-gray-700'}`}>
                   <Download className="w-4 h-4 text-orange-400" /> Download Progress
                 </h3>
-                <button onClick={() => setTask(null)}><X className={`w-4 h-4 ${isDark ? 'text-slate-500 hover:text-slate-300' : 'text-gray-400 hover:text-gray-600'}`} /></button>
+                <button onClick={() => setTask(null)}><X className={`w-4 h-4 ${isDark ? 'text-slate-300 hover:text-slate-300' : 'text-gray-400 hover:text-gray-600'}`} /></button>
               </div>
 
               <div className="flex items-center gap-2">
                 {task.status === 'completed' && <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
                 {task.status === 'error' && <XCircle className="w-5 h-5 text-red-400" />}
                 {isWorking(task.status) && <Loader2 className="w-5 h-5 text-orange-400 animate-spin" />}
-                <span className={`text-sm ${isDark ? 'text-slate-600' : 'text-gray-600'}`}>{statusLabel(task.status)}</span>
+                <span className={`text-sm ${isDark ? 'text-slate-500' : 'text-gray-600'}`}>{statusLabel(task.status)}</span>
               </div>
 
               {/* 精细进度条 */}
@@ -1243,17 +1243,17 @@ export default function App() {
                       style={{ width: `${task.progress}%` }}
                     />
                   </div>
-                  <div className={`flex items-center justify-between text-xs ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>
-                    <span className={isDark ? 'text-slate-400' : 'text-gray-600'}>{task.title || 'Parsing...'}</span>
+                  <div className={`flex items-center justify-between text-xs ${isDark ? 'text-slate-300' : 'text-gray-500'}`}>
+                    <span className={isDark ? 'text-slate-300' : 'text-gray-600'}>{task.title || 'Parsing...'}</span>
                     <div className="flex items-center gap-2">
                       {task.downloadedBytes && task.totalBytes ? (
-                        <span className={isDark ? 'text-slate-400' : 'text-gray-500'}>
+                        <span className={isDark ? 'text-slate-300' : 'text-gray-500'}>
                           {formatBytes(task.downloadedBytes)}/{formatBytes(task.totalBytes)}
                         </span>
                       ) : null}
                       <span className="text-orange-400 font-medium">{task.progress}%</span>
                       {task.speed && <span className="text-emerald-400">{task.speed}/s</span>}
-                      {task.eta && <span className={isDark ? 'text-slate-500' : 'text-gray-400'}>剩余 {task.eta}</span>}
+                      {task.eta && <span className={isDark ? 'text-slate-300' : 'text-gray-400'}>剩余 {task.eta}</span>}
                     </div>
                   </div>
                 </div>
@@ -1267,7 +1267,7 @@ export default function App() {
                         🎬 {task.quality} {task.height >= 720 ? '⭐' : '✓'}
                       </span>
                     )}
-                    <p className="text-sm text-slate-500">{task.title}</p>
+                    <p className="text-sm text-slate-300">{task.title}</p>
                   </div>
                   {/* 画质调整提示 - 需求2 */}
                   {task.qualityAdjusted === 'downgrade' && (
@@ -1282,7 +1282,7 @@ export default function App() {
                   )}
                   {/* Free用户下载限制提示 - 需求3 */}
                   {!isVip && task.height && task.height < 1080 && (
-                    <div className="text-xs text-slate-400 bg-slate-700/30 px-3 py-2 rounded-xl flex items-center justify-between">
+                    <div className="text-xs text-slate-300 bg-slate-700/30 px-3 py-2 rounded-xl flex items-center justify-between">
                       <span>🔒 Pro 专享更高画质</span>
                       <button onClick={() => setShowSubscription(true)} className="text-orange-400 hover:text-orange-300 underline">升级 Pro</button>
                     </div>
@@ -1293,7 +1293,7 @@ export default function App() {
               {/* 图文 */}
               {task.isNote && task.imageFiles?.length > 0 && (
                 <div>
-                  <p className="text-xs text-slate-500 mb-2">Total {task.imageFiles.length}  images</p>
+                  <p className="text-xs text-slate-300 mb-2">Total {task.imageFiles.length}  images</p>
                   <div className="grid grid-cols-3 gap-2">
                     {task.imageFiles.map(img => (
                       <a key={img.filename} href={`${API.replace('/api', '')}${img.url}`} download><img src={`${API.replace('/api', '')}${img.url}`} alt="" className="w-full aspect-square object-cover rounded-xl bg-slate-700/30" loading="lazy" /></a>
@@ -1338,7 +1338,7 @@ export default function App() {
                     setDownloading(false)
                   }}
                   disabled={downloading}
-                  className="w-full py-3 rounded-xl text-xs bg-slate-700/30 border border-slate-700/60 text-slate-500 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full py-3 rounded-xl text-xs bg-slate-700/30 border border-slate-700/60 text-slate-300 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />}
                   {downloading ? 'Downloading...' : 'Save Cover'}
@@ -1356,7 +1356,7 @@ export default function App() {
                     setDownloading(false)
                   }}
                   disabled={downloading}
-                  className="w-full py-3 rounded-xl text-xs bg-slate-700/30 border border-slate-700/60 text-slate-500 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full py-3 rounded-xl text-xs bg-slate-700/30 border border-slate-700/60 text-slate-300 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mic className="w-3.5 h-3.5" />}
                   {downloading ? 'Downloading...' : 'Save MP3'}
@@ -1367,12 +1367,12 @@ export default function App() {
               {task.status === 'completed' && task.copyText && (
                 <div className="p-3 bg-slate-900/60 rounded-xl">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs text-slate-500">Copywriting</span>
-                    <button onClick={() => clip(task.copyText!, 'copy')} className="text-xs text-slate-500 hover:text-orange-400 transition">
+                    <span className="text-xs text-slate-300">Copywriting</span>
+                    <button onClick={() => clip(task.copyText!, 'copy')} className="text-xs text-slate-300 hover:text-orange-400 transition">
                       {copied === 'copy' ? <><Check className="w-3 h-3 inline" /> Copied</> : <><Copy className="w-3 h-3 inline" /> Copy</>}
                     </button>
                   </div>
-                  <p className="text-sm text-slate-500 whitespace-pre-wrap max-h-28 overflow-y-auto">{task.copyText}</p>
+                  <p className="text-sm text-slate-300 whitespace-pre-wrap max-h-28 overflow-y-auto">{task.copyText}</p>
                 </div>
               )}
 
@@ -1380,7 +1380,7 @@ export default function App() {
               {task.status === 'completed' && task.subtitleFiles?.length > 0 && (
                 <div className="flex gap-2 flex-wrap">
                   {task.subtitleFiles.map(s => (
-                    <a key={s.filename} href={`${API.replace('/api', '')}${s.url}`} download={s.filename} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs bg-slate-700/30 border border-slate-700/60 text-slate-500 hover:text-white transition-all">
+                    <a key={s.filename} href={`${API.replace('/api', '')}${s.url}`} download={s.filename} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs bg-slate-700/30 border border-slate-700/60 text-slate-300 hover:text-white transition-all">
                       <Languages className="w-3 h-3" />{s.filename}
                     </a>
                   ))}
@@ -1391,9 +1391,9 @@ export default function App() {
               {task.asrText && (
                 <div className="p-3 bg-slate-900/60 rounded-xl">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs text-slate-500">Speech to Text</span>
+                    <span className="text-xs text-slate-300">Speech to Text</span>
                     <div className="flex gap-2">
-                      <button onClick={() => clip(task.asrText!, 'asr')} className="text-xs text-slate-500 hover:text-orange-400 transition">
+                      <button onClick={() => clip(task.asrText!, 'asr')} className="text-xs text-slate-300 hover:text-orange-400 transition">
                         {copied === 'asr' ? <><Check className="w-3 h-3 inline" /> Copied</> : <><Copy className="w-3 h-3 inline" /> Copy</>}
                       </button>
                       <button onClick={() => {
@@ -1404,12 +1404,12 @@ export default function App() {
                         a.download = `${task.title || 'asr'}.txt`;
                         a.click();
                         URL.revokeObjectURL(url);
-                      }} className="text-xs text-slate-500 hover:text-orange-400 transition">
+                      }} className="text-xs text-slate-300 hover:text-orange-400 transition">
                         <Download className="w-3 h-3 inline" /> TXT
                       </button>
                     </div>
                   </div>
-                  <p className="text-sm text-slate-500 whitespace-pre-wrap max-h-32 overflow-y-auto">{task.asrText}</p>
+                  <p className="text-sm text-slate-300 whitespace-pre-wrap max-h-32 overflow-y-auto">{task.asrText}</p>
                 </div>
               )}
 
@@ -1419,7 +1419,7 @@ export default function App() {
 
           {/* How to Use - 精简版 */}
           <div className={`mt-5 rounded-2xl px-5 py-3 border ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-gray-100 border-gray-200'}`}>
-            <div className={`flex items-center gap-4 text-xs ${isDark ? 'text-slate-500' : 'text-gray-500'}`}>
+            <div className={`flex items-center gap-4 text-xs ${isDark ? 'text-slate-300' : 'text-gray-500'}`}>
               <span className="flex items-center gap-1"><span className="text-orange-400 font-bold">1</span> Copy link</span>
               <span>→</span>
               <span className="flex items-center gap-1"><span className="text-orange-400 font-bold">2</span> Paste</span>
@@ -1431,7 +1431,7 @@ export default function App() {
           {/* // Download History - Enhanced */}
           <div className="mt-5">
             <button onClick={() => setShowHistory(!showHistory)}
-              className={`w-full flex items-center justify-between px-5 py-3 rounded-2xl border text-sm transition ${isDark ? 'bg-slate-900/60 border-slate-700/60 text-slate-500 hover:text-slate-300' : 'bg-white border-gray-200 text-gray-600 hover:text-gray-900'}`}>
+              className={`w-full flex items-center justify-between px-5 py-3 rounded-2xl border text-sm transition ${isDark ? 'bg-slate-900/60 border-slate-700/60 text-slate-300 hover:text-slate-300' : 'bg-white border-gray-200 text-gray-600 hover:text-gray-900'}`}>
               <span className="flex items-center gap-2">
                 <Clock className="w-4 h-4" /> Download History
                 {history.length > 0 && <span className="bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded text-xs">{history.length}</span>}
@@ -1449,8 +1449,8 @@ export default function App() {
                   {filteredHistory.length > 0 && <input type="checkbox" checked={selectedTasks.size === filteredHistory.length} onChange={toggleSelectAll} className={`w-4 h-4 rounded ${isDark ? 'border-slate-600' : 'border-gray-400'}`} />}
                   {selectedTasks.size > 0 && <button onClick={deleteSelected} className="px-3 py-1.5 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg text-xs">Delete ({selectedTasks.size})</button>}
                   <div className="flex-1 relative">
-                    <input type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} placeholder="Search..." className={`w-full pl-8 pr-3 py-2 border rounded-lg text-sm placeholder:text-slate-500 ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-gray-50 border-gray-200 text-gray-900'}`} />
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                    <input type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} placeholder="Search..." className={`w-full pl-8 pr-3 py-2 border rounded-lg text-sm placeholder:text-slate-300 ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-gray-50 border-gray-200 text-gray-900'}`} />
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
                   </div>
                   <select value={historyFilter} onChange={(e) => setHistoryFilter(e.target.value as any)} className={`px-3 py-2 border rounded-lg text-sm ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-gray-50 border-gray-200 text-gray-900'}`}>
                     <option value="all">All</option>
@@ -1460,21 +1460,21 @@ export default function App() {
                   </select>
                 </div>
                 <div className="max-h-60 overflow-y-auto">
-                  {filteredHistory.length === 0 ? <p className="py-8 text-center text-sm text-slate-600">{historySearch || historyFilter !== 'all' ? 'No results' : 'No history'}</p> : filteredHistory.map(item => (
+                  {filteredHistory.length === 0 ? <p className="py-8 text-center text-sm text-slate-500">{historySearch || historyFilter !== 'all' ? 'No results' : 'No history'}</p> : filteredHistory.map(item => (
                     <div key={item.taskId} className={`flex items-center gap-3 px-4 py-3 border-b border-slate-700/20 last:border-0 hover:bg-slate-900/60 transition ${selectedTasks.has(item.taskId) ? 'bg-orange-500/10' : ''}`}>
                       <input type="checkbox" checked={selectedTasks.has(item.taskId)} onChange={() => { const s = new Set(selectedTasks); selectedTasks.has(item.taskId) ? s.delete(item.taskId) : s.add(item.taskId); setSelectedTasks(s) }} className="w-4 h-4 rounded border-slate-600 shrink-0" />
-                      {item.thumbnailUrl ? <button onClick={() => openSavedFile(item)} className="relative shrink-0 group"><img src={`${BASE_URL}${item.thumbnailUrl}`} alt="" className="w-14 h-10 object-cover rounded-lg" /><div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 transition"><Play className="w-4 h-4 text-white" /></div></button> : <div className="w-14 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0"><Video className="w-4 h-4 text-slate-600" /></div>}
+                      {item.thumbnailUrl ? <button onClick={() => openSavedFile(item)} className="relative shrink-0 group"><img src={`${BASE_URL}${item.thumbnailUrl}`} alt="" className="w-14 h-10 object-cover rounded-lg" /><div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 transition"><Play className="w-4 h-4 text-white" /></div></button> : <div className="w-14 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0"><Video className="w-4 h-4 text-slate-500" /></div>}
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm text-slate-600 font-medium whitespace-nowrap ${(item.title || '').length > 20 ? 'animate-marquee' : 'truncate'}`}>{item.title || 'Untitled'}</p>
+                        <p className={`text-sm text-slate-500 font-medium whitespace-nowrap ${(item.title || '').length > 20 ? 'animate-marquee' : 'truncate'}`}>{item.title || 'Untitled'}</p>
                         <div className="flex items-center gap-2 mt-0.5">
                           {item.platform && <span className="text-xs text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded">{platformLabel(item.platform)}</span>}
                           {item.height && <span className={`text-xs px-1.5 py-0.5 rounded ${item.height >= 720 ? 'text-yellow-400 bg-yellow-500/10' : 'text-emerald-400 bg-emerald-500/10'}`}>🎬 {item.height}p {item.height >= 720 ? '⭐' : '✓'}</span>}
-                          <span className="text-xs text-slate-600">{new Date(item.createdAt).toLocaleString('en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                          <span className="text-xs text-slate-500">{new Date(item.createdAt).toLocaleString('en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       </div>
                       {item.status === 'error' && <button onClick={() => retryTask(item)} className="p-1.5 text-orange-500 hover:text-orange-400"><Loader2 className="w-4 h-4" /></button>}
-                      <button onClick={() => toggleFavorite(item.taskId)} className={`p-1.5 ${favorites.has(item.taskId) ? 'text-yellow-400' : 'text-slate-600 hover:text-yellow-400'}`}><svg className="w-4 h-4" fill={favorites.has(item.taskId) ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg></button>
-                      <button onClick={() => del(item.taskId)} className="p-1.5 text-slate-600 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
+                      <button onClick={() => toggleFavorite(item.taskId)} className={`p-1.5 ${favorites.has(item.taskId) ? 'text-yellow-400' : 'text-slate-500 hover:text-yellow-400'}`}><svg className="w-4 h-4" fill={favorites.has(item.taskId) ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg></button>
+                      <button onClick={() => del(item.taskId)} className="p-1.5 text-slate-500 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   ))}
                 </div>
@@ -1489,7 +1489,7 @@ export default function App() {
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700">
               <h3 className="text-lg font-bold text-white mb-1">选择画质</h3>
-              <p className="text-xs text-slate-400 mb-4">
+              <p className="text-xs text-slate-300 mb-4">
                 {!isVip && <span className="text-orange-400">720p及以下 · </span>}会员可下载更高画质
               </p>
               <div className="space-y-2 max-h-60 overflow-y-auto">
@@ -1531,12 +1531,12 @@ export default function App() {
                       }`}
                     >
                       <div className="flex items-center gap-2">
-                        <span className={`font-medium ${canSelect ? 'text-white' : 'text-slate-500'}`}>{qualityLabel}</span>
-                        {q.width > 0 && <span className={`text-xs ${canSelect ? 'text-slate-400' : 'text-slate-600'}`}>{q.width}x{q.height}</span>}
+                        <span className={`font-medium ${canSelect ? 'text-white' : 'text-slate-300'}`}>{qualityLabel}</span>
+                        {q.width > 0 && <span className={`text-xs ${canSelect ? 'text-slate-300' : 'text-slate-500'}`}>{q.width}x{q.height}</span>}
                         {isHighQuality && !isVip && <span className="text-xs text-orange-400 ml-1">🚫 会员专享</span>}
                         {isHighQuality && isVip && <span className="text-xs text-yellow-400 ml-1">⭐</span>}
                       </div>
-                      <span className="text-xs text-slate-500">{q.hasAudio ? '🎬' : '🎵'}</span>
+                      <span className="text-xs text-slate-300">{q.hasAudio ? '🎬' : '🎵'}</span>
                     </button>
                   )
                 })}
@@ -1564,8 +1564,8 @@ export default function App() {
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700">
               <h3 className="text-lg font-bold text-white mb-2">已下载过</h3>
-              <p className="text-sm text-slate-400 mb-4">该视频已在下载历史中。是否还要下载？</p>
-              <p className="text-xs text-slate-500 mb-4 truncate">{dupUrl}</p>
+              <p className="text-sm text-slate-300 mb-4">该视频已在下载历史中。是否还要下载？</p>
+              <p className="text-xs text-slate-300 mb-4 truncate">{dupUrl}</p>
               <div className="flex gap-3">
                 <button onClick={() => { setShowDupConfirm(false); setPendingDownload(null) }} className="flex-1 py-2 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition">取消</button>
                 <button onClick={() => { setShowDupConfirm(false); if (pendingDownload) pendingDownload() }} className="flex-1 py-2 px-4 rounded-xl bg-orange-500 text-white hover:bg-orange-600 transition">继续下载</button>
@@ -1575,7 +1575,7 @@ export default function App() {
         )}
 
         {/* Footer */}
-        <footer className={`text-center py-8 text-xs ${isDark ? 'text-slate-600' : 'text-gray-400'}`}>
+        <footer className={`text-center py-8 text-xs ${isDark ? 'text-slate-500' : 'text-gray-400'}`}>
           <p>Orange Downloader v1.0 · For personal use only</p>
         </footer>
         <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} onSuccess={handleAuthSuccess} onForgotPassword={() => { setShowAuthModal(false); setShowResetPwd(true); }} />
@@ -1586,7 +1586,7 @@ export default function App() {
             <div className="bg-slate-800 rounded-2xl w-full max-w-xs border border-slate-700 shadow-2xl">
               {/* Header */}
               <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-700">
-                <button onClick={() => setShowResetPwd(false)} className="text-slate-400 hover:text-white transition">
+                <button onClick={() => setShowResetPwd(false)} className="text-slate-300 hover:text-white transition">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                 </button>
                 <h3 className="text-base font-bold text-white">🔑 修改密码</h3>
@@ -1595,7 +1595,7 @@ export default function App() {
               <div className="p-4">
                 {!resetPwdStep ? (
                   <>
-                    <p className="text-xs text-slate-400 mb-3">输入注册邮箱，我们会发送重置链接</p>
+                    <p className="text-xs text-slate-300 mb-3">输入注册邮箱，我们会发送重置链接</p>
                     <input
                       type="email"
                       value={resetEmail}
@@ -1610,7 +1610,7 @@ export default function App() {
                   </>
                 ) : (
                   <>
-                    <p className="text-xs text-slate-400 mb-3">设置新密码</p>
+                    <p className="text-xs text-slate-300 mb-3">设置新密码</p>
                     <input
                       type="password"
                       value={resetPwd}
