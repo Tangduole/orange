@@ -2,7 +2,7 @@
   "appName": "Orange Downloader",
   "appDesc": "多平台影片下載器",
   "tagline": "貼上連結 → 一鍵下載。支援多平台",
-  "singleDownload": "單手下載",
+  "singleDownload": "單個下載",
   "batchDownload": "批次下載",
   "startDownload": "開始下載",
   "processing": "處理中...",
