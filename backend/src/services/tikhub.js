@@ -454,14 +454,17 @@ async function parseDouyin(url, taskId, onProgress, quality = null) {
     // 根据quality参数筛选bitrate
     const bitrates = video.bit_rate.filter(br => br.play_addr?.url_list?.[0]);
     
+    console.log(`[TikHub] quality param: ${quality}, maxHeight: ${maxHeight}`);
     if (bitrates.length > 0) {
       // 如果有高度限制，先过滤，再排序
       let filtered = bitrates;
       if (maxHeight < 99999) {
         filtered = bitrates.filter(br => {
           const h = br.play_addr?.height || 0;
+          console.log(`[TikHub] bitrate height=${h}, maxHeight=${maxHeight}, included=${h > 0 && h <= maxHeight}`);
           return h > 0 && h <= maxHeight;
         });
+        console.log(`[TikHub] filtered bitrates: ${filtered.length} of ${bitrates.length}`);
       }
       
       // 选择最高画质（bitrate最高的）
