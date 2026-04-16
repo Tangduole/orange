@@ -160,7 +160,6 @@ const QUALITY_OPTIONS = [
   { value: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', label: 'Best 最高画质', vipOnly: true },
   { value: 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]', label: '1080p', vipOnly: true },
   { value: 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]', label: '720p', vipOnly: false },
-  { value: 'bestvideo[height<=480][ext=mp4]+bestaudio[ext=m4a]/best[height<=480]', label: '480p', vipOnly: false },
 ]
 
 function formatBytes(bytes: number): string {
@@ -657,9 +656,8 @@ export default function App() {
     } catch (e) {
       console.log('[quality] Failed to fetch qualities, using default')
     }
-    // 获取失败时：抖音默认给480p选项，YouTube给720p
+    // 获取失败时：抖音默认给720p选项，YouTube给720p
     const defaultQualities = [
-      { quality: '480p', width: 854, height: 480, hasVideo: true, hasAudio: true },
       { quality: '720p', width: 1280, height: 720, hasVideo: true, hasAudio: true },
     ]
     setAvailableQualities(defaultQualities)
@@ -751,7 +749,7 @@ export default function App() {
     if (!skipQualityPicker) {
       try {
         const infoRes = await axios.post(`${API}/video-info`, { url: url.trim() }, { timeout: 30000 })
-        const qualities = infoRes.data.data?.qualities || []
+        const qualities = (infoRes.data.data?.qualities || []).filter((q: any) => q.height >= 720);
         
         if (qualities.length > 1) {
           // Multiple qualities - show picker
