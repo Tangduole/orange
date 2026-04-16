@@ -869,7 +869,7 @@ export default function App() {
   const clearUrl = () => { setUrl(''); setDetected('') }
 
   const isWorking = (s: string) => ['pending', 'parsing', 'processing', 'downloading', 'asr'].includes(s)
-  const statusLabel = (s: string) => ({ pending: 'Queuing', parsing: 'Parsing', downloading: 'Downloading', asr: 'Speech recognition', completed: 'Completed', error: 'Failed' }[s] || s)
+  const statusLabel = (s: string) => ({ pending: t('pending') || 'Queuing', parsing: t('parsing') || 'Parsing', downloading: t('downloading') || 'Downloading', asr: t('asr') || 'Speech recognition', completed: t('completed') || 'Completed', error: t('error') || 'Failed' }[s] || s)
   
   const getErrorMessage = (err: string) => {
     if (err.includes('TikHub API error')) return '❌ API service error, please try again later'
@@ -1230,13 +1230,13 @@ export default function App() {
             {/* 剩余下载次数提示 */}
             {!isVip && remainingDownloads >= 0 && (
               <div className={`mb-3 text-center text-xs py-2 rounded-xl ${isDark ? 'bg-slate-800/60 text-slate-300' : 'bg-gray-100 text-gray-500'}`}>
-                📊 今日剩余下载: <span className="text-orange-400 font-medium">{remainingDownloads}</span> 次
-                {remainingDownloads === 0 && <span className="ml-2 text-orange-400">· <button onClick={() => setShowSubscription(true)} className="underline hover:text-orange-300">升级Pro</button></span>}
+                {remainingDownloads === -1 ? t('unlimited') : `${t('downloadsRemaining', { count: remainingDownloads })}`}
+                {remainingDownloads === 0 && <span className="ml-2 text-orange-400">· <button onClick={() => setShowSubscription(true)} className="underline hover:text-orange-300">{t('upgradeToPro')}</button></span>}
               </div>
             )}
             {isVip && (
               <div className="mb-3 text-center text-xs py-2 rounded-xl bg-yellow-500/10 text-yellow-400">
-                ⭐ 会员无限制下载
+                ⭐ {t('unlimited')}
               </div>
             )}
             <button
@@ -1358,7 +1358,7 @@ export default function App() {
                   className="w-full py-3.5 rounded-2xl text-sm font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} 
-                  {downloading ? '下载中...' : (task.directLink ? '打开链接' : (isIOS() ? '下载到手机' : 'Save to Device'))}
+                  {downloading ? t('downloading') : (task.directLink ? t('openVideo') : (isIOS() ? t('downloadToPhone') : 'Save to Device'))}
                 </button>
               )}
 
@@ -1523,9 +1523,9 @@ export default function App() {
         {showQualityPicker && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700">
-              <h3 className="text-lg font-bold text-white mb-1">选择画质</h3>
+              <h3 className="text-lg font-bold text-white mb-1">{t('selectQuality')}</h3>
               <p className="text-xs text-slate-300 mb-4">
-                {!isVip && <span className="text-orange-400">720p及以下 · </span>}会员可下载更高画质
+                {!isVip && <span className="text-orange-400">{t('vipOnly')} · </span>}{t('highQuality')}
               </p>
               <div className="space-y-2 max-h-60 overflow-y-auto">
                 {availableQualities.map((q, idx) => {
@@ -1568,7 +1568,7 @@ export default function App() {
                       <div className="flex items-center gap-2">
                         <span className={`font-medium ${canSelect ? 'text-white' : 'text-slate-300'}`}>{qualityLabel}</span>
                         {q.width > 0 && <span className={`text-xs ${canSelect ? 'text-slate-300' : 'text-slate-500'}`}>{q.width}x{q.height}</span>}
-                        {isHighQuality && !isVip && <span className="text-xs text-orange-400 ml-1">🚫 会员专享</span>}
+                        {isHighQuality && !isVip && <span className="text-xs text-orange-400 ml-1">🚫 {t('vipOnly')}</span>}
                         {isHighQuality && isVip && <span className="text-xs text-yellow-400 ml-1">⭐</span>}
                       </div>
                       <span className="text-xs text-slate-300">{q.hasAudio ? '🎬' : '🎵'}</span>
