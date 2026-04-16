@@ -33,7 +33,7 @@ export default function LinkInput({ value, onChange, platform, onClear }: LinkIn
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="粘贴视频链接..."
+          placeholder="Paste视频Link..."
           className="w-full h-12 bg-dark-input rounded-lg px-4 pr-10 text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-orange/50"
         />
         {value && (

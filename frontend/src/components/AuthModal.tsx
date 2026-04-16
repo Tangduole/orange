@@ -24,9 +24,9 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
     setError('');
     setLoading(true);
 
-    // 注册时检查两次密码是否一致
+    // Register时检查两次Password是否一致
     if (mode === 'register' && password !== confirmPassword) {
-      setError('两次输入的密码不一致');
+      setError('两次in的Password不一致');
       setLoading(false);
       return;
     }
@@ -36,10 +36,10 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
         ? await api.login(email, password)
         : await api.register(email, password);
       
-      // 注册后需要邮箱验证，不自动登录
+      // Register后需要EmailVerify，不AutoLogin
       if (data.needsEmailVerification) {
         setLoading(false);
-        setSuccessMessage('注册成功！请查收验证邮件，点击链接完成激活。');
+        setSuccessMessage('RegisterSuccess！请查收Verify邮件，点击LinkCompleted激活。');
         setError('');
         setMode('login');
         setPassword('');
@@ -52,7 +52,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
       onSuccess(data.token, data.user);
       onClose();
     } catch (err: any) {
-      setError(err.message || '操作失败');
+      setError(err.message || '操作Failed');
     } finally {
       setLoading(false);
     }
@@ -64,7 +64,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
         {/* Header */}
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-white">
-            {mode === 'login' ? '登录' : '注册'}
+            {mode === 'login' ? 'Login' : 'Register'}
           </h2>
           <button 
             onClick={onClose}
@@ -94,7 +94,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-1.5">
-              邮箱
+              Email
             </label>
             <input
               type="email"
@@ -108,7 +108,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
 
           <div>
             <label className="block text-sm font-medium text-slate-300 mb-1.5">
-              密码
+              Password
             </label>
             <input
               type="password"
@@ -124,7 +124,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
           {mode === 'register' && (
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-1.5">
-                确认密码
+                ConfirmPassword
               </label>
               <input
                 type="password"
@@ -143,7 +143,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
             disabled={loading}
             className="w-full py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? '处理中...' : (mode === 'login' ? '登录' : '注册')}
+            {loading ? '处理中...' : (mode === 'login' ? 'Login' : 'Register')}
           </button>
         </form>
 
@@ -154,25 +154,25 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
               onClick={onForgotPassword}
               className="text-xs text-slate-500 hover:text-orange-400 transition"
             >
-              忘记密码？
+              忘记Password？
             </button>
           </div>
         )}
 
         {/* Switch Mode */}
         <div className="mt-4 text-center text-sm text-slate-400">
-          {mode === 'login' ? '还没有账号？' : '已有账号？'}
+          {mode === 'login' ? '还没有Account？' : '已有Account？'}
           <button
             onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); setSuccessMessage(''); setPassword(''); setConfirmPassword(''); }}
             className="text-orange-400 hover:text-orange-300 ml-1 font-medium"
           >
-            {mode === 'login' ? '注册' : '登录'}
+            {mode === 'login' ? 'Register' : 'Login'}
           </button>
         </div>
 
         {/* Info */}
         <div className="mt-4 p-3 bg-slate-800/30 rounded-lg text-xs text-slate-500">
-          💡 注册即表示你同意我们的服务条款。Free 用户每天可下载 3 次。
+          💡 Register即表示你同意我们的服务条款。Free 用户每天可Download 3 次。
         </div>
       </div>
     </div>
