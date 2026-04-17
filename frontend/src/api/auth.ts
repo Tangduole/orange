@@ -86,13 +86,14 @@ export const api = {
     return data.data;
   },
 
-  async createCheckout(token: string): Promise<SubscribeResponse> {
+  async createCheckout(token: string, plan: string = 'pro_monthly'): Promise<SubscribeResponse> {
     const res = await fetch(`${API_BASE}/api/subscribe/checkout`, {
       method: 'POST',
       headers: { 
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
-      }
+      },
+      body: JSON.stringify({ plan })
     });
     const data = await res.json();
     if (data.code !== 0) throw new Error(data.message);
