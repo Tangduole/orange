@@ -11,8 +11,19 @@ const auth = require('../auth');
 // Lemon Squeezy 配置
 const LS_API_KEY = process.env.LEMON_SQUEEZY_API_KEY || '';
 const LS_STORE_ID = process.env.LEMON_SQUEEZY_STORE_ID || '';
-const LS_VARIANT_ID_PRO = process.env.LEMON_SQUEEZY_VARIANT_ID_PRO || ''; // Pro 版本产品变体ID
+const LS_VARIANT_ID_PRO = process.env.LEMON_SQUEEZY_VARIANT_ID_PRO || ''; // Pro 月付
+const LS_VARIANT_ID_PRO_YEARLY = process.env.LEMON_SQUEEZY_VARIANT_ID_PRO_YEARLY || ''; // Pro 年付
+const LS_VARIANT_ID_BASIC = process.env.LEMON_SQUEEZY_VARIANT_ID_BASIC || ''; // Basic 月付
+const LS_VARIANT_ID_BASIC_YEARLY = process.env.LEMON_SQUEEZY_VARIANT_ID_BASIC_YEARLY || ''; // Basic 年付
 const LS_WEBHOOK_SECRET = process.env.LEMON_SQUEEZY_WEBHOOK_SECRET || '';
+
+// 套餐变体映射
+const VARIANT_MAP = {
+  'basic_monthly': LS_VARIANT_ID_BASIC,
+  'basic_yearly': LS_VARIANT_ID_BASIC_YEARLY,
+  'pro_monthly': LS_VARIANT_ID_PRO,
+  'pro_yearly': LS_VARIANT_ID_PRO_YEARLY,
+};
 
 // Lemon Squeezy API Base
 const LS_API_BASE = 'https://api.lemonsqueezy.com/v1';
@@ -23,8 +34,11 @@ const LS_API_BASE = 'https://api.lemonsqueezy.com/v1';
  */
 router.post('/checkout', auth.required, async (req, res) => {
   const { email } = req.user;
+  const { plan = 'pro_monthly' } = req.body; // 默认 Pro 月付
   
-  if (!LS_API_KEY || !LS_STORE_ID || !LS_VARIANT_ID_PRO) {
+  const variantId = VARIANT_MAP[plan] || LS_VARIANT_ID_PRO;
+  
+  if (!LS_API_KEY || !LS_STORE_ID || !variantId) {
     return res.json({
       code: 500,
       message: '订阅服务未配置，请联系管理员'
@@ -42,7 +56,8 @@ router.post('/checkout', auth.required, async (req, res) => {
             checkout_data: {
               email: email,
               custom: {
-                user_id: req.user.id
+                user_id: req.user.id,
+                plan
               }
             },
             product_options: {
@@ -51,7 +66,7 @@ router.post('/checkout', auth.required, async (req, res) => {
           },
           relationships: {
             store: { data: { type: 'stores', id: LS_STORE_ID } },
-            variant: { data: { type: 'variants', id: LS_VARIANT_ID_PRO } }
+            variant: { data: { type: 'variants', id: variantId } }
           }
         }
       },
