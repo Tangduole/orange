@@ -129,9 +129,9 @@ const PLATFORMS = [
   { id: 'tiktok', label: 'TikTok', icon: '🎵' },
   { id: 'youtube', label: 'YouTube', icon: '▶️' },
   { id: 'x', label: 'X/Twitter', icon: '🐦' },
-  // { id: 'bilibili', label: 'Bilibili', icon: '📺' },
   { id: 'instagram', label: 'Instagram', icon: '📸' },
   { id: 'xiaohongshu', label: '小紅書', icon: '📕' },
+  { id: 'more', label: t('moreSites'), icon: '🌐' },
 ]
 
 const OPTIONS: { id: string; label: string; icon: typeof Video }[] = [
@@ -1033,7 +1033,7 @@ export default function App() {
                     value={url}
                     onChange={(e) => handleUrlChange(e.target.value)}
                     onPaste={handleSinglePaste}
-                    placeholder="Paste video link..."
+                    placeholder={t('pasteUrlPlaceholder')}
                     className={`w-full pl-24 pr-10 py-3 sm:py-4 border-2 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 outline-none text-base transition-all placeholder:text-slate-300 ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
                   />
                   {/* Clear按钮 - 最右边 */}
