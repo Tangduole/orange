@@ -900,7 +900,7 @@ export default function App() {
 
       <div className="relative">
         {/* Header */}
-        <header className="max-w-2xl mx-auto px-6 pt-16 pb-8 text-center">
+        <header className="max-w-2xl sm:max-w-3xl lg:max-w-4xl mx-auto px-6 pt-12 sm:pt-14 pb-6 sm:pb-8 text-center">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange to-orange-light flex items-center justify-center shadow-lg shadow-orange-500/25 flex-shrink-0 overflow-hidden">
               <span className="text-3xl leading-none">🍊</span>
@@ -993,13 +993,11 @@ export default function App() {
               )}
             </div>
           </div>
-          <p className="text-slate-300 text-sm">
-            <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-gray-500'}`}>{t('tagline')}</p>
-          </p>
+          <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-gray-500'}`}>{t('tagline')}</p>
         </header>
 
         {/* Main Card */}
-        <main className="max-w-2xl mx-auto px-6 pb-10">
+        <main className="max-w-2xl sm:max-w-3xl lg:max-w-4xl mx-auto px-6 pb-10">
           <div className={`rounded-2xl p-5 shadow-lg ${isDark ? 'bg-dark-surface' : 'bg-white'}`}>
 
             {/* 单G/批量 Tab */}
@@ -1039,7 +1037,7 @@ export default function App() {
                     onChange={(e) => handleUrlChange(e.target.value)}
                     onPaste={handleSinglePaste}
                     placeholder="Paste video link..."
-                    className={`w-full pl-24 pr-10 py-4 border-2 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 outline-none text-base transition-all placeholder:text-slate-300 ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                    className={`w-full pl-24 pr-10 py-3 sm:py-4 border-2 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 outline-none text-base transition-all placeholder:text-slate-300 ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
                   />
                   {/* Clear按钮 - 最右边 */}
                   {url && !loading && (
@@ -1271,7 +1269,7 @@ export default function App() {
             <button
               onClick={handleSubmit}
               disabled={loading}
-              className="w-full py-4 rounded-2xl font-bold text-white text-base bg-orange-500 hover:bg-orange-600 active:bg-orange-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-orange-500/25 active:scale-[0.98]"
+              className="w-full max-w-md mx-auto py-4 rounded-2xl font-bold text-white text-base bg-orange-500 hover:bg-orange-600 active:bg-orange-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-orange-500/25 active:scale-[0.98]"
             >
               {loading ? (
                 <><Loader2 className="w-5 h-5 animate-spin" />{batchMode ? `${t('processing')} ${batchIndex + 1}/${batchQueue.length}...` : t('processing')}</>
