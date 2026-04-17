@@ -102,7 +102,13 @@ app.get('/', (req, res) => {
 
 // 管理面板
 app.get('/admin', (req, res) => {
-  res.sendFile(path.join(__dirname, 'admin.html'));
+  try {
+    const html = fs.readFileSync(path.join(__dirname, 'admin.html'), 'utf-8');
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  } catch (e) {
+    res.status(500).send('admin.html not found: ' + e.message);
+  }
 });
 
 // 前端静态文件 (生产环境)
