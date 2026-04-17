@@ -369,4 +369,29 @@ router.post('/delete-account', auth.required, async (req, res) => {
   }
 });
 
+// 推荐系统
+router.get('/referral', auth.required, async (req, res) => {
+  try {
+    const stats = await userDb.getReferralStats(req.user.id);
+    res.json({ code: 0, data: stats });
+  } catch (err) {
+    console.error('[auth] Get referral error:', err);
+    res.status(500).json({ code: 500, message: '获取失败' });
+  }
+});
+
+router.post('/referral/apply', auth.required, async (req, res) => {
+  try {
+    const { code } = req.body;
+    const result = await userDb.applyReferralCode(req.user.id, code);
+    if (!result.success) {
+      return res.json({ code: 400, message: result.error });
+    }
+    res.json({ code: 0, message: '推荐码使用成功！您和推荐人都获得了 +5次/天的下载加成（30天有效）' });
+  } catch (err) {
+    console.error('[auth] Apply referral error:', err);
+    res.status(500).json({ code: 500, message: '应用推荐码失败' });
+  }
+});
+
 module.exports = router;

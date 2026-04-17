@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { Share } from '@capacitor/share'
 import AuthModal from './components/AuthModal'
 import SubscriptionPage from './components/SubscriptionPage'
+import ReferralModal from './components/ReferralModal'
 import GallerySaver from './plugins/GallerySaver'
 import { initNotifications, showDownloadComplete } from './plugins/Notifications'
 import api from './api/auth'
@@ -210,6 +211,7 @@ export default function App() {
   const [authToken, setAuthToken] = useState<string | null>(localStorage.getItem('orange_token'))
   const [authUser, setAuthUser] = useState<any>(JSON.parse(localStorage.getItem('orange_user') || 'null'))
   const [showSubscription, setShowSubscription] = useState(false)
+  const [showReferral, setShowReferral] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showResetPwd, setShowResetPwd] = useState(false)
   const [resetEmail, setResetEmail] = useState('')
@@ -967,6 +969,9 @@ export default function App() {
                           <button onClick={() => { setShowUserMenu(false); setShowSubscription(true) }} className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700/50 transition flex items-center gap-2">
                             <span>📊</span> {t('settings')}
                           </button>
+                          <button onClick={() => { setShowUserMenu(false); setShowReferral(true) }} className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700/50 transition flex items-center gap-2">
+                            <span>🎁</span> {t('referral')}
+                          </button>
                           <button onClick={() => { setShowUserMenu(false); setShowResetPwd(true) }} className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700/50 transition flex items-center gap-2">
                             <span>🔑</span> 修改Password
                           </button>
@@ -1630,6 +1635,7 @@ export default function App() {
           <p>Orange Downloader v1.0 · For personal use only</p>
         </footer>
         <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} onSuccess={handleAuthSuccess} onForgotPassword={() => { setShowAuthModal(false); setShowResetPwd(true); }} />
+        {authToken && <ReferralModal token={authToken} isOpen={showReferral} onClose={() => setShowReferral(false)} />}
 
         {/* 忘记Password弹窗 */}
         {showResetPwd && (

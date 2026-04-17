@@ -87,6 +87,33 @@ async function initDb() {
       });
     } catch (e) {}
     
+    // 迁移：添加推荐相关列
+    try {
+      await db.execute({
+        sql: `ALTER TABLE users ADD COLUMN referrer_id TEXT`
+      });
+    } catch (e) {}
+    try {
+      await db.execute({
+        sql: `ALTER TABLE users ADD COLUMN referral_bonus_expires INTEGER DEFAULT 0`
+      });
+    } catch (e) {}
+    try {
+      await db.execute({
+        sql: `ALTER TABLE users ADD COLUMN referral_code TEXT`
+      });
+    } catch (e) {}
+    
+    // 推荐记录表
+    await db.execute({
+      sql: `CREATE TABLE IF NOT EXISTS referrals (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        referrer_id TEXT NOT NULL,
+        referee_id TEXT NOT NULL,
+        created_at INTEGER DEFAULT (unixepoch())
+      )`
+    });
+    
     console.log('[userDb] Turso 数据库初始化完成');
   } catch (err) {
     console.error('[userDb] 初始化表失败:', err);
@@ -200,7 +227,13 @@ const userDb = {
     if (!user) return null;
     
     const isPro = user.tier === 'pro' && user.subscription_status === 'active';
-    const limit = isPro ? -1 : FREE_DAILY_LIMIT;
+    let limit = isPro ? -1 : FREE_DAILY_LIMIT;
+    
+    // 推荐奖励：+5次/天（有效期内）
+    const hasReferralBonus = user.referral_bonus_expires && user.referral_bonus_expires > Date.now();
+    if (!isPro && hasReferralBonus) {
+      limit += 5;
+    }
     
     return {
       tier: user.tier,
@@ -208,6 +241,7 @@ const userDb = {
       dailyDownloads: user.daily_downloads,
       dailyLimit: limit,
       remaining: limit === -1 ? -1 : Math.max(0, limit - user.daily_downloads),
+      hasReferralBonus,
       subscriptionStatus: user.subscription_status,
       subscriptionEndsAt: user.subscription_ends_at
     };
@@ -408,6 +442,97 @@ const userDb = {
   async isEmailVerified(userId) {
     const user = await this.getById(userId);
     return user ? user.email_verified === 1 : false;
+  },
+
+  // ========== 推荐系统 ==========
+
+  /**
+   * 获取或生成推荐码
+   */
+  async getReferralCode(userId) {
+    const user = await this.getById(userId);
+    if (!user) return null;
+    if (user.referral_code) return user.referral_code;
+    
+    // 生成6位推荐码（用户ID前6位大写）
+    const code = userId.substring(0, 8).toUpperCase();
+    await db.execute({
+      sql: 'UPDATE users SET referral_code = ? WHERE id = ?',
+      args: [code, userId]
+    });
+    return code;
+  },
+
+  /**
+   * 应用推荐码
+   */
+  async applyReferralCode(userId, code) {
+    if (!code) return { success: false, error: '请输入推荐码' };
+    
+    const upperCode = code.toUpperCase().trim();
+    
+    // 查找推荐人
+    const result = await db.execute({
+      sql: 'SELECT id FROM users WHERE referral_code = ?',
+      args: [upperCode]
+    });
+    const referrer = result.rows?.[0];
+    if (!referrer) {
+      return { success: false, error: '推荐码无效' };
+    }
+    if (referrer.id === userId) {
+      return { success: false, error: '不能使用自己的推荐码' };
+    }
+    
+    // 检查用户是否已有推荐人
+    const user = await this.getById(userId);
+    if (user.referrer_id) {
+      return { success: false, error: '您已使用过推荐码' };
+    }
+    
+    // 给双方加奖励：+5次/天，有效期30天
+    const bonusExpires = Date.now() + 30 * 24 * 60 * 60 * 1000;
+    await db.execute({
+      sql: 'UPDATE users SET referrer_id = ?, referral_bonus_expires = ? WHERE id = ?',
+      args: [referrer.id, bonusExpires, userId]
+    });
+    await db.execute({
+      sql: 'UPDATE users SET referral_bonus_expires = ? WHERE id = ? AND (referral_bonus_expires IS NULL OR referral_bonus_expires < ?)',
+      args: [bonusExpires, referrer.id, bonusExpires]
+    });
+    
+    // 记录推荐
+    await db.execute({
+      sql: 'INSERT INTO referrals (referrer_id, referee_id) VALUES (?, ?)',
+      args: [referrer.id, userId]
+    });
+    
+    return { success: true };
+  },
+
+  /**
+   * 获取推荐统计
+   */
+  async getReferralStats(userId) {
+    const referralCode = await this.getReferralCode(userId);
+    
+    const result = await db.execute({
+      sql: 'SELECT COUNT(*) as count FROM referrals WHERE referrer_id = ?',
+      args: [userId]
+    });
+    const referredCount = result.rows?.[0]?.count || 0;
+    
+    // 检查当前奖励状态
+    const user = await this.getById(userId);
+    const hasBonus = user.referral_bonus_expires && user.referral_bonus_expires > Date.now();
+    
+    return {
+      referralCode,
+      referredCount,
+      hasBonus,
+      bonusExpiresAt: hasBonus ? user.referral_bonus_expires : null,
+      bonusDownloads: 5 // +5次/天
+    };
   }
 };
 
