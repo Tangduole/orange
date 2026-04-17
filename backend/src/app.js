@@ -23,7 +23,26 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // 中间件
-app.use(cors());
+// CORS 配置
+const allowedOrigins = [
+  'https://orangedl.com',
+  'https://www.orangedl.com',
+  /^https:\/\/frontend-.*\.vercel\.app$/, // Vercel preview
+  /^http:\/\/localhost:\d+$/,             // 本地开发
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // 允许无 origin 的请求（如 curl、服务器间调用）
+    if (!origin) return callback(null, true);
+    const allowed = allowedOrigins.some(pattern =>
+      typeof pattern === 'string' ? origin === pattern : pattern.test(origin)
+    );
+    if (allowed) return callback(null, true);
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true
+}));
 app.use(express.json());
 
 // API 路由
