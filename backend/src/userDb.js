@@ -103,6 +103,12 @@ async function initDb() {
         sql: `ALTER TABLE users ADD COLUMN referral_code TEXT`
       });
     } catch (e) {}
+    // 高清试用次数
+    try {
+      await db.execute({
+        sql: `ALTER TABLE users ADD COLUMN hd_trials_used INTEGER DEFAULT 0`
+      });
+    } catch (e) {}
     
     // 推荐记录表
     await db.execute({
@@ -533,6 +539,27 @@ const userDb = {
       bonusExpiresAt: hasBonus ? user.referral_bonus_expires : null,
       bonusDownloads: 5 // +5次/天
     };
+  },
+
+  /**
+   * 使用高清画质试用（免费用户限1次）
+   * @returns true=试用成功, false=试用已用完或无需试用
+   */
+  async useHdTrial(userId) {
+    if (!userId) return false; // 游客不能试用
+    
+    const user = await this.getById(userId);
+    if (!user) return false;
+    if (user.tier === 'pro') return true; // Pro用户不需要试用
+    
+    const MAX_TRIALS = 1;
+    if (user.hd_trials_used >= MAX_TRIALS) return false;
+    
+    await db.execute({
+      sql: 'UPDATE users SET hd_trials_used = hd_trials_used + 1 WHERE id = ?',
+      args: [userId]
+    });
+    return true;
   }
 };
 

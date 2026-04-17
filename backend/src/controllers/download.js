@@ -129,10 +129,17 @@ async function createDownload(req, res) {
       const selectedHeight = heightMatch ? parseInt(heightMatch[1]) : 99999;
       
       if (selectedHeight > 720 && !isVip) {
-        return res.json({
-          code: 403,
-          message: `720p以上画质为会员专享。请升级Pro解锁高清下载。`
-        });
+        // 免费用户允许试用1次高清画质
+        const userDb = require('../userDb');
+        const trialUsed = await userDb.useHdTrial(userId);
+        if (!trialUsed) {
+          return res.json({
+            code: 403,
+            message: `720p以上画质为会员专享。试用次数已用完，请升级Pro解锁高清下载。`
+          });
+        }
+        // 试用成功，继续下载（不报错）
+        console.log(`[task] HD trial used for user ${userId}`);
       }
     }
     // ========== 画质VIP限制检查结束 ==========
