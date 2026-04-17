@@ -348,11 +348,19 @@ router.get('/verify-email', async (req, res) => {
 // 注销账号
 router.post('/delete-account', auth.required, async (req, res) => {
   try {
-    const userId = req.user.id;
-    const email = req.user.email;
+    const { password } = req.body;
+    if (!password) {
+      return res.json({ code: 400, message: '请输入密码确认' });
+    }
+    
+    // 验证密码
+    const verified = await userDb.verifyPassword(req.user.email, password);
+    if (!verified) {
+      return res.json({ code: 401, message: '密码错误' });
+    }
     
     // 删除用户
-    await userDb.deleteUser(email);
+    await userDb.deleteUser(req.user.email);
     
     res.json({ code: 0, message: '账号已注销' });
   } catch (err) {
