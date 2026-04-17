@@ -239,42 +239,10 @@ async function downloadX(url, taskId, onProgress) {
     console.log(`[X] No cover URL found for tweet`);
   }
 
-  // 下载视频（优先 m3u8 → ffmpeg，其次 mp4 直接下载）
-  const m3u8Url = info.m3u8Url || '';
+  // 下载视频（优先 mp4 直接下载，速度快）
   const videoUrl = info.videoUrl || (info.videoUrls && info.videoUrls[0]?.url) || '';
+  const m3u8Url = info.m3u8Url || '';
   
-  // 尝试 m3u8（HLS）下载 - 画质可能更高
-  if (m3u8Url && m3u8Url.startsWith('http')) {
-    if (onProgress) onProgress(30, '下载HLS视频');
-    const filename = taskId + '.mp4';
-    const filepath = path.join(downloadDir, filename);
-    try {
-      const { spawn } = require('child_process');
-      await new Promise((resolve, reject) => {
-        const ff = spawn('ffmpeg', [
-          '-i', m3u8Url,
-          '-c', 'copy',
-          '-bsf:a', 'aac_adtstoasc',
-          '-y', filepath
-        ]);
-        const timer = setTimeout(() => { ff.kill('SIGKILL'); reject(new Error('ffmpeg timeout')); }, 60000);
-        ff.on('close', code => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error('ffmpeg exit ' + code)); });
-        ff.on('error', err => { clearTimeout(timer); reject(err); });
-      });
-      const stat = fs.statSync(filepath);
-      if (stat.size > 0) {
-        result.filePath = filepath;
-        result.ext = 'mp4';
-        result.downloadUrl = '/download/' + filename;
-        if (onProgress) onProgress(100);
-        return result;
-      }
-    } catch (e) {
-      console.error('[X] m3u8 download failed, falling back to mp4:', e.message);
-    }
-  }
-  
-  // Fallback: mp4 直接下载
   if (videoUrl && videoUrl.startsWith('http')) {
     if (onProgress) onProgress(30, '下载视频');
     try {
@@ -294,7 +262,30 @@ async function downloadX(url, taskId, onProgress) {
       if (onProgress) onProgress(100);
       return result;
     } catch (downloadErr) {
-      console.error(`[X] Video download failed: ${downloadErr.message}`);
+      console.error('[X] mp4 download failed, trying m3u8:', downloadErr.message);
+      // Fallback: m3u8 HLS 下载
+      if (m3u8Url && m3u8Url.startsWith('http')) {
+        try {
+          const filename = taskId + '.mp4';
+          const filepath = path.join(downloadDir, filename);
+          const { spawn } = require('child_process');
+          await new Promise((resolve, reject) => {
+            const ff = spawn('ffmpeg', ['-i', m3u8Url, '-c', 'copy', '-bsf:a', 'aac_adtstoasc', '-y', filepath]);
+            const timer = setTimeout(() => { ff.kill('SIGKILL'); reject(new Error('timeout')); }, 45000);
+            ff.on('close', code => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error('ffmpeg exit ' + code)); });
+            ff.on('error', err => { clearTimeout(timer); reject(err); });
+          });
+          const stat = fs.statSync(filepath);
+          if (stat.size > 0) {
+            result.filePath = filepath; result.ext = 'mp4';
+            result.downloadUrl = '/download/' + filename;
+            if (onProgress) onProgress(100);
+            return result;
+          }
+        } catch (e) {
+          console.error('[X] m3u8 fallback also failed:', e.message);
+        }
+      }
       // 继续尝试图片下载
     }
   } else {
