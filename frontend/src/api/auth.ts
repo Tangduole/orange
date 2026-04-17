@@ -111,13 +111,14 @@ export const api = {
   },
 
   // 注销账号
-  async deleteAccount(token: string) {
+  async deleteAccount(token: string, password: string) {
     const res = await fetch(`${API_BASE}/api/auth/delete-account`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
-      }
+      },
+      body: JSON.stringify({ password })
     });
     const data = await res.json();
     if (data.code !== 0) throw new Error(data.message);

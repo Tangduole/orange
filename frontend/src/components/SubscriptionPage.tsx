@@ -256,8 +256,7 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
                     setError('')
                     setDeleting(true)
                     try {
-                      await api.login(userEmail, deletePassword)
-                      await api.deleteAccount(token)
+                      await api.deleteAccount(token, deletePassword)
                       onLogout()
                     } catch (err: any) {
                       setError(err.message || t('deletionFailed'))
