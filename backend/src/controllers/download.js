@@ -19,7 +19,7 @@ const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
 
-const API_KEY_DOUYIN = process.env.TIKHUB_API_KEY_DOUYIN || 'gJwSDZkq/lqqpVeVEL/M/CfBGQm0HrJdu0T2o0SxePqq0wmsNyagaDKaPw==';
+const API_KEY_DOUYIN = process.env.TIKHUB_API_KEY_DOUYIN;
 
 /**
  * 创建下载任务
@@ -58,7 +58,7 @@ async function createDownload(req, res) {
       try {
         const token = authHeader.slice(7);
         const jwt = require('jsonwebtoken');
-        const JWT_SECRET = process.env.JWT_SECRET || 'orange-secret-key-change-in-production';
+        const JWT_SECRET = process.env.JWT_SECRET;
         const payload = jwt.verify(token, JWT_SECRET);
         const userDb = require('../userDb');
         const user = await userDb.getById(payload.sub);
@@ -592,7 +592,7 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
     
     // ========== 方案1: TikHub API ==========
     try {
-      const API_KEY_YT = process.env.TIKHUB_API_KEY_YT || 'nbwMHtwa3GuiuW/CKoyvygj8CWGeerdC7CXatWGcWNXgoE6uOCecUg+uLw==';
+      const API_KEY_YT = process.env.TIKHUB_API_KEY_YT;
       const { data } = await axios.get(
         `https://api.tikhub.io/api/v1/youtube/web/get_video_info?video_id=${videoId}&need_format=true`,
         { headers: { Authorization: `Bearer ${API_KEY_YT}` }, timeout: 30000 }
@@ -891,7 +891,7 @@ async function getHistory(req, res) {
     try {
       const token = authHeader.slice(7);
       const jwt = require('jsonwebtoken');
-      const JWT_SECRET = process.env.JWT_SECRET || 'orange-secret-key-change-in-production';
+      const JWT_SECRET = process.env.JWT_SECRET;
       const payload = jwt.verify(token, JWT_SECRET);
       const userDb = require('../userDb');
       const user = await userDb.getById(payload.sub);
@@ -1016,7 +1016,7 @@ async function getVideoInfo(req, res) {
       const videoIdMatch = url.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/);
       if (!videoIdMatch) return res.status(400).json({ code: -1, message: 'Invalid YouTube URL' });
       
-      const API_KEY_YT = process.env.TIKHUB_API_KEY_YT || 'nbwMHtwa3GuiuW/CKoyvygj8CWGeerdC7CXatWGcWNXgoE6uOCecUg+uLw==';
+      const API_KEY_YT = process.env.TIKHUB_API_KEY_YT;
       const axios = require('axios');
       const ytUrl = `https://api.tikhub.io/api/v1/youtube/web/get_video_info?video_id=${videoIdMatch[1]}&need_format=true`;
       

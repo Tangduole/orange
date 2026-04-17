@@ -80,8 +80,7 @@ const auth = {
    * 生成 Lemon Squeezy 签名密钥（用于 webhook 验证）
    */
   generateWebhookSecret() {
-    const secret = process.env.LEMON_SQUEEZY_WEBHOOK_SECRET;
-    return secret || 'test-webhook-secret';
+    return process.env.LEMON_SQUEEZY_WEBHOOK_SECRET;
   }
 };
 
