@@ -256,9 +256,10 @@ async function downloadX(url, taskId, onProgress) {
           '-c', 'copy',
           '-bsf:a', 'aac_adtstoasc',
           '-y', filepath
-        ], { timeout: 180000 });
-        ff.on('close', code => code === 0 ? resolve() : reject(new Error('ffmpeg exit ' + code)));
-        ff.on('error', reject);
+        ]);
+        const timer = setTimeout(() => { ff.kill('SIGKILL'); reject(new Error('ffmpeg timeout')); }, 60000);
+        ff.on('close', code => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error('ffmpeg exit ' + code)); });
+        ff.on('error', err => { clearTimeout(timer); reject(err); });
       });
       const stat = fs.statSync(filepath);
       if (stat.size > 0) {
