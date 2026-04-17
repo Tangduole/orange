@@ -135,5 +135,7 @@
   "na": "无",
   "downloads": "次下载",
   "all": "全部",
-  "allPlatforms": "全平台"
+  "allPlatforms": "全平台",
+  "pasteAnyShortVideo": "粘贴任意短视频链接即可下载",
+  "supportPlatformsList": "支持 抖音/TikTok/YouTube/X/Instagram/小红书"
 }
