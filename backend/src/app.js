@@ -102,7 +102,7 @@ app.get('/', (req, res) => {
 
 // 管理面板
 app.get('/admin', (req, res) => {
-  res.sendFile(path.join(__dirname, '../../admin.html'));
+  res.sendFile(path.join(__dirname, '../admin.html'));
 });
 
 // 前端静态文件 (生产环境)
