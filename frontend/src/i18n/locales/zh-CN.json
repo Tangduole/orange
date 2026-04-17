@@ -142,5 +142,17 @@
   "all": "全部",
   "allPlatforms": "全平台",
   "pasteAnyShortVideo": "粘贴任意短视频链接即可下载",
-  "supportPlatformsList": "支持 抖音/TikTok/YouTube/X/Instagram/小红书"
+  "supportPlatformsList": "支持 抖音/TikTok/YouTube/X/Instagram/小红书",
+  "referral": "邀请好友",
+  "yourReferralCode": "您的推荐码",
+  "referralHint": "分享此链接给好友，双方各得 +5次/天下载（30天有效）",
+  "referredUsers": "已邀请好友",
+  "bonusPerDay": "每日加成",
+  "haveReferralCode": "有推荐码？",
+  "enterReferralCode": "输入推荐码...",
+  "apply": "使用",
+  "referralRules": "推荐规则",
+  "referralRule1": "邀请好友注册，双方各得 +5次/天",
+  "referralRule2": "加成从激活起30天有效",
+  "referralRule3": "邀请人数不限"
 }

@@ -126,6 +126,30 @@ export const api = {
     return data.data;
   },
 
+  // 推荐系统
+  async getReferralInfo(token: string) {
+    const res = await fetch(`${API_BASE}/api/auth/referral`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    const data = await res.json();
+    if (data.code !== 0) throw new Error(data.message);
+    return data.data;
+  },
+
+  async applyReferralCode(token: string, code: string) {
+    const res = await fetch(`${API_BASE}/api/auth/referral/apply`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ code })
+    });
+    const data = await res.json();
+    if (data.code !== 0) throw new Error(data.message);
+    return data;
+  },
+
   // 忘记密码
   async forgotPassword(email: string) {
     const res = await fetch(`${API_BASE}/api/auth/forgot-password`, {

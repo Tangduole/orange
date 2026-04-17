@@ -142,5 +142,17 @@
   "all": "all",
   "allPlatforms": "All platforms",
   "pasteAnyShortVideo": "Paste any short video link to download",
-  "supportPlatformsList": "Support Douyin / TikTok / YouTube / X / Instagram / Xiaohongshu"
+  "supportPlatformsList": "Support Douyin / TikTok / YouTube / X / Instagram / Xiaohongshu",
+  "referral": "Invite & Earn",
+  "yourReferralCode": "Your Referral Code",
+  "referralHint": "Share this link with friends. Both get +5 downloads/day for 30 days!",
+  "referredUsers": "Invited Friends",
+  "bonusPerDay": "Bonus/Day",
+  "haveReferralCode": "Have a referral code?",
+  "enterReferralCode": "Enter code...",
+  "apply": "Apply",
+  "referralRules": "Referral Rules",
+  "referralRule1": "Invite a friend, both get +5 downloads/day",
+  "referralRule2": "Bonus valid for 30 days from activation",
+  "referralRule3": "No limit on number of referrals"
 }
