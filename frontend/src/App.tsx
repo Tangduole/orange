@@ -82,14 +82,20 @@ const shareFile = async (url: string, title: string, fileType: 'video' | 'audio'
   } else {
     // Web: iOS Safari special handling
     if (isIOS()) {
-      // iOS Safari: 打开新窗口，让用户用分享菜单Save到照片
-      const a = document.createElement('a')
-      a.href = fullUrl
-      a.target = '_blank'
-      a.rel = 'noopener noreferrer'
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
+      // Try native Web Share API first
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: title || 'Orange Video',
+            url: fullUrl
+          })
+          return { success: true }
+        } catch (e: any) {
+          if (e?.name === 'AbortError') return { success: true }
+        }
+      }
+      // Fallback: open in new tab (user can share/save from there)
+      window.open(fullUrl, '_blank')
       return { success: true }
     }
     
