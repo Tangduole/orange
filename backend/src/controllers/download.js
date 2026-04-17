@@ -167,14 +167,12 @@ async function createDownload(req, res) {
     store.save(task);
 
     // 抖音链接：走专用下载器（不依赖 yt-dlp）
-    // 抖音和TikTok链接：都走专用下载器（TikHub API，支持双平台）
     const { isDouyinUrl } = require('../services/douyin');
-    const isTikTokUrl = /tiktok\.com|tiktok\.cn/i.test(url);
-    if (isDouyinUrl(url) || isTikTokUrl) {
+    if (isDouyinUrl(url)) {
       // 非VIP用户限制画质为720p，VIP用户不限制（最高画质）
       const maxQuality = isVip ? null : 'height<=720';
       processDouyin(taskId, url, wantsAsr, normalizedOptions, quality, asrLanguage).catch(err => {
-        console.error(`[task] ${taskId} douyin/tiktok failed:`, err);
+        console.error(`[task] ${taskId} douyin failed:`, err);
         store.update(taskId, { status: 'error', progress: 0, error: err.message });
       });
       return res.json({ code: 0, data: { taskId, status: 'pending', platform: finalPlatform } });
@@ -188,6 +186,15 @@ async function createDownload(req, res) {
         store.update(taskId, { status: 'error', progress: 0, error: err.message });
       });
       return res.json({ code: 0, data: { taskId, status: 'pending', platform: finalPlatform } });
+    }
+
+    // TikTok 链接：走 TikHub API
+    if (/tiktok\.com|tiktok\.cn/i.test(url)) {
+      processTikTok(taskId, url, wantsAsr, normalizedOptions, quality).catch(err => {
+        console.error(`[task] ${taskId} tiktok failed:`, err);
+        store.update(taskId, { status: 'error', progress: 0, error: err.message });
+      });
+      return res.json({ code: 0, data: { taskId, status: 'pending', platform: 'tiktok' } });
     }
 
     // YouTube 链接：走 TikHub API（直接链接）
@@ -787,6 +794,103 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
   } catch (error) {
     console.error(`[task] ${taskId} youtube failed:`, error);
     store.update(taskId, { status: 'error', error: error.message });
+  }
+}
+
+/**
+ * 处理 TikTok 下载 (TikHub API)
+ */
+async function processTikTok(taskId, url, needAsr, options = ['video'], quality = null) {
+  try {
+    store.update(taskId, { status: 'parsing', progress: 5 });
+
+    // 从 URL 提取视频 ID
+    let videoId = null;
+    // 短链：先 resolve 获取真实 URL
+    let realUrl = url;
+    try {
+      const resp = await axios.head(url, { maxRedirects: 5, timeout: 10000 });
+      realUrl = resp.request?.res?.responseUrl || resp.headers?.location || url;
+    } catch (e) {
+      // 短链 resolve 失败，继续用原始 URL
+    }
+    
+    const idMatch = realUrl.match(/\/video\/(\d+)/);
+    if (idMatch) videoId = idMatch[1];
+    
+    if (!videoId) {
+      // 尝试从短链获取 aweme_id
+      try {
+        const resp = await axios.get(realUrl, { maxRedirects: 5, timeout: 15000 });
+        const html = resp.data;
+        const match = html.match(/"aweme_id":"(\d+)"/);
+        if (match) videoId = match[1];
+      } catch (e) {}
+    }
+    
+    if (!videoId) {
+      throw new Error('无法提取 TikTok 视频ID');
+    }
+
+    store.update(taskId, { progress: 15 });
+
+    // 调用 TikHub API 获取视频信息
+    const data = await tikhubRequest(
+      `/api/v1/tiktok/web/fetch_one_video?aweme_id=${videoId}`,
+      API_KEY_DOUYIN
+    );
+    
+    const detail = data.aweme_detail || data.data || {};
+    const video = detail.video || {};
+    const title = detail.desc || 'TikTok Video';
+    const author = detail.author?.unique_id || detail.author?.nickname || '';
+
+    // 获取下载链接
+    let videoUrl = null;
+    // 优先获取无水印视频
+    if (video.play_addr?.url_list?.[0]) {
+      videoUrl = video.play_addr.url_list[0];
+    } else if (video.download_addr?.url_list?.[0]) {
+      videoUrl = video.download_addr.url_list[0];
+    } else if (video.bit_rate?.[0]?.play_addr?.url_list?.[0]) {
+      videoUrl = video.bit_rate[0].play_addr.url_list[0];
+    }
+
+    if (!videoUrl) {
+      throw new Error('无法获取 TikTok 视频下载链接');
+    }
+
+    store.update(taskId, { status: 'downloading', progress: 30 });
+
+    // 下载视频到服务器
+    const filename = `${taskId}.mp4`;
+    const outputPath = path.join(__dirname, '../../downloads', filename);
+    await downloadToStream(videoUrl, outputPath, 120000);
+
+    // 获取封面
+    const coverUrl = video.cover?.url_list?.[0] || video.origin_cover?.url_list?.[0] || '';
+
+    store.update(taskId, {
+      status: 'completed',
+      progress: 100,
+      title: title,
+      duration: video.duration ? Math.floor(video.duration / 1000) : 0,
+      thumbnailUrl: coverUrl,
+      coverUrl: coverUrl,
+      downloadUrl: `/download/${filename}`,
+      filePath: outputPath,
+      ext: 'mp4',
+      copyText: title
+    });
+
+    console.log(`[task] ${taskId} tiktok completed`);
+  } catch (error) {
+    console.error(`[task] ${taskId} tiktok failed:`, error);
+    store.update(taskId, {
+      status: 'error',
+      progress: 0,
+      error: error.message || 'TikTok 下载失败'
+    });
   }
 }
 
