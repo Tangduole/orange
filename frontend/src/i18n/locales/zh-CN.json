@@ -159,5 +159,7 @@
   "startFrom": "低至",
   "countries": "个国家",
   "videosDownloaded": "视频已下载",
-  "rating": "评分"
+  "rating": "评分",
+  "moreSites": "更多网站",
+  "pasteUrlPlaceholder": "粘贴任意网站的视频链接..."
 }

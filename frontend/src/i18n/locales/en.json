@@ -159,5 +159,7 @@
   "startFrom": "Starting from",
   "countries": "Countries",
   "videosDownloaded": "Videos Downloaded",
-  "rating": "Rating"
+  "rating": "Rating",
+  "moreSites": "More Sites",
+  "pasteUrlPlaceholder": "Paste video link from any website..."
 }
