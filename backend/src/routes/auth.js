@@ -290,6 +290,25 @@ router.get('/verify-email', async (req, res) => {
       `);
     }
     
+    // 验证成功，发送欢迎邮件
+    try {
+      const { sendWelcomeEmail } = require('../services/email');
+      await sendWelcomeEmail(result.email);
+      const userDb2 = require('../userDb');
+      // 记录已发送
+      const { createClient } = require('@libsql/client');
+      const db = createClient({ url: process.env.TURSO_DATABASE_URL || 'file:data/users.db', authToken: process.env.TURSO_AUTH_TOKEN });
+      await db.execute({
+        sql: 'CREATE TABLE IF NOT EXISTS email_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, email_type TEXT NOT NULL, sent_at INTEGER NOT NULL, UNIQUE(user_id, email_type))'
+      });
+      await db.execute({
+        sql: 'INSERT OR IGNORE INTO email_logs (user_id, email_type, sent_at) VALUES (?, ?, ?)',
+        args: [result.userId, 'welcome', Date.now()]
+      });
+    } catch (e) {
+      console.error('[auth] Welcome email failed:', e.message);
+    }
+    
     // 返回成功 HTML 页面
     res.send(`
       <!DOCTYPE html>
@@ -391,6 +410,24 @@ router.post('/referral/apply', auth.required, async (req, res) => {
   } catch (err) {
     console.error('[auth] Apply referral error:', err);
     res.status(500).json({ code: 500, message: '应用推荐码失败' });
+  }
+});
+
+// 管理员：触发生命周期邮件
+router.post('/admin/lifecycle-emails', async (req, res) => {
+  const key = req.headers['x-admin-key'];
+  const adminKey = process.env.ADMIN_API_KEY;
+  if (!adminKey || key !== adminKey) {
+    return res.status(403).json({ code: 403, message: '无权访问' });
+  }
+  
+  try {
+    const lifecycle = require('../lifecycle');
+    const result = await lifecycle.run();
+    res.json({ code: 0, data: result });
+  } catch (err) {
+    console.error('[admin] Lifecycle emails error:', err);
+    res.status(500).json({ code: 500, message: err.message });
   }
 });
 
