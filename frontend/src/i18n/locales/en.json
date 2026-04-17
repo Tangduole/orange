@@ -156,5 +156,8 @@
   "referralRule3": "No limit on number of referrals",
   "upgradeForUnlimited": "Upgrade to unlock unlimited downloads and premium features",
   "dailyShort": "day",
-  "startFrom": "Starting from"
+  "startFrom": "Starting from",
+  "countries": "Countries",
+  "videosDownloaded": "Videos Downloaded",
+  "rating": "Rating"
 }

@@ -156,5 +156,8 @@
   "referralRule3": "邀请人数不限",
   "upgradeForUnlimited": "升级解锁无限下载和高级功能",
   "dailyShort": "天",
-  "startFrom": "低至"
+  "startFrom": "低至",
+  "countries": "个国家",
+  "videosDownloaded": "视频已下载",
+  "rating": "评分"
 }
