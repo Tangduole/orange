@@ -82,7 +82,7 @@
   </div>
 
   <script>
-    const API = 'https://orange-production-95b9.up.railway.app/api/subscribe';
+    const API = window.location.origin + '/api/subscribe';
     
     async function grantVip() {
       const key = document.getElementById('adminKey').value;
