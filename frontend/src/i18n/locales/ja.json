@@ -36,6 +36,8 @@
   "downloadsRemaining": "{{count}} downloads remaining today",
   "downloadsExhausted": "Daily downloads exhausted",
   "upgradePro": "Upgrade to Pro for unlimited downloads",
+  "dailyDownloadsExhausted": "Daily downloads exhausted",
+  "upgradeToProUnlimited": "Upgrade Pro for unlimited downloads",
   "history": "History",
   "noHistory": "No download history",
   "clearAll": "Clear All",

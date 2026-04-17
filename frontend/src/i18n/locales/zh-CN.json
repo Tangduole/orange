@@ -36,6 +36,8 @@
   "downloadsRemaining": "今日剩余下载次数：{{count}}次",
   "downloadsExhausted": "今日下载次数已用完",
   "upgradePro": "升级Pro解锁无限制下载",
+  "dailyDownloadsExhausted": "今日下载次数已用完",
+  "upgradeToProUnlimited": "升级Pro解锁无限下载"
   "history": "历史记录",
   "noHistory": "没有下载记录",
   "clearAll": "清除全部",

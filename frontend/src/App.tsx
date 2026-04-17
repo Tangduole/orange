@@ -1227,6 +1227,15 @@ export default function App() {
             )}
 
             {/* Download button */}
+            {/* Upgrade Banner when out of downloads */}
+            {!isVip && remainingDownloads === 0 && (
+              <div className="mb-3 p-3 bg-gradient-to-r from-orange-500/20 to-amber-500/20 rounded-xl border border-orange-500/40 text-center">
+                <p className="text-sm text-white mb-1">{t('dailyDownloadsExhausted')}</p>
+                <button onClick={() => setShowSubscription(true)} className="text-orange-400 hover:text-orange-300 font-semibold text-sm">
+                  ⭐ {t('upgradeToProUnlimited')} →
+                </button>
+              </div>
+            )}
             {/* RemainingDownloadTimesPrompt */}
             {!isVip && remainingDownloads >= 0 && (
               <div className={`mb-3 text-center text-xs py-2 rounded-xl ${isDark ? 'bg-slate-800/60 text-slate-300' : 'bg-gray-100 text-gray-500'}`}>
