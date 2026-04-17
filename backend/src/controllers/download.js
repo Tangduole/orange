@@ -806,54 +806,57 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
 
     // 从 URL 提取视频 ID
     let videoId = null;
-    // 短链：先 resolve 获取真实 URL
-    let realUrl = url;
-    try {
-      const resp = await axios.head(url, { maxRedirects: 5, timeout: 10000 });
-      realUrl = resp.request?.res?.responseUrl || resp.headers?.location || url;
-    } catch (e) {
-      // 短链 resolve 失败，继续用原始 URL
-    }
-    
-    const idMatch = realUrl.match(/\/video\/(\d+)/);
+
+    // 直接从 URL 匹配 /video/123456
+    const idMatch = url.match(/\/video\/(\d+)/);
     if (idMatch) videoId = idMatch[1];
-    
+
+    // 短链：先 resolve 获取真实 URL
     if (!videoId) {
-      // 尝试从短链获取 aweme_id
       try {
-        const resp = await axios.get(realUrl, { maxRedirects: 5, timeout: 15000 });
-        const html = resp.data;
-        const match = html.match(/"aweme_id":"(\d+)"/);
-        if (match) videoId = match[1];
+        const resp = await axios.get(url, { maxRedirects: 5, timeout: 15000 });
+        const finalUrl = resp.request?.res?.responseUrl || '';
+        const finalMatch = finalUrl.match(/\/video\/(\d+)/);
+        if (finalMatch) videoId = finalMatch[1];
+        if (!videoId) {
+          const html = typeof resp.data === 'string' ? resp.data : '';
+          const match = html.match(/"aweme_id":"(\d+)"/);
+          if (match) videoId = match[1];
+        }
       } catch (e) {}
     }
-    
+
     if (!videoId) {
       throw new Error('无法提取 TikTok 视频ID');
     }
 
     store.update(taskId, { progress: 15 });
 
-    // 调用 TikHub API 获取视频信息
+    // 调用 TikHub TikTok App V3 API（用抖音 API key）
     const data = await tikhubRequest(
-      `/api/v1/tiktok/web/fetch_one_video?aweme_id=${videoId}`,
+      '/api/v1/tiktok/app/v3/fetch_one_video?aweme_id=' + videoId,
       API_KEY_DOUYIN
     );
-    
-    const detail = data.aweme_detail || data.data || {};
+
+    const detail = data?.data?.aweme_detail || {};
     const video = detail.video || {};
     const title = detail.desc || 'TikTok Video';
-    const author = detail.author?.unique_id || detail.author?.nickname || '';
 
-    // 获取下载链接
+    // 获取下载链接（优先高画质 bit_rate）
     let videoUrl = null;
-    // 优先获取无水印视频
-    if (video.play_addr?.url_list?.[0]) {
+    const bitrates = video.bit_rate || [];
+    if (bitrates.length > 0) {
+      // 取最高画质
+      const best = bitrates.sort((a, b) =>
+        (b.play_addr?.height || 0) - (a.play_addr?.height || 0)
+      )[0];
+      videoUrl = best?.play_addr?.url_list?.[0];
+    }
+    if (!videoUrl && video.play_addr?.url_list?.[0]) {
       videoUrl = video.play_addr.url_list[0];
-    } else if (video.download_addr?.url_list?.[0]) {
+    }
+    if (!videoUrl && video.download_addr?.url_list?.[0]) {
       videoUrl = video.download_addr.url_list[0];
-    } else if (video.bit_rate?.[0]?.play_addr?.url_list?.[0]) {
-      videoUrl = video.bit_rate[0].play_addr.url_list[0];
     }
 
     if (!videoUrl) {
@@ -863,7 +866,7 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
     store.update(taskId, { status: 'downloading', progress: 30 });
 
     // 下载视频到服务器
-    const filename = `${taskId}.mp4`;
+    const filename = taskId + '.mp4';
     const outputPath = path.join(__dirname, '../../downloads', filename);
     await downloadToStream(videoUrl, outputPath, 120000);
 
@@ -877,15 +880,15 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
       duration: video.duration ? Math.floor(video.duration / 1000) : 0,
       thumbnailUrl: coverUrl,
       coverUrl: coverUrl,
-      downloadUrl: `/download/${filename}`,
+      downloadUrl: '/download/' + filename,
       filePath: outputPath,
       ext: 'mp4',
       copyText: title
     });
 
-    console.log(`[task] ${taskId} tiktok completed`);
+    console.log('[task] ' + taskId + ' tiktok completed');
   } catch (error) {
-    console.error(`[task] ${taskId} tiktok failed:`, error);
+    console.error('[task] ' + taskId + ' tiktok failed:', error);
     store.update(taskId, {
       status: 'error',
       progress: 0,
