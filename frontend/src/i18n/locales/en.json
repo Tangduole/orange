@@ -102,7 +102,6 @@
   "dailyDownloadLimit": "{{count}} downloads per day",
   "supportMainPlatforms": "Support main platforms",
   "qualityLimit720p": "Quality limited to 720p",
-  "batchDownload": "Batch Download",
   "allPlatformsIncluding": "All platforms including 4K",
   "qualityUpTo4K": "Quality up to 4K",
   "prioritySupport": "Priority Support",
@@ -154,5 +153,8 @@
   "referralRules": "Referral Rules",
   "referralRule1": "Invite a friend, both get +5 downloads/day",
   "referralRule2": "Bonus valid for 30 days from activation",
-  "referralRule3": "No limit on number of referrals"
+  "referralRule3": "No limit on number of referrals",
+  "upgradeForUnlimited": "Upgrade to unlock unlimited downloads and premium features",
+  "dailyShort": "day",
+  "startFrom": "Starting from"
 }
