@@ -965,45 +965,23 @@ async function deleteTask(req, res) {
     return res.json({ code: 404, message: '任务不存在' });
   }
   
-  // 检查权限
-  const authHeader = req.headers.authorization;
-  let canDelete = false;
-  
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    try {
-      const token = authHeader.slice(7);
-      const jwt = require('jsonwebtoken');
-      const JWT_SECRET = process.env.JWT_SECRET || 'orange-secret-key-change-in-production';
-      const payload = jwt.verify(token, JWT_SECRET);
-      const userDb = require('../userDb');
-      const user = await userDb.getById(payload.sub);
-      if (user && task.userId === user.id) {
-        canDelete = true;
-      }
-    } catch (e) {}
-  }
-  
-  // 游客只能删除自己的任务（通过IP判断）
+  // 检查权限：登录用户只能删自己的任务
+  const userId = req.user?.id;
   const guestIp = req.ip || req.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
-  if (!canDelete && task.guestIp === guestIp) {
-    canDelete = true;
-  }
+  const canDelete = (userId && task.userId === userId) || (!task.userId && task.guestIp === guestIp);
   
   if (!canDelete) {
     return res.json({ code: 403, message: '无权删除此任务' });
   }
 
   store.removeWithFiles(taskId);
-
   res.json({ code: 0, message: '删除成功' });
 }
 
 function clearHistory(req, res) {
-  const tasks = store.list();
-  for (const task of tasks) {
-    store.removeWithFiles(task.taskId);
-  }
-  res.json({ code: 0, message: '已清除所有记录' });
+  const userId = req.user.id;
+  const count = store.removeByUserId(userId);
+  res.json({ code: 0, message: `已清除 ${count} 条记录` });
 }
 
 // TikHub API 简单内存缓存（5分钟 TTL）

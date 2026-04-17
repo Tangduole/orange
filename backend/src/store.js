@@ -90,6 +90,20 @@ function remove(taskId) {
 }
 
 /**
+ * 按 userId 删除任务及其关联文件
+ */
+function removeByUserId(userId) {
+  let count = 0;
+  for (const [id, task] of tasks) {
+    if (task.userId === userId) {
+      removeWithFiles(id);
+      count++;
+    }
+  }
+  return count;
+}
+
+/**
  * 清理过期任务及其关联文件
  * @param {number} maxAgeMs 最大存活时间，默认 24 小时
  */
@@ -149,4 +163,4 @@ setInterval(() => cleanup(), 21600000);
 // 首次启动时清理
 cleanup();
 
-module.exports = { save, get, list, update, remove, removeWithFiles, cleanup };
+module.exports = { save, get, list, update, remove, removeWithFiles, removeByUserId, cleanup };

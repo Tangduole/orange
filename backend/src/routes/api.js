@@ -5,6 +5,7 @@
 const express = require('express');
 const fs = require('fs');
 const path = require('path');
+const auth = require('../auth');
 const {
   createDownload,
   getInfo,
@@ -36,8 +37,8 @@ router.get('/status/:taskId', getStatus);
 router.get('/history', getHistory);
 
 // 删除任务
-router.delete('/tasks/:taskId', deleteTask);
-router.delete('/history', clearHistory);
+router.delete('/tasks/:taskId', auth.required, deleteTask);
+router.delete('/history', auth.required, clearHistory);
 
 // 系统状态
 router.get('/system/status', getSystemStatus);
