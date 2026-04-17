@@ -838,7 +838,7 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
       API_KEY_DOUYIN
     );
 
-    const detail = data?.data?.aweme_detail || {};
+    const detail = data?.aweme_detail || {};
     const video = detail.video || {};
     const title = detail.desc || 'TikTok Video';
 
