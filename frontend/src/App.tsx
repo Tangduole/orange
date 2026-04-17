@@ -928,7 +928,7 @@ export default function App() {
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setShowLangMenu(false)} />
                     <div className="absolute right-0 top-10 bg-slate-800 rounded-xl py-2 w-40 border border-slate-700 shadow-xl z-50">
-                      {[{ code: 'en', label: 'English' }, { code: 'ko', label: '한국어' }, { code: 'ja', label: '日本語' }, { code: 'zh-TW', label: '繁體中文' }, { code: 'zh-CN', label: '简体中文' }].map(lang => (
+                      {[{ code: 'en', label: 'English' }, { code: 'zh-CN', label: '简体中文' }].map(lang => (
                         <button
                           key={lang.code}
                           onClick={() => changeLanguage(lang.code)}
