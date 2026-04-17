@@ -26,7 +26,6 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
     setError('');
     setLoading(true);
 
-    // RegistertwoPasswordisone
     if (mode === 'register' && password !== confirmPassword) {
       setError(t('passwordMismatch'));
       setLoading(false);
@@ -38,7 +37,6 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
         ? await api.login(email, password)
         : await api.register(email, password);
       
-      // RegisterwantEmailVerify，notAutoLogin
       if (data.needsEmailVerification) {
         setLoading(false);
         setSuccessMessage(t('registerSuccess'));
@@ -62,15 +60,34 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-[#1a1a2e] rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-700/50">
-        {/* Header */}
+      <div className="bg-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-700">
+        {/* Header with Tab Switcher */}
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-white">
-            {mode === 'login' ? t('login') : t('register')}
-          </h2>
+          <div className="flex gap-2 w-full">
+            <button
+              onClick={() => setMode('login')}
+              className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${
+                mode === 'login' 
+                  ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' 
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              {t('login')}
+            </button>
+            <button
+              onClick={() => setMode('register')}
+              className={`flex-1 py-2 rounded-xl text-sm font-medium transition-all ${
+                mode === 'register' 
+                  ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' 
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              {t('register')}
+            </button>
+          </div>
           <button 
             onClick={onClose}
-            className="text-slate-400 hover:text-white transition-colors"
+            className="text-slate-400 hover:text-white transition-colors ml-3"
           >
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -104,7 +121,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
               onChange={(e) => setEmail(e.target.value)}
               placeholder="your@email.com"
               required
-              className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600/50 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/70 transition-all"
+              className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600/50 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/70 transition-all"
             />
           </div>
 
@@ -119,7 +136,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
               placeholder="••••••••"
               required
               minLength={6}
-              className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600/50 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/70 transition-all"
+              className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600/50 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/70 transition-all"
             />
           </div>
 
@@ -135,7 +152,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
                 placeholder="••••••••"
                 required
                 minLength={6}
-                className="w-full px-4 py-3 bg-slate-800/50 border border-slate-600/50 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/70 transition-all"
+                className="w-full px-4 py-3 bg-slate-900/50 border border-slate-600/50 rounded-xl text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500/70 transition-all"
               />
             </div>
           )}
@@ -161,8 +178,8 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
           </div>
         )}
 
-        {/* Switch Mode */}
-        <div className="mt-4 text-center text-sm text-slate-400">
+        {/* Switch Mode - Hidden since we use tabs now */}
+        <div className="mt-4 text-center text-sm text-slate-500">
           {mode === 'login' ? t('noAccount') : t('hasAccount')}
           <button
             onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); setSuccessMessage(''); setPassword(''); setConfirmPassword(''); }}
@@ -173,7 +190,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
         </div>
 
         {/* Info */}
-        <div className="mt-4 p-3 bg-slate-800/30 rounded-lg text-xs text-slate-500">
+        <div className="mt-4 p-3 bg-slate-700/30 rounded-lg text-xs text-slate-400">
           💡 {t('registerInfo')}
         </div>
       </div>
