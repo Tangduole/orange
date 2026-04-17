@@ -17,7 +17,6 @@ i18n
       en: { translation: en },
       ko: { translation: ko },
       ja: { translation: ja },
-      hi: { translation: hi },
       'zh-TW': { translation: zhTW },
       'zh-CN': { translation: zhCN },
     },
