@@ -80,21 +80,8 @@ const shareFile = async (url: string, title: string, fileType: 'video' | 'audio'
       }
     }
   } else {
-    // Web: iOS Safari special handling
+    // Web: iOS Safari - open video and guide user to save
     if (isIOS()) {
-      // Try native Web Share API first
-      if (navigator.share) {
-        try {
-          await navigator.share({
-            title: title || 'Orange Video',
-            url: fullUrl
-          })
-          return { success: true }
-        } catch (e: any) {
-          if (e?.name === 'AbortError') return { success: true }
-        }
-      }
-      // Fallback: open in new tab (user can share/save from there)
       window.open(fullUrl, '_blank')
       return { success: true }
     }
@@ -219,6 +206,7 @@ export default function App() {
   const [showSubscription, setShowSubscription] = useState(false)
   const [showReferral, setShowReferral] = useState(false)
   const [showUpgradePopup, setShowUpgradePopup] = useState(false)
+  const [showIosGuide, setShowIosGuide] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showResetPwd, setShowResetPwd] = useState(false)
   const [resetEmail, setResetEmail] = useState('')
@@ -570,6 +558,9 @@ export default function App() {
       // 延迟 500ms 后AutoDownload
       autoDownloadTimer.current = setTimeout(() => {
         setDownloading(true)
+        if (isIOS() && !isNativeApp()) {
+          setShowIosGuide(true)
+        }
         shareFile(task.downloadUrl, task.title || 'video').finally(() => {
           setDownloading(false)
           // DownloadCompleted后重新获取Use量
@@ -1679,6 +1670,41 @@ export default function App() {
                 {t('upgradeToPro')} →
               </button>
               <p className="text-center text-xs text-slate-500 mt-3">{t('startFrom')} $2.99/{t('monthly')}</p>
+            </div>
+          </div>
+        )}
+
+        {/* iOS Save to Photos Guide */}
+        {showIosGuide && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-800 rounded-2xl w-full max-w-xs p-6 border border-slate-700 shadow-2xl">
+              <button onClick={() => setShowIosGuide(false)} className="absolute top-3 right-3 text-slate-400 hover:text-white">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+              <div className="text-center mb-4">
+                <p className="text-4xl mb-3">📱</p>
+                <h3 className="text-lg font-bold text-white mb-2">Save to Photos</h3>
+              </div>
+              <div className="space-y-3 text-sm text-slate-300">
+                <div className="flex items-start gap-3">
+                  <span className="text-orange-400 font-bold">1</span>
+                  <p>The video will open in a new tab</p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="text-orange-400 font-bold">2</span>
+                  <p>Long press the video (or tap the share button <span className="inline-block">⬆️</span>)</p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="text-orange-400 font-bold">3</span>
+                  <p>Select <strong>"Save Video"</strong> or <strong>"Save to Photos"</strong></p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowIosGuide(false)}
+                className="w-full mt-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-xl transition"
+              >
+                Got it
+              </button>
             </div>
           </div>
         )}
