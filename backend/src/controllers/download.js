@@ -22,6 +22,22 @@ const axios = require('axios');
 const API_KEY_DOUYIN = process.env.TIKHUB_API_KEY_DOUYIN;
 
 /**
+ * 流式下载文件到磁盘（避免 OOM）
+ */
+async function downloadToStream(url, destPath, timeout = 120000) {
+  const writer = fs.createWriteStream(destPath);
+  const response = await axios.get(url, { responseType: 'stream', timeout });
+  return new Promise((resolve, reject) => {
+    response.data.pipe(writer);
+    writer.on('finish', resolve);
+    writer.on('error', (err) => {
+      fs.unlink(destPath, () => {});
+      reject(err);
+    });
+  });
+}
+
+/**
  * 创建下载任务
  */
 async function createDownload(req, res) {
@@ -648,14 +664,12 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
             // 下载视频
             store.update(taskId, { status: 'downloading', progress: 10 });
             
-            // 使用 axios 下载视频
-            const videoResponse = await axios.get(finalVideo.url, { responseType: 'arraybuffer', timeout: 120000 });
-            fs.writeFileSync(videoPath, Buffer.from(videoResponse.data));
+            // 流式下载视频（避免 OOM）
+            await downloadToStream(finalVideo.url, videoPath, 120000);
             store.update(taskId, { progress: 50 });
             
-            // 下载音频
-            const audioResponse = await axios.get(bestAudio.url, { responseType: 'arraybuffer', timeout: 60000 });
-            fs.writeFileSync(audioPath, Buffer.from(audioResponse.data));
+            // 流式下载音频
+            await downloadToStream(bestAudio.url, audioPath, 60000);
             store.update(taskId, { progress: 70 });
             
             // 使用 ffmpeg 合并
@@ -701,8 +715,7 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
           // 视频本身有音频，先下载到服务器再返回代理链接（避免API Key暴露）
           const videoPath = path.join(__dirname, '../../downloads', `${taskId}.mp4`);
           try {
-            const videoResponse = await axios.get(finalVideo.url, { responseType: 'arraybuffer', timeout: 120000 });
-            fs.writeFileSync(videoPath, Buffer.from(videoResponse.data));
+            await downloadToStream(finalVideo.url, videoPath, 120000);
             
             store.update(taskId, {
               status: 'completed',
