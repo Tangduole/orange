@@ -5,7 +5,6 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 import en from './locales/en.json';
 import ko from './locales/ko.json';
 import ja from './locales/ja.json';
-import hi from './locales/hi.json';
 import zhTW from './locales/zh-TW.json';
 import zhCN from './locales/zh-CN.json';
 
