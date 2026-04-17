@@ -814,16 +814,31 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
     // 短链：先 resolve 获取真实 URL
     if (!videoId) {
       try {
-        const resp = await axios.get(url, { maxRedirects: 5, timeout: 15000 });
-        const finalUrl = resp.request?.res?.responseUrl || '';
-        const finalMatch = finalUrl.match(/\/video\/(\d+)/);
-        if (finalMatch) videoId = finalMatch[1];
-        if (!videoId) {
-          const html = typeof resp.data === 'string' ? resp.data : '';
-          const match = html.match(/"aweme_id":"(\d+)"/);
-          if (match) videoId = match[1];
-        }
+        // 方法1: HEAD 请求跟踪重定向
+        const headResp = await axios.head(url, { maxRedirects: 5, timeout: 10000 });
+        const redirectUrl = headResp.request?.res?.responseUrl || headResp.headers?.location || '';
+        const redirectMatch = redirectUrl.match(/\/video\/(\d+)/);
+        if (redirectMatch) videoId = redirectMatch[1];
       } catch (e) {}
+      
+      // 方法2: GET 请求从 HTML 提取
+      if (!videoId) {
+        try {
+          const resp = await axios.get(url, {
+            maxRedirects: 5,
+            timeout: 15000,
+            headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)' }
+          });
+          const finalUrl = resp.request?.res?.responseUrl || '';
+          const finalMatch = finalUrl.match(/\/video\/(\d+)/);
+          if (finalMatch) videoId = finalMatch[1];
+          if (!videoId) {
+            const html = typeof resp.data === 'string' ? resp.data : '';
+            const match = html.match(/"aweme_id":"(\d+)"/) || html.match(/video\/(\d+)/);
+            if (match) videoId = match[1] || match[0].match(/\d+/)?.[0];
+          }
+        } catch (e) {}
+      }
     }
 
     if (!videoId) {
