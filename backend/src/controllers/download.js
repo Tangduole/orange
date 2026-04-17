@@ -167,12 +167,14 @@ async function createDownload(req, res) {
     store.save(task);
 
     // 抖音链接：走专用下载器（不依赖 yt-dlp）
+    // 抖音和TikTok链接：都走专用下载器（TikHub API，支持双平台）
     const { isDouyinUrl } = require('../services/douyin');
-    if (isDouyinUrl(url)) {
+    const isTikTokUrl = /tiktok\.com|tiktok\.cn/i.test(url);
+    if (isDouyinUrl(url) || isTikTokUrl) {
       // 非VIP用户限制画质为720p，VIP用户不限制（最高画质）
       const maxQuality = isVip ? null : 'height<=720';
       processDouyin(taskId, url, wantsAsr, normalizedOptions, quality, asrLanguage).catch(err => {
-        console.error(`[task] ${taskId} douyin failed:`, err);
+        console.error(`[task] ${taskId} douyin/tiktok failed:`, err);
         store.update(taskId, { status: 'error', progress: 0, error: err.message });
       });
       return res.json({ code: 0, data: { taskId, status: 'pending', platform: finalPlatform } });
