@@ -175,6 +175,13 @@ async function parseTweet(url) {
           return scoreB - scoreA;
         });
         result.videoUrl = result.videoUrls[0].url;
+      
+      // 提取 m3u8 URL（HLS 流，可能有更高画质）
+      for (const f of (tweetMedia[0]?.formats || [])) {
+        if (f.container === 'm3u8' && f.url) {
+          result.m3u8Url = f.url.startsWith('http') ? f.url : 'https://video.twimg.com' + f.url;
+        }
+      }
       }
 
       // 封面
@@ -232,8 +239,41 @@ async function downloadX(url, taskId, onProgress) {
     console.log(`[X] No cover URL found for tweet`);
   }
 
-  // 下载视频
+  // 下载视频（优先 m3u8 → ffmpeg，其次 mp4 直接下载）
+  const m3u8Url = info.m3u8Url || '';
   const videoUrl = info.videoUrl || (info.videoUrls && info.videoUrls[0]?.url) || '';
+  
+  // 尝试 m3u8（HLS）下载 - 画质可能更高
+  if (m3u8Url && m3u8Url.startsWith('http')) {
+    if (onProgress) onProgress(30, '下载HLS视频');
+    const filename = taskId + '.mp4';
+    const filepath = path.join(downloadDir, filename);
+    try {
+      const { spawn } = require('child_process');
+      await new Promise((resolve, reject) => {
+        const ff = spawn('ffmpeg', [
+          '-i', m3u8Url,
+          '-c', 'copy',
+          '-bsf:a', 'aac_adtstoasc',
+          '-y', filepath
+        ], { timeout: 180000 });
+        ff.on('close', code => code === 0 ? resolve() : reject(new Error('ffmpeg exit ' + code)));
+        ff.on('error', reject);
+      });
+      const stat = fs.statSync(filepath);
+      if (stat.size > 0) {
+        result.filePath = filepath;
+        result.ext = 'mp4';
+        result.downloadUrl = '/download/' + filename;
+        if (onProgress) onProgress(100);
+        return result;
+      }
+    } catch (e) {
+      console.error('[X] m3u8 download failed, falling back to mp4:', e.message);
+    }
+  }
+  
+  // Fallback: mp4 直接下载
   if (videoUrl && videoUrl.startsWith('http')) {
     if (onProgress) onProgress(30, '下载视频');
     try {
