@@ -212,6 +212,7 @@ export default function App() {
   const [authUser, setAuthUser] = useState<any>(JSON.parse(localStorage.getItem('orange_user') || 'null'))
   const [showSubscription, setShowSubscription] = useState(false)
   const [showReferral, setShowReferral] = useState(false)
+  const [showUpgradePopup, setShowUpgradePopup] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showResetPwd, setShowResetPwd] = useState(false)
   const [resetEmail, setResetEmail] = useState('')
@@ -681,7 +682,7 @@ export default function App() {
     
     // 检查GuestDownloadTimes限制
     if (!isVip && remainingDownloads === 0) {
-      setShowSubscription(true)
+      setShowUpgradePopup(true)
       return
     }
     
@@ -725,7 +726,7 @@ export default function App() {
   const doBatchDownload = async (urls: string[]) => {
     // 检查GuestDownloadTimes限制
     if (!isVip && remainingDownloads === 0) {
-      setShowSubscription(true)
+      setShowUpgradePopup(true)
       return
     }
     setBatchQueue(urls.map(u => ({ url: u, status: 'pending', progress: 0 })))
@@ -748,7 +749,7 @@ export default function App() {
   const doSingleDownload = async (skipQualityPicker = false) => {
     // 检查GuestDownloadTimes限制
     if (!isVip && remainingDownloads === 0) {
-      setShowSubscription(true)
+      setShowUpgradePopup(true)
       setLoading(false)
       return
     }
@@ -1243,7 +1244,7 @@ export default function App() {
             {!isVip && remainingDownloads === 0 && (
               <div className="mb-3 p-3 bg-gradient-to-r from-orange-500/20 to-amber-500/20 rounded-xl border border-orange-500/40 text-center">
                 <p className="text-sm text-white mb-1">{t('dailyDownloadsExhausted')}</p>
-                <button onClick={() => setShowSubscription(true)} className="text-orange-400 hover:text-orange-300 font-semibold text-sm">
+                <button onClick={() => setShowUpgradePopup(true)} className="text-orange-400 hover:text-orange-300 font-semibold text-sm">
                   ⭐ {t('upgradeToProUnlimited')} →
                 </button>
               </div>
@@ -1252,7 +1253,7 @@ export default function App() {
             {!isVip && remainingDownloads >= 0 && (
               <div className={`mb-3 text-center text-xs py-2 rounded-xl ${isDark ? 'bg-slate-800/60 text-slate-300' : 'bg-gray-100 text-gray-500'}`}>
                 {remainingDownloads === -1 ? t('unlimited') : `${t('downloadsRemaining', { count: remainingDownloads })}`}
-                {remainingDownloads === 0 && <span className="ml-2 text-orange-400">· <button onClick={() => setShowSubscription(true)} className="underline hover:text-orange-300">{t('upgradeToPro')}</button></span>}
+                {remainingDownloads === 0 && <span className="ml-2 text-orange-400">· <button onClick={() => setShowUpgradePopup(true)} className="underline hover:text-orange-300">{t('upgradeToPro')}</button></span>}
               </div>
             )}
             {isVip && (
@@ -1340,7 +1341,7 @@ export default function App() {
                   {!isVip && task.height && task.height < 1080 && (
                     <div className="text-xs text-slate-300 bg-slate-700/30 px-3 py-2 rounded-xl flex items-center justify-between">
                       <span>🔒 {t('memberExclusiveQuality')}</span>
-                      <button onClick={() => setShowSubscription(true)} className="text-orange-400 hover:text-orange-300 underline">{t('upgradeToPro')}</button>
+                      <button onClick={() => setShowUpgradePopup(true)} className="text-orange-400 hover:text-orange-300 underline">{t('upgradeToPro')}</button>
                     </div>
                   )}
                 </div>
@@ -1559,7 +1560,7 @@ export default function App() {
                       onClick={() => {
                         if (!canSelect) {
                           setShowQualityPicker(false)
-                          setShowSubscription(true)
+                          setShowUpgradePopup(true)
                           return
                         }
                         setShowQualityPicker(false)
@@ -1599,7 +1600,7 @@ export default function App() {
               </div>
               {!isVip && (
                 <button
-                  onClick={() => { setShowQualityPicker(false); setShowSubscription(true) }}
+                  onClick={() => { setShowQualityPicker(false); setShowUpgradePopup(true) }}
                   className="w-full mt-3 py-3 px-4 rounded-xl bg-gradient-to-r from-yellow-500/20 to-orange-500/20 text-orange-400 hover:from-yellow-500/30 hover:to-orange-500/30 transition border border-orange-500/30 flex items-center justify-center gap-2"
                 >
                   <Crown className="w-4 h-4" />
@@ -1636,6 +1637,40 @@ export default function App() {
         </footer>
         <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} onSuccess={handleAuthSuccess} onForgotPassword={() => { setShowAuthModal(false); setShowResetPwd(true); }} />
         {authToken && <ReferralModal token={authToken} isOpen={showReferral} onClose={() => setShowReferral(false)} />}
+
+        {/* Upgrade Popup */}
+        {showUpgradePopup && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-800 rounded-2xl w-full max-w-sm p-6 border border-orange-500/30 shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-500 to-amber-500" />
+              <button onClick={() => setShowUpgradePopup(false)} className="absolute top-3 right-3 text-slate-400 hover:text-white">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+              <div className="text-center mb-5">
+                <p className="text-4xl mb-2">⚡</p>
+                <h3 className="text-xl font-bold text-white">{t('dailyLimitReached')}</h3>
+                <p className="text-slate-400 text-sm mt-2">{t('upgradeForUnlimited')}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 mb-5">
+                <div className="p-3 bg-slate-700/30 rounded-xl text-center">
+                  <p className="text-slate-400 text-xs">{t('free')}</p>
+                  <p className="text-lg font-bold text-white">3/{t('dailyShort')}</p>
+                </div>
+                <div className="p-3 bg-orange-500/10 border border-orange-500/30 rounded-xl text-center">
+                  <p className="text-orange-400 text-xs">⭐ Pro</p>
+                  <p className="text-lg font-bold text-orange-400">{t('unlimited')}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setShowUpgradePopup(false); setShowSubscription(true) }}
+                className="w-full py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-orange-500/25"
+              >
+                {t('upgradeToPro')} →
+              </button>
+              <p className="text-center text-xs text-slate-500 mt-3">{t('startFrom')} $2.99/{t('monthly')}</p>
+            </div>
+          </div>
+        )}
 
         {/* 忘记Password弹窗 */}
         {showResetPwd && (

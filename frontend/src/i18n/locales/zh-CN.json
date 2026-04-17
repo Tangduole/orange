@@ -37,7 +37,7 @@
   "downloadsExhausted": "今日下载次数已用完",
   "upgradePro": "升级Pro解锁无限制下载",
   "dailyDownloadsExhausted": "今日下载次数已用完",
-  "upgradeToProUnlimited": "升级Pro解锁无限下载"
+  "upgradeToProUnlimited": "升级Pro解锁无限下载",
   "history": "历史记录",
   "noHistory": "没有下载记录",
   "clearAll": "清除全部",
@@ -102,7 +102,6 @@
   "dailyDownloadLimit": "每天{{count}}次下载",
   "supportMainPlatforms": "支持主流平台",
   "qualityLimit720p": "画质限制720p",
-  "batchDownload": "批量下载",
   "allPlatformsIncluding": "全平台支持包括4K",
   "qualityUpTo4K": "画质最高4K",
   "prioritySupport": "优先客服支持",
@@ -154,5 +153,8 @@
   "referralRules": "推荐规则",
   "referralRule1": "邀请好友注册，双方各得 +5次/天",
   "referralRule2": "加成从激活起30天有效",
-  "referralRule3": "邀请人数不限"
+  "referralRule3": "邀请人数不限",
+  "upgradeForUnlimited": "升级解锁无限下载和高级功能",
+  "dailyShort": "天",
+  "startFrom": "低至"
 }
