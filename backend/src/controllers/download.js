@@ -682,7 +682,7 @@ async function processX(taskId, url, needAsr, options = ['video']) {
     // ASR 语音转文字
     if (needAsr && update.filePath) {
       const result = await handleAsr(taskId, update.filePath, 'zh');
-      if (result?.text) store.update(taskId, { asrText: result.text, asrTxtUrl: result.txtUrl });
+      if (result?.text) store.update(taskId, { status: 'completed', asrText: result.text, asrTxtUrl: result.txtUrl });
     }
     
     console.log(`[task] ${taskId} x completed`);
@@ -1027,7 +1027,7 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
     // ASR 语音转文字
     if (needAsr && update.filePath) {
       const result = await handleAsr(taskId, update.filePath, 'zh');
-      if (result?.text) store.update(taskId, { asrText: result.text, asrTxtUrl: result.txtUrl });
+      if (result?.text) store.update(taskId, { status: 'completed', asrText: result.text, asrTxtUrl: result.txtUrl });
     }
 
     console.log('[task] ' + taskId + ' tiktok completed');
