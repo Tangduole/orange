@@ -643,6 +643,7 @@ export default function App() {
       const text = await navigator.clipboard.readText()
       const urls = text.match(/https?:\/\/[^\s\n,，、；;）)】"']+/g) || []
       if (urls.length > 1) {
+        if (!isVip) { setShowUpgradePopup(true); return }
         setBatchMode(true)
         setBatchUrls(urls.map((url, idx) => `${idx + 1}. ${url}`).join('\n'))
       } else if (urls.length === 1) {
@@ -662,8 +663,12 @@ export default function App() {
     const pastedText = e.clipboardData.getData('text')
     const urls = pastedText.match(/https?:\/\/[^\s\n,，、；;）)】"']+/g) || []
     if (urls.length > 1) {
-      // 多个Link → 切换批量模式
+      // 多个Link → 切换批量模式（仅VIP）
       e.preventDefault()
+      if (!isVip) {
+        setShowUpgradePopup(true)
+        return
+      }
       setBatchMode(true)
       setBatchUrls(urls.map((url, idx) => `${idx + 1}. ${url}`).join('\n'))
     } else if (urls.length === 1) {
@@ -733,6 +738,12 @@ export default function App() {
         .map(u => extractUrls(u)[0] || u)
         .filter(u => u)
       if (urls.length === 0) { setError('Please enter a video link'); return }
+      
+      // 批量下载仅限VIP
+      if (!isVip) {
+        setShowUpgradePopup(true);
+        return;
+      }
       
       // 检查第一个Link是否已Download
       const firstUrl = urls[0]
