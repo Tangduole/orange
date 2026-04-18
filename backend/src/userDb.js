@@ -67,6 +67,23 @@ async function initDb() {
         created_at INTEGER DEFAULT (unixepoch())
       )`
     });
+
+    // 下载历史表
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS download_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT,
+        guest_ip TEXT,
+        task_id TEXT NOT NULL,
+        url TEXT NOT NULL,
+        platform TEXT,
+        title TEXT,
+        thumbnail_url TEXT,
+        duration INTEGER,
+        created_at INTEGER NOT NULL
+      )
+    `);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_history_user ON download_history(user_id, created_at DESC)`);
     
     // 迁移：添加邮箱验证相关列（如果不存在）
     try {
@@ -560,6 +577,36 @@ const userDb = {
       args: [userId]
     });
     return true;
+  },
+
+  // 下载历史
+  async addHistory({ userId, guestIp, taskId, url, platform, title, thumbnailUrl, duration }) {
+    await db.execute({
+      sql: `INSERT INTO download_history (user_id, guest_ip, task_id, url, platform, title, thumbnail_url, duration, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, unixepoch())`,
+      args: [userId || null, guestIp || null, taskId, url, platform || null, title || null, thumbnailUrl || null, duration || null]
+    });
+  },
+
+  async getHistory(userId, guestIp, limit = 50, offset = 0) {
+    const conditions = [];
+    const args = [];
+    if (userId) {
+      conditions.push('user_id = ?');
+      args.push(userId);
+    } else if (guestIp) {
+      conditions.push('guest_ip = ?');
+      args.push(guestIp);
+    } else {
+      return [];
+    }
+    const where = conditions.join(' AND ');
+    args.push(limit, offset);
+    const result = await db.execute({
+      sql: `SELECT * FROM download_history WHERE ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+      args
+    });
+    return result.rows;
   }
 };
 

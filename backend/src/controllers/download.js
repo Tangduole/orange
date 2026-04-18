@@ -1,11 +1,11 @@
 /**
  * 下载控制器 v3
- * 
- * v3 改进：
- * 1. 自动识别平台（前端驱动，后端兼容）
- * 2. 支持 options 数组：video/copywriting/cover/asr/subtitle
+ *
+ * v3 改进:
+ * 1. 自动识别平台(前端驱动,后端兼容)
+ * 2. 支持 options 数组:video/copywriting/cover/asr/subtitle
  * 3. 支持 saveTarget: phone/pc
- * 4. 支持 copywriting（提取描述）、cover（封面下载）、subtitle（字幕下载）
+ * 4. 支持 copywriting(提取描述)、cover(封面下载)、subtitle(字幕下载)
  */
 
 const { v4: uuidv4 } = require('uuid');
@@ -22,7 +22,7 @@ const axios = require('axios');
 const API_KEY_DOUYIN = process.env.TIKHUB_API_KEY_DOUYIN;
 
 /**
- * 流式下载文件到磁盘（避免 OOM）
+ * 流式下载文件到磁盘(避免 OOM)
  */
 async function downloadToStream(url, destPath, timeout = 120000) {
   const writer = fs.createWriteStream(destPath);
@@ -58,7 +58,7 @@ async function createDownload(req, res) {
     const detectedPlatform = detectPlatform(url);
     const finalPlatform = platform || detectedPlatform || 'auto';
 
-    // 兼容：前端 'audio' 和 'audio_only' 选项
+    // 兼容:前端 'audio' 和 'audio_only' 选项
     const normalizedOptions = (Array.isArray(options) ? options : [options]).map(
       o => o === 'asr' || o === 'audio_only' ? 'audio' : o
     );
@@ -81,7 +81,7 @@ async function createDownload(req, res) {
         if (user) {
           isGuest = false;
           userId = user.id;
-          
+
           // 检查邮箱是否已验证
           if (user.email_verified !== 1) {
             return res.json({
@@ -89,23 +89,23 @@ async function createDownload(req, res) {
               message: '请先验证邮箱后再下载。查收注册邮箱点击验证链接。'
             });
           }
-          
+
           isVip = user.tier === 'pro' && (user.subscription_status === 'active' || user.subscription_status === 'past_due');
           const usage = await userDb.getUsage(userId);
           if (!usage.isPro && usage.remaining <= 0) {
             return res.json({
               code: 403,
-              message: `今日下载次数已用完（${usage.dailyLimit}次/天）。升级 Pro 解锁无限制下载`
+              message: `今日下载次数已用完(${usage.dailyLimit}次/天)。升级 Pro 解锁无限制下载`
             });
           }
           // 增加登录用户下载计数
           await userDb.incrementDownloads(userId);
         }
       } catch (e) {
-        // token 无效，继续作为游客
+        // token 无效,继续作为游客
       }
     }
-    
+
     // 游客每日下载限制
     let guestIp = null;
     if (isGuest) {
@@ -115,19 +115,19 @@ async function createDownload(req, res) {
       if (!guestUsage.allowed) {
         return res.json({
           code: 403,
-          message: `今日下载次数已用完（${guestUsage.limit}次/天）。注册账号获得更多下载次数`
+          message: `今日下载次数已用完(${guestUsage.limit}次/天)。注册账号获得更多下载次数`
         });
       }
       // 增加游客下载计数
       await userDb.incrementGuestDownload(guestIp);
     }
-    
+
     // ========== 画质VIP限制检查 ==========
-    // 如果用户选择了1080p以上画质，检查是否为VIP
+    // 如果用户选择了1080p以上画质,检查是否为VIP
     if (quality) {
       const heightMatch = quality.match(/height<=(\d+)/i);
       const selectedHeight = heightMatch ? parseInt(heightMatch[1]) : 99999;
-      
+
       if (selectedHeight > 720 && !isVip) {
         // 免费用户允许试用1次高清画质
         const userDb = require('../userDb');
@@ -135,10 +135,10 @@ async function createDownload(req, res) {
         if (!trialUsed) {
           return res.json({
             code: 403,
-            message: `720p以上画质为会员专享。试用次数已用完，请升级Pro解锁高清下载。`
+            message: `720p以上画质为会员专享。试用次数已用完,请升级Pro解锁高清下载。`
           });
         }
-        // 试用成功，继续下载（不报错）
+        // 试用成功,继续下载(不报错)
         console.log(`[task] HD trial used for user ${userId}`);
       }
     }
@@ -146,7 +146,7 @@ async function createDownload(req, res) {
 
     const limitStatus = getLimiterStatus();
     if (limitStatus.queued >= 10) {
-      return res.json({ code: 429, message: '任务队列已满，请稍后再试' });
+      return res.json({ code: 429, message: '任务队列已满,请稍后再试' });
     }
 
     const taskId = uuidv4();
@@ -167,10 +167,10 @@ async function createDownload(req, res) {
 
     store.save(task);
 
-    // 抖音链接：走专用下载器（不依赖 yt-dlp）
+    // 抖音链接:走专用下载器(不依赖 yt-dlp)
     const { isDouyinUrl } = require('../services/douyin');
     if (isDouyinUrl(url)) {
-      // 非VIP用户限制画质为720p，VIP用户不限制（最高画质）
+      // 非VIP用户限制画质为720p,VIP用户不限制(最高画质)
       const maxQuality = isVip ? null : 'height<=720';
       processDouyin(taskId, url, wantsAsr, normalizedOptions, quality, asrLanguage).catch(err => {
         console.error(`[task] ${taskId} douyin failed:`, err);
@@ -179,7 +179,7 @@ async function createDownload(req, res) {
       return res.json({ code: 0, data: { taskId, status: 'pending', platform: finalPlatform } });
     }
 
-    // X/Twitter 链接：走专用下载器
+    // X/Twitter 链接:走专用下载器
     const { isXUrl } = require('../services/x-download');
     if (isXUrl(url)) {
       processX(taskId, url, wantsAsr, normalizedOptions).catch(err => {
@@ -189,7 +189,7 @@ async function createDownload(req, res) {
       return res.json({ code: 0, data: { taskId, status: 'pending', platform: finalPlatform } });
     }
 
-    // TikTok 链接：走 TikHub API
+    // TikTok 链接:走 TikHub API
     if (/tiktok\.com|tiktok\.cn/i.test(url)) {
       processTikTok(taskId, url, wantsAsr, normalizedOptions, quality).catch(err => {
         console.error(`[task] ${taskId} tiktok failed:`, err);
@@ -198,9 +198,9 @@ async function createDownload(req, res) {
       return res.json({ code: 0, data: { taskId, status: 'pending', platform: 'tiktok' } });
     }
 
-    // YouTube 链接：走 TikHub API（直接链接）
+    // YouTube 链接:走 TikHub API(直接链接)
     if (/youtube\.com|youtu\.be/i.test(url)) {
-      // VIP用户不传quality限制，后端自动使用最高画质
+      // VIP用户不传quality限制,后端自动使用最高画质
       const ytQuality = isVip ? null : quality;
       processYouTube(taskId, url, wantsAsr, normalizedOptions, ytQuality).catch(err => {
         console.error(`[task] ${taskId} youtube failed:`, err);
@@ -209,7 +209,7 @@ async function createDownload(req, res) {
       return res.json({ code: 0, data: { taskId, status: 'pending', platform: 'youtube' } });
     }
 
-    // 小红书链接：走 TikHub API
+    // 小红书链接:走 TikHub API
     if (/xiaohongshu\.com|xhslink\.com/i.test(url)) {
       processXiaohongshu(taskId, url, wantsAsr, normalizedOptions).catch(err => {
         console.error(`[task] ${taskId} xiaohongshu failed:`, err);
@@ -218,13 +218,13 @@ async function createDownload(req, res) {
       return res.json({ code: 0, data: { taskId, status: 'pending', platform: 'xiaohongshu' } });
     }
 
-    // 快手链接：暂不支持
+    // 快手链接:暂不支持
     if (/kuaishou\.com|v\.kuaishou\.com/i.test(url)) {
-      store.update(taskId, { status: 'error', progress: 0, error: '快手平台暂不支持，请使用其他平台链接' });
+      store.update(taskId, { status: 'error', progress: 0, error: '快手平台暂不支持,请使用其他平台链接' });
       return res.json({ code: 0, data: { taskId, status: 'error', platform: 'kuaishou', message: '快手平台暂不支持' } });
     }
 
-    // Bilibili 链接：走 yt-dlp（待完善）
+    // Bilibili 链接:走 yt-dlp(待完善)
     if (/bilibili\.com|b23\.tv/i.test(url)) {
       processDownload(taskId, url, wantsAsr, normalizedOptions, quality).catch(err => {
         console.error(`[task] ${taskId} bilibili failed:`, err);
@@ -233,7 +233,7 @@ async function createDownload(req, res) {
       return res.json({ code: 0, data: { taskId, status: 'pending', platform: 'bilibili' } });
     }
 
-    // 其他平台：走 yt-dlp
+    // 其他平台:走 yt-dlp
     processDownload(taskId, url, wantsAsr, normalizedOptions, quality).catch(err => {
       console.error(`[task] ${taskId} failed:`, err);
       store.update(taskId, {
@@ -258,7 +258,7 @@ async function createDownload(req, res) {
 }
 
 /**
- * 获取视频信息（不下载）
+ * 获取视频信息(不下载)
  */
 async function getInfo(req, res) {
   try {
@@ -286,7 +286,7 @@ function saveTextFile(taskId, text, suffix = 'txt') {
 }
 
 /**
- * ASR 语音转文字（公共函数）
+ * ASR 语音转文字(公共函数)
  */
 async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
   try {
@@ -294,7 +294,7 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
     const asr = require('../services/asr');
     const { spawn } = require('child_process');
     const audioPath = path.join(path.dirname(filePath), taskId + '_asr.mp3');
-    
+
     // 用 ffmpeg 提取音频
     await new Promise((resolve, reject) => {
       const ff = spawn('ffmpeg', ['-i', filePath, '-vn', '-acodec', 'libmp3lame', '-b:a', '128k', '-y', audioPath]);
@@ -302,11 +302,11 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
       ff.on('close', code => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error('ffmpeg exit ' + code)); });
       ff.on('error', err => { clearTimeout(timer); reject(err); });
     });
-    
+
     // ASR 转文字
     const text = await asr.transcribe(audioPath, asrLanguage);
-    
-    // 翻译（如果指定了目标语言）
+
+    // 翻译(如果指定了目标语言)
     const task = store.get(taskId);
     const tLang = targetLang || task?.targetLang;
     let translatedText = null;
@@ -317,14 +317,14 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
         console.error(`[ASR] Translation failed: ${e.message}`);
       }
     }
-    
+
     // 保存为 txt 文件
     const txtUrl = saveTextFile(taskId, text, 'subtitle');
     const translatedTxtUrl = translatedText ? saveTextFile(taskId, translatedText, 'translation') : null;
-    
+
     // 清理临时音频
     try { fs.unlinkSync(audioPath); } catch {}
-    
+
     return { text, txtUrl, translatedText, translatedTxtUrl };
   } catch (e) {
     console.error(`[ASR] ${taskId} failed:`, e.message);
@@ -333,7 +333,7 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
 }
 
 /**
- * 处理下载任务（异步）
+ * 处理下载任务(异步)
  */
 async function processDownload(taskId, url, needAsr, options = ['video'], quality = null) {
   try {
@@ -358,12 +358,12 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
 
       const isYouTube = /youtube\.com|youtu\.be/i.test(url);
 
-      // 如果只想要音频（不想要视频/字幕/封面）
+      // 如果只想要音频(不想要视频/字幕/封面)
       const wantsOnlyAudio = wantsAudioOnly && !wantsVideo && !wantsCover && !wantsSubtitle;
 
       result = await downloadWithLimit(async () => {
         try {
-          // 如果只想要音频，使用专门的音频下载
+          // 如果只想要音频,使用专门的音频下载
           if (wantsOnlyAudio) {
             return await ytdlp.downloadAudio(url, taskId, (percent, speed, eta) => {
               store.update(taskId, {
@@ -376,7 +376,7 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
               });
             });
           }
-          
+
           return await executeWithRetry(async () => {
             return await ytdlp.download(url, taskId, (percent, speed, eta, downloaded, total) => {
               store.update(taskId, {
@@ -416,7 +416,7 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
         thumbnailUrl: result.thumbnailUrl,
       };
 
-      // 音频下载链接（只想要音频的情况）
+      // 音频下载链接(只想要音频的情况)
       if (wantsOnlyAudio) {
         update.audioUrl = `/download/${path.basename(result.filePath)}`;
       }
@@ -428,14 +428,14 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
         update.downloadUrl = `/download/${path.basename(result.filePath)}`;
       }
 
-      // 封面（总是返回，供显示和下载）
+      // 封面(总是返回,供显示和下载)
       const coverImage = result.thumbnailUrl || result.coverUrl;
       if (coverImage) {
         update.thumbnailUrl = coverImage;
         update.coverUrl = coverImage;
       }
 
-      // 文案（总是提取标题和描述）
+      // 文案(总是提取标题和描述)
       if (result.title) {
         update.copyText = result.title;
         console.log(`[task] ${taskId} set copyText=${result.title?.substring(0, 50)}`);
@@ -459,7 +459,7 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
 
       store.update(taskId, update);
     } else if (wantsCopywriting) {
-      // 仅文案：获取信息不下载
+      // 仅文案:获取信息不下载
       const info = await ytdlp.getInfo(url);
       store.update(taskId, {
         status: 'completed',
@@ -473,7 +473,7 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
       });
     }
 
-    // 3. ASR（可选）
+    // 3. ASR(可选)
     if (needAsr && result) {
       store.update(taskId, { status: 'asr', progress: 100 });
 
@@ -508,7 +508,7 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
 }
 
 /**
- * 处理抖音下载（视频/图文，不依赖 yt-dlp）
+ * 处理抖音下载(视频/图文,不依赖 yt-dlp)
  */
 async function processDouyin(taskId, url, needAsr, options = ['video'], quality = null, asrLanguage = 'zh', requestedQuality = null) {
   try {
@@ -529,7 +529,7 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
     // 获取用户请求的画质
     const task = store.get(taskId) || {};
     const reqQ = task.requestedQuality || requestedQuality;
-    
+
     // 计算画质调整提示
     let qualityAdjusted = null;
     if (reqQ && result.height) {
@@ -600,7 +600,7 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
         store.update(taskId, { status: 'asr', progress: 100 });
         const asr = require('../services/asr');
         const audioPath = path.join(path.dirname(result.filePath), `${taskId}.mp3`);
-        
+
         // 提取音频
         const ffmpeg = require('fluent-ffmpeg');
         await new Promise((resolve, reject) => {
@@ -646,12 +646,12 @@ async function processX(taskId, url, needAsr, options = ['video']) {
         progress: percent
       });
     });
-    
+
     // 检查是否有可用的下载链接
     if (!result.downloadUrl && (!result.images || result.images.length === 0)) {
-      throw new Error('X/Twitter 视频解析失败，无法下载');
+      throw new Error('X/Twitter 视频解析失败,无法下载');
     }
-    
+
     const update = {
       status: 'completed',
       width: result.width || 0,
@@ -669,7 +669,7 @@ async function processX(taskId, url, needAsr, options = ['video']) {
     if (result.images) {
       update.imageFiles = result.images;
     }
-    
+
     // 纯音频
     const wantsAudioOnly = options.includes('audio') && !options.includes('video');
     if (wantsAudioOnly && result.filePath) {
@@ -690,15 +690,15 @@ async function processX(taskId, url, needAsr, options = ['video']) {
         console.error('[x audio] extract failed:', e.message);
       }
     }
-    
+
     store.update(taskId, update);
-    
+
     // ASR 语音转文字
     if (needAsr && update.filePath) {
       const result = await handleAsr(taskId, update.filePath, 'zh');
       if (result?.text) { const upd = { status: "completed", asrText: result.text, asrTxtUrl: result.txtUrl }; if (result.translatedText) { upd.translatedText = result.translatedText; upd.translatedTxtUrl = result.translatedTxtUrl; } store.update(taskId, upd); }
     }
-    
+
     console.log(`[task] ${taskId} x completed`);
   } catch (error) {
     console.error(`[task] ${taskId} x failed:`, error);
@@ -716,16 +716,16 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
     const fs = require('fs');
     const { spawn } = require('child_process');
     const ytdlp = require('../services/yt-dlp');
-    
+
     store.update(taskId, { status: 'parsing', progress: 5 });
-    
+
     // 获取视频 ID
     const videoIdMatch = url.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/);
     if (!videoIdMatch) throw new Error('Invalid YouTube URL');
     const videoId = videoIdMatch[1];
-    
+
     // 解析用户选择的画质
-    let maxHeight = 99999; // 默认无限制（VIP）
+    let maxHeight = 99999; // 默认无限制(VIP)
     if (quality) {
       const heightMatch = quality.match(/height<=?(\d+)/i);
       if (heightMatch) {
@@ -734,7 +734,7 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
     }
     // 保存用户请求的画质参数
     store.update(taskId, { requestedQuality: quality });
-    
+
     // ========== 方案1: TikHub API ==========
     try {
       const API_KEY_YT = process.env.TIKHUB_API_KEY_YT;
@@ -742,13 +742,13 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
         `https://api.tikhub.io/api/v1/youtube/web/get_video_info?video_id=${videoId}&need_format=true`,
         { headers: { Authorization: `Bearer ${API_KEY_YT}` }, timeout: 30000 }
       );
-      
+
       if (data.code === 200) {
         const videoData = data.data;
         const title = videoData.title || 'YouTube Video';
         const videos = videoData.videos?.items || [];
         const audios = videoData.audios?.items || [];
-        
+
         // 1. 先找符合画质要求且有音频的视频
         let bestVideoWithAudio = null;
         for (const v of videos) {
@@ -761,8 +761,8 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
             }
           }
         }
-        
-        // 2. 如果没有带音频的，找最高的视频准备合并音频
+
+        // 2. 如果没有带音频的,找最高的视频准备合并音频
         let bestVideoNoAudio = null;
         let bestVideoHeight = 0;
         for (const v of videos) {
@@ -774,33 +774,33 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
             }
           }
         }
-        
+
         // 选择最佳方案
         let finalVideo = bestVideoWithAudio || bestVideoNoAudio;
-        
+
         if (finalVideo && finalVideo.url) {
           const outputPath = path.join(__dirname, '../../downloads', `${taskId}.mp4`);
-          
-          // 如果视频没有音频，需要下载并合并音频
+
+          // 如果视频没有音频,需要下载并合并音频
           if (!finalVideo.hasAudio && audios.length > 0) {
             console.log(`[task] ${taskId} video has no audio, need to merge with audio`);
-            
+
             // 获取最佳音频 (mp4 格式优先)
             const bestAudio = audios.find(a => a.mimeType?.includes('mp4')) || audios[0];
             const videoPath = path.join(__dirname, '../../downloads', `${taskId}_video.mp4`);
             const audioPath = path.join(__dirname, '../../downloads', `${taskId}_audio.mp3`);
-            
+
             // 下载视频
             store.update(taskId, { status: 'downloading', progress: 10 });
-            
-            // 流式下载视频（避免 OOM）
+
+            // 流式下载视频(避免 OOM)
             await downloadToStream(finalVideo.url, videoPath, 120000);
             store.update(taskId, { progress: 50 });
-            
+
             // 流式下载音频
             await downloadToStream(bestAudio.url, audioPath, 60000);
             store.update(taskId, { progress: 70 });
-            
+
             // 使用 ffmpeg 合并
             await new Promise((resolve, reject) => {
               const ffmpeg = spawn('ffmpeg', [
@@ -811,7 +811,7 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
                 '-y',
                 outputPath
               ]);
-              
+
               ffmpeg.on('close', (code) => {
                 if (code === 0) {
                   // 删除临时文件
@@ -824,7 +824,7 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
               });
               ffmpeg.on('error', reject);
             });
-            
+
             store.update(taskId, {
               status: 'completed',
               width: finalVideo.width || 0,
@@ -840,12 +840,12 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
             console.log(`[task] ${taskId} youtube completed via TikHub with audio merge`);
             return;
           }
-          
-          // 视频本身有音频，先下载到服务器再返回代理链接（避免API Key暴露）
+
+          // 视频本身有音频,先下载到服务器再返回代理链接(避免API Key暴露)
           const videoPath = path.join(__dirname, '../../downloads', `${taskId}.mp4`);
           try {
             await downloadToStream(finalVideo.url, videoPath, 120000);
-            
+
             store.update(taskId, {
               status: 'completed',
               width: finalVideo.width || 0,
@@ -869,11 +869,11 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
     } catch (tikhubErr) {
       console.log(`[task] ${taskId} TikHub failed: ${tikhubErr.message}, trying yt-dlp...`);
     }
-    
+
     // ========== 方案2: yt-dlp 直接下载 ==========
     console.log(`[task] ${taskId} using yt-dlp fallback for YouTube`);
     const outputPath = path.join(__dirname, '../../downloads', `${taskId}.mp4`);
-    
+
     // yt-dlp 自动处理视频+音频合并
     await ytdlp.download(url, taskId, (percent, speed, eta, downloaded, total) => {
       store.update(taskId, {
@@ -885,10 +885,10 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
         totalBytes: total || 0
       });
     }, quality);
-    
+
     // 获取视频信息
     const info = await ytdlp.getInfo(url);
-    
+
     store.update(taskId, {
       status: 'completed',
       width: info.width || 0,
@@ -902,7 +902,7 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
       filePath: outputPath,
       ext: 'mp4'
     });
-    
+
     console.log(`[task] ${taskId} youtube completed via yt-dlp`);
   } catch (error) {
     console.error(`[task] ${taskId} youtube failed:`, error);
@@ -924,7 +924,7 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
     const idMatch = url.match(/\/video\/(\d+)/);
     if (idMatch) videoId = idMatch[1];
 
-    // 短链：先 resolve 获取真实 URL
+    // 短链:先 resolve 获取真实 URL
     if (!videoId) {
       try {
         // 方法1: HEAD 请求跟踪重定向
@@ -933,7 +933,7 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
         const redirectMatch = redirectUrl.match(/\/video\/(\d+)/);
         if (redirectMatch) videoId = redirectMatch[1];
       } catch (e) {}
-      
+
       // 方法2: GET 请求从 HTML 提取
       if (!videoId) {
         try {
@@ -960,7 +960,7 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
 
     store.update(taskId, { progress: 15 });
 
-    // 调用 TikHub TikTok App V3 API（用抖音 API key）
+    // 调用 TikHub TikTok App V3 API(用抖音 API key)
     const data = await tikhubRequest(
       '/api/v1/tiktok/app/v3/fetch_one_video?aweme_id=' + videoId,
       API_KEY_DOUYIN
@@ -970,7 +970,7 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
     const video = detail.video || {};
     const title = detail.desc || 'TikTok Video';
 
-    // 获取下载链接（优先高画质 bit_rate）
+    // 获取下载链接(优先高画质 bit_rate)
     let videoUrl = null;
     const bitrates = video.bit_rate || [];
     if (bitrates.length > 0) {
@@ -1132,6 +1132,22 @@ function getStatus(req, res) {
     return res.json({ code: 404, message: '任务不存在' });
   }
 
+  // 保存下载历史(仅首次完成时)
+  if (task.status === 'completed' && !task.historySaved) {
+    const userDb = require('../userDb');
+    userDb.addHistory({
+      userId: task.userId,
+      guestIp: task.guestIp,
+      taskId: task.taskId,
+      url: task.url,
+      platform: task.platform,
+      title: task.title,
+      thumbnailUrl: task.thumbnailUrl,
+      duration: task.duration
+    }).catch(e => console.error('[history]', e.message));
+    store.update(taskId, { historySaved: true });
+  }
+
   res.json({
     code: 0,
     data: {
@@ -1171,12 +1187,12 @@ function getStatus(req, res) {
  */
 async function getHistory(req, res) {
   const { limit = 50, offset = 0 } = req.query;
-  
+
   // 获取用户身份
   let userId = null;
   let guestIp = null;
   let isGuest = true;
-  
+
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     try {
@@ -1191,28 +1207,53 @@ async function getHistory(req, res) {
         userId = user.id;
       }
     } catch (e) {
-      // token 无效，继续作为游客
+      // token 无效,继续作为游客
     }
   }
-  
+
   if (isGuest) {
     guestIp = req.ip || req.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
   }
-  
-  // 过滤任务
+
+  // 过滤任务（游客不做IP过滤，避免动态IP问题）
   const allTasks = store.list().filter(task => {
     if (isGuest) {
-      // 临时：测试环境禁用 IP 过滤，避免 Railway IP 不稳定问题
-      // TODO: 生产环境应改用 cookie/session 而非 IP
-      return task.guestIp === guestIp;
+      return !task.userId; // 只返回非登录用户的任务
     } else {
       return task.userId === userId;
     }
   });
-  
+
+  // 查询数据库历史（超出内存清理的旧记录）
+  const userDb = require('../userDb');
+  let dbHistory = [];
+  try {
+    dbHistory = await userDb.getHistory(userId, guestIp, parseInt(limit) + parseInt(offset));
+  } catch (e) {
+    console.error('[history] DB query failed:', e.message);
+  }
+
+  // 合并：内存中的任务 + 数据库历史（去重）
+  const taskIds = new Set(allTasks.map(t => t.taskId));
+  for (const h of dbHistory) {
+    if (!taskIds.has(h.task_id)) {
+      allTasks.push({
+        taskId: h.task_id,
+        url: h.url,
+        platform: h.platform,
+        title: h.title,
+        thumbnailUrl: h.thumbnail_url,
+        duration: h.duration,
+        status: 'completed',
+        createdAt: h.created_at * 1000,
+        fromDb: true
+      });
+    }
+  }
+
   // 按时间倒序
   allTasks.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-  
+
   const tasks = allTasks.slice(parseInt(offset), parseInt(offset) + parseInt(limit));
 
   res.json({
@@ -1255,12 +1296,12 @@ async function deleteTask(req, res) {
   if (!task) {
     return res.json({ code: 404, message: '任务不存在' });
   }
-  
-  // 检查权限：登录用户只能删自己的任务
+
+  // 检查权限:登录用户只能删自己的任务
   const userId = req.user?.id;
   const guestIp = req.ip || req.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
   const canDelete = (userId && task.userId === userId) || (!task.userId && task.guestIp === guestIp);
-  
+
   if (!canDelete) {
     return res.json({ code: 403, message: '无权删除此任务' });
   }
@@ -1275,7 +1316,7 @@ function clearHistory(req, res) {
   res.json({ code: 0, message: `已清除 ${count} 条记录` });
 }
 
-// TikHub API 简单内存缓存（5分钟 TTL）
+// TikHub API 简单内存缓存(5分钟 TTL)
 const infoCache = new Map();
 const INFO_CACHE_TTL = 5 * 60 * 1000; // 5分钟
 
@@ -1299,24 +1340,24 @@ async function getVideoInfo(req, res) {
   try {
     const { url } = req.body;
     if (!url) return res.status(400).json({ code: -1, message: 'URL required' });
-    
+
     const platform = detectPlatform(url);
     const cacheKey = `${platform}:${url}`;
-    
+
     if (platform === 'youtube') {
       const videoIdMatch = url.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/);
       if (!videoIdMatch) return res.status(400).json({ code: -1, message: 'Invalid YouTube URL' });
-      
+
       const API_KEY_YT = process.env.TIKHUB_API_KEY_YT;
       const axios = require('axios');
       const ytUrl = `https://api.tikhub.io/api/v1/youtube/web/get_video_info?video_id=${videoIdMatch[1]}&need_format=true`;
-      
+
       // 使用缓存避免重复请求 TikHub API
       const data = await getCachedInfo(`yt:${videoIdMatch[1]}`, async () => {
         const response = await axios.get(ytUrl, { headers: { Authorization: `Bearer ${API_KEY_YT}` }, timeout: 30000 });
         return response.data;
       });
-      
+
       const videos = data.videos?.items || [];
       const qualities = videos
         .filter(v => v.url)
@@ -1345,7 +1386,7 @@ async function getVideoInfo(req, res) {
           }
         })
         .sort((a, b) => (b.height || 0) - (a.height || 0));
-      
+
       // Add audio-only option if available
       const audioOnly = videos.filter(v => !v.hasVideo && v.url);
       if (audioOnly.length > 0) {
@@ -1359,7 +1400,7 @@ async function getVideoInfo(req, res) {
           size: audioOnly[0].contentLength || 0
         });
       }
-      
+
       return res.json({
         code: 0,
         data: {
@@ -1385,7 +1426,7 @@ async function getVideoInfo(req, res) {
           const detail = data.aweme_detail || {};
           const video = detail.video || {};
           const bitrates = video.bit_rate || [];
-          
+
           // Build qualities from bit_rate array
           const qualities = bitrates
             .filter(br => br.play_addr?.url_list?.[0])
@@ -1410,7 +1451,7 @@ async function getVideoInfo(req, res) {
               };
             })
             .sort((a, b) => (b.height || 0) - (a.height || 0));
-          
+
           // Remove duplicates with same height, keep highest bitrate
           const unique = [];
           const seen = new Set();
@@ -1420,7 +1461,7 @@ async function getVideoInfo(req, res) {
               unique.push(q);
             }
           }
-          
+
           return res.json({
             code: 0,
             data: {
@@ -1436,7 +1477,7 @@ async function getVideoInfo(req, res) {
         console.error('[video-info] Douyin error:', e.message);
       }
     }
-    
+
     // For other platforms, return default quality
     return res.json({
       code: 0,
