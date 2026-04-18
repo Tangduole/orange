@@ -26,8 +26,8 @@ RUN pip3 install --break-system-packages --upgrade yt-dlp
 
 # Install faster-whisper for ASR
 RUN pip install --no-cache-dir faster-whisper
-# Pre-download small model for Chinese ASR (medium too large for Railway free tier)
-RUN python3 -c "from faster_whisper import WhisperModel; WhisperModel('small', device='cpu', compute_type='int8')"
+# Pre-download tiny model (75MB, safe for Railway free tier)
+RUN python3 -c "from faster_whisper import WhisperModel; WhisperModel('tiny', device='cpu', compute_type='int8')"
 
 WORKDIR /app
 
