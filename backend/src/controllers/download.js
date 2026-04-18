@@ -1310,6 +1310,60 @@ async function deleteTask(req, res) {
   res.json({ code: 0, message: '删除成功' });
 }
 
+
+async function getAdminStats(req, res) {
+  const tasks = store.list();
+  const now = Date.now();
+  const todayStart = new Date(); todayStart.setHours(0,0,0,0);
+  const weekStart = now - 7 * 86400000;
+
+  const userDb = require('../userDb');
+  let totalUsers = 0, vipUsers = 0;
+  try {
+    const userCount = await userDb.db.execute('SELECT COUNT(*) as count FROM users');
+    totalUsers = userCount.rows[0]?.count || 0;
+    const vipCount = await userDb.db.execute("SELECT COUNT(*) as count FROM users WHERE tier = 'pro'");
+    vipUsers = vipCount.rows[0]?.count || 0;
+  } catch (e) {}
+
+  let totalDownloads = 0, todayDownloads = 0, weekDownloads = 0;
+  try {
+    const totalR = await userDb.db.execute('SELECT COUNT(*) as count FROM download_history');
+    totalDownloads = totalR.rows[0]?.count || 0;
+    const todayR = await userDb.db.execute({ sql: 'SELECT COUNT(*) as count FROM download_history WHERE created_at >= ?', args: [Math.floor(todayStart.getTime() / 1000)] });
+    todayDownloads = todayR.rows[0]?.count || 0;
+    const weekR = await userDb.db.execute({ sql: 'SELECT COUNT(*) as count FROM download_history WHERE created_at >= ?', args: [Math.floor(weekStart / 1000)] });
+    weekDownloads = weekR.rows[0]?.count || 0;
+  } catch (e) {}
+
+  const platformCounts = {};
+  for (const t of tasks) {
+    const p = t.platform || 'unknown';
+    platformCounts[p] = (platformCounts[p] || 0) + 1;
+  }
+  try {
+    const platR = await userDb.db.execute('SELECT platform, COUNT(*) as c FROM download_history GROUP BY platform');
+    for (const row of platR.rows) {
+      const p = row.platform || 'unknown';
+      platformCounts[p] = (platformCounts[p] || 0) + Number(row.c || 0);
+    }
+  } catch (e) {}
+
+  res.json({
+    code: 0,
+    data: {
+      users: { total: totalUsers, vip: vipUsers },
+      downloads: { total: totalDownloads, today: todayDownloads, week: weekDownloads },
+      memory: {
+        totalTasks: tasks.length,
+        activeTasks: tasks.filter(t => ['pending','parsing','downloading','asr'].includes(t.status)).length,
+        completedTasks: tasks.filter(t => t.status === 'completed').length,
+        errorTasks: tasks.filter(t => t.status === 'error').length
+      },
+      platforms: platformCounts
+    }
+  });
+}
 function clearHistory(req, res) {
   const userId = req.user.id;
   const count = store.removeByUserId(userId);
@@ -1528,6 +1582,7 @@ module.exports = {
   getStatus,
   getHistory,
   getSystemStatus,
+  getAdminStats,
   deleteTask,
   clearHistory,
   detectPlatform,

@@ -12,6 +12,7 @@ const {
   getStatus,
   getHistory,
   getSystemStatus,
+  getAdminStats,
   deleteTask,
   clearHistory,
   getVideoInfo
@@ -42,6 +43,7 @@ router.delete('/history', auth.required, clearHistory);
 
 // 系统状态
 router.get('/system/status', getSystemStatus);
+router.get('/admin/stats', getAdminStats);
 
 // 健康检查
 router.get('/health', (req, res) => {
