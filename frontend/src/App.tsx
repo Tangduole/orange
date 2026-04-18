@@ -822,7 +822,7 @@ export default function App() {
       const downloadQuality = isVip ? quality : (quality || 'height<=720')
       const r = await axios.post(`${API}/download`, {
         url: url.trim(), platform: detected || 'auto',
-        needAsr: selected.has('asr'), options: [...selected], quality: downloadQuality, asrLanguage,
+        needAsr: selected.has('asr'), options: [...selected], quality: downloadQuality, asrLanguage, targetLang,
       }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} })
       setTask(r.data.data); setDetected('')
     } catch (e: any) {
@@ -1639,7 +1639,7 @@ export default function App() {
                         setLoading(true)
                         axios.post(`${API}/download`, {
                           url: pendingUrl, platform: detected || 'auto',
-                          needAsr: selected.has('asr'), options: [...selected], quality: qParam, asrLanguage,
+                          needAsr: selected.has('asr'), options: [...selected], quality: qParam, asrLanguage, targetLang,
                         }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} }).then(r => {
                           setTask(r.data.data)
                           setDetected('')
