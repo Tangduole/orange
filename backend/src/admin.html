@@ -8,128 +8,219 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { 
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: linear-gradient(135deg, #ff6b00 0%, #ff8c00 100%);
+      background: #0f172a;
       min-height: 100vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      color: #e2e8f0;
       padding: 20px;
     }
-    .card {
-      background: white;
-      border-radius: 20px;
-      padding: 40px;
-      width: 100%;
-      max-width: 400px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    .container { max-width: 900px; margin: 0 auto; }
+    h1 { color: #f97316; margin-bottom: 24px; text-align: center; font-size: 28px; }
+    
+    /* Stats Cards */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+    .stat-card {
+      background: #1e293b;
+      border-radius: 16px;
+      padding: 20px;
+      text-align: center;
+      border: 1px solid #334155;
     }
-    h1 { color: #ff6b00; margin-bottom: 30px; text-align: center; font-size: 24px; }
-    label { display: block; color: #666; margin-bottom: 8px; font-size: 14px; }
+    .stat-card .label { font-size: 12px; color: #94a3b8; margin-bottom: 8px; text-transform: uppercase; }
+    .stat-card .value { font-size: 32px; font-weight: 700; }
+    .stat-card .value.orange { color: #f97316; }
+    .stat-card .value.green { color: #22c55e; }
+    .stat-card .value.blue { color: #3b82f6; }
+    .stat-card .value.red { color: #ef4444; }
+    .stat-card .value.yellow { color: #eab308; }
+    
+    /* Platform Breakdown */
+    .section { background: #1e293b; border-radius: 16px; padding: 20px; margin-bottom: 24px; border: 1px solid #334155; }
+    .section h2 { font-size: 16px; color: #94a3b8; margin-bottom: 16px; }
+    .platform-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+    .platform-name { width: 80px; font-size: 13px; color: #cbd5e1; }
+    .platform-fill { flex: 1; height: 24px; background: #0f172a; border-radius: 8px; overflow: hidden; }
+    .platform-fill-inner { height: 100%; background: linear-gradient(90deg, #f97316, #fb923c); border-radius: 8px; transition: width 0.5s; }
+    .platform-count { width: 40px; text-align: right; font-size: 13px; color: #94a3b8; }
+    
+    /* Admin Panel */
+    .admin-card {
+      background: #1e293b;
+      border-radius: 16px;
+      padding: 24px;
+      border: 1px solid #334155;
+      margin-bottom: 24px;
+    }
+    .admin-card h2 { font-size: 16px; color: #94a3b8; margin-bottom: 16px; }
+    label { display: block; color: #94a3b8; margin-bottom: 6px; font-size: 13px; }
     input {
       width: 100%;
-      padding: 14px 16px;
-      border: 2px solid #eee;
-      border-radius: 12px;
-      font-size: 16px;
-      margin-bottom: 20px;
+      padding: 12px 14px;
+      border: 2px solid #334155;
+      border-radius: 10px;
+      font-size: 14px;
+      margin-bottom: 14px;
+      background: #0f172a;
+      color: #e2e8f0;
       transition: border-color 0.3s;
     }
-    input:focus { outline: none; border-color: #ff6b00; }
-    button {
-      width: 100%;
-      padding: 16px;
-      background: linear-gradient(135deg, #ff6b00, #ff8c00);
+    input:focus { outline: none; border-color: #f97316; }
+    button.action {
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #f97316, #fb923c);
       color: white;
       border: none;
-      border-radius: 12px;
-      font-size: 16px;
+      border-radius: 10px;
+      font-size: 14px;
       font-weight: 600;
       cursor: pointer;
-      transition: transform 0.2s, box-shadow 0.2s;
+      transition: transform 0.2s;
     }
-    button:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(255,107,0,0.4); }
-    button:active { transform: translateY(0); }
-    button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
-    .result {
-      margin-top: 20px;
-      padding: 14px;
-      border-radius: 12px;
-      font-size: 14px;
-      display: none;
+    button.action:hover { transform: translateY(-1px); }
+    button.action:disabled { opacity: 0.5; cursor: not-allowed; }
+    .result { margin-top: 12px; padding: 12px; border-radius: 10px; font-size: 13px; }
+    .result.success { background: #166534; color: #bbf7d0; }
+    .result.error { background: #991b1b; color: #fecaca; }
+    
+    .refresh-btn {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: #f97316;
+      color: white;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(249,115,22,0.4);
     }
-    .result.success { background: #e8f5e9; color: #2e7d32; display: block; }
-    .result.error { background: #ffebee; color: #c62828; display: block; }
-    .days-hint { font-size: 12px; color: #999; margin-top: -15px; margin-bottom: 20px; }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>🍊 Admin Panel</h1>
+  <div class="container">
+    <h1>🍊 Orange Admin</h1>
     
-    <label>Admin Key</label>
-    <input type="password" id="adminKey" placeholder="输入 Admin Key">
+    <!-- Dashboard -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="label">Total Users</div>
+        <div class="value orange" id="totalUsers">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">VIP Users</div>
+        <div class="value yellow" id="vipUsers">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Downloads Today</div>
+        <div class="value green" id="todayDownloads">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Downloads Week</div>
+        <div class="value blue" id="weekDownloads">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Total Downloads</div>
+        <div class="value orange" id="totalDownloads">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Active Tasks</div>
+        <div class="value green" id="activeTasks">-</div>
+      </div>
+    </div>
     
-    <label>用户邮箱</label>
-    <input type="email" id="email" placeholder="例如: 93979580@qq.com">
+    <!-- Platform Breakdown -->
+    <div class="section">
+      <h2>📊 Platform Breakdown</h2>
+      <div id="platformBars"></div>
+    </div>
     
-    <label>VIP 天数</label>
-    <input type="number" id="days" value="3" min="1" max="365">
-    <p class="days-hint">输入数字，如 3 表示 3 天会员</p>
-    
-    <button id="submit" onclick="grantVip()">设置会员</button>
-    
-    <div id="result" class="result"></div>
+    <!-- VIP Grant -->
+    <div class="admin-card">
+      <h2>🔑 Grant VIP</h2>
+      <label>Admin Key</label>
+      <input type="password" id="adminKey" placeholder="Enter Admin Key">
+      <label>User Email</label>
+      <input type="email" id="email" placeholder="user@example.com">
+      <label>VIP Days</label>
+      <input type="number" id="days" value="30" min="1" max="365">
+      <button class="action" onclick="grantVip()">Set VIP</button>
+      <div id="vipResult"></div>
+    </div>
   </div>
+  
+  <button class="refresh-btn" onclick="loadStats()">🔄</button>
 
   <script>
-    const API = window.location.origin + '/api/subscribe';
-    
+    const API = window.location.origin + '/api';
+
+    async function loadStats() {
+      try {
+        const r = await fetch(API + '/admin/stats');
+        const d = (await r.json()).data;
+        
+        document.getElementById('totalUsers').textContent = d.users.total;
+        document.getElementById('vipUsers').textContent = d.users.vip;
+        document.getElementById('todayDownloads').textContent = d.downloads.today;
+        document.getElementById('weekDownloads').textContent = d.downloads.week;
+        document.getElementById('totalDownloads').textContent = d.downloads.total;
+        document.getElementById('activeTasks').textContent = d.memory.activeTasks;
+        
+        // Platform bars
+        const platforms = d.platforms || {};
+        const maxCount = Math.max(...Object.values(platforms), 1);
+        const container = document.getElementById('platformBars');
+        container.innerHTML = '';
+        for (const [name, count] of Object.entries(platforms).sort((a,b) => b[1]-a[1])) {
+          const pct = (count / maxCount * 100).toFixed(0);
+          container.innerHTML += `
+            <div class="platform-bar">
+              <span class="platform-name">${name}</span>
+              <div class="platform-fill"><div class="platform-fill-inner" style="width:${pct}%"></div></div>
+              <span class="platform-count">${count}</span>
+            </div>`;
+        }
+      } catch (e) {
+        console.error('Failed to load stats:', e);
+      }
+    }
+
     async function grantVip() {
       const key = document.getElementById('adminKey').value;
       const email = document.getElementById('email').value;
       const days = parseInt(document.getElementById('days').value);
-      const btn = document.getElementById('submit');
-      const result = document.getElementById('result');
+      const result = document.getElementById('vipResult');
       
       if (!key || !email || !days) {
         result.className = 'result error';
-        result.textContent = '请填写所有字段';
+        result.textContent = '❌ Please fill all fields';
         return;
       }
       
-      btn.disabled = true;
-      btn.textContent = '处理中...';
-      result.className = 'result';
-      result.style.display = 'none';
-      
       try {
-        const res = await fetch(API + '/admin/grant-vip', {
+        const r = await fetch(API + '/subscribe/admin/grant-vip', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Admin-Key': key
-          },
+          headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key },
           body: JSON.stringify({ email, days })
         });
+        const data = await r.json();
         
-        const data = await res.json();
-        
-        if (res.ok && data.code === 0) {
+        if (r.ok && data.code === 0) {
           result.className = 'result success';
-          result.textContent = '✅ ' + (data.message || '设置成功！');
-          alert('🎉 设置成功！\n\n邮箱: ' + email + '\nVIP天数: ' + days + '天');
+          result.textContent = '✅ VIP granted to ' + email + ' for ' + days + ' days';
+          loadStats();
         } else {
           result.className = 'result error';
-          result.textContent = '❌ ' + (data.message || '操作失败');
+          result.textContent = '❌ ' + (data.message || 'Failed');
         }
       } catch (e) {
         result.className = 'result error';
-        result.textContent = '❌ 网络错误';
+        result.textContent = '❌ Network error';
       }
-      
-      btn.disabled = false;
-      btn.textContent = '设置会员';
     }
+
+    loadStats();
+    setInterval(loadStats, 30000); // Auto refresh every 30s
   </script>
 </body>
 </html>
