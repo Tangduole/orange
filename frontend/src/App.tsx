@@ -196,7 +196,7 @@ export default function App() {
   const [pendingDownload, setPendingDownload] = useState<(() => void) | null>(null)
   const [downloading, setDownloading] = useState(false)
   const [error, setError] = useState('')
-  const [showHistory, setShowHistory] = useState(false)
+  const [showHistory, setShowHistory] = useState(true)
   const [copied, setCopied] = useState<string | null>(null)
   const [batchMode, setBatchMode] = useState(false)
   const [quality, setQuality] = useState('')
