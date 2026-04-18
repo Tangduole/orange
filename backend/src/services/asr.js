@@ -13,8 +13,8 @@ const FormData = require('form-data');
 
 // 配置
 const CONFIG = {
-  mode: process.env.ASR_MODE || 'openai', // openai | cloudflare | local
-  modelSize: process.env.WHISPER_MODEL || 'tiny',
+  mode: process.env.ASR_MODE || 'local', // openai | cloudflare | local
+  modelSize: process.env.WHISPER_MODEL || 'medium', // tiny/base/small/medium/large-v3
   language: process.env.ASR_LANGUAGE || 'zh',
   openaiKey: process.env.OPENAI_API_KEY || '',
   cloudflareAccountId: process.env.CLOUDFLARE_ACCOUNT_ID || '',
