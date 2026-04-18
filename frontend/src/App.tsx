@@ -1052,13 +1052,7 @@ export default function App() {
                     </div>
                   )}
                 </div>
-                {/* 空状态引导区 */}
-                {!url && (
-                  <div className="mt-3 p-4 bg-gradient-to-r from-orange-500/10 to-amber-500/10 rounded-2xl border border-orange-500/20">
-                    <p className="text-sm text-slate-300 mb-2">🍊 Paste any short video link to download</p>
-                    <p className="text-xs text-slate-500">Support Douyin / TikTok / YouTube / X / Instagram / Xiaohongshu</p>
-                  </div>
-                )}
+
               </div>
             )}
 
