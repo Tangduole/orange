@@ -274,6 +274,17 @@ async function getInfo(req, res) {
 }
 
 /**
+ * 保存文本为可下载的 .txt 文件
+ */
+function saveTextFile(taskId, text, suffix = 'txt') {
+  if (!text) return null;
+  const filename = taskId + '_' + suffix + '.txt';
+  const filepath = path.join(__dirname, '../../downloads', filename);
+  fs.writeFileSync(filepath, text, 'utf-8');
+  return '/download/' + filename;
+}
+
+/**
  * ASR 语音转文字（公共函数）
  */
 async function handleAsr(taskId, filePath, asrLanguage) {
@@ -294,10 +305,13 @@ async function handleAsr(taskId, filePath, asrLanguage) {
     // ASR 转文字
     const text = await asr.transcribe(audioPath, asrLanguage);
     
+    // 保存为 txt 文件
+    const txtUrl = saveTextFile(taskId, text, 'subtitle');
+    
     // 清理临时音频
     try { fs.unlinkSync(audioPath); } catch {}
     
-    return text;
+    return { text, txtUrl };
   } catch (e) {
     console.error(`[ASR] ${taskId} failed:`, e.message);
     return null;
@@ -589,6 +603,8 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
         // ASR 转文字
         const text = await asr.transcribe(audioPath, asrLanguage);
         update.asrText = text;
+        const txtUrl = saveTextFile(taskId, text, 'subtitle');
+        if (txtUrl) update.asrTxtUrl = txtUrl;
       } catch (asrError) {
         console.error(`[ASR] ${taskId} failed:`, asrError);
         update.asrError = asrError.message;
@@ -665,8 +681,8 @@ async function processX(taskId, url, needAsr, options = ['video']) {
     
     // ASR 语音转文字
     if (needAsr && update.filePath) {
-      const text = await handleAsr(taskId, update.filePath, 'zh');
-      if (text) store.update(taskId, { asrText: text });
+      const result = await handleAsr(taskId, update.filePath, 'zh');
+      if (result?.text) store.update(taskId, { asrText: result.text, asrTxtUrl: result.txtUrl });
     }
     
     console.log(`[task] ${taskId} x completed`);
@@ -1010,8 +1026,8 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
 
     // ASR 语音转文字
     if (needAsr && update.filePath) {
-      const text = await handleAsr(taskId, update.filePath, 'zh');
-      if (text) store.update(taskId, { asrText: text });
+      const result = await handleAsr(taskId, update.filePath, 'zh');
+      if (result?.text) store.update(taskId, { asrText: result.text, asrTxtUrl: result.txtUrl });
     }
 
     console.log('[task] ' + taskId + ' tiktok completed');
@@ -1118,8 +1134,10 @@ function getStatus(req, res) {
       downloadUrl: task.downloadUrl,
       subtitleFiles: task.subtitleFiles || [],
       asrText: task.asrText,
+      asrTxtUrl: task.asrTxtUrl,
       asrError: task.asrError,
       copyText: task.copyText,
+      copyTxtUrl: task.copyTxtUrl,
       coverUrl: task.coverUrl,
       audioUrl: task.audioUrl,
       imageFiles: task.imageFiles,
