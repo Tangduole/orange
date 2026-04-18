@@ -13,12 +13,13 @@ const FormData = require('form-data');
 
 // 配置
 const CONFIG = {
-  mode: process.env.ASR_MODE || 'local', // openai | cloudflare | local
-  modelSize: process.env.WHISPER_MODEL || 'tiny', // tiny/base/small/medium/large-v3
+  mode: process.env.ASR_MODE || 'cloudflare', // openai | cloudflare | local
+  modelSize: process.env.WHISPER_MODEL || 'tiny',
   language: process.env.ASR_LANGUAGE || 'zh',
   openaiKey: process.env.OPENAI_API_KEY || '',
   cloudflareAccountId: process.env.CLOUDFLARE_ACCOUNT_ID || '',
-  cloudflareToken: process.env.CLOUDFLARE_AI_TOKEN || ''
+  cloudflareToken: process.env.CLOUDFLARE_API_KEY || '',
+  cloudflareEmail: process.env.CLOUDFLARE_EMAIL || ''
 };
 
 /**
@@ -61,27 +62,33 @@ async function transcribeCloudflare(audioPath, language = 'zh') {
     throw new Error('Cloudflare AI credentials not configured.');
   }
   
-  // 读取音频文件
+  // 读取音频文件并转 base64
   const audioBuffer = fs.readFileSync(audioPath);
   const base64Audio = audioBuffer.toString('base64');
   
-  console.log(`[ASR] Using Cloudflare Workers AI, language: ${language}`);
+  console.log(`[ASR] Using Cloudflare Workers AI (whisper-large-v3-turbo), language: ${language}`);
   
   const response = await axios.post(
-    `https://api.cloudflare.com/client/v4/accounts/${CONFIG.cloudflareAccountId}/ai/run/@cf/openai/whisper`,
-    {
-      audio: base64Audio
-    },
+    `https://api.cloudflare.com/client/v4/accounts/${CONFIG.cloudflareAccountId}/ai/run/@cf/openai/whisper-large-v3-turbo`,
+    { audio: base64Audio },
     {
       headers: {
-        'Authorization': `Bearer ${CONFIG.cloudflareToken}`,
+        'X-Auth-Email': CONFIG.cloudflareEmail,
+        'X-Auth-Key': CONFIG.cloudflareToken,
         'Content-Type': 'application/json'
       },
-      timeout: 60000
+      timeout: 120000
     }
   );
   
-  return response.data.result?.text || '';
+  const text = response.data.result?.text || '';
+  
+  // 按句号分段落
+  if (text) {
+    const sentences = text.split(/[。！？.!?]+/).filter(s => s.trim());
+    return sentences.map(s => s.trim()).join('\n\n');
+  }
+  return text;
 }
 
 /**
