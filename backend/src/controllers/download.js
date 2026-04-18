@@ -1427,7 +1427,7 @@ async function getVideoInfo(req, res) {
           const video = detail.video || {};
           const bitrates = video.bit_rate || [];
 
-          // Build qualities from bit_rate array
+          // Build qualities from bit_rate array + H.265 source
           const qualities = bitrates
             .filter(br => br.play_addr?.url_list?.[0])
             .map(br => {
@@ -1449,8 +1449,33 @@ async function getVideoInfo(req, res) {
                 hasVideo: true,
                 hasAudio: true
               };
-            })
-            .sort((a, b) => (b.height || 0) - (a.height || 0));
+            });
+
+          // Add H.265 source if available and higher resolution
+          const playAddr265 = video.play_addr_265 || {};
+          if (playAddr265.url_list?.[0] && playAddr265.height) {
+            const h = playAddr265.height;
+            const w = playAddr265.width || 0;
+            let qualityLabel = '';
+            if (h >= 2160) qualityLabel = '4K';
+            else if (h >= 1440) qualityLabel = '2K';
+            else if (h >= 1080) qualityLabel = '1080p';
+            else if (h >= 720) qualityLabel = '720p';
+            else qualityLabel = `${h}p`;
+            // Only add if not already in list
+            if (!qualities.some(q => q.height === h)) {
+              qualities.push({
+                quality: qualityLabel + ' H.265',
+                format: 'video/mp4',
+                width: w,
+                height: h,
+                hasVideo: true,
+                hasAudio: true
+              });
+            }
+          }
+
+          const sorted = qualities.sort((a, b) => (b.height || 0) - (a.height || 0));
 
           // Remove duplicates with same height, keep highest bitrate
           const unique = [];
