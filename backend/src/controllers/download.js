@@ -47,7 +47,7 @@ async function createDownload(req, res) {
       return res.json({ code: 400, message: validation.message });
     }
 
-    let { url, platform, needAsr = false, options = ['video'], saveTarget = 'phone', quality = null, asrLanguage = 'zh' } = req.body;
+    let { url, platform, needAsr = false, options = ['video'], saveTarget = 'phone', quality = null, asrLanguage = 'zh', targetLang = null } = req.body;
 
     // 从分享文本中提取 URL
     const { extractUrl } = require('../utils/validator');

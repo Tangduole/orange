@@ -92,6 +92,33 @@ async function transcribeCloudflare(audioPath, language = 'zh') {
 }
 
 /**
+ * Cloudflare M2M-100 翻译
+ */
+async function translateText(text, sourceLang, targetLang) {
+  if (!text || sourceLang === targetLang) return text;
+  const axios = require('axios');
+  
+  try {
+    const response = await axios.post(
+      `https://api.cloudflare.com/client/v4/accounts/${CONFIG.cloudflareAccountId}/ai/run/@cf/meta/m2m100-1.2b`,
+      { text, source_lang: sourceLang, target_lang: targetLang },
+      {
+        headers: {
+          'X-Auth-Email': CONFIG.cloudflareEmail,
+          'X-Auth-Key': CONFIG.cloudflareToken,
+          'Content-Type': 'application/json'
+        },
+        timeout: 30000
+      }
+    );
+    return response.data.result?.translated_text || text;
+  } catch (e) {
+    console.error('[ASR] Translation failed:', e.message);
+    return text;
+  }
+}
+
+/**
  * 使用本地 faster-whisper 转文字
  */
 function transcribeLocal(audioPath, language = 'zh') {
@@ -159,23 +186,31 @@ function transcribeLocal(audioPath, language = 'zh') {
 /**
  * 主入口
  */
-async function transcribe(audioPath, language = null) {
+async function transcribe(audioPath, language = null, targetLang = null) {
   const lang = language || CONFIG.language;
   
-  console.log(`[ASR] Mode: ${CONFIG.mode}, Language: ${lang}`);
+  console.log(`[ASR] Mode: ${CONFIG.mode}, Language: ${lang}, Target: ${targetLang || 'same'}`);
   
   try {
+    let text;
     if (CONFIG.mode === 'openai') {
-      return await transcribeOpenAI(audioPath, lang);
+      text = await transcribeOpenAI(audioPath, lang);
     } else if (CONFIG.mode === 'cloudflare') {
-      return await transcribeCloudflare(audioPath, lang);
+      text = await transcribeCloudflare(audioPath, lang);
     } else {
-      return await transcribeLocal(audioPath, lang);
+      text = await transcribeLocal(audioPath, lang);
     }
+    
+    // 翻译（如果指定了目标语言且不同于源语言）
+    if (targetLang && targetLang !== lang && CONFIG.mode === 'cloudflare') {
+      text = await translateText(text, lang, targetLang);
+    }
+    
+    return text;
   } catch (error) {
     console.error(`[ASR] Error: ${error.message}`);
     throw error;
   }
 }
 
-module.exports = { transcribe, CONFIG };
+module.exports = { transcribe, translateText, CONFIG };
