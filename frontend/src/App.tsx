@@ -135,12 +135,11 @@ const PLATFORMS = [
 ]
 
 const OPTIONS: { id: string; label: string; icon: typeof Video }[] = [
-  { id: 'video', label: 'Video 视频', icon: Video },
-  { id: 'audio_only', label: 'Audio 音频', icon: Mic },
-  { id: 'copywriting', label: 'Copywriting Copywriting', icon: FileText },
-  { id: 'cover', label: 'Cover Cover', icon: ImageIcon },
-  { id: 'asr', label: 'Audio Audio to Text', icon: Languages },
-  { id: 'subtitle', label: 'Subtitle Subtitle', icon: Languages },
+  { id: 'video', label: 'Video', icon: Video },
+  { id: 'audio_only', label: 'Audio', icon: Mic },
+  { id: 'copywriting', label: 'Text', icon: FileText },
+  { id: 'cover', label: 'Cover', icon: ImageIcon },
+  { id: 'asr', label: 'Subtitle', icon: Languages },
 ]
 
 const ASR_LANGUAGE_OPTIONS = [
