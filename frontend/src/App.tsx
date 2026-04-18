@@ -150,6 +150,14 @@ const ASR_LANGUAGE_OPTIONS = [
   { value: 'auto', label: 'Auto检测' },
 ]
 
+const TRANSLATE_OPTIONS = [
+  { value: '', label: '不翻译' },
+  { value: 'zh', label: '中文 Chinese' },
+  { value: 'en', label: 'English' },
+  { value: 'ja', label: '日本語 Japanese' },
+  { value: 'ko', label: '한국어 Korean' },
+]
+
 const QUALITY_OPTIONS = [
   { value: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', label: 'Best', vipOnly: true },
   { value: 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]', label: '1080p', vipOnly: true },
@@ -193,6 +201,7 @@ export default function App() {
   const [batchMode, setBatchMode] = useState(false)
   const [quality, setQuality] = useState('')
   const [asrLanguage, setAsrLanguage] = useState('zh')
+  const [targetLang, setTargetLang] = useState('')
   const [availableQualities, setAvailableQualities] = useState<Array<{quality: string, format: string, width: number, height: number, hasVideo: boolean, hasAudio: boolean}>>([])
   const [showQualityPicker, setShowQualityPicker] = useState(false)
   const [pendingUrl, setPendingUrl] = useState('')
@@ -464,7 +473,7 @@ export default function App() {
           showDownloadComplete(`start-${Date.now()}`, nextUrl, false).catch(console.error)
           axios.post(`${API}/download`, {
             url: nextUrl, platform: detectPlatform(nextUrl) || 'auto',
-            needAsr: selected.has('asr'), options: [...selected], quality, asrLanguage,
+            needAsr: selected.has('asr'), options: [...selected], quality, asrLanguage, targetLang,
           }, { timeout: 180000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} }).then(r => {
             setTask(r.data.data)
           }).catch((e) => {
@@ -766,7 +775,7 @@ export default function App() {
       const detectedFirst = detectPlatform(urls[0])
       const r = await axios.post(`${API}/download`, {
         url: urls[0], platform: detectedFirst || 'auto',
-        needAsr: selected.has('asr'), options: [...selected], quality, asrLanguage,
+        needAsr: selected.has('asr'), options: [...selected], quality, asrLanguage, targetLang,
       }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} })
       setTask(r.data.data)
     } catch (e: any) {
@@ -1172,17 +1181,31 @@ export default function App() {
               </div>
               {/* ASR Language Selection */}
               {selected.has('asr') && (
-                <div className="mt-3">
-                  <label className="text-xs text-slate-300 mb-1 block">ASR Language 語言</label>
-                  <select
-                    value={asrLanguage}
-                    onChange={(e) => setAsrLanguage(e.target.value)}
-                    className={`w-full px-3 py-2 border-2 rounded-xl text-sm outline-none focus:border-orange-500/70 cursor-pointer appearance-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
-                  >
-                    {ASR_LANGUAGE_OPTIONS.map(opt => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
+                <div className="mt-3 space-y-2">
+                  <div>
+                    <label className="text-xs text-slate-300 mb-1 block">ASR Language 語言</label>
+                    <select
+                      value={asrLanguage}
+                      onChange={(e) => setAsrLanguage(e.target.value)}
+                      className={`w-full px-3 py-2 border-2 rounded-xl text-sm outline-none focus:border-orange-500/70 cursor-pointer appearance-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                    >
+                      {ASR_LANGUAGE_OPTIONS.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-slate-300 mb-1 block">Translate To 翻译成</label>
+                    <select
+                      value={targetLang}
+                      onChange={(e) => setTargetLang(e.target.value)}
+                      className={`w-full px-3 py-2 border-2 rounded-xl text-sm outline-none focus:border-orange-500/70 cursor-pointer appearance-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                    >
+                      {TRANSLATE_OPTIONS.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               )}
             </div>
