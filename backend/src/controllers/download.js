@@ -274,6 +274,37 @@ async function getInfo(req, res) {
 }
 
 /**
+ * ASR 语音转文字（公共函数）
+ */
+async function handleAsr(taskId, filePath, asrLanguage) {
+  try {
+    store.update(taskId, { status: 'asr', progress: 100 });
+    const asr = require('../services/asr');
+    const { spawn } = require('child_process');
+    const audioPath = path.join(path.dirname(filePath), taskId + '_asr.mp3');
+    
+    // 用 ffmpeg 提取音频
+    await new Promise((resolve, reject) => {
+      const ff = spawn('ffmpeg', ['-i', filePath, '-vn', '-acodec', 'libmp3lame', '-b:a', '128k', '-y', audioPath]);
+      const timer = setTimeout(() => { ff.kill('SIGKILL'); reject(new Error('timeout')); }, 30000);
+      ff.on('close', code => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error('ffmpeg exit ' + code)); });
+      ff.on('error', err => { clearTimeout(timer); reject(err); });
+    });
+    
+    // ASR 转文字
+    const text = await asr.transcribe(audioPath, asrLanguage);
+    
+    // 清理临时音频
+    try { fs.unlinkSync(audioPath); } catch {}
+    
+    return text;
+  } catch (e) {
+    console.error(`[ASR] ${taskId} failed:`, e.message);
+    return null;
+  }
+}
+
+/**
  * 处理下载任务（异步）
  */
 async function processDownload(taskId, url, needAsr, options = ['video'], quality = null) {
@@ -631,6 +662,13 @@ async function processX(taskId, url, needAsr, options = ['video']) {
     }
     
     store.update(taskId, update);
+    
+    // ASR 语音转文字
+    if (needAsr && update.filePath) {
+      const text = await handleAsr(taskId, update.filePath, 'zh');
+      if (text) store.update(taskId, { asrText: text });
+    }
+    
     console.log(`[task] ${taskId} x completed`);
   } catch (error) {
     console.error(`[task] ${taskId} x failed:`, error);
@@ -969,6 +1007,12 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
     }
 
     store.update(taskId, update);
+
+    // ASR 语音转文字
+    if (needAsr && update.filePath) {
+      const text = await handleAsr(taskId, update.filePath, 'zh');
+      if (text) store.update(taskId, { asrText: text });
+    }
 
     console.log('[task] ' + taskId + ' tiktok completed');
   } catch (error) {
