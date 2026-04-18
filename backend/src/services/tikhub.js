@@ -427,84 +427,77 @@ async function parseDouyin(url, taskId, onProgress, quality = null) {
   }
   */
   
-  // 选择最佳 URL：根据quality参数选择
-  // 同时记录实际使用的宽高
-  let selectedWidth = 0;
-  let selectedHeight = 0;
+  // 收集所有可用画质源
+  const candidates = [];
   
-  if (hqVideoUrl) {
-    // 优先使用高清原始视频 URL（即使 height=0）
-    // 但如果非VIP用户限制了画质，需要检查
-    const hqHeight = playAddr265?.height || video.play_addr?.height || 
-                     video.bit_rate?.[0]?.play_addr?.height || 0;
-    
-    // 非VIP且画质受限，忽略hqVideoUrl
-    if (maxHeight < 99999 && hqHeight > maxHeight) {
-      console.log(`[TikHub] hqVideoUrl (${hqHeight}p) exceeds maxHeight (${maxHeight}p), ignoring`);
-      hqVideoUrl = '';
-    } else {
-      videoUrl = hqVideoUrl;
-      selectedWidth = playAddr265?.width || video.play_addr?.width || 0;
-      selectedHeight = hqHeight;
-      console.log(`[TikHub] Using hqVideoUrl with height=${selectedHeight}`);
-    }
+  // 1. H.265 源（可能有更高分辨率如 2K）
+  if (playAddr265Url) {
+    candidates.push({
+      url: playAddr265Url,
+      width: playAddr265?.width || 0,
+      height: playAddr265?.height || 0,
+      codec: 'h265',
+      bitrate: playAddr265?.bit_rate || 0
+    });
   }
   
-  if (!videoUrl && video.bit_rate && video.bit_rate.length > 0) {
-    // 根据quality参数筛选bitrate
-    const bitrates = video.bit_rate.filter(br => br.play_addr?.url_list?.[0]);
-    
-    console.log(`[TikHub] quality param: ${quality}, maxHeight: ${maxHeight}`);
-    if (bitrates.length > 0) {
-      // 如果有高度限制，先过滤，再排序
-      let filtered = bitrates;
-      if (maxHeight < 99999) {
-        filtered = bitrates.filter(br => {
-          const h = br.play_addr?.height || 0;
-          console.log(`[TikHub] bitrate height=${h}, maxHeight=${maxHeight}, included=${h > 0 && h <= maxHeight}`);
-          return h > 0 && h <= maxHeight;
+  // 2. bit_rate 数组（H.264，通常有音频）
+  if (video.bit_rate) {
+    for (const br of video.bit_rate) {
+      const url = br.play_addr?.url_list?.[0];
+      if (url) {
+        candidates.push({
+          url,
+          width: br.play_addr?.width || 0,
+          height: br.play_addr?.height || 0,
+          codec: 'h264',
+          bitrate: br.bit_rate || 0,
+          hasAudio: true // bit_rate 通常有音频
         });
-        console.log(`[TikHub] filtered bitrates: ${filtered.length} of ${bitrates.length}`);
       }
-      
-      // 选择最高画质（bitrate最高的）
-      const sorted = filtered.sort((a, b) => (b.bit_rate || 0) - (a.bit_rate || 0));
-      const selected = sorted[0];
-      if (selected) {
-        videoUrl = selected.play_addr.url_list[0];
-        selectedWidth = selected.play_addr?.width || 0;
-        selectedHeight = selected.play_addr?.height || 0;
-        console.log(`[TikHub] Using bit_rate: ${selected.gear_name || selected.bit_rate}bps, ${selectedWidth}x${selectedHeight}`);
-      } else {
-        // 没有满足条件的bitrate，降级使用最低的
-        const lowest = bitrates.sort((a, b) => (a.bit_rate || 0) - (b.bit_rate || 0))[0];
-        if (lowest) {
-          videoUrl = lowest.play_addr.url_list[0];
-          selectedWidth = lowest.play_addr?.width || 0;
-          selectedHeight = lowest.play_addr?.height || 0;
-          console.log(`[TikHub] No matching bitrate, using lowest: ${selectedWidth}x${selectedHeight}`);
-        }
-      }
-    }
-  } else if (playAddr265Url) {
-    // H.265通常720p，如果要求更低的画质则不用
-    const h265Height = playAddr265?.height || 0;
-    if (h265Height <= maxHeight || maxHeight >= 99999) {
-      videoUrl = playAddr265Url;
-      selectedWidth = playAddr265?.width || 0;
-      selectedHeight = h265Height;
-      console.log(`[TikHub] Using H.265: ${selectedWidth}x${selectedHeight}`);
     }
   }
   
-  if (!videoUrl) {
-    const playAddr = video.play_addr || {};
-    if (playAddr.url_list && playAddr.url_list.length > 0) {
-      videoUrl = playAddr.url_list[0];
-      selectedWidth = playAddr.width || 0;
-      selectedHeight = playAddr.height || 0;
-      console.log(`[TikHub] Using play_addr fallback: ${selectedWidth}x${selectedHeight}`);
-    }
+  // 3. play_addr 兜底
+  if (video.play_addr?.url_list?.[0]) {
+    candidates.push({
+      url: video.play_addr.url_list[0],
+      width: video.play_addr.width || 0,
+      height: video.play_addr.height || 0,
+      codec: 'h264',
+      bitrate: video.play_addr.bit_rate || 0
+    });
+  }
+  
+  console.log(`[TikHub] Found ${candidates.length} video sources:`);
+  for (const c of candidates) {
+    console.log(`  ${c.codec} ${c.width}x${c.height} ${c.bitrate}bps${c.hasAudio ? ' (hasAudio)' : ''}`);
+  }
+  
+  // 排序：有音频的优先，然后按分辨率降序
+  candidates.sort((a, b) => {
+    if (a.hasAudio !== b.hasAudio) return b.hasAudio - a.hasAudio;
+    return (b.height || 0) - (a.height || 0);
+  });
+  
+  // 选择：先过滤画质限制，再选最好的
+  let selected = null;
+  for (const c of candidates) {
+    if (maxHeight < 99999 && c.height > maxHeight) continue;
+    selected = c;
+    break;
+  }
+  
+  // 如果所有候选都超了限制，选分辨率最低的
+  if (!selected && candidates.length > 0) {
+    selected = candidates[candidates.length - 1];
+  }
+  
+  if (selected) {
+    videoUrl = selected.url;
+    selectedWidth = selected.width;
+    selectedHeight = selected.height;
+    console.log(`[TikHub] Selected: ${selected.codec} ${selectedWidth}x${selectedHeight} ${selected.bitrate}bps`);
   }
   
   if (!videoUrl) throw new Error('No download URL found');
