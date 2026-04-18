@@ -131,7 +131,7 @@ const PLATFORMS = [
   { id: 'x', label: 'X/Twitter', icon: '🐦' },
   { id: 'instagram', label: 'Instagram', icon: '📸' },
   { id: 'xiaohongshu', label: '小紅書', icon: '📕' },
-  { id: 'more', label: '🌐 More / 更多', icon: '🌐' },
+  { id: 'more', label: 'More / 更多', icon: '🌐' },
 ]
 
 const OPTIONS: { id: string; label: string; icon: typeof Video }[] = [
