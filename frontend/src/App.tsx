@@ -489,6 +489,10 @@ export default function App() {
   // Poll task status
   useEffect(() => {
     if (!task || ['completed', 'error'].includes(task.status)) return
+    
+    // 保存 taskId 到 localStorage（用于后台恢复）
+    localStorage.setItem('orange_active_task', task.taskId)
+    
     const t = setInterval(async () => {
       try {
         const r = await axios.get(`${API}/status/${task.taskId}`)
@@ -496,6 +500,7 @@ export default function App() {
           setTask(r.data.data)
           if (['completed', 'error'].includes(r.data.data.status)) { 
             clearInterval(t)
+            localStorage.removeItem('orange_active_task')
             fetchHistory()
           }
         }
@@ -503,6 +508,34 @@ export default function App() {
     }, 1500)
     return () => clearInterval(t)
   }, [task?.taskId])
+
+  // 页面重新可见时恢复任务状态
+  useEffect(() => {
+    const savedTaskId = localStorage.getItem('orange_active_task')
+    if (savedTaskId && (!task || task.taskId !== savedTaskId)) {
+      // 恢复之前未完成的任务
+      axios.get(`${API}/status/${savedTaskId}`).then(r => {
+        if (r.data.data && !['completed', 'error'].includes(r.data.data.status)) {
+          setTask(r.data.data)
+        } else {
+          localStorage.removeItem('orange_active_task')
+        }
+      }).catch(() => localStorage.removeItem('orange_active_task'))
+    }
+
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        const tid = localStorage.getItem('orange_active_task')
+        if (tid) {
+          axios.get(`${API}/status/${tid}`).then(r => {
+            if (r.data.data) setTask(r.data.data)
+          }).catch(() => {})
+        }
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [])
 
   // PlayPrompt音
   const playNotificationSound = () => {
