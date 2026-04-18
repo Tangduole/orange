@@ -512,6 +512,29 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
       update.copyText = result.title || '抖音作品';
     }
 
+    // 处理纯音频
+    const wantsAudioOnly = options.includes('audio') && !options.includes('video');
+    if (wantsAudioOnly && result.filePath) {
+      try {
+        const audioPath = path.join(path.dirname(result.filePath), `${taskId}.mp3`);
+        const { spawn } = require('child_process');
+        await new Promise((resolve, reject) => {
+          const ff = spawn('ffmpeg', ['-i', result.filePath, '-vn', '-acodec', 'libmp3lame', '-b:a', '128k', '-y', audioPath]);
+          const timer = setTimeout(() => { ff.kill('SIGKILL'); reject(new Error('timeout')); }, 30000);
+          ff.on('close', code => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error('ffmpeg exit ' + code)); });
+          ff.on('error', err => { clearTimeout(timer); reject(err); });
+        });
+        update.downloadUrl = `/download/${taskId}.mp3`;
+        update.filePath = audioPath;
+        update.ext = 'mp3';
+        update.audioUrl = `/download/${taskId}.mp3`;
+        // 删除视频文件
+        try { fs.unlinkSync(result.filePath); } catch {}
+      } catch (e) {
+        console.error(`[audio] ${taskId} extract failed:`, e.message);
+      }
+    }
+
     // 处理 ASR
     if (needAsr && result.filePath) {
       try {
@@ -585,6 +608,28 @@ async function processX(taskId, url, needAsr, options = ['video']) {
     if (result.images) {
       update.imageFiles = result.images;
     }
+    
+    // 纯音频
+    const wantsAudioOnly = options.includes('audio') && !options.includes('video');
+    if (wantsAudioOnly && result.filePath) {
+      try {
+        const audioPath = path.join(path.dirname(result.filePath), taskId + '.mp3');
+        const { spawn } = require('child_process');
+        await new Promise((resolve, reject) => {
+          const ff = spawn('ffmpeg', ['-i', result.filePath, '-vn', '-acodec', 'libmp3lame', '-b:a', '128k', '-y', audioPath]);
+          const timer = setTimeout(() => { ff.kill('SIGKILL'); reject(new Error('timeout')); }, 30000);
+          ff.on('close', code => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error('ffmpeg exit ' + code)); });
+          ff.on('error', err => { clearTimeout(timer); reject(err); });
+        });
+        update.downloadUrl = '/download/' + taskId + '.mp3';
+        update.filePath = audioPath;
+        update.ext = 'mp3';
+        try { fs.unlinkSync(result.filePath); } catch {}
+      } catch (e) {
+        console.error('[x audio] extract failed:', e.message);
+      }
+    }
+    
     store.update(taskId, update);
     console.log(`[task] ${taskId} x completed`);
   } catch (error) {
@@ -888,7 +933,7 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
     // 获取封面
     const coverUrl = video.cover?.url_list?.[0] || video.origin_cover?.url_list?.[0] || '';
 
-    store.update(taskId, {
+    const update = {
       status: 'completed',
       progress: 100,
       title: title,
@@ -899,7 +944,31 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
       filePath: outputPath,
       ext: 'mp4',
       copyText: title
-    });
+    };
+
+    // 纯音频
+    const wantsAudioOnly = options.includes('audio') && !options.includes('video');
+    if (wantsAudioOnly) {
+      try {
+        const audioPath = path.join(__dirname, '../../downloads', taskId + '.mp3');
+        const { spawn } = require('child_process');
+        await new Promise((resolve, reject) => {
+          const ff = spawn('ffmpeg', ['-i', outputPath, '-vn', '-acodec', 'libmp3lame', '-b:a', '128k', '-y', audioPath]);
+          const timer = setTimeout(() => { ff.kill('SIGKILL'); reject(new Error('timeout')); }, 30000);
+          ff.on('close', code => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error('ffmpeg exit ' + code)); });
+          ff.on('error', err => { clearTimeout(timer); reject(err); });
+        });
+        update.downloadUrl = '/download/' + taskId + '.mp3';
+        update.filePath = audioPath;
+        update.ext = 'mp3';
+        update.audioUrl = '/download/' + taskId + '.mp3';
+        try { fs.unlinkSync(outputPath); } catch {}
+      } catch (e) {
+        console.error('[tiktok audio] extract failed:', e.message);
+      }
+    }
+
+    store.update(taskId, update);
 
     console.log('[task] ' + taskId + ' tiktok completed');
   } catch (error) {
