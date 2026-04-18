@@ -26,6 +26,8 @@ RUN pip3 install --break-system-packages --upgrade yt-dlp
 
 # Install faster-whisper for ASR
 RUN pip install --no-cache-dir faster-whisper
+# Pre-download medium model for Chinese ASR
+RUN python3 -c "from faster_whisper import WhisperModel; WhisperModel('medium', device='cpu', compute_type='int8')"
 
 WORKDIR /app
 

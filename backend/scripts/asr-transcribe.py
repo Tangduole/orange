@@ -113,7 +113,7 @@ def transcribe(audio_path, model_size='tiny', language='zh', enable_paragraphs=F
 def main():
     parser = argparse.ArgumentParser(description='ASR Transcription Tool')
     parser.add_argument('audio_path', help='Path to audio file')
-    parser.add_argument('--model', default='tiny', choices=['tiny', 'base', 'small'], help='Model size')
+    parser.add_argument('--model', default='tiny', choices=['tiny', 'base', 'small', 'medium', 'large-v3'], help='Model size')
     parser.add_argument('--language', default='zh', help='Language code')
     parser.add_argument('--paragraphs', action='store_true', help='Enable paragraph segmentation')
     parser.add_argument('--min-pause', type=float, default=1.0, help='Minimum pause duration')
