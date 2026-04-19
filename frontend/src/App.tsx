@@ -238,6 +238,21 @@ export default function App() {
     setShowLangMenu(false)
   }
 
+  // IP自动检测语言（仅首次访问时）
+  useEffect(() => {
+    if (localStorage.getItem('orange_language')) return // 用户已手动选择过
+    fetch('https://ipapi.co/json/')
+      .then(r => r.json())
+      .then(data => {
+        if (data.country_code === 'CN') {
+          i18n.changeLanguage('zh-CN')
+        } else {
+          i18n.changeLanguage('en')
+        }
+      })
+      .catch(() => {}) // 失败保持默认
+  }, [])
+
   // 检查 URL 是否有重置Password token
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -970,10 +985,10 @@ export default function App() {
               <div className="relative">
                 <button
                   onClick={() => setShowLangMenu(!showLangMenu)}
-                  className={`p-2 rounded-lg transition ${isDark ? 'text-slate-300 hover:text-orange-400' : 'text-gray-500 hover:text-orange-500'}`}
+                  className={`px-2 py-1 rounded-lg text-xs font-bold transition ${isDark ? 'text-slate-300 hover:text-orange-400' : 'text-gray-500 hover:text-orange-500'}`}
                   title={t('language')}
                 >
-                  <Languages className="w-4 h-4" />
+                  {i18n.language === 'zh-CN' ? 'CH' : 'EN'}
                 </button>
                 {showLangMenu && (
                   <>
