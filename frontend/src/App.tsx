@@ -1053,7 +1053,6 @@ export default function App() {
                 <button onClick={() => setShowAuthModal(true)} className={`p-2 rounded-lg transition ${isDark ? 'text-slate-300 hover:text-orange-400' : 'text-gray-500 hover:text-orange-500'}`} title="Login">
                   <User className="w-4 h-4" />
                 </button>
-                </button>
               )}
             </div>
           </div>
