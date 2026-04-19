@@ -39,7 +39,7 @@ router.get('/history', getHistory);
 
 // 删除任务
 router.delete('/tasks/:taskId', auth.required, deleteTask);
-router.delete('/history', auth.required, clearHistory);
+router.delete('/history', auth.optional, clearHistory);
 
 // 系统状态
 router.get('/system/status', getSystemStatus);
