@@ -1367,17 +1367,24 @@ async function getAdminStats(req, res) {
 }
 function clearHistory(req, res) {
   const userId = req.user?.id;
+  const userDb = require('../userDb');
+  
   if (userId) {
     const count = store.removeByUserId(userId);
+    // 同时清除数据库历史
+    userDb.db.execute({ sql: 'DELETE FROM download_history WHERE user_id = ?', args: [userId] }).catch(() => {});
     res.json({ code: 0, message: `已清除 ${count} 条记录` });
   } else {
     // 游客：清除所有非登录用户的任务
+    const guestIp = req.ip || req.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
     const tasks = store.list().filter(t => !t.userId);
     let count = 0;
     for (const t of tasks) {
       store.removeWithFiles(t.taskId);
       count++;
     }
+    // 同时清除数据库中该游客的历史
+    userDb.db.execute({ sql: 'DELETE FROM download_history WHERE user_id IS NULL AND guest_ip = ?', args: [guestIp] }).catch(() => {});
     res.json({ code: 0, message: `已清除 ${count} 条记录` });
   }
 }
