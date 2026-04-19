@@ -588,51 +588,48 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
       }
     }
 
-    // 处理 ASR
+    // 处理 ASR + 翻译
     if (needAsr && result.filePath) {
       try {
         store.update(taskId, { status: 'asr', progress: 100 });
         const asr = require('../services/asr');
-        const audioPath = path.join(path.dirname(result.filePath), `${taskId}.mp3`);
+        const audioPath = path.join(path.dirname(result.filePath), `${taskId}_asr.mp3`);
 
         // 提取音频
-        const ffmpeg = require('fluent-ffmpeg');
+        const { spawn } = require('child_process');
         await new Promise((resolve, reject) => {
-          ffmpeg(result.filePath)
-            .noVideo()
-            .audioCodec('libmp3lame')
-            .audioBitrate('128k')
-            .output(audioPath)
-            .on('end', resolve)
-            .on('error', reject)
-            .run();
+          const ff = spawn('ffmpeg', ['-i', result.filePath, '-vn', '-acodec', 'libmp3lame', '-b:a', '128k', '-y', audioPath]);
+          const timer = setTimeout(() => { ff.kill('SIGKILL'); reject(new Error('timeout')); }, 30000);
+          ff.on('close', code => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error('ffmpeg exit ' + code)); });
+          ff.on('error', err => { clearTimeout(timer); reject(err); });
         });
 
-        // ASR 语音转文字
-        console.log(`[ASR-DY] ${taskId} calling handleAsr, filePath=${update.filePath}, asrLang=${asrLanguage}`);
-        const result = await handleAsr(taskId, update.filePath, asrLanguage);
-        console.log(`[ASR-DY] ${taskId} handleAsr returned:`, JSON.stringify({hasText: !!result?.text, hasTranslated: !!result?.translatedText, translatedLen: result?.translatedText?.length}));
-        if (result?.text) {
-          update.asrText = result.text;
-          update.asrTxtUrl = result.txtUrl;
+        // ASR 转文字
+        const text = await asr.transcribe(audioPath, asrLanguage);
+        if (text) {
+          update.asrText = text;
+          update.asrTxtUrl = saveTextFile(taskId, text, 'subtitle');
         }
-        // 翻译（直接调用，不依赖 handleAsr）
-        console.log(`[ASR-DY] ${taskId} task.targetLang=${store.get(taskId)?.targetLang}`);
+
+        // 翻译
         const task = store.get(taskId);
-        if (task?.targetLang && result?.text) {
+        if (task?.targetLang && text) {
           try {
-            console.log(`[ASR] ${taskId} translating ${asrLanguage} -> ${task.targetLang}`);
-            const asr = require('../services/asr');
-            const translated = await asr.translateText(result.text, asrLanguage === 'auto' ? 'zh' : asrLanguage, task.targetLang);
+            const translated = await asr.translateText(text, asrLanguage === 'auto' ? 'zh' : asrLanguage, task.targetLang);
             if (translated) {
               update.translatedText = translated;
               update.translatedTxtUrl = saveTextFile(taskId, translated, 'translation');
-              console.log(`[ASR] ${taskId} translation done, len=${translated.length}`);
             }
           } catch (e) {
-            console.error(`[ASR] ${taskId} translation failed:`, e.message);
+            console.error(`[ASR] ${taskId} translate failed:`, e.message);
           }
         }
+
+        // 清理临时音频
+        try { fs.unlinkSync(audioPath); } catch {}
+      } catch (asrError) {
+        console.error(`[ASR] ${taskId} failed:`, asrError.message);
+        update.asrError = asrError.message;
       }
     }
 
