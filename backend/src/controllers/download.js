@@ -313,6 +313,7 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
     let translatedText = null;
     if (tLang && text) {
       try {
+        console.log(`[ASR] ${taskId} translating: ${asrLanguage === 'auto' ? 'zh' : asrLanguage} -> ${tLang}, textLen=${text.length}`);
         translatedText = await asr.translateText(text, asrLanguage === 'auto' ? 'zh' : asrLanguage, tLang);
       } catch (e) {
         console.error(`[ASR] Translation failed: ${e.message}`);
