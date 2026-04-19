@@ -1365,9 +1365,20 @@ async function getAdminStats(req, res) {
   });
 }
 function clearHistory(req, res) {
-  const userId = req.user.id;
-  const count = store.removeByUserId(userId);
-  res.json({ code: 0, message: `已清除 ${count} 条记录` });
+  const userId = req.user?.id;
+  if (userId) {
+    const count = store.removeByUserId(userId);
+    res.json({ code: 0, message: `已清除 ${count} 条记录` });
+  } else {
+    // 游客：清除所有非登录用户的任务
+    const tasks = store.list().filter(t => !t.userId);
+    let count = 0;
+    for (const t of tasks) {
+      store.removeWithFiles(t.taskId);
+      count++;
+    }
+    res.json({ code: 0, message: `已清除 ${count} 条记录` });
+  }
 }
 
 // TikHub API 简单内存缓存(5分钟 TTL)
