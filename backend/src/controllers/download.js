@@ -609,12 +609,15 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
         });
 
         // ASR 语音转文字
+        console.log(`[ASR-DY] ${taskId} calling handleAsr, filePath=${update.filePath}, asrLang=${asrLanguage}`);
         const result = await handleAsr(taskId, update.filePath, asrLanguage);
+        console.log(`[ASR-DY] ${taskId} handleAsr returned:`, JSON.stringify({hasText: !!result?.text, hasTranslated: !!result?.translatedText, translatedLen: result?.translatedText?.length}));
         if (result?.text) {
           update.asrText = result.text;
           update.asrTxtUrl = result.txtUrl;
         }
         // 翻译（直接调用，不依赖 handleAsr）
+        console.log(`[ASR-DY] ${taskId} task.targetLang=${store.get(taskId)?.targetLang}`);
         const task = store.get(taskId);
         if (task?.targetLang && result?.text) {
           try {
