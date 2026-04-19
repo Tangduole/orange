@@ -1215,10 +1215,11 @@ async function getHistory(req, res) {
     guestIp = req.ip || req.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
   }
 
-  // 过滤任务（游客不做IP过滤，避免动态IP问题）
+  // 过滤任务（游客按 guestIp 过滤）
+  const guestIp = isGuest ? (req.ip || req.headers['x-forwarded-for']?.split(',')[0] || 'unknown') : null;
   const allTasks = store.list().filter(task => {
     if (isGuest) {
-      return !task.userId; // 只返回非登录用户的任务
+      return !task.userId && task.guestIp === guestIp;
     } else {
       return task.userId === userId;
     }
