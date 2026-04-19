@@ -1035,8 +1035,8 @@ export default function App() {
                   )}
                 </>
               ) : (
-                <button onClick={() => setShowAuthModal(true)} className="px-4 py-2 text-sm bg-gradient-to-r from-orange to-orange-light text-white border-0 rounded-lg font-medium shadow-md hover:shadow-lg transition-all">
-                  Login/Register
+                <button onClick={() => setShowAuthModal(true)} className="px-3 sm:px-4 py-2 text-xs sm:text-sm bg-gradient-to-r from-orange to-orange-light text-white border-0 rounded-lg font-medium shadow-md hover:shadow-lg transition-all whitespace-nowrap">
+                  <span className="hidden sm:inline">Login/</span>Register
                 </button>
               )}
             </div>
