@@ -1371,7 +1371,7 @@ function clearHistory(req, res) {
   if (userId) {
     const count = store.removeByUserId(userId);
     // 同时清除数据库历史
-    userDb.db.execute({ sql: 'DELETE FROM download_history WHERE user_id = ?', args: [userId] }).catch(() => {});
+    userDb.clearHistory(userId, null).catch(() => {});
     res.json({ code: 0, message: `已清除 ${count} 条记录` });
   } else {
     // 游客：清除所有非登录用户的任务
@@ -1383,7 +1383,7 @@ function clearHistory(req, res) {
       count++;
     }
     // 同时清除数据库中该游客的历史
-    userDb.db.execute({ sql: 'DELETE FROM download_history WHERE user_id IS NULL AND guest_ip = ?', args: [guestIp] }).catch(() => {});
+    userDb.clearHistory(null, guestIp).catch(() => {});
     res.json({ code: 0, message: `已清除 ${count} 条记录` });
   }
 }
