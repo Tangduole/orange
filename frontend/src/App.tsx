@@ -954,7 +954,7 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen ${isDark ? 'bg-dark-bg text-white' : 'bg-light-bg text-gray-900'}`}>
+    <div className={`min-h-screen ${isDark ? 'bg-dark-bg text-white' : 'bg-light-bg text-light-text'}`}>
       {/* 背景光晕 - 橙色Theme */}
       <div className={`fixed inset-0 pointer-events-none ${isDark ? '' : 'opacity-30'}`}>
         <div className={`absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl ${isDark ? 'bg-orange-500/8' : 'bg-orange-200'}`} />
@@ -969,14 +969,14 @@ export default function App() {
               <span className="text-3xl leading-none">🍊</span>
             </div>
             <div className="text-left">
-              <h1 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>{t('appName')}</h1>
-              <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-gray-500'}`}>{t('appDesc')}</p>
+              <h1 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-light-text'}`}>{t('appName')}</h1>
+              <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-light-textSecondary'}`}>{t('appDesc')}</p>
             </div>
             <div className="ml-auto flex items-center gap-2">
               {/* Theme切换 */}
               <button
                 onClick={toggleTheme}
-                className={`p-2 rounded-lg transition ${isDark ? 'text-slate-300 hover:text-yellow-400' : 'text-gray-500 hover:text-orange-500'}`}
+                className={`p-2 rounded-lg transition ${isDark ? 'text-slate-300 hover:text-yellow-400' : 'text-light-textSecondary hover:text-orange-500'}`}
                 title={isDark ? '切换到Light模式' : '切换到Dark模式'}
               >
                 {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
@@ -985,7 +985,7 @@ export default function App() {
               <div className="relative">
                 <button
                   onClick={() => setShowLangMenu(!showLangMenu)}
-                  className={`px-2 py-1 rounded-lg text-xs font-bold transition ${isDark ? 'text-slate-300 hover:text-orange-400' : 'text-gray-500 hover:text-orange-500'}`}
+                  className={`px-2 py-1 rounded-lg text-xs font-bold transition ${isDark ? 'text-slate-300 hover:text-orange-400' : 'text-light-textSecondary hover:text-orange-500'}`}
                   title={t('language')}
                 >
                   {i18n.language === 'zh-CN' ? 'CH' : 'EN'}
@@ -1009,13 +1009,13 @@ export default function App() {
                 )}
               </div>
               {/* 快捷键Prompt */}
-              <span className={`text-xs hidden sm:inline ${isDark ? 'text-slate-500' : 'text-gray-400'}`} title="Ctrl+V Paste, Ctrl+Enter Download">⌨️</span>
+              <span className={`text-xs hidden sm:inline ${isDark ? 'text-slate-500' : 'text-light-textMuted'}`} title="Ctrl+V Paste, Ctrl+Enter Download">⌨️</span>
               {authToken ? (
                 <>
                   {/* 头像按钮 */}
                   <button 
                     onClick={() => setShowUserMenu(!showUserMenu)}
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold cursor-pointer ${authUser?.tier === 'pro' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50' : isDark ? 'bg-slate-700/50 text-slate-300 border border-slate-600/50' : 'bg-gray-200 text-gray-700 border-gray-300'}`}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold cursor-pointer ${authUser?.tier === 'pro' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50' : isDark ? 'bg-slate-700/50 text-slate-300 border border-slate-600/50' : 'bg-light-input text-light-text border-light-border'}`}
                   >
                     {(authUser?.email || 'U').charAt(0).toUpperCase()}
                   </button>
@@ -1050,30 +1050,30 @@ export default function App() {
                   )}
                 </>
               ) : (
-                <button onClick={() => setShowAuthModal(true)} className={`p-2 rounded-lg transition ${isDark ? 'text-slate-300 hover:text-orange-400' : 'text-gray-500 hover:text-orange-500'}`} title="Login">
+                <button onClick={() => setShowAuthModal(true)} className={`p-2 rounded-lg transition ${isDark ? 'text-slate-300 hover:text-orange-400' : 'text-light-textSecondary hover:text-orange-500'}`} title="Login">
                   <User className="w-4 h-4" />
                 </button>
               )}
             </div>
           </div>
-          <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-gray-500'}`}>{t('tagline')}</p>
+          <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-light-textSecondary'}`}>{t('tagline')}</p>
         </header>
 
         {/* Main Card */}
         <main className="max-w-2xl sm:max-w-3xl lg:max-w-4xl mx-auto px-6 pb-10">
-          <div className={`rounded-2xl p-5 shadow-lg ${isDark ? 'bg-dark-surface' : 'bg-white'}`}>
+          <div className={`rounded-2xl p-5 shadow-lg ${isDark ? 'bg-dark-surface' : 'bg-light-surface'}`}>
 
             {/* 单G/批量 Tab */}
             <div className="flex gap-2 mb-5">
               <button
                 onClick={() => setBatchMode(false)}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${!batchMode ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : isDark ? 'bg-slate-700/30 text-slate-300 border border-transparent' : 'bg-gray-100 text-gray-500 border border-transparent'}`}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${!batchMode ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : isDark ? 'bg-slate-700/30 text-slate-300 border border-transparent' : 'bg-light-input text-light-textSecondary border border-transparent'}`}
               >
                 {t('singleDownload')}
               </button>
               <button
                 onClick={() => setBatchMode(true)}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${batchMode ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : isDark ? 'bg-slate-700/30 text-slate-300 border border-transparent' : 'bg-gray-100 text-gray-500 border border-transparent'}`}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${batchMode ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : isDark ? 'bg-slate-700/30 text-slate-300 border border-transparent' : 'bg-light-input text-light-textSecondary border border-transparent'}`}
               >
                 {t('batchDownload')}
               </button>
@@ -1100,7 +1100,7 @@ export default function App() {
                     onChange={(e) => handleUrlChange(e.target.value)}
                     onPaste={handleSinglePaste}
                     placeholder={t('pasteUrlPlaceholder')}
-                    className={`w-full pl-24 pr-10 py-3 sm:py-4 border-2 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 outline-none text-base transition-all placeholder:text-slate-300 ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                    className={`w-full pl-24 pr-10 py-3 sm:py-4 border-2 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 outline-none text-base transition-all placeholder:text-slate-300 ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-light-surface border-light-border text-light-text'}`}
                   />
                   {/* Clear按钮 - 最右边 */}
                   {url && !loading && (
@@ -1131,7 +1131,7 @@ export default function App() {
                   value={batchUrls}
                   onChange={(e) => handleBatchChange(e.target.value)}
                   placeholder="Paste links (auto-extract) or type one per line：&#10;https://v.douyin.com/xxx&#10;https://x.com/yyy"
-                  className={`w-full h-28 px-4 py-3 border-2 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 text-sm transition-all resize-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white placeholder:text-slate-300' : 'bg-white border-gray-300 text-gray-900 placeholder:text-gray-400'}`}
+                  className={`w-full h-28 px-4 py-3 border-2 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 text-sm transition-all resize-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white placeholder:text-slate-300' : 'bg-light-surface border-light-border text-light-text placeholder:text-light-textMuted'}`}
                 />
                 {/* Link预览列表 - 带数字排序 */}
                 {batchUrls.split('\n').filter(u => u.trim()).length > 0 && (
@@ -1212,7 +1212,7 @@ export default function App() {
                     <select
                       value={asrLanguage}
                       onChange={(e) => setAsrLanguage(e.target.value)}
-                      className={`w-full px-3 py-2 border-2 rounded-xl text-sm outline-none focus:border-orange-500/70 cursor-pointer appearance-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                      className={`w-full px-3 py-2 border-2 rounded-xl text-sm outline-none focus:border-orange-500/70 cursor-pointer appearance-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-light-surface border-light-border text-light-text'}`}
                     >
                       {ASR_LANGUAGE_OPTIONS.map(opt => (
                         <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -1224,7 +1224,7 @@ export default function App() {
                     <select
                       value={targetLang}
                       onChange={(e) => setTargetLang(e.target.value)}
-                      className={`w-full px-3 py-2 border-2 rounded-xl text-sm outline-none focus:border-orange-500/70 cursor-pointer appearance-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                      className={`w-full px-3 py-2 border-2 rounded-xl text-sm outline-none focus:border-orange-500/70 cursor-pointer appearance-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-light-surface border-light-border text-light-text'}`}
                     >
                       {TRANSLATE_OPTIONS.map(opt => (
                         <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -1245,7 +1245,7 @@ export default function App() {
                 <select
                   value={saveLocation}
                   onChange={(e) => handleLocationChange(e.target.value)}
-                  className={`w-full px-4 py-3 border-2 rounded-xl text-sm outline-none focus:border-orange-500/70 cursor-pointer appearance-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-white border-gray-300 text-gray-900'}`}
+                  className={`w-full px-4 py-3 border-2 rounded-xl text-sm outline-none focus:border-orange-500/70 cursor-pointer appearance-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-light-surface border-light-border text-light-text'}`}
                 >
                   <option value="album">📱 Phone Gallery Photos</option>
                   <option value="download">💻 Download Folder Download Folder</option>
@@ -1274,9 +1274,9 @@ export default function App() {
             {/* Batch progress indicator */}
             {/* {t('batchProgress')} */}
             {batchMode && batchQueue.length > 0 && (
-              <div className={`mb-3 rounded-xl border overflow-hidden ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-white border-gray-200'}`}>
-                <div className={`px-4 py-2 border-b flex justify-between items-center ${isDark ? 'border-slate-700/60' : 'border-gray-200'}`}>
-                  <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-gray-600'}`}>
+              <div className={`mb-3 rounded-xl border overflow-hidden ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-light-surface border-light-border'}`}>
+                <div className={`px-4 py-2 border-b flex justify-between items-center ${isDark ? 'border-slate-700/60' : 'border-light-border'}`}>
+                  <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-light-textSecondary'}`}>
                     Batch Queue: {batchQueue.length} items
                   </p>
                   {loading && <span className="text-xs text-orange-400">Processing {batchIndex + 1}/{batchQueue.length}</span>}
@@ -1327,7 +1327,7 @@ export default function App() {
             )}
             {/* RemainingDownloadTimesPrompt */}
             {!isVip && remainingDownloads >= 0 && (
-              <div className={`mb-3 text-center text-xs py-2 rounded-xl ${isDark ? 'bg-slate-800/60 text-slate-300' : 'bg-gray-100 text-gray-500'}`}>
+              <div className={`mb-3 text-center text-xs py-2 rounded-xl ${isDark ? 'bg-slate-800/60 text-slate-300' : 'bg-light-input text-light-textSecondary'}`}>
                 {remainingDownloads === -1 ? t('unlimited') : `${t('downloadsRemaining', { count: remainingDownloads })}`}
                 {remainingDownloads === 0 && <span className="ml-2 text-orange-400">· <button onClick={() => setShowUpgradePopup(true)} className="underline hover:text-orange-300">{t('upgradeToPro')}</button></span>}
               </div>
@@ -1352,41 +1352,41 @@ export default function App() {
 
           {/* 任务状态 */}
           {task && (
-            <div className={`mt-5 backdrop-blur-sm rounded-2xl p-5 border shadow-xl space-y-3 ${isDark ? 'bg-slate-800/60 border-slate-700/60' : 'bg-white border-gray-200'}`}>
+            <div className={`mt-5 backdrop-blur-sm rounded-2xl p-5 border shadow-xl space-y-3 ${isDark ? 'bg-slate-800/60 border-slate-700/60' : 'bg-light-surface border-light-border'}`}>
               <div className="flex items-center justify-between">
-                <h3 className={`text-sm font-semibold flex items-center gap-2 ${isDark ? 'text-slate-500' : 'text-gray-700'}`}>
+                <h3 className={`text-sm font-semibold flex items-center gap-2 ${isDark ? 'text-slate-500' : 'text-light-text'}`}>
                   <Download className="w-4 h-4 text-orange-400" /> {t('downloadProgress')}
                 </h3>
-                <button onClick={() => setTask(null)}><X className={`w-4 h-4 ${isDark ? 'text-slate-300 hover:text-slate-300' : 'text-gray-400 hover:text-gray-600'}`} /></button>
+                <button onClick={() => setTask(null)}><X className={`w-4 h-4 ${isDark ? 'text-slate-300 hover:text-slate-300' : 'text-light-textMuted hover:text-light-textSecondary'}`} /></button>
               </div>
 
               <div className="flex items-center gap-2">
                 {task.status === 'completed' && <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
                 {task.status === 'error' && <XCircle className="w-5 h-5 text-red-400" />}
                 {isWorking(task.status) && <Loader2 className="w-5 h-5 text-orange-400 animate-spin" />}
-                <span className={`text-sm ${isDark ? 'text-slate-500' : 'text-gray-600'}`}>{statusLabel(task.status)}</span>
+                <span className={`text-sm ${isDark ? 'text-slate-500' : 'text-light-textSecondary'}`}>{statusLabel(task.status)}</span>
               </div>
 
               {/* 精细进度条 */}
               {isWorking(task.status) && (
                 <div className="space-y-2">
-                  <div className={`w-full h-2.5 rounded-full overflow-hidden ${isDark ? 'bg-slate-700/50' : 'bg-gray-200'}`}>
+                  <div className={`w-full h-2.5 rounded-full overflow-hidden ${isDark ? 'bg-slate-700/50' : 'bg-light-input'}`}>
                     <div 
                       className="h-full bg-orange-500 rounded-full transition-all duration-500"
                       style={{ width: `${task.progress}%` }}
                     />
                   </div>
-                  <div className={`flex items-center justify-between text-xs ${isDark ? 'text-slate-300' : 'text-gray-500'}`}>
-                    <span className={isDark ? 'text-slate-300' : 'text-gray-600'}>{task.title || 'Parsing...'}</span>
+                  <div className={`flex items-center justify-between text-xs ${isDark ? 'text-slate-300' : 'text-light-textSecondary'}`}>
+                    <span className={isDark ? 'text-slate-300' : 'text-light-textSecondary'}>{task.title || 'Parsing...'}</span>
                     <div className="flex items-center gap-2">
                       {task.downloadedBytes && task.totalBytes ? (
-                        <span className={isDark ? 'text-slate-300' : 'text-gray-500'}>
+                        <span className={isDark ? 'text-slate-300' : 'text-light-textSecondary'}>
                           {formatBytes(task.downloadedBytes)}/{formatBytes(task.totalBytes)}
                         </span>
                       ) : null}
                       <span className="text-orange-400 font-medium">{task.progress}%</span>
                       {task.speed && <span className="text-emerald-400">{task.speed}/s</span>}
-                      {task.eta && <span className={isDark ? 'text-slate-300' : 'text-gray-400'}>Remaining {task.eta}</span>}
+                      {task.eta && <span className={isDark ? 'text-slate-300' : 'text-light-textMuted'}>Remaining {task.eta}</span>}
                     </div>
                   </div>
                 </div>
@@ -1589,8 +1589,8 @@ export default function App() {
           )}
 
           {/* How to Use - 精简版 */}
-          <div className={`mt-5 rounded-2xl px-5 py-3 border ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-gray-100 border-gray-200'}`}>
-            <div className={`flex items-center gap-4 text-xs ${isDark ? 'text-slate-300' : 'text-gray-500'}`}>
+          <div className={`mt-5 rounded-2xl px-5 py-3 border ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-light-input border-light-border'}`}>
+            <div className={`flex items-center gap-4 text-xs ${isDark ? 'text-slate-300' : 'text-light-textSecondary'}`}>
               <span className="flex items-center gap-1"><span className="text-orange-400 font-bold">1</span> Copy link</span>
               <span>→</span>
               <span className="flex items-center gap-1"><span className="text-orange-400 font-bold">2</span> Paste</span>
@@ -1602,7 +1602,7 @@ export default function App() {
           {/* // Download History - Enhanced */}
           <div className="mt-5">
             <button onClick={() => setShowHistory(!showHistory)}
-              className={`w-full flex items-center justify-between px-5 py-3 rounded-2xl border text-sm transition ${isDark ? 'bg-slate-900/60 border-slate-700/60 text-slate-300 hover:text-slate-300' : 'bg-white border-gray-200 text-gray-600 hover:text-gray-900'}`}>
+              className={`w-full flex items-center justify-between px-5 py-3 rounded-2xl border text-sm transition ${isDark ? 'bg-slate-900/60 border-slate-700/60 text-slate-300 hover:text-slate-300' : 'bg-light-surface border-light-border text-light-textSecondary hover:text-light-text'}`}>
               <span className="flex items-center gap-2">
                 <Clock className="w-4 h-4" /> Download History
                 {history.length > 0 && <span className="bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded text-xs">{history.length}</span>}
@@ -1615,15 +1615,15 @@ export default function App() {
               </span>
             </button>
             {showHistory && (
-              <div className={`mt-2 rounded-2xl border overflow-hidden ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-white border-gray-200'}`}>
-                <div className={`flex gap-2 p-3 border-b items-center ${isDark ? 'border-slate-700/30' : 'border-gray-100'}`}>
-                  {filteredHistory.length > 0 && <input type="checkbox" checked={selectedTasks.size === filteredHistory.length} onChange={toggleSelectAll} className={`w-4 h-4 rounded ${isDark ? 'border-slate-600' : 'border-gray-400'}`} />}
+              <div className={`mt-2 rounded-2xl border overflow-hidden ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-light-surface border-light-border'}`}>
+                <div className={`flex gap-2 p-3 border-b items-center ${isDark ? 'border-slate-700/30' : 'border-light-border'}`}>
+                  {filteredHistory.length > 0 && <input type="checkbox" checked={selectedTasks.size === filteredHistory.length} onChange={toggleSelectAll} className={`w-4 h-4 rounded ${isDark ? 'border-slate-600' : 'border-light-border'}`} />}
                   {selectedTasks.size > 0 && <button onClick={deleteSelected} className="px-3 py-1.5 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg text-xs">Delete ({selectedTasks.size})</button>}
                   <div className="flex-1 relative">
-                    <input type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} placeholder="Search..." className={`w-full pl-8 pr-3 py-2 border rounded-lg text-sm placeholder:text-slate-300 ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-gray-50 border-gray-200 text-gray-900'}`} />
+                    <input type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} placeholder="Search..." className={`w-full pl-8 pr-3 py-2 border rounded-lg text-sm placeholder:text-slate-300 ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`} />
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
                   </div>
-                  <select value={historyFilter} onChange={(e) => setHistoryFilter(e.target.value as any)} className={`px-3 py-2 border rounded-lg text-sm ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-gray-50 border-gray-200 text-gray-900'}`}>
+                  <select value={historyFilter} onChange={(e) => setHistoryFilter(e.target.value as any)} className={`px-3 py-2 border rounded-lg text-sm ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`}>
                     <option value="all">All</option>
                     <option value="completed">Done</option>
                     <option value="error">Failed</option>
@@ -1747,7 +1747,7 @@ export default function App() {
         )}
 
         {/* Footer */}
-        <footer className={`text-center py-8 text-xs ${isDark ? 'text-slate-500' : 'text-gray-400'}`}>
+        <footer className={`text-center py-8 text-xs ${isDark ? 'text-slate-500' : 'text-light-textMuted'}`}>
           <p>Orange Downloader v1.0 · For personal use only</p>
         </footer>
         <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} onSuccess={handleAuthSuccess} onForgotPassword={() => { setShowAuthModal(false); setShowResetPwd(true); }} />
