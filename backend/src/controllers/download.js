@@ -478,22 +478,14 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
       store.update(taskId, { status: 'asr', progress: 100 });
 
       try {
-        const audioPath = path.join(
-          path.dirname(result.filePath),
-          `${taskId}.mp3`
-        );
-        await ytdlp.extractAudio(result.filePath, audioPath);
-        const text = await asr.transcribe(audioPath, asrLanguage);
-
-        store.update(taskId, {
-          status: 'completed',
-      width: result.width,
-      height: result.height,
-      quality: result.quality,
-          asrText: text
-        });
-
-        if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath);
+        const asrResult = await handleAsr(taskId, result.filePath, asrLanguage);
+        const update = { status: 'completed', width: result.width, height: result.height, quality: result.quality };
+        if (asrResult?.text) {
+          update.asrText = asrResult.text;
+          update.asrTxtUrl = asrResult.txtUrl;
+          if (asrResult.translatedText) { update.translatedText = asrResult.translatedText; update.translatedTxtUrl = asrResult.translatedTxtUrl; }
+        }
+        store.update(taskId, update);
       } catch (asrError) {
         console.error(`[ASR] ${taskId} failed:`, asrError);
         store.update(taskId, { asrError: asrError.message });
@@ -614,14 +606,15 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
             .run();
         });
 
-        // ASR 转文字
-        const text = await asr.transcribe(audioPath, asrLanguage);
-        update.asrText = text;
-        const txtUrl = saveTextFile(taskId, text, 'subtitle');
-        if (txtUrl) update.asrTxtUrl = txtUrl;
-      } catch (asrError) {
-        console.error(`[ASR] ${taskId} failed:`, asrError);
-        update.asrError = asrError.message;
+        // ASR 语音转文字
+        const result = await handleAsr(taskId, update.filePath, asrLanguage);
+        if (result?.text) {
+          update.asrText = result.text;
+          update.asrTxtUrl = result.txtUrl;
+          if (result.translatedText) { update.translatedText = result.translatedText; update.translatedTxtUrl = result.translatedTxtUrl; }
+        } else {
+          update.asrError = 'ASR failed';
+        }
       }
     }
 
