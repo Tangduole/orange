@@ -20,10 +20,13 @@ export default {
           border: '#3A3A3A',
         },
         light: {
-          bg: '#F5F5F5',
+          bg: '#FAFAF8',
           surface: '#FFFFFF',
-          input: '#EEEEEE',
-          border: '#E0E0E0',
+          input: '#F0EDE8',
+          border: '#D4D0C8',
+          text: '#1A1A1A',
+          textSecondary: '#4A4A4A',
+          textMuted: '#6B6B6B',
         },
       },
       borderRadius: {
