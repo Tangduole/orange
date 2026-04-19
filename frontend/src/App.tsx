@@ -299,8 +299,7 @@ export default function App() {
       }).catch((err) => { 
         // API Failed时不要把Member当GuestProcess，HideTimesPrompt即可
         console.error('[VIP] getSubscriptionStatus failed:', err);
-        setIsVip(false);
-        setRemainingDownloads(-1);
+        setRemainingDownloads(GUEST_DAILY_LIMIT);
       })
     } else {
       setIsVip(false)
