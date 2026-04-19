@@ -13,7 +13,7 @@ import {
   Video, FileText, Image as ImageIcon, Mic, Languages,
   Trash2, ChevronDown, ChevronUp, Clock, Copy, Check,
   X, Zap, AlertCircle, Eraser, FolderOpen, HardDrive, Smartphone,
-  Play, Search, Clipboard, Crown, Sun, Moon, Keyboard,
+  Play, Search, Clipboard, Crown, Sun, Moon, Keyboard, User,
 } from 'lucide-react'
 
 const API = 'https://orange-production-95b9.up.railway.app/api'
@@ -1035,8 +1035,9 @@ export default function App() {
                   )}
                 </>
               ) : (
-                <button onClick={() => setShowAuthModal(true)} className="px-3 sm:px-4 py-2 text-xs sm:text-sm bg-gradient-to-r from-orange to-orange-light text-white border-0 rounded-lg font-medium shadow-md hover:shadow-lg transition-all whitespace-nowrap">
-                  <span className="hidden sm:inline">Login/</span>Register
+                <button onClick={() => setShowAuthModal(true)} className={`p-2 rounded-lg transition ${isDark ? 'text-slate-300 hover:text-orange-400' : 'text-gray-500 hover:text-orange-500'}`} title="Login">
+                  <User className="w-4 h-4" />
+                </button>
                 </button>
               )}
             </div>
