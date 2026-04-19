@@ -109,7 +109,7 @@ const shareFile = async (url: string, title: string, fileType: 'video' | 'audio'
 interface Task {
   taskId: string; status: string; progress: number
   title?: string; platform?: string; thumbnailUrl?: string
-  downloadUrl?: string; audioUrl?: string; asrText?: string; translatedText?: string; copyText?: string
+  downloadUrl?: string; audioUrl?: string; asrText?: string; copyText?: string
   coverUrl?: string; isNote?: boolean
   imageFiles?: Array<{ filename: string; url: string }>
   subtitleFiles?: Array<{ filename: string; url: string }>
@@ -148,14 +148,6 @@ const ASR_LANGUAGE_OPTIONS = [
   { value: 'ja', label: '日本語' },
   { value: 'ko', label: '한국어' },
   { value: 'auto', label: 'Auto检测' },
-]
-
-const TRANSLATE_OPTIONS = [
-  { value: '', label: '不翻译' },
-  { value: 'zh', label: '中文 Chinese' },
-  { value: 'en', label: 'English' },
-  { value: 'ja', label: '日本語 Japanese' },
-  { value: 'ko', label: '한국어 Korean' },
 ]
 
 const QUALITY_OPTIONS = [
@@ -201,7 +193,6 @@ export default function App() {
   const [batchMode, setBatchMode] = useState(false)
   const [quality, setQuality] = useState('')
   const [asrLanguage, setAsrLanguage] = useState('zh')
-  const [targetLang, setTargetLang] = useState('')
   const [availableQualities, setAvailableQualities] = useState<Array<{quality: string, format: string, width: number, height: number, hasVideo: boolean, hasAudio: boolean}>>([])
   const [showQualityPicker, setShowQualityPicker] = useState(false)
   const [pendingUrl, setPendingUrl] = useState('')
@@ -487,7 +478,7 @@ export default function App() {
           showDownloadComplete(`start-${Date.now()}`, nextUrl, false).catch(console.error)
           axios.post(`${API}/download`, {
             url: nextUrl, platform: detectPlatform(nextUrl) || 'auto',
-            needAsr: selected.has('asr'), options: [...selected], quality, asrLanguage, targetLang,
+            needAsr: selected.has('asr'), options: [...selected], quality, asrLanguage,
           }, { timeout: 180000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} }).then(r => {
             setTask(r.data.data)
           }).catch((e) => {
@@ -800,7 +791,7 @@ export default function App() {
       const detectedFirst = detectPlatform(urls[0])
       const r = await axios.post(`${API}/download`, {
         url: urls[0], platform: detectedFirst || 'auto',
-        needAsr: selected.has('asr'), options: [...selected], quality, asrLanguage, targetLang,
+        needAsr: selected.has('asr'), options: [...selected], quality, asrLanguage,
       }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} })
       setTask(r.data.data)
     } catch (e: any) {
@@ -847,7 +838,7 @@ export default function App() {
       const downloadQuality = isVip ? quality : (quality || 'height<=720')
       const r = await axios.post(`${API}/download`, {
         url: url.trim(), platform: detected || 'auto',
-        needAsr: selected.has('asr'), options: [...selected], quality: downloadQuality, asrLanguage, targetLang,
+        needAsr: selected.has('asr'), options: [...selected], quality: downloadQuality, asrLanguage,
       }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} })
       setTask(r.data.data); setDetected('')
     } catch (e: any) {
@@ -1690,7 +1681,7 @@ export default function App() {
                         setLoading(true)
                         axios.post(`${API}/download`, {
                           url: pendingUrl, platform: detected || 'auto',
-                          needAsr: selected.has('asr'), options: [...selected], quality: qParam, asrLanguage, targetLang,
+                          needAsr: selected.has('asr'), options: [...selected], quality: qParam, asrLanguage,
                         }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} }).then(r => {
                           setTask(r.data.data)
                           setDetected('')
