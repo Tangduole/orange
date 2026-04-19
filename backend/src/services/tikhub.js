@@ -429,6 +429,8 @@ async function parseDouyin(url, taskId, onProgress, quality = null) {
   
   // 收集所有可用画质源
   const candidates = [];
+  let selectedWidth = 0;
+  let selectedHeight = 0;
   
   // 1. H.265 源（可能有更高分辨率如 2K）
   if (playAddr265Url) {

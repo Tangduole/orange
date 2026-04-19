@@ -1216,7 +1216,6 @@ async function getHistory(req, res) {
   }
 
   // 过滤任务（游客按 guestIp 过滤）
-  const guestIp = isGuest ? (req.ip || req.headers['x-forwarded-for']?.split(',')[0] || 'unknown') : null;
   const allTasks = store.list().filter(task => {
     if (isGuest) {
       return !task.userId && task.guestIp === guestIp;
