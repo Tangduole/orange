@@ -613,9 +613,22 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
         if (result?.text) {
           update.asrText = result.text;
           update.asrTxtUrl = result.txtUrl;
-          if (result.translatedText) { update.translatedText = result.translatedText; update.translatedTxtUrl = result.translatedTxtUrl; }
-        } else {
-          update.asrError = 'ASR failed';
+        }
+        // 翻译（直接调用，不依赖 handleAsr）
+        const task = store.get(taskId);
+        if (task?.targetLang && result?.text) {
+          try {
+            console.log(`[ASR] ${taskId} translating ${asrLanguage} -> ${task.targetLang}`);
+            const asr = require('../services/asr');
+            const translated = await asr.translateText(result.text, asrLanguage === 'auto' ? 'zh' : asrLanguage, task.targetLang);
+            if (translated) {
+              update.translatedText = translated;
+              update.translatedTxtUrl = saveTextFile(taskId, translated, 'translation');
+              console.log(`[ASR] ${taskId} translation done, len=${translated.length}`);
+            }
+          } catch (e) {
+            console.error(`[ASR] ${taskId} translation failed:`, e.message);
+          }
         }
       }
     }
