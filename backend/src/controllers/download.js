@@ -1372,6 +1372,17 @@ async function getAdminStats(req, res) {
     }
   });
 }
+
+async function adminClearAllHistory(req, res) {
+  const userDb = require('../userDb');
+  try {
+    await userDb.db.execute('DELETE FROM download_history');
+    store.list().forEach(t => store.removeWithFiles(t.taskId));
+    res.json({ code: 0, message: 'All history cleared' });
+  } catch (e) {
+    res.json({ code: 500, message: e.message });
+  }
+}
 function clearHistory(req, res) {
   const userId = req.user?.id;
   const userDb = require('../userDb');
@@ -1611,6 +1622,7 @@ module.exports = {
   getAdminStats,
   deleteTask,
   clearHistory,
+  adminClearAllHistory,
   detectPlatform,
   getVideoInfo
 };

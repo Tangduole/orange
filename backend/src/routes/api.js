@@ -15,6 +15,7 @@ const {
   getAdminStats,
   deleteTask,
   clearHistory,
+  adminClearAllHistory,
   getVideoInfo
 } = require('../controllers/download');
 
@@ -40,6 +41,7 @@ router.get('/history', getHistory);
 // 删除任务
 router.delete('/tasks/:taskId', auth.required, deleteTask);
 router.delete('/history', auth.optional, clearHistory);
+router.delete('/history/all', adminClearAllHistory);
 
 // 系统状态
 router.get('/system/status', getSystemStatus);
