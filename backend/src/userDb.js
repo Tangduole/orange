@@ -607,6 +607,14 @@ const userDb = {
       args
     });
     return result.rows;
+  },
+
+  async clearHistory(userId, guestIp) {
+    if (userId) {
+      await db.execute({ sql: 'DELETE FROM download_history WHERE user_id = ?', args: [userId] });
+    } else if (guestIp) {
+      await db.execute({ sql: 'DELETE FROM download_history WHERE user_id IS NULL AND guest_ip = ?', args: [guestIp] });
+    }
   }
 };
 
