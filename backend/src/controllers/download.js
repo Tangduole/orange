@@ -309,6 +309,7 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
     // 翻译(如果指定了目标语言)
     const task = store.get(taskId);
     const tLang = targetLang || task?.targetLang;
+    console.log(`[ASR] ${taskId} targetLang=${targetLang}, task.targetLang=${task?.targetLang}, tLang=${tLang}`);
     let translatedText = null;
     if (tLang && text) {
       try {
