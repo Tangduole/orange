@@ -609,6 +609,10 @@ const userDb = {
     return result.rows;
   },
 
+  async clearAllHistory() {
+    await db.execute("DELETE FROM download_history");
+  },
+
   async clearHistory(userId, guestIp) {
     if (userId) {
       await db.execute({ sql: 'DELETE FROM download_history WHERE user_id = ?', args: [userId] });

@@ -1376,7 +1376,7 @@ async function getAdminStats(req, res) {
 async function adminClearAllHistory(req, res) {
   const userDb = require('../userDb');
   try {
-    await userDb.db.execute('DELETE FROM download_history');
+    await userDb.clearAllHistory();
     store.list().forEach(t => store.removeWithFiles(t.taskId));
     res.json({ code: 0, message: 'All history cleared' });
   } catch (e) {
