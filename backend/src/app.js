@@ -19,6 +19,22 @@ if (!fs.existsSync(path.join(backend, 'downloads'))) {
   fs.mkdirSync(path.join(backend, 'downloads'), { recursive: true });
 }
 
+
+// 从环境变量写入 YouTube cookies
+if (process.env.YT_COOKIES_B64) {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const cookiesDir = path.join(__dirname, '..', 'data');
+    if (!fs.existsSync(cookiesDir)) fs.mkdirSync(cookiesDir, { recursive: true });
+    const cookiesPath = path.join(cookiesDir, 'youtube_cookies.txt');
+    fs.writeFileSync(cookiesPath, Buffer.from(process.env.YT_COOKIES_B64, 'base64').toString('utf-8'));
+    console.log('[startup] YouTube cookies written from env var');
+  } catch (e) {
+    console.error('[startup] Failed to write cookies:', e.message);
+  }
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
