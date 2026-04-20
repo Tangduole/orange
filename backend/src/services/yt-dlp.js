@@ -49,6 +49,12 @@ function download(url, taskId, onProgress, quality = null) {
     
     // YouTube 专用参数
     if (/youtube\.com|youtu\.be/i.test(url)) {
+      // 检查是否有 cookies 文件
+      const cookiesPath = path.join(__dirname, '../../data/youtube_cookies.txt');
+      if (fs.existsSync(cookiesPath)) {
+        args.push('--cookies', cookiesPath);
+        console.log('[yt-dlp] Using YouTube cookies');
+      }
       args.push('--extractor-args', 'youtube:player_client=android');
     }
     
@@ -312,6 +318,12 @@ function downloadAudio(url, taskId, onProgress) {
 
     // YouTube 专用参数
     if (/youtube\.com|youtu\.be/i.test(url)) {
+      // 检查是否有 cookies 文件
+      const cookiesPath = path.join(__dirname, '../../data/youtube_cookies.txt');
+      if (fs.existsSync(cookiesPath)) {
+        args.push('--cookies', cookiesPath);
+        console.log('[yt-dlp] Using YouTube cookies');
+      }
       args.push('--extractor-args', 'youtube:player_client=android');
     }
 

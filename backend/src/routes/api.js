@@ -58,4 +58,18 @@ router.get('/health', (req, res) => {
   });
 });
 
+
+// YouTube Cookies 上传（管理员）
+const multer = require('multer');
+const cookiesUpload = multer({ dest: '/tmp/' });
+router.post('/admin/cookies', cookiesUpload.single('cookies'), (req, res) => {
+  if (!req.file) return res.json({ code: 400, message: 'No file' });
+  const fs = require('fs');
+  const destPath = require('path').join(__dirname, '../../data/youtube_cookies.txt');
+  fs.mkdirSync(require('path').dirname(destPath), { recursive: true });
+  fs.copyFileSync(req.file.path, destPath);
+  fs.unlinkSync(req.file.path);
+  res.json({ code: 0, message: 'Cookies uploaded successfully' });
+});
+
 module.exports = router;
