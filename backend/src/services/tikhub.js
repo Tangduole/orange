@@ -23,6 +23,7 @@ const API_KEY_INSTAGRAM = process.env.TIKHUB_API_KEY_INSTAGRAM;
 if (!API_KEY_XHS) console.warn('[tikhub] TIKHUB_API_KEY_XHS not set');
 if (!API_KEY_YT) console.warn('[tikhub] TIKHUB_API_KEY_YT not set');
 if (!API_KEY_DOUYIN) console.warn('[tikhub] TIKHUB_API_KEY_DOUYIN not set');
+if (!API_KEY_INSTAGRAM) console.warn('[tikhub] TIKHUB_API_KEY_INSTAGRAM not set');
 
 const API_KEY = API_KEY_XHS; // Default to XHS key
 const API_BASE = 'https://api.tikhub.io';
@@ -636,4 +637,4 @@ async function parseInstagram(url) {
   };
 }
 
-module.exports = { parseYouTube, parseXiaohongshu, parseDouyin, tikhubRequest, downloadFile };
+module.exports = { parseYouTube, parseXiaohongshu, parseDouyin, parseInstagram, tikhubRequest, downloadFile };
