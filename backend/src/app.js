@@ -106,6 +106,7 @@ app.get('/admin', (req, res) => {
   try {
     const html = fs.readFileSync(path.join(__dirname, 'admin.html'), 'utf-8');
     res.setHeader('Content-Type', 'text/html');
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.send(html);
   } catch (e) {
     res.status(500).send('admin.html not found: ' + e.message);
