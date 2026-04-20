@@ -743,7 +743,7 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
     // 保存用户请求的画质参数
     store.update(taskId, { requestedQuality: quality });
 
-    // ========== 方案2: TikHub API 兜底（画质受限）==========
+    // ========== TikHub API 兜底（画质受限）==========
     try {
       const API_KEY_YT = process.env.TIKHUB_API_KEY_YT;
       const { data } = await axios.get(
@@ -751,7 +751,7 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
         { headers: { Authorization: `Bearer ${API_KEY_YT}` }, timeout: 30000 }
       );
 
-      if (data.code === 200) {
+      if (false && data.code === 200) { // 跳过TikHub，用yt-dlp+cookies
         const videoData = data.data;
         const title = videoData.title || 'YouTube Video';
         const videos = videoData.videos?.items || [];
@@ -878,7 +878,7 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
       console.log(`[task] ${taskId} TikHub failed: ${tikhubErr.message}, trying yt-dlp...`);
     }
 
-    // ========== 方案1: yt-dlp 直接下载（优先）==========
+    // ========== yt-dlp 直接下载（优先，有cookies支持）==========
     console.log(`[task] ${taskId} using yt-dlp fallback for YouTube`);
     const outputPath = path.join(__dirname, '../../downloads', `${taskId}.mp4`);
 
