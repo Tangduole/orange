@@ -53,6 +53,7 @@ function download(url, taskId, onProgress, quality = null) {
       const cookiesPath = path.join(__dirname, '../../data/youtube_cookies.txt');
       if (fs.existsSync(cookiesPath)) {
         args.push('--cookies', cookiesPath);
+        console.log('[yt-dlp] Using YouTube cookies:', cookiesPath);
         console.log('[yt-dlp] Using YouTube cookies');
       }
       args.push('--extractor-args', 'youtube:player_client=android');
@@ -222,6 +223,7 @@ function getInfo(url) {
       const cookiesPath = path.join(__dirname, '../../data/youtube_cookies.txt');
       if (fs.existsSync(cookiesPath)) {
         args.push('--cookies', cookiesPath);
+        console.log('[yt-dlp] Using YouTube cookies:', cookiesPath);
       }
     }
 
@@ -331,6 +333,7 @@ function downloadAudio(url, taskId, onProgress) {
       const cookiesPath = path.join(__dirname, '../../data/youtube_cookies.txt');
       if (fs.existsSync(cookiesPath)) {
         args.push('--cookies', cookiesPath);
+        console.log('[yt-dlp] Using YouTube cookies:', cookiesPath);
         console.log('[yt-dlp] Using YouTube cookies');
       }
       args.push('--extractor-args', 'youtube:player_client=android');
