@@ -1444,10 +1444,11 @@ async function getVideoInfo(req, res) {
       const ytUrl = `https://api.tikhub.io/api/v1/youtube/web/get_video_info?video_id=${videoIdMatch[1]}&need_format=true`;
 
       // 使用缓存避免重复请求 TikHub API
-      const data = await getCachedInfo(`yt:${videoIdMatch[1]}`, async () => {
+      const resp = await getCachedInfo(`yt:${videoIdMatch[1]}`, async () => {
         const response = await axios.get(ytUrl, { headers: { Authorization: `Bearer ${API_KEY_YT}` }, timeout: 30000 });
         return response.data;
       });
+      const data = resp.data || resp; // TikHub 返回 {code, data:{...}} 结构
 
       const videos = data.videos?.items || [];
       const qualities = videos
