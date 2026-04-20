@@ -77,4 +77,34 @@ router.post('/admin/cookies', cookiesUpload.single('cookies'), (req, res) => {
   }
 });
 
+
+// Debug: 检查 cookies 文件
+router.get('/admin/cookies-debug', (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+  
+  // 检查多个可能的路径
+  const paths = [
+    path.join(__dirname, '../../data/youtube_cookies.txt'),
+    path.join(process.cwd(), 'data/youtube_cookies.txt'),
+    '/app/data/youtube_cookies.txt',
+    '/app/backend/data/youtube_cookies.txt'
+  ];
+  
+  const results = {};
+  for (const p of paths) {
+    try {
+      const exists = fs.existsSync(p);
+      const size = exists ? fs.statSync(p).size : 0;
+      const firstLine = exists ? fs.readFileSync(p, 'utf-8').split('
+')[0] : '';
+      results[p] = { exists, size, firstLine };
+    } catch (e) {
+      results[p] = { error: e.message };
+    }
+  }
+  
+  res.json({ code: 0, data: { __dirname, cwd: process.cwd(), results } });
+});
+
 module.exports = router;
