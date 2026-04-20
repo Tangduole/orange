@@ -1210,18 +1210,6 @@ export default function App() {
                       ))}
                     </select>
                   </div>
-                  <div>
-                    <label className="text-xs text-slate-300 mb-1 block">Translate To 翻译成</label>
-                    <select
-                      value={targetLang}
-                      onChange={(e) => setTargetLang(e.target.value)}
-                      className={`w-full px-3 py-2 border-2 rounded-xl text-sm outline-none focus:border-orange-500/70 cursor-pointer appearance-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-light-surface border-light-border text-light-text'}`}
-                    >
-                      {TRANSLATE_OPTIONS.map(opt => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                      ))}
-                    </select>
-                  </div>
                 </div>
               )}
             </div>
