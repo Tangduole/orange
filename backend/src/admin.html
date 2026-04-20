@@ -168,31 +168,21 @@
       try {
         const r = await fetch(API + '/admin/stats');
         const d = (await r.json()).data;
-        
         document.getElementById('totalUsers').textContent = d.users.total;
         document.getElementById('vipUsers').textContent = d.users.vip;
         document.getElementById('todayDownloads').textContent = d.downloads.today;
         document.getElementById('weekDownloads').textContent = d.downloads.week;
         document.getElementById('totalDownloads').textContent = d.downloads.total;
         document.getElementById('activeTasks').textContent = d.memory.activeTasks;
-        
-        // Platform bars
         const platforms = d.platforms || {};
         const maxCount = Math.max(...Object.values(platforms), 1);
         const container = document.getElementById('platformBars');
         container.innerHTML = '';
         for (const [name, count] of Object.entries(platforms).sort((a,b) => b[1]-a[1])) {
           const pct = (count / maxCount * 100).toFixed(0);
-          container.innerHTML += `
-            <div class="platform-bar">
-              <span class="platform-name">${name}</span>
-              <div class="platform-fill"><div class="platform-fill-inner" style="width:${pct}%"></div></div>
-              <span class="platform-count">${count}</span>
-            </div>`;
+          container.innerHTML += '<div class="platform-bar"><span class="platform-name">' + name + '</span><div class="platform-fill"><div class="platform-fill-inner" style="width:' + pct + '%"></div></div><span class="platform-count">' + count + '</span></div>';
         }
-      } catch (e) {
-        console.error('Failed to load stats:', e);
-      }
+      } catch (e) { console.error('Failed to load stats:', e); }
     }
 
     async function grantVip() {
@@ -200,68 +190,42 @@
       const email = document.getElementById('email').value;
       const days = parseInt(document.getElementById('days').value);
       const result = document.getElementById('vipResult');
-      
-      if (!key || !email || !days) {
-        result.className = 'result error';
-        result.textContent = '❌ Please fill all fields';
-        return;
-      }
-      
+      if (!key || !email || !days) { result.className = 'result error'; result.textContent = '❌ Please fill all fields'; return; }
       try {
         const r = await fetch(API + '/subscribe/admin/grant-vip', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key },
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key },
           body: JSON.stringify({ email, days })
         });
         const data = await r.json();
-        
         if (r.ok && data.code === 0) {
-          result.className = 'result success';
-          result.textContent = '✅ VIP granted to ' + email + ' for ' + days + ' days';
-      
+          result.className = 'result success'; result.textContent = '✅ VIP granted!';
+        } else {
+          result.className = 'result error'; result.textContent = '❌ ' + (data.message || 'Failed');
+        }
+      } catch (e) { result.className = 'result error'; result.textContent = '❌ Network error'; }
+    }
+
     async function uploadCookies() {
-      const file = document.getElementById('cookiesFile').files[0];
+      const fileInput = document.getElementById('cookiesFile');
+      const file = fileInput.files[0];
       const result = document.getElementById('cookiesResult');
-      const btn = event.target;
-      if (!file) { result.className = 'result error'; result.textContent = '❌ Select a file first'; result.style.display = 'block'; return; }
-      btn.disabled = true;
-      btn.textContent = 'Uploading...';
-      result.className = 'result';
-      result.textContent = 'Uploading ' + file.name + ' (' + (file.size/1024).toFixed(1) + 'KB)...';
-      result.style.display = 'block';
+      if (!file) { result.className = 'result error'; result.textContent = '❌ Select a file first'; return; }
+      result.className = 'result'; result.textContent = 'Uploading...'; result.style.display = 'block';
       const formData = new FormData();
       formData.append('cookies', file);
       try {
         const r = await fetch(API + '/admin/cookies', { method: 'POST', body: formData });
         const data = await r.json();
         if (data.code === 0) {
-          result.className = 'result success';
-          result.textContent = '✅ Cookies uploaded! YouTube high quality enabled.';
+          result.className = 'result success'; result.textContent = '✅ Cookies uploaded!';
         } else {
-          result.className = 'result error';
-          result.textContent = '❌ ' + (data.message || 'Upload failed');
+          result.className = 'result error'; result.textContent = '❌ ' + (data.message || 'Failed');
         }
-      } catch (e) {
-        result.className = 'result error';
-        result.textContent = '❌ Network error: ' + e.message;
-      }
-      btn.disabled = false;
-      btn.textContent = 'Upload Cookies';
-    }
-    loadStats();
-        } else {
-          result.className = 'result error';
-          result.textContent = '❌ ' + (data.message || 'Failed');
-        }
-      } catch (e) {
-        result.className = 'result error';
-        result.textContent = '❌ Network error';
-      }
+      } catch (e) { result.className = 'result error'; result.textContent = '❌ Error: ' + e.message; }
     }
 
-
     loadStats();
-    setInterval(loadStats, 30000); // Auto refresh every 30s
+    setInterval(loadStats, 30000);
   </script>
 </body>
 </html>
