@@ -215,8 +215,17 @@ function getInfo(url) {
     const args = [
       '--dump-json',
       '--no-warnings',
-      url
     ];
+
+    // YouTube 使用 cookies
+    if (/youtube\.com|youtu\.be/i.test(url)) {
+      const cookiesPath = path.join(__dirname, '../../data/youtube_cookies.txt');
+      if (fs.existsSync(cookiesPath)) {
+        args.push('--cookies', cookiesPath);
+      }
+    }
+
+    args.push(url);
 
     let stdout = '';
     let stderr = '';
