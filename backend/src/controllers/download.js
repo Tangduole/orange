@@ -751,7 +751,7 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
         { headers: { Authorization: `Bearer ${API_KEY_YT}` }, timeout: 30000 }
       );
 
-      if (data.code === 200 && false) { // 跳过TikHub下载，画质不可靠
+      if (data.code === 200) {
         const videoData = data.data;
         const title = videoData.title || 'YouTube Video';
         const videos = videoData.videos?.items || [];
