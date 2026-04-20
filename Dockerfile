@@ -39,6 +39,7 @@ WORKDIR /app
 
 # Copy backend source
 COPY backend/src ./backend/src
+COPY data/youtube_cookies.txt ./backend/data/youtube_cookies.txt
 
 # Copy built frontend
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
