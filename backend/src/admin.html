@@ -222,7 +222,13 @@
     async function uploadCookies() {
       const file = document.getElementById('cookiesFile').files[0];
       const result = document.getElementById('cookiesResult');
-      if (!file) { result.className = 'result error'; result.textContent = '❌ Select a file'; return; }
+      const btn = event.target;
+      if (!file) { result.className = 'result error'; result.textContent = '❌ Select a file first'; result.style.display = 'block'; return; }
+      btn.disabled = true;
+      btn.textContent = 'Uploading...';
+      result.className = 'result';
+      result.textContent = 'Uploading ' + file.name + ' (' + (file.size/1024).toFixed(1) + 'KB)...';
+      result.style.display = 'block';
       const formData = new FormData();
       formData.append('cookies', file);
       try {
@@ -233,12 +239,14 @@
           result.textContent = '✅ Cookies uploaded! YouTube high quality enabled.';
         } else {
           result.className = 'result error';
-          result.textContent = '❌ ' + (data.message || 'Failed');
+          result.textContent = '❌ ' + (data.message || 'Upload failed');
         }
       } catch (e) {
         result.className = 'result error';
-        result.textContent = '❌ Upload failed';
+        result.textContent = '❌ Network error: ' + e.message;
       }
+      btn.disabled = false;
+      btn.textContent = 'Upload Cookies';
     }
     loadStats();
         } else {
