@@ -106,4 +106,15 @@ router.get('/admin/cookies-debug', (req, res) => {
   res.json({ code: 0, data: { __dirname, cwd: process.cwd(), results } });
 });
 
+
+router.get('/admin/env-debug', (req, res) => {
+  const vars = ['TIKHUB_API_KEY_INSTAGRAM', 'TIKHUB_API_KEY_DOUYIN', 'TIKHUB_API_KEY_YT', 'CLOUDFLARE_ACCOUNT_ID'];
+  const result = {};
+  for (const v of vars) {
+    const val = process.env[v];
+    result[v] = val ? 'SET (' + val.length + ' chars)' : 'NOT SET';
+  }
+  res.json({ code: 0, data: result });
+});
+
 module.exports = router;
