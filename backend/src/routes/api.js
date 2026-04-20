@@ -96,8 +96,7 @@ router.get('/admin/cookies-debug', (req, res) => {
     try {
       const exists = fs.existsSync(p);
       const size = exists ? fs.statSync(p).size : 0;
-      const firstLine = exists ? fs.readFileSync(p, 'utf-8').split('
-')[0] : '';
+      const firstLine = exists ? fs.readFileSync(p, 'utf-8').split(String.fromCharCode(10))[0] : '';
       results[p] = { exists, size, firstLine };
     } catch (e) {
       results[p] = { error: e.message };
