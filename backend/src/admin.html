@@ -252,27 +252,6 @@
     }
 
 
-    async function uploadCookies() {
-      const file = document.getElementById('cookiesFile').files[0];
-      const result = document.getElementById('cookiesResult');
-      if (!file) { result.className = 'result error'; result.textContent = '❌ Select a file'; return; }
-      const formData = new FormData();
-      formData.append('cookies', file);
-      try {
-        const r = await fetch(API + '/admin/cookies', { method: 'POST', body: formData });
-        const data = await r.json();
-        if (data.code === 0) {
-          result.className = 'result success';
-          result.textContent = '✅ Cookies uploaded! YouTube high quality enabled.';
-        } else {
-          result.className = 'result error';
-          result.textContent = '❌ ' + (data.message || 'Failed');
-        }
-      } catch (e) {
-        result.className = 'result error';
-        result.textContent = '❌ Upload failed';
-      }
-    }
     loadStats();
     setInterval(loadStats, 30000); // Auto refresh every 30s
   </script>
