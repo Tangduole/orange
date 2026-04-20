@@ -17,6 +17,7 @@ if (fs.existsSync(envPath)) {
 const API_KEY_XHS = process.env.TIKHUB_API_KEY_XHS;
 const API_KEY_YT = process.env.TIKHUB_API_KEY_YT;
 const API_KEY_DOUYIN = process.env.TIKHUB_API_KEY_DOUYIN;
+const API_KEY_INSTAGRAM = process.env.TIKHUB_API_KEY_INSTAGRAM;
 
 // 记录警告（不抛错，让服务能启动）
 if (!API_KEY_XHS) console.warn('[tikhub] TIKHUB_API_KEY_XHS not set');
@@ -610,6 +611,29 @@ async function downloadFile(url, outputPath, onProgress, headers = {}) {
       reject(err);
     });
   });
+}
+
+
+async function parseInstagram(url) {
+  if (!API_KEY_INSTAGRAM) throw new Error('TikHub Instagram API key not configured');
+  
+  const response = await tikhubRequest(
+    '/api/v1/instagram/v1/fetch_post_by_url?post_url=' + encodeURIComponent(url),
+    API_KEY_INSTAGRAM
+  );
+  
+  const data = response.data || response;
+  const videoUrl = data.video_url;
+  if (!videoUrl) throw new Error('No video URL found');
+  
+  return {
+    title: (data.caption?.text || data.shortcode || 'Instagram Video').substring(0, 200),
+    videoUrl,
+    width: data.dimensions?.width || 0,
+    height: data.dimensions?.height || 0,
+    duration: data.video_duration || 0,
+    thumbnailUrl: data.display_url || data.thumbnail_src || ''
+  };
 }
 
 module.exports = { parseYouTube, parseXiaohongshu, parseDouyin, tikhubRequest, downloadFile };

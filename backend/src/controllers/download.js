@@ -224,6 +224,15 @@ async function createDownload(req, res) {
       return res.json({ code: 0, data: { taskId, status: 'error', platform: 'kuaishou', message: '快手平台暂不支持' } });
     }
 
+    // Instagram 链接:走 TikHub API
+    if (/instagram\.com|instagr\.am/i.test(url)) {
+      processInstagram(taskId, url, wantsAsr, normalizedOptions).catch(err => {
+        console.error(`[task] ${taskId} instagram failed:`, err);
+        store.update(taskId, { status: 'error', progress: 0, error: err.message });
+      });
+      return res.json({ code: 0, data: { taskId, status: 'pending', platform: 'instagram' } });
+    }
+
     // Bilibili 链接:走 yt-dlp(待完善)
     if (/bilibili\.com|b23\.tv/i.test(url)) {
       processDownload(taskId, url, wantsAsr, normalizedOptions, quality).catch(err => {
@@ -1108,6 +1117,44 @@ async function processXiaohongshu(taskId, url, needAsr, options = ['video']) {
     console.log(`[task] ${taskId} xiaohongshu completed`);
   } catch (error) {
     console.error(`[task] ${taskId} xiaohongshu failed:`, error);
+    store.update(taskId, { status: 'error', error: error.message });
+  }
+}
+
+/**
+ * 处理 Instagram 下载（TikHub API）
+ */
+async function processInstagram(taskId, url, needAsr, options = ['video']) {
+  try {
+    const { parseInstagram } = require('../services/tikhub');
+    store.update(taskId, { status: 'parsing', progress: 10 });
+
+    const info = await parseInstagram(url);
+    store.update(taskId, { title: info.title, thumbnailUrl: info.thumbnailUrl, progress: 20 });
+
+    // 下载视频
+    const outputPath = path.join(__dirname, '../../downloads', `${taskId}.mp4`);
+    store.update(taskId, { status: 'downloading', progress: 30 });
+
+    await downloadToStream(info.videoUrl, outputPath, 120000);
+
+    const update = {
+      status: 'completed',
+      width: info.width,
+      height: info.height,
+      quality: `${info.width}x${info.height}`,
+      progress: 100,
+      title: info.title,
+      thumbnailUrl: info.thumbnailUrl,
+      downloadUrl: `/download/${taskId}.mp4`,
+      filePath: outputPath,
+      ext: 'mp4'
+    };
+
+    store.update(taskId, update);
+    console.log(`[task] ${taskId} instagram completed`);
+  } catch (error) {
+    console.error(`[task] ${taskId} instagram failed:`, error);
     store.update(taskId, { status: 'error', error: error.message });
   }
 }
