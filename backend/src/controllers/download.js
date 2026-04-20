@@ -22,6 +22,27 @@ const axios = require('axios');
 const API_KEY_DOUYIN = process.env.TIKHUB_API_KEY_DOUYIN;
 
 /**
+ * 立即保存下载历史到数据库（不依赖 /status 调用）
+ */
+function saveHistory(taskId) {
+  const task = store.get(taskId);
+  if (!task || task.historySaved) return;
+  try {
+    const userDb = require('../userDb');
+    userDb.addHistory({
+      userId: task.userId,
+      guestIp: task.guestIp,
+      taskId: task.taskId,
+      url: task.url,
+      platform: task.platform,
+      title: task.title,
+      thumbnailUrl: task.thumbnailUrl,
+      duration: task.duration
+    }).then(() => store.update(taskId, { historySaved: true })).catch(e => console.error('[history] save failed:', e.message));
+  } catch (e) { console.error('[history]', e.message); }
+}
+
+/**
  * 流式下载文件到磁盘(避免 OOM)
  */
 async function downloadToStream(url, destPath, timeout = 120000) {
@@ -503,6 +524,7 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
       }
     }
 
+    saveHistory(taskId);
     console.log(`[task] ${taskId} completed`);
   } catch (error) {
     console.error(`[task] ${taskId} failed:`, error);
@@ -643,6 +665,7 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
     }
 
     store.update(taskId, update);
+    saveHistory(taskId);
     console.log(`[task] ${taskId} douyin completed`);
   } catch (error) {
     console.error(`[task] ${taskId} douyin failed:`, error);
@@ -716,6 +739,7 @@ async function processX(taskId, url, needAsr, options = ['video']) {
       if (result?.text) { const upd = { status: "completed", asrText: result.text, asrTxtUrl: result.txtUrl }; if (result.translatedText) { upd.translatedText = result.translatedText; upd.translatedTxtUrl = result.translatedTxtUrl; } store.update(taskId, upd); }
     }
 
+    saveHistory(taskId);
     console.log(`[task] ${taskId} x completed`);
   } catch (error) {
     console.error(`[task] ${taskId} x failed:`, error);
@@ -854,6 +878,7 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
               filePath: outputPath,
               ext: 'mp4'
             });
+            saveHistory(taskId);
             console.log(`[task] ${taskId} youtube completed via TikHub with audio merge`);
             return;
           }
@@ -875,6 +900,7 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
               filePath: videoPath,
               ext: finalVideo.extension || 'mp4'
             });
+            saveHistory(taskId);
             console.log(`[task] ${taskId} youtube completed via TikHub (proxied)`);
             return;
           } catch (downloadErr) {
@@ -925,6 +951,7 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
       ext: actualExt
     });
 
+    saveHistory(taskId);
     console.log(`[task] ${taskId} youtube completed via yt-dlp`);
   } catch (error) {
     console.error(`[task] ${taskId} youtube failed:`, error);
@@ -1066,6 +1093,7 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
       if (result?.text) { const upd = { status: "completed", asrText: result.text, asrTxtUrl: result.txtUrl }; if (result.translatedText) { upd.translatedText = result.translatedText; upd.translatedTxtUrl = result.translatedTxtUrl; } store.update(taskId, upd); }
     }
 
+    saveHistory(taskId);
     console.log('[task] ' + taskId + ' tiktok completed');
   } catch (error) {
     console.error('[task] ' + taskId + ' tiktok failed:', error);
@@ -1114,6 +1142,7 @@ async function processXiaohongshu(taskId, url, needAsr, options = ['video']) {
     }
 
     store.update(taskId, update);
+    saveHistory(taskId);
     console.log(`[task] ${taskId} xiaohongshu completed`);
   } catch (error) {
     console.error(`[task] ${taskId} xiaohongshu failed:`, error);
@@ -1152,6 +1181,7 @@ async function processInstagram(taskId, url, needAsr, options = ['video']) {
     };
 
     store.update(taskId, update);
+    saveHistory(taskId);
     console.log(`[task] ${taskId} instagram completed`);
   } catch (error) {
     console.error(`[task] ${taskId} instagram failed:`, error);
