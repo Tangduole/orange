@@ -897,6 +897,11 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
     // 获取视频信息
     const info = await ytdlp.getInfo(url);
 
+    // 检测实际下载文件的扩展名
+    const downloadsDir = path.join(__dirname, '../../downloads');
+    const actualFile = fs.readdirSync(downloadsDir).find(f => f.startsWith(taskId) && !f.includes('_thumb'));
+    const actualExt = actualFile ? path.extname(actualFile).slice(1) : 'mp4';
+
     store.update(taskId, {
       status: 'completed',
       width: info.width || 0,
@@ -906,9 +911,9 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
       title: info.title || 'YouTube Video',
       duration: info.duration || 0,
       thumbnailUrl: info.thumbnail || '',
-      downloadUrl: `/download/${taskId}.mp4`,
-      filePath: outputPath,
-      ext: 'mp4'
+      downloadUrl: `/download/${taskId}.${actualExt}`,
+      filePath: actualFile ? path.join(downloadsDir, actualFile) : outputPath,
+      ext: actualExt
     });
 
     console.log(`[task] ${taskId} youtube completed via yt-dlp`);
