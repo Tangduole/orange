@@ -478,12 +478,14 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
 
   // 选择:高清原始 URL 直接用,否则从候选选最佳
   let selected = null;
-  if (hqVideoUrl) {
-    // hqUrl 是原始素材(无音频),但文件更大画质更高
-    // 如果有比特率信息,用它判断是否有音频
+  if (hqVideoUrl && maxHeight >= 99999) {
+    // 只有用户没有指定画质限制时才用HQ原始URL（VIP默认行为）
+    // 如果用户明确选择了画质（如720p），则走候选列表过滤
     selected = { url: hqVideoUrl, width: 0, height: 0, codec: 'original', bitrate: 0, hasAudio: false };
-    console.log(`[TikHub] Using HQ original video: ${hqFileSize} MB`);
-  } else {
+    console.log(`[TikHub] Using HQ original video (no quality limit): ${hqFileSize} MB`);
+  } else if (hqVideoUrl) {
+    console.log(`[TikHub] User selected quality ${maxHeight}p, skipping HQ URL`);
+  }
     for (const c of candidates) {
       if (maxHeight < 99999 && c.height > maxHeight) continue;
       selected = c;
