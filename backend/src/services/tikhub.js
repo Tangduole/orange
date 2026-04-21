@@ -238,8 +238,8 @@ async function parseXiaohongshu(url, taskId, onProgress) {
 async function downloadYouTubeViaAPI(url, taskId, onProgress, quality) {
   const https = require('https');
   const http = require('http');
-  const fs = require('fs');
-  const path = require('path');
+//   const fs = require('fs');
+//   const path = require('path');
 
   const videoIdMatch = url.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/);
   if (!videoIdMatch) throw new Error('Invalid YouTube URL');
@@ -485,7 +485,7 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
     console.log(`[TikHub] Using HQ original video (no quality limit): ${hqFileSize} MB`);
   } else if (hqVideoUrl) {
     console.log(`[TikHub] User selected quality ${maxHeight}p, skipping HQ URL`);
-  }
+  } else {
     for (const c of candidates) {
       if (maxHeight < 99999 && c.height > maxHeight) continue;
       selected = c;
@@ -510,8 +510,8 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
   if (onProgress) onProgress(30);
 
   // 下载视频
-  const fs = require('fs');
-  const path = require('path');
+//   const fs = require('fs');
+//   const path = require('path');
   const outputPath = path.join(DOWNLOAD_DIR, `${taskId}.mp4`);
 
   await downloadFile(videoUrl, outputPath, (percent, downloaded, total) => {
@@ -556,7 +556,7 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
 async function downloadFile(url, outputPath, onProgress, headers = {}) {
   const https = require('https');
   const http = require('http');
-  const fs = require('fs');
+//   const fs = require('fs');
   const protocol = url.startsWith('https') ? https : http;
   const MAX_SIZE = 500 * 1024 * 1024; // 500MB
 
@@ -641,6 +641,10 @@ async function parseInstagram(url) {
  * 使用 web_v2 API 解析 YouTube(支持高清画质)
  * 接口: get_video_streams_v2
  * 返回所有画质流(1080p/720p/480p/360p等)+ 音频流
+ *
+ * 画质策略:
+ * - < 720p: 使用 combined 格式(视频+音频混合流)
+ * - >= 720p: 使用 adaptive 格式(视频+音频分离),通过 ffmpeg 合并
  */
 async function parseYouTubeV2(url, taskId, onProgress, quality = null) {
   const videoIdMatch = url.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/);
@@ -650,9 +654,9 @@ async function parseYouTubeV2(url, taskId, onProgress, quality = null) {
   console.log(`[TikHub v2] Parsing YouTube: ${videoId}`);
   if (onProgress) onProgress(5);
 
-  // 调用 web_v2 接口
+  // 调用 web_v2 接口, need_format=true 获取完整格式列表
   const data = await tikhubRequest(
-    `/api/v1/youtube/web_v2/get_video_streams_v2?video_id=${videoId}&need_video=true`,
+    `/api/v1/youtube/web_v2/get_video_streams_v2?video_id=${videoId}&need_format=true`,
     API_KEY_YT
   );
 
@@ -664,56 +668,108 @@ async function parseYouTubeV2(url, taskId, onProgress, quality = null) {
   console.log(`[TikHub v2] Title: ${title}, duration: ${duration}s`);
   if (onProgress) onProgress(15);
 
-  // 收集所有视频流和音频流
-  const videoStreams = [];
-  const audioStreams = [];
-  const formats = data.formats || [];
-  const adaptiveFormats = data.adaptive_formats || [];
-  const allFormats = [...formats, ...adaptiveFormats];
+  // 解析画质限制
+  let maxHeight = 99999;
+  if (quality && quality.includes('height<=')) {
+    const m = quality.match(/height<=(\d+)/);
+    if (m) maxHeight = parseInt(m[1]);
+  }
 
-  for (const f of allFormats) {
-    if (!f.url) continue;
-    const item = {
-      itag: f.itag, url: f.url, mimeType: f.mime_type || '', bitrate: f.bitrate || 0,
-      width: f.width || 0, height: f.height || 0,
-      qualityLabel: f.quality_label || f.quality || '',
-      contentLength: f.content_length || 0, type: f.type || 'video'
-    };
-    if (f.type === 'audio' || f.mime_type?.includes('audio')) {
-      audioStreams.push(item);
-    } else {
-      videoStreams.push(item);
+  // 分离 combined(混合流) 和 adaptive(分离流)
+  const combinedFormats = (data.formats || []).filter(f => f.url && f.type !== 'audio');
+  const adaptiveFormats = (data.adaptive_formats || []).filter(f => f.url);
+
+  const videoOnly = adaptiveFormats.filter(f => f.type === 'video' || (f.mime_type && f.mime_type.includes('video')));
+  const audioOnly = adaptiveFormats.filter(f => f.type === 'audio' || (f.mime_type && f.mime_type.includes('audio')));
+
+  console.log(`[TikHub v2] Combined: ${combinedFormats.length}, Video: ${videoOnly.length}, Audio: ${audioOnly.length}`);
+
+  let videoUrl, audioUrl, selectedHeight, qualityLabel;
+
+  // 策略: < 720p 用 combined; >= 720p 用 adaptive 分离流
+  if (maxHeight < 720) {
+    const candidates = combinedFormats
+      .filter(f => f.height && f.height <= maxHeight)
+      .sort((a, b) => (b.height || 0) - (a.height || 0));
+
+    if (candidates.length > 0) {
+      const best = candidates[0];
+      videoUrl = best.url;
+      selectedHeight = best.height;
+      qualityLabel = best.quality_label || best.quality || `${best.height}p`;
+      console.log(`[TikHub v2] Using combined: ${qualityLabel}`);
     }
   }
 
-  console.log(`[TikHub v2] Found ${videoStreams.length} video streams, ${audioStreams.length} audio streams`);
+  if (!videoUrl && maxHeight >= 720) {
+    const videoCandidates = videoOnly
+      .filter(f => f.height && f.height <= maxHeight)
+      .sort((a, b) => (b.height || 0) - (a.height || 0));
 
-  // 选择最佳视频流
-  let selectedVideo = null;
-  if (quality && quality.includes('height<=')) {
-    const heightMatch = quality.match(/height<=(\d+)/);
-    const maxHeight = heightMatch ? parseInt(heightMatch[1]) : 99999;
-    selectedVideo = videoStreams.filter(s => s.height <= maxHeight && s.height > 0).sort((a, b) => b.height - a.height)[0];
-  }
-  if (!selectedVideo) {
-    selectedVideo = videoStreams.sort((a, b) => (b.height || 0) - (a.height || 0))[0];
-  }
-  const bestAudio = audioStreams.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
+    const audioCandidates = audioOnly.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0));
 
-  if (!selectedVideo) throw new Error('No video stream found');
-  console.log(`[TikHub v2] Selected: ${selectedVideo.qualityLabel} (${selectedVideo.width}x${selectedVideo.height})`);
-  if (onProgress) onProgress(25);
+    if (videoCandidates.length > 0 && audioCandidates.length > 0) {
+      const bestVideo = videoCandidates[0];
+      const bestAudio = audioCandidates[0];
+      videoUrl = bestVideo.url;
+      audioUrl = bestAudio.url;
+      selectedHeight = bestVideo.height;
+      qualityLabel = bestVideo.quality_label || bestVideo.quality || `${bestVideo.height}p`;
+      console.log(`[TikHub v2] Using adaptive: video=${qualityLabel}, audio=${bestAudio.bitrate}kbps`);
+    }
+  }
+
+  if (!videoUrl) {
+    const fallback = combinedFormats
+      .filter(f => f.height && f.height <= maxHeight)
+      .sort((a, b) => (b.height || 0) - (a.height || 0))[0];
+    if (fallback) {
+      videoUrl = fallback.url;
+      selectedHeight = fallback.height;
+      qualityLabel = fallback.quality_label || fallback.quality || `${fallback.height}p`;
+      console.log(`[TikHub v2] Fallback to combined: ${qualityLabel}`);
+    }
+  }
+
+  if (!videoUrl) throw new Error('No video stream found');
+  console.log(`[TikHub v2] Selected: ${qualityLabel} (${selectedHeight}p)`);
+  if (onProgress) onProgress(20);
 
   const outputPath = path.join(DOWNLOAD_DIR, `${taskId}.mp4`);
+  const tempVideo = path.join(DOWNLOAD_DIR, `${taskId}_video.mp4`);
+  const tempAudio = path.join(DOWNLOAD_DIR, `${taskId}_audio.mp4`);
 
-  // 下载视频
-  await downloadFile(selectedVideo.url, outputPath, (percent, downloaded, total) => {
-    if (onProgress) onProgress(25 + Math.floor(percent * 0.55), downloaded, total);
-  }, { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.youtube.com/' });
+  // 下载
+  if (audioUrl && selectedHeight >= 720) {
+    if (onProgress) onProgress(25);
+    await downloadFile(videoUrl, tempVideo, (percent, downloaded, total) => {
+      if (onProgress) onProgress(25 + Math.floor(percent * 0.35), downloaded, total);
+    }, { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.youtube.com/' });
 
-  if (onProgress) onProgress(85);
+    if (onProgress) onProgress(60);
+    await downloadFile(audioUrl, tempAudio, (percent, downloaded, total) => {
+      if (onProgress) onProgress(60 + Math.floor(percent * 0.25), downloaded, total);
+    }, { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.youtube.com/' });
 
-  // 下载封面
+    if (onProgress) onProgress(85);
+    await new Promise((resolve, reject) => {
+      const ffmpeg = spawn('ffmpeg', ['-i', tempVideo, '-i', tempAudio, '-c:v', 'copy', '-c:a', 'aac', '-y', outputPath]);
+      ffmpeg.on('close', (code) => {
+        try { fs.unlinkSync(tempVideo); } catch {}
+        try { fs.unlinkSync(tempAudio); } catch {}
+        if (code === 0) resolve(); else reject(new Error(`ffmpeg exited with code ${code}`));
+      });
+      ffmpeg.on('error', reject);
+    });
+  } else {
+    if (onProgress) onProgress(25);
+    await downloadFile(videoUrl, outputPath, (percent, downloaded, total) => {
+      if (onProgress) onProgress(25 + Math.floor(percent * 0.65), downloaded, total);
+    }, { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.youtube.com/' });
+  }
+
+  if (onProgress) onProgress(90);
+
   let thumbPath = '';
   if (thumbnailUrl) {
     thumbPath = path.join(DOWNLOAD_DIR, `${taskId}_thumb.jpg`);
@@ -726,9 +782,10 @@ async function parseYouTubeV2(url, taskId, onProgress, quality = null) {
     title, filePath: outputPath, ext: 'mp4',
     thumbnailUrl: thumbPath ? `/download/${taskId}_thumb.jpg` : '',
     subtitleFiles: [], duration,
-    width: selectedVideo.width, height: selectedVideo.height,
-    quality: selectedVideo.qualityLabel
+    width: 0, height: selectedHeight,
+    quality: qualityLabel
   };
 }
+
 
 module.exports = { parseYouTube, parseYouTubeV2, parseXiaohongshu, parseDouyin, parseInstagram, tikhubRequest, downloadFile };

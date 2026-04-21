@@ -775,146 +775,7 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
     // 保存用户请求的画质参数
     store.update(taskId, { requestedQuality: quality });
 
-    // ========== TikHub API 兜底（画质受限）==========
-    try {
-      const API_KEY_YT = process.env.TIKHUB_API_KEY_YT;
-      const { data } = await axios.get(
-        `https://api.tikhub.io/api/v1/youtube/web/get_video_info?video_id=${videoId}&need_format=true`,
-        { headers: { Authorization: `Bearer ${API_KEY_YT}` }, timeout: 30000 }
-      );
-
-      if (data.code === 200) {
-        const videoData = data.data;
-        const title = videoData.title || 'YouTube Video';
-        const videos = videoData.videos?.items || [];
-        const audios = videoData.audios?.items || [];
-
-        // 1. 先找符合画质要求且有音频的视频
-        let bestVideoWithAudio = null;
-        for (const v of videos) {
-          if (v.url && v.mimeType?.startsWith('video/') && v.hasAudio) {
-            const vHeight = v.height || 0;
-            if (vHeight <= maxHeight) {
-              if (!bestVideoWithAudio || vHeight > (bestVideoWithAudio.height || 0)) {
-                bestVideoWithAudio = v;
-              }
-            }
-          }
-        }
-
-        // 2. 如果没有带音频的,找最高的视频准备合并音频
-        let bestVideoNoAudio = null;
-        let bestVideoHeight = 0;
-        for (const v of videos) {
-          if (v.url && v.mimeType?.startsWith('video/') && !v.hasAudio) {
-            const vHeight = v.height || 0;
-            if (vHeight <= maxHeight && vHeight > bestVideoHeight) {
-              bestVideoNoAudio = v;
-              bestVideoHeight = vHeight;
-            }
-          }
-        }
-
-        // 选择最佳方案
-        let finalVideo = bestVideoWithAudio || bestVideoNoAudio;
-
-        if (finalVideo && finalVideo.url) {
-          const outputPath = path.join(__dirname, '../../downloads', `${taskId}.mp4`);
-
-          // 如果视频没有音频,需要下载并合并音频
-          if (!finalVideo.hasAudio && audios.length > 0) {
-            console.log(`[task] ${taskId} video has no audio, need to merge with audio`);
-
-            // 获取最佳音频 (mp4 格式优先)
-            const bestAudio = audios.find(a => a.mimeType?.includes('mp4')) || audios[0];
-            const videoPath = path.join(__dirname, '../../downloads', `${taskId}_video.mp4`);
-            const audioPath = path.join(__dirname, '../../downloads', `${taskId}_audio.mp3`);
-
-            // 下载视频
-            store.update(taskId, { status: 'downloading', progress: 10 });
-
-            // 流式下载视频(避免 OOM)
-            await downloadToStream(finalVideo.url, videoPath, 120000);
-            store.update(taskId, { progress: 50 });
-
-            // 流式下载音频
-            await downloadToStream(bestAudio.url, audioPath, 60000);
-            store.update(taskId, { progress: 70 });
-
-            // 使用 ffmpeg 合并
-            await new Promise((resolve, reject) => {
-              const ffmpeg = spawn('ffmpeg', [
-                '-i', videoPath,
-                '-i', audioPath,
-                '-c:v', 'copy',
-                '-c:a', 'aac',
-                '-y',
-                outputPath
-              ]);
-
-              ffmpeg.on('close', (code) => {
-                if (code === 0) {
-                  // 删除临时文件
-                  fs.unlinkSync(videoPath);
-                  fs.unlinkSync(audioPath);
-                  resolve();
-                } else {
-                  reject(new Error(`ffmpeg exited with code ${code}`));
-                }
-              });
-              ffmpeg.on('error', reject);
-            });
-
-            store.update(taskId, {
-              status: 'completed',
-              width: finalVideo.width || 0,
-              height: finalVideo.height || 0,
-              quality: `${finalVideo.width || 0}x${finalVideo.height || 0}`,
-              progress: 100,
-              title: title,
-              thumbnailUrl: videoData.thumbnails?.[0]?.url || '',
-              downloadUrl: `/download/${taskId}.mp4`,
-              filePath: outputPath,
-              ext: 'mp4'
-            });
-            saveHistory(taskId);
-            console.log(`[task] ${taskId} youtube completed via TikHub with audio merge`);
-            return;
-          }
-
-          // 视频本身有音频,先下载到服务器再返回代理链接(避免API Key暴露)
-          const videoPath = path.join(__dirname, '../../downloads', `${taskId}.mp4`);
-          try {
-            await downloadToStream(finalVideo.url, videoPath, 120000);
-
-            store.update(taskId, {
-              status: 'completed',
-              width: finalVideo.width || 0,
-              height: finalVideo.height || 0,
-              quality: `${finalVideo.width || 0}x${finalVideo.height || 0}`,
-              progress: 100,
-              title: title,
-              thumbnailUrl: videoData.thumbnails?.[0]?.url || '',
-              downloadUrl: `/download/${taskId}.mp4`,
-              filePath: videoPath,
-              ext: finalVideo.extension || 'mp4'
-            });
-            saveHistory(taskId);
-            console.log(`[task] ${taskId} youtube completed via TikHub (proxied)`);
-            return;
-          } catch (downloadErr) {
-            console.error(`[task] ${taskId} TikHub URL failed (${downloadErr.message}), falling back to yt-dlp...`);
-            // Fallthrough to yt-dlp fallback below
-          }
-        }
-      }
-    } catch (tikhubErr) {
-      console.log(`[task] ${taskId} TikHub failed: ${tikhubErr.message}, trying yt-dlp...`);
-    }
-
-    store.update(taskId, { status: 'parsing', progress: 5, requestedQuality: quality });
-
-    // ========== YouTube 优先使用 web_v2 API（支持 1080p+ 高清）==========
+    // ========== YouTube: 直接使用 v2 API (高清支持) ==========
     try {
       const { parseYouTubeV2 } = require('../services/tikhub');
       const result = await parseYouTubeV2(url, taskId, (percent, downloaded, total) => {
@@ -938,10 +799,25 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
       console.log(`[task] ${taskId} youtube completed via TikHub v2 (${result.quality})`);
       return;
     } catch (v2Err) {
-      console.log(`[task] ${taskId} TikHub v2 failed: ${v2Err.message}, trying old API...`);
+      console.log(`[task] ${taskId} TikHub v2 failed: ${v2Err.message}, trying yt-dlp...`);
     }
 
-    // ========== 旧 TikHub API 兜底（可能只有 360p）==========
+    // ========== yt-dlp 兜底 ==========
+    try {
+      const ytdlp = require('../services/yt-dlp');
+      const outputPath = path.join(__dirname, '../../downloads', `${taskId}.mp4`);
+      store.update(taskId, { status: 'downloading', progress: 10 });
+      await ytdlp.download(url, outputPath, (percent) => {
+        store.update(taskId, { status: 'downloading', progress: Math.min(percent * 0.9 + 10, 95) });
+      });
+      store.update(taskId, { status: 'completed', progress: 100, downloadUrl: `/download/${taskId}.mp4`, filePath: outputPath, ext: 'mp4' });
+      saveHistory(taskId);
+      console.log(`[task] ${taskId} youtube completed via yt-dlp`);
+      return;
+    } catch (ydlpErr) {
+      console.error(`[task] ${taskId} yt-dlp failed: ${ydlpErr.message}`);
+      throw ydlpErr;
+    }
   } catch (error) {
     console.error(`[task] ${taskId} youtube failed:`, error);
     store.update(taskId, { status: 'error', error: error.message });
