@@ -336,7 +336,7 @@ async function downloadYouTubeViaAPI(url, taskId, onProgress, quality) {
   };
 }
 
-async function parseDouyin(url, taskId, onProgress, quality = null) {
+async function parseDouyin(url, taskId, onProgress, quality = null, isVip = false) {
   // 解析画质限制
   let maxHeight = 99999; // 默认无限制
   if (quality && quality.includes('height<=')) {
@@ -405,16 +405,20 @@ async function parseDouyin(url, taskId, onProgress, quality = null) {
 
   let hqVideoUrl = '';
   let hqFileSize = 0;
-  try {
-    // 用 share_url 参数才能拿到高清
-    const hqData = await tikhubRequest(`/api/v1/douyin/web/fetch_video_high_quality_play_url?share_url=${encodeURIComponent(url)}`, API_KEY_DOUYIN);
-    if (hqData.original_video_url) {
-      hqVideoUrl = hqData.original_video_url;
-      hqFileSize = hqData.file_size_in_mb || 0;
-      console.log(`[TikHub] HQ video found: ${hqFileSize} MB`);
+  if (isVip) {
+    // VIP用户:调用付费高清API获取原始素材(支持2K/4K)
+    try {
+      const hqData = await tikhubRequest(`/api/v1/douyin/web/fetch_video_high_quality_play_url?share_url=${encodeURIComponent(url)}`, API_KEY_DOUYIN);
+      if (hqData.original_video_url) {
+        hqVideoUrl = hqData.original_video_url;
+        hqFileSize = hqData.file_size_in_mb || 0;
+        console.log(`[TikHub] VIP HQ video found: ${hqFileSize} MB`);
+      }
+    } catch (e) {
+      console.log(`[TikHub] fetch_video_high_quality_play_url failed: ${e.message}`);
     }
-  } catch (e) {
-    console.log(`[TikHub] fetch_video_high_quality_play_url failed: ${e.message}`);
+  } else {
+    console.log(`[TikHub] Non-VIP user, skipping paid HQ API`);
   }
 
   // 收集所有可用画质源
