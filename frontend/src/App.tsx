@@ -1700,11 +1700,11 @@ export default function App() {
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700">
               <div className="flex items-center justify-between mb-1">
-                <h3 className="text-lg font-bold text-white">选择画质 Select Quality</h3>
+                <h3 className="text-lg font-bold text-white">{t('selectQuality2K')}</h3>
                 <span className="text-xs text-slate-400" id="quality-countdown">{qualityCountdown > 0 ? `${qualityCountdown}s` : ''}</span>
               </div>
               <p className="text-xs text-slate-300 mb-4">
-                {isVip ? <span className="text-yellow-400">⭐ 会员专享 · {qualityCountdown > 0 ? `${qualityCountdown}s后自动2K` : '默认2K'}</span> : <span className="text-orange-400">{t('vipOnly')}</span>}
+                {isVip ? <span className="text-yellow-400">⭐ {t('vipOnly')} · {qualityCountdown > 0 ? t('countdownAuto2K', {count: qualityCountdown}) : t('default2K')}</span> : <span className="text-orange-400">{t('vipOnly')}</span>}
               </p>
               <div className="space-y-2 max-h-60 overflow-y-auto">
                 {/* Default 2K option (VIP only, auto-selects best available) */}
@@ -1728,7 +1728,7 @@ export default function App() {
                   >
                     <div className="flex items-center gap-2">
                       <span className="font-medium text-yellow-400">⭐ 2K (自动)</span>
-                      <span className="text-xs text-slate-300">最佳可用画质</span>
+                      <span className="text-xs text-slate-300">{t("bestAvailable")}</span>
                     </div>
                     <span className="text-xs text-yellow-400">推荐</span>
                   </button>
@@ -1785,14 +1785,14 @@ export default function App() {
                   className="w-full mt-3 py-3 px-4 rounded-xl bg-gradient-to-r from-yellow-500/20 to-orange-500/20 text-orange-400 hover:from-yellow-500/30 hover:to-orange-500/30 transition border border-orange-500/30 flex items-center justify-center gap-2"
                 >
                   <Crown className="w-4 h-4" />
-                  升级会员 Unlock HD
+                  {t("upgradeVip")}
                 </button>
               )}
               <button
                 onClick={() => { setShowQualityPicker(false); setPendingUrl('') }}
                 className="w-full mt-2 py-2 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition"
               >
-                Cancel 取消
+                {t("cancel")}
               </button>
             </div>
           </div>
@@ -1801,11 +1801,11 @@ export default function App() {
         {showDupConfirm && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700">
-              <h3 className="text-lg font-bold text-white mb-2">Already Downloaded</h3>
-              <p className="text-sm text-slate-300 mb-4">This video is in your download history. Download again?</p>
+              <h3 className="text-lg font-bold text-white mb-2">{t("alreadyInHistory")}</h3>
+              <p className="text-sm text-slate-300 mb-4">{t("downloadAgain")}</p>
               <p className="text-xs text-slate-300 mb-4 truncate">{dupUrl}</p>
               <div className="flex gap-3">
-                <button onClick={() => { setShowDupConfirm(false); setPendingDownload(null) }} className="flex-1 py-2 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition">Cancel</button>
+                <button onClick={() => { setShowDupConfirm(false); setPendingDownload(null) }} className="flex-1 py-2 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition">{t("cancel")}</button>
                 <button onClick={() => { setShowDupConfirm(false); if (pendingDownload) pendingDownload() }} className="flex-1 py-2 px-4 rounded-xl bg-orange-500 text-white hover:bg-orange-600 transition">Download Again</button>
               </div>
             </div>

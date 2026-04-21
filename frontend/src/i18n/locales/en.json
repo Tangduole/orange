@@ -161,5 +161,14 @@
   "videosDownloaded": "Videos Downloaded",
   "rating": "Rating",
   "moreSites": "More Sites",
-  "pasteUrlPlaceholder": "Paste video link from any website..."
+  "pasteUrlPlaceholder": "Paste video link from any website...",
+  "selectQuality2K": "Select Quality",
+  "autoSelect2K": "Auto 2K",
+  "auto2KAfter": "after auto 2K",
+  "bestAvailable": "Best available quality",
+  "upgradeVip": "Upgrade VIP",
+  "downloadAgain": "Download Again",
+  "alreadyInHistory": "Video already in download history",
+  "default2K": "Default 2K",
+  "countdownAuto2K": "{count}s until auto 2K"
 }

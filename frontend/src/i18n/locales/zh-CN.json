@@ -161,5 +161,14 @@
   "videosDownloaded": "视频已下载",
   "rating": "评分",
   "moreSites": "更多网站",
-  "pasteUrlPlaceholder": "粘贴任意网站的视频链接..."
+  "pasteUrlPlaceholder": "粘贴任意网站的视频链接...",
+  "selectQuality2K": "选择画质",
+  "autoSelect2K": "自动2K",
+  "auto2KAfter": "后自动2K",
+  "bestAvailable": "最佳可用画质",
+  "upgradeVip": "升级会员",
+  "downloadAgain": "再下载一次",
+  "alreadyInHistory": "视频已在下载记录中",
+  "default2K": "默认2K",
+  "countdownAuto2K": "{count}s后自动2K"
 }
