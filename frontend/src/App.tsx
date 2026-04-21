@@ -1390,7 +1390,13 @@ export default function App() {
                 <h3 className={`text-sm font-semibold flex items-center gap-2 ${isDark ? 'text-slate-500' : 'text-light-text'}`}>
                   <Download className="w-4 h-4 text-orange-400" /> {t('downloadProgress')}
                 </h3>
-                <button onClick={() => setTask(null)}><X className={`w-4 h-4 ${isDark ? 'text-slate-300 hover:text-slate-300' : 'text-light-textMuted hover:text-light-textSecondary'}`} /></button>
+                <button onClick={async () => {
+                  // 关闭弹窗时:如果任务还在跑,调用API取消
+                  if (task?.taskId && isWorking(task.status)) {
+                    try { await axios.delete(`${API}/tasks/${task.taskId}`) } catch {}
+                  }
+                  setTask(null)
+                }}><X className={`w-4 h-4 ${isDark ? 'text-slate-300 hover:text-slate-300' : 'text-light-textMuted hover:text-light-textSecondary'}`} /></button>
               </div>
 
               <div className="flex items-center gap-2">
