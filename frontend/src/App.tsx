@@ -843,6 +843,7 @@ export default function App() {
       }
       // 获取失败：默认显示2K选项
       const defaultQualities = [
+        { qualityLabel: '4K', quality: 'height<=2160', width: 3840, height: 2160, hasVideo: true, hasAudio: true },
         { qualityLabel: '2K', quality: 'height<=1440', width: 2560, height: 1440, hasVideo: true, hasAudio: true },
         { qualityLabel: '1080p', quality: 'height<=1080', width: 1920, height: 1080, hasVideo: true, hasAudio: true },
         { qualityLabel: '720p', quality: 'height<=720', width: 1280, height: 720, hasVideo: true, hasAudio: true },
