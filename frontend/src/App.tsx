@@ -196,7 +196,7 @@ export default function App() {
   const [availableQualities, setAvailableQualities] = useState<Array<{quality: string, format: string, width: number, height: number, hasVideo: boolean, hasAudio: boolean}>>([])
   const [showQualityPicker, setShowQualityPicker] = useState(false)
   const [qualityCountdown, setQualityCountdown] = useState(0)
-  const [pendingUrl, setPendingUrl] = useState(''))
+  const [pendingUrl, setPendingUrl] = useState('')
   const [batchUrls, setBatchUrls] = useState('')
 
   // Auth state
