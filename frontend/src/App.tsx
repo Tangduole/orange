@@ -810,32 +810,53 @@ export default function App() {
     // First get video info to show quality selection
     setLoading(true); setError('')
     
-    // 批量模式：跳过Quality选择，直接Download
-    if (!skipQualityPicker) {
+    // ========== VIP用户：弹出画质选择器 ==========
+    if (isVip && !skipQualityPicker) {
       try {
         const infoRes = await axios.post(`${API}/video-info`, { url: url.trim() }, { timeout: 30000 })
-        const qualities = (infoRes.data.data?.qualities || []).filter((q: any) => q.height >= 720);
+        const qualities = infoRes.data.data?.qualities || [];
         
-        if (qualities.length > 1) {
-          // Multiple qualities - show picker
-          setAvailableQualities(qualities)
-          setPendingUrl(url.trim())
-          setShowQualityPicker(true)
-          setLoading(false)
-          return
-        } else if (qualities.length === 1) {
-          // Single quality - VIP直接Use，非VIP限制720p
-          setQuality(isVip ? 'height<=99999' : (qualities[0].height >= 720 ? 'height<=720' : ''))
+        if (qualities.length > 0) {
+          // 格式化画质选项（720p/1080p/2K/4K）
+          const formattedQualities = qualities
+            .filter((q: any) => q.height >= 720 && q.hasVideo && q.hasAudio)
+            .map((q: any) => {
+              let label = `${q.height}p`
+              if (q.height >= 2160) label = '4K'
+              else if (q.height >= 1440) label = '2K'
+              else if (q.height >= 1080) label = '1080p'
+              else if (q.height >= 720) label = '720p'
+              return { ...q, qualityLabel: label }
+            })
+            .sort((a: any, b: any) => b.height - a.height);
+          
+          if (formattedQualities.length > 0) {
+            setAvailableQualities(formattedQualities)
+            setPendingUrl(url.trim())
+            setShowQualityPicker(true)
+            setLoading(false)
+            return
+          }
         }
       } catch (e) {
-        console.log('[quality] Failed to fetch qualities, proceeding with default')
+        console.log('[quality] Failed to fetch qualities')
       }
+      // 获取失败：默认显示2K选项
+      const defaultQualities = [
+        { qualityLabel: '2K', quality: 'height<=1440', width: 2560, height: 1440, hasVideo: true, hasAudio: true },
+        { qualityLabel: '1080p', quality: 'height<=1080', width: 1920, height: 1080, hasVideo: true, hasAudio: true },
+        { qualityLabel: '720p', quality: 'height<=720', width: 1280, height: 720, hasVideo: true, hasAudio: true },
+      ]
+      setAvailableQualities(defaultQualities)
+      setPendingUrl(url.trim())
+      setShowQualityPicker(true)
+      setLoading(false)
+      return
     }
     
-    // Proceed with download
+    // ========== 非VIP用户：直接下载720p ==========
+    const downloadQuality = isVip ? quality : 'height<=720'
     try {
-      // VIP用户Use用户选择的Quality，非VIP用户限制Quality
-      const downloadQuality = isVip ? quality : (quality || 'height<=720')
       const r = await axios.post(`${API}/download`, {
         url: url.trim(), platform: detected || 'auto',
         needAsr: selected.has('asr'), options: [...selected], quality: downloadQuality, asrLanguage,
@@ -1635,19 +1656,46 @@ export default function App() {
         </main>
 
         {/* DuplicateDownload确认弹窗 */}
-        {/* Quality选择弹窗 */}
+        {/* Quality选择弹窗 - VIP会员 */}
         {showQualityPicker && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700">
-              <h3 className="text-lg font-bold text-white mb-1">{t('selectQuality')}</h3>
+              <h3 className="text-lg font-bold text-white mb-1">选择画质 Select Quality</h3>
               <p className="text-xs text-slate-300 mb-4">
-                {!isVip && <span className="text-orange-400">{t('vipOnly')} · </span>}{t('highQuality')}
+                {isVip ? <span className="text-yellow-400">⭐ 会员专享 · 默认 2K</span> : <span className="text-orange-400">{t('vipOnly')}</span>}
               </p>
               <div className="space-y-2 max-h-60 overflow-y-auto">
+                {/* Default 2K option (VIP only, auto-selects best available) */}
+                {isVip && (
+                  <button
+                    onClick={() => {
+                      setShowQualityPicker(false)
+                      setLoading(true)
+                      // VIP默认2K：highest quality available
+                      axios.post(`${API}/download`, {
+                        url: pendingUrl, platform: detected || 'auto',
+                        needAsr: selected.has('asr'), options: [...selected], quality: 'height<=1440', asrLanguage,
+                      }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} }).then(r => {
+                        setTask(r.data.data)
+                        setDetected('')
+                      }).catch((e: any) => {
+                        setError(getErrorMessage(e.response?.data?.message || e.message || 'Download failed'))
+                      }).finally(() => setLoading(false))
+                    }}
+                    className="w-full flex items-center justify-between p-3 rounded-xl transition text-left bg-gradient-to-r from-yellow-500/10 to-orange-500/10 hover:from-yellow-500/20 hover:to-orange-500/20 border border-yellow-500/30"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-yellow-400">⭐ 2K (自动)</span>
+                      <span className="text-xs text-slate-300">最佳可用画质</span>
+                    </div>
+                    <span className="text-xs text-yellow-400">推荐</span>
+                  </button>
+                )}
                 {availableQualities.map((q, idx) => {
                   const isHighQuality = q.height > 720
                   const canSelect = isVip || !isHighQuality
-                  const qualityLabel = q.quality || `${q.height}p`
+                  // Use qualityLabel if set, otherwise fallback to display name
+                  const qualityLabel = (q as any).qualityLabel || q.quality || `${q.height}p`
                   return (
                     <button
                       key={idx}
@@ -1658,13 +1706,11 @@ export default function App() {
                           return
                         }
                         setShowQualityPicker(false)
-                        // Set quality filter for download - VIP用户直接传高度限制，不限制最高Quality
-                        // 4K=2160, 2K=1440, 1080p=1080, 720p=720
+                        // Set quality filter for download
                         let qParam = ''
                         if (q.height >= 1440) qParam = `height<=${q.height}` // 4K/2K
                         else if (q.height >= 1080) qParam = 'height<=1080'
                         else if (q.height >= 720) qParam = 'height<=720'
-                        setQuality(qParam)
                         // Proceed with download
                         setLoading(true)
                         axios.post(`${API}/download`, {
@@ -1685,7 +1731,6 @@ export default function App() {
                         <span className={`font-medium ${canSelect ? 'text-white' : 'text-slate-300'}`}>{qualityLabel}</span>
                         {q.width > 0 && <span className={`text-xs ${canSelect ? 'text-slate-300' : 'text-slate-500'}`}>{q.width}x{q.height}</span>}
                         {isHighQuality && !isVip && <span className="text-xs text-orange-400 ml-1">🚫 {t('vipOnly')}</span>}
-                        {isHighQuality && isVip && <span className="text-xs text-yellow-400 ml-1">⭐</span>}
                       </div>
                       <span className="text-xs text-slate-300">{q.hasAudio ? '🎬' : '🎵'}</span>
                     </button>
@@ -1698,14 +1743,14 @@ export default function App() {
                   className="w-full mt-3 py-3 px-4 rounded-xl bg-gradient-to-r from-yellow-500/20 to-orange-500/20 text-orange-400 hover:from-yellow-500/30 hover:to-orange-500/30 transition border border-orange-500/30 flex items-center justify-center gap-2"
                 >
                   <Crown className="w-4 h-4" />
-                  UpgradeMember解锁高清Quality
+                  升级会员 Unlock HD
                 </button>
               )}
               <button
                 onClick={() => { setShowQualityPicker(false); setPendingUrl('') }}
                 className="w-full mt-2 py-2 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition"
               >
-                Cancel
+                Cancel 取消
               </button>
             </div>
           </div>
