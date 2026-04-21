@@ -195,7 +195,8 @@ export default function App() {
   const [asrLanguage, setAsrLanguage] = useState('zh')
   const [availableQualities, setAvailableQualities] = useState<Array<{quality: string, format: string, width: number, height: number, hasVideo: boolean, hasAudio: boolean}>>([])
   const [showQualityPicker, setShowQualityPicker] = useState(false)
-  const [pendingUrl, setPendingUrl] = useState('')
+  const [qualityCountdown, setQualityCountdown] = useState(0)
+  const [pendingUrl, setPendingUrl] = useState(''))
   const [batchUrls, setBatchUrls] = useState('')
 
   // Auth state
@@ -522,6 +523,37 @@ export default function App() {
     }, 1500)
     return () => clearInterval(t)
   }, [task?.taskId])
+
+  // VIP画质选择器:3秒倒计时超时自动下载2K
+  useEffect(() => {
+    if (!showQualityPicker || !isVip) {
+      setQualityCountdown(0)
+      return
+    }
+    setQualityCountdown(3)
+    const timer = setInterval(() => {
+      setQualityCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(timer)
+          // 超时自动下载2K
+          setShowQualityPicker(false)
+          setLoading(true)
+          axios.post(`${API}/download`, {
+            url: pendingUrl, platform: detected || 'auto',
+            needAsr: selected.has('asr'), options: [...selected], quality: 'height<=1440', asrLanguage,
+          }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} }).then(r => {
+            setTask(r.data.data)
+            setDetected('')
+          }).catch((e: any) => {
+            setError(getErrorMessage(e.response?.data?.message || e.message || 'Download failed'))
+          }).finally(() => setLoading(false))
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    return () => clearInterval(timer)
+  }, [showQualityPicker, isVip, pendingUrl, detected, selected, authToken, asrLanguage])
 
   // 页面重新可见时恢复任务状态
   useEffect(() => {
@@ -1657,13 +1689,16 @@ export default function App() {
         </main>
 
         {/* DuplicateDownload确认弹窗 */}
-        {/* Quality选择弹窗 - VIP会员 */}
+        {/* Quality选择弹窗 - VIP会员(3秒超时默认2K) */}
         {showQualityPicker && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700">
-              <h3 className="text-lg font-bold text-white mb-1">选择画质 Select Quality</h3>
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-lg font-bold text-white">选择画质 Select Quality</h3>
+                <span className="text-xs text-slate-400" id="quality-countdown">{qualityCountdown > 0 ? `${qualityCountdown}s` : ''}</span>
+              </div>
               <p className="text-xs text-slate-300 mb-4">
-                {isVip ? <span className="text-yellow-400">⭐ 会员专享 · 默认 2K</span> : <span className="text-orange-400">{t('vipOnly')}</span>}
+                {isVip ? <span className="text-yellow-400">⭐ 会员专享 · {qualityCountdown > 0 ? `${qualityCountdown}s后自动2K` : '默认2K'}</span> : <span className="text-orange-400">{t('vipOnly')}</span>}
               </p>
               <div className="space-y-2 max-h-60 overflow-y-auto">
                 {/* Default 2K option (VIP only, auto-selects best available) */}
