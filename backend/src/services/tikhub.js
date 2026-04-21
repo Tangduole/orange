@@ -637,4 +637,98 @@ async function parseInstagram(url) {
   };
 }
 
-module.exports = { parseYouTube, parseXiaohongshu, parseDouyin, parseInstagram, tikhubRequest, downloadFile };
+/**
+ * 使用 web_v2 API 解析 YouTube（支持高清画质）
+ * 接口: get_video_streams_v2
+ * 返回所有画质流（1080p/720p/480p/360p等）+ 音频流
+ */
+async function parseYouTubeV2(url, taskId, onProgress, quality = null) {
+  const videoIdMatch = url.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/);
+  if (!videoIdMatch) throw new Error('Invalid YouTube URL');
+  const videoId = videoIdMatch[1];
+
+  console.log(`[TikHub v2] Parsing YouTube: ${videoId}`);
+  if (onProgress) onProgress(5);
+
+  // 调用 web_v2 接口
+  const data = await tikhubRequest(
+    `/api/v1/youtube/web_v2/get_video_streams_v2?video_id=${videoId}&need_video=true`,
+    API_KEY_YT
+  );
+
+  const title = data.title || 'YouTube Video';
+  const duration = data.length_seconds ? parseInt(data.length_seconds) : 0;
+  const thumbnails = Array.isArray(data.thumbnail) ? data.thumbnail : [];
+  const thumbnailUrl = thumbnails[0]?.url || '';
+
+  console.log(`[TikHub v2] Title: ${title}, duration: ${duration}s`);
+  if (onProgress) onProgress(15);
+
+  // 收集所有视频流和音频流
+  const videoStreams = [];
+  const audioStreams = [];
+  const formats = data.formats || [];
+  const adaptiveFormats = data.adaptive_formats || [];
+  const allFormats = [...formats, ...adaptiveFormats];
+
+  for (const f of allFormats) {
+    if (!f.url) continue;
+    const item = {
+      itag: f.itag, url: f.url, mimeType: f.mime_type || '', bitrate: f.bitrate || 0,
+      width: f.width || 0, height: f.height || 0,
+      qualityLabel: f.quality_label || f.quality || '',
+      contentLength: f.content_length || 0, type: f.type || 'video'
+    };
+    if (f.type === 'audio' || f.mime_type?.includes('audio')) {
+      audioStreams.push(item);
+    } else {
+      videoStreams.push(item);
+    }
+  }
+
+  console.log(`[TikHub v2] Found ${videoStreams.length} video streams, ${audioStreams.length} audio streams`);
+
+  // 选择最佳视频流
+  let selectedVideo = null;
+  if (quality && quality.includes('height<=')) {
+    const heightMatch = quality.match(/height<=(\d+)/);
+    const maxHeight = heightMatch ? parseInt(heightMatch[1]) : 99999;
+    selectedVideo = videoStreams.filter(s => s.height <= maxHeight && s.height > 0).sort((a, b) => b.height - a.height)[0];
+  }
+  if (!selectedVideo) {
+    selectedVideo = videoStreams.sort((a, b) => (b.height || 0) - (a.height || 0))[0];
+  }
+  const bestAudio = audioStreams.sort((a, b) => (b.bitrate || 0) - (a.bitrate || 0))[0];
+
+  if (!selectedVideo) throw new Error('No video stream found');
+  console.log(`[TikHub v2] Selected: ${selectedVideo.qualityLabel} (${selectedVideo.width}x${selectedVideo.height})`);
+  if (onProgress) onProgress(25);
+
+  const outputPath = path.join(DOWNLOAD_DIR, `${taskId}.mp4`);
+
+  // 下载视频
+  await downloadFile(selectedVideo.url, outputPath, (percent, downloaded, total) => {
+    if (onProgress) onProgress(25 + Math.floor(percent * 0.55), downloaded, total);
+  }, { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.youtube.com/' });
+
+  if (onProgress) onProgress(85);
+
+  // 下载封面
+  let thumbPath = '';
+  if (thumbnailUrl) {
+    thumbPath = path.join(DOWNLOAD_DIR, `${taskId}_thumb.jpg`);
+    try { await downloadFile(thumbnailUrl, thumbPath); } catch { thumbPath = ''; }
+  }
+
+  if (onProgress) onProgress(100);
+
+  return {
+    title, filePath: outputPath, ext: 'mp4',
+    thumbnailUrl: thumbPath ? `/download/${taskId}_thumb.jpg` : '',
+    subtitleFiles: [], duration,
+    width: selectedVideo.width, height: selectedVideo.height,
+    quality: selectedVideo.qualityLabel
+  };
+}
+
+module.exports = { parseYouTube, parseYouTubeV2, parseXiaohongshu, parseDouyin, parseInstagram, tikhubRequest, downloadFile };

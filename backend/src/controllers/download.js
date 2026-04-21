@@ -913,46 +913,36 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
       console.log(`[task] ${taskId} TikHub failed: ${tikhubErr.message}, trying yt-dlp...`);
     }
 
-    // ========== yt-dlp 直接下载（优先，有cookies支持）==========
-    console.log(`[task] ${taskId} using yt-dlp fallback for YouTube`);
-    const outputPath = path.join(__dirname, '../../downloads', `${taskId}.mp4`);
+    store.update(taskId, { status: 'parsing', progress: 5, requestedQuality: quality });
 
-    // yt-dlp 自动处理视频+音频合并
-    await ytdlp.download(url, taskId, (percent, speed, eta, downloaded, total) => {
-      store.update(taskId, {
-        status: 'downloading',
-        progress: percent,
-        speed,
-        eta,
-        downloadedBytes: downloaded || 0,
-        totalBytes: total || 0
-      });
-    }, quality);
+    // ========== YouTube 优先使用 web_v2 API（支持 1080p+ 高清）==========
+    try {
+      const { parseYouTubeV2 } = require('../services/tikhub');
+      const result = await parseYouTubeV2(url, taskId, (percent, downloaded, total) => {
+        store.update(taskId, { status: percent < 30 ? 'parsing' : 'downloading', progress: percent, downloadedBytes: downloaded || 0, totalBytes: total || 0 });
+      }, quality);
 
-    // 获取视频信息
-    const info = await ytdlp.getInfo(url);
+      const update = {
+        status: 'completed',
+        width: result.width,
+        height: result.height,
+        quality: result.quality || `${result.height}p`,
+        progress: 100,
+        title: result.title,
+        thumbnailUrl: result.thumbnailUrl,
+        downloadUrl: `/download/${taskId}.mp4`,
+        filePath: result.filePath,
+        ext: 'mp4'
+      };
+      store.update(taskId, update);
+      saveHistory(taskId);
+      console.log(`[task] ${taskId} youtube completed via TikHub v2 (${result.quality})`);
+      return;
+    } catch (v2Err) {
+      console.log(`[task] ${taskId} TikHub v2 failed: ${v2Err.message}, trying old API...`);
+    }
 
-    // 检测实际下载文件的扩展名
-    const downloadsDir = path.join(__dirname, '../../downloads');
-    const actualFile = fs.readdirSync(downloadsDir).find(f => f.startsWith(taskId) && !f.includes('_thumb'));
-    const actualExt = actualFile ? path.extname(actualFile).slice(1) : 'mp4';
-
-    store.update(taskId, {
-      status: 'completed',
-      width: info.width || 0,
-      height: info.height || 0,
-      quality: info.quality || '1080p',
-      progress: 100,
-      title: info.title || 'YouTube Video',
-      duration: info.duration || 0,
-      thumbnailUrl: info.thumbnail || '',
-      downloadUrl: `/download/${taskId}.${actualExt}`,
-      filePath: actualFile ? path.join(downloadsDir, actualFile) : outputPath,
-      ext: actualExt
-    });
-
-    saveHistory(taskId);
-    console.log(`[task] ${taskId} youtube completed via yt-dlp`);
+    // ========== 旧 TikHub API 兜底（可能只有 360p）==========
   } catch (error) {
     console.error(`[task] ${taskId} youtube failed:`, error);
     store.update(taskId, { status: 'error', error: error.message });
