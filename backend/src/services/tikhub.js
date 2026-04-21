@@ -7,7 +7,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-// 尝试加载 .env 文件（可选， Railway 会用环境变量）
+// 尝试加载 .env 文件(可选, Railway 会用环境变量)
 const envPath = path.join(__dirname, '../../.env');
 if (fs.existsSync(envPath)) {
   try { require('dotenv').config({ path: envPath }); } catch {}
@@ -19,7 +19,7 @@ const API_KEY_YT = process.env.TIKHUB_API_KEY_YT;
 const API_KEY_DOUYIN = process.env.TIKHUB_API_KEY_DOUYIN;
 const API_KEY_INSTAGRAM = process.env.TIKHUB_API_KEY_INSTAGRAM;
 
-// 记录警告（不抛错，让服务能启动）
+// 记录警告(不抛错,让服务能启动)
 if (!API_KEY_XHS) console.warn('[tikhub] TIKHUB_API_KEY_XHS not set');
 if (!API_KEY_YT) console.warn('[tikhub] TIKHUB_API_KEY_YT not set');
 if (!API_KEY_DOUYIN) console.warn('[tikhub] TIKHUB_API_KEY_DOUYIN not set');
@@ -74,7 +74,7 @@ async function parseYouTube(url, taskId, onProgress) {
   if (onProgress) onProgress(10);
 
   const data = await tikhubRequest(`/api/v1/youtube/web/get_video_info?video_id=${videoId}&need_format=true`, API_KEY_YT);
-  
+
   if (onProgress) onProgress(20);
 
   // 获取视频信息
@@ -86,7 +86,7 @@ async function parseYouTube(url, taskId, onProgress) {
   // 找到最好的下载链接 (TikHub returns videos.items)
   let downloadUrl = '';
   const videos = data.videos?.items || [];
-  
+
   // 找最高画质的 MP4
   const bestVideo = videos
     .filter(v => v.url && (v.mimeType || '').includes('video/mp4'))
@@ -139,9 +139,9 @@ async function parseXiaohongshu(url, taskId, onProgress) {
   console.log(`[TikHub] Parsing Xiaohongshu: ${url}`);
   if (onProgress) onProgress(10);
 
-  // 使用 fetch_feed_notes_v3 接口（支持短链）
+  // 使用 fetch_feed_notes_v3 接口(支持短链)
   const data = await tikhubRequest(`/api/v1/xiaohongshu/web_v2/fetch_feed_notes_v3?short_url=${encodeURIComponent(url)}`);
-  
+
   if (onProgress) onProgress(20);
 
   const note = data.note || data.data?.note || {};
@@ -154,7 +154,7 @@ async function parseXiaohongshu(url, taskId, onProgress) {
     const media = video.media || {};
     const stream = media.stream || {};
     const h264 = stream.h264 || [];
-    
+
     // 找最高画质
     const bestStream = h264
       .filter(s => s.masterUrl)
@@ -162,7 +162,7 @@ async function parseXiaohongshu(url, taskId, onProgress) {
 
     if (bestStream?.masterUrl) {
       console.log(`[TikHub] Found Xiaohongshu video: ${title}`);
-      
+
       const outputPath = path.join(DOWNLOAD_DIR, `${taskId}.mp4`);
       await downloadFile(bestStream.masterUrl, outputPath, onProgress);
 
@@ -195,7 +195,7 @@ async function parseXiaohongshu(url, taskId, onProgress) {
   const imageList = note.imageList || [];
   if (imageList.length > 0) {
     console.log(`[TikHub] Found Xiaohongshu images: ${imageList.length}`);
-    
+
     const imageFiles = [];
     for (let i = 0; i < imageList.length; i++) {
       const img = imageList[i];
@@ -233,39 +233,39 @@ async function parseXiaohongshu(url, taskId, onProgress) {
 }
 
 /**
- * YouTube 下载（直接用 TikHub API）
+ * YouTube 下载(直接用 TikHub API)
  */
 async function downloadYouTubeViaAPI(url, taskId, onProgress, quality) {
   const https = require('https');
   const http = require('http');
   const fs = require('fs');
   const path = require('path');
-  
+
   const videoIdMatch = url.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/);
   if (!videoIdMatch) throw new Error('Invalid YouTube URL');
   const videoId = videoIdMatch[1];
-  
+
   console.log(`[TikHub] Downloading YouTube: ${videoId} with quality: ${quality}`);
   if (onProgress) onProgress(5);
-  
+
   // 获取视频信息
   const data = await tikhubRequest(`/api/v1/youtube/web/get_video_info?video_id=${videoId}&need_format=true`, API_KEY_YT);
   if (onProgress) onProgress(15);
-  
+
   const title = data.title || 'YouTube Video';
   const thumbnails = data.thumbnails || [];
   const thumbnail = thumbnails.length > 0 ? thumbnails[0].url : '';
   const duration = data.lengthSeconds ? parseInt(data.lengthSeconds) : 0;
-  
+
   // 选择最佳格式
   const videos = data.videos?.items || [];
   let selectedVideo = null;
-  
+
   if (quality && quality.includes('height<=')) {
     // 解析画质要求
     const heightMatch = quality.match(/height<=(\d+)/);
     const maxHeight = heightMatch ? parseInt(heightMatch[1]) : 99999;
-    
+
     // 找到最佳匹配的格式
     for (const v of videos) {
       if (v.url && v.hasVideo && v.height <= maxHeight) {
@@ -275,8 +275,8 @@ async function downloadYouTubeViaAPI(url, taskId, onProgress, quality) {
       }
     }
   }
-  
-  // 如果没找到，选最高画质
+
+  // 如果没找到,选最高画质
   if (!selectedVideo) {
     for (const v of videos) {
       if (v.url && v.hasVideo) {
@@ -286,30 +286,30 @@ async function downloadYouTubeViaAPI(url, taskId, onProgress, quality) {
       }
     }
   }
-  
+
   if (!selectedVideo || !selectedVideo.url) {
     throw new Error('No download URL found');
   }
-  
+
   console.log(`[TikHub] Selected: ${selectedVideo.width}x${selectedVideo.height}`);
   if (onProgress) onProgress(25);
-  
-  // 立即下载（URL 可能很快过期）
+
+  // 立即下载(URL 可能很快过期)
   const outputPath = path.join(DOWNLOAD_DIR, `${taskId}.mp4`);
   const downloadUrl = selectedVideo.url;
-  
+
   console.log(`[TikHub] Downloading from: ${downloadUrl.substring(0, 80)}...`);
-  
-  // 使用 downloadFile 下载（支持字节进度）
+
+  // 使用 downloadFile 下载(支持字节进度)
   await downloadFile(downloadUrl, outputPath, (percent, downloaded, total) => {
     if (onProgress) onProgress(30 + Math.floor(percent * 0.6), downloaded, total);
   }, {
     'User-Agent': 'Mozilla/5.0',
     'Referer': 'https://www.youtube.com/'
   });
-  
+
   if (onProgress) onProgress(90);
-  
+
   // 下载封面
   let thumbnailUrl = '';
   if (thumbnail) {
@@ -323,9 +323,9 @@ async function downloadYouTubeViaAPI(url, taskId, onProgress, quality) {
       console.log(`[TikHub] Thumbnail failed: ${e.message}`);
     }
   }
-  
+
   if (onProgress) onProgress(100);
-  
+
   return {
     title,
     filePath: outputPath,
@@ -345,13 +345,13 @@ async function parseDouyin(url, taskId, onProgress, quality = null) {
       maxHeight = parseInt(heightMatch[1]);
     }
   }
-  
+
   // 提取 aweme_id
   let awemeId;
   const videoMatch = url.match(/\/video\/(\d+)/);
   const noteMatch = url.match(/\/note\/(\d+)/);
   awemeId = videoMatch?.[1] || noteMatch?.[1];
-  
+
   if (!awemeId) {
     // 尝试解析短链接
     const https = require('https');
@@ -367,74 +367,62 @@ async function parseDouyin(url, taskId, onProgress, quality = null) {
     });
     awemeId = resolved;
   }
-  
+
   if (!awemeId) throw new Error('无法解析抖音作品 ID');
-  
+
   console.log(`[TikHub] Parsing Douyin: ${awemeId}`);
   if (onProgress) onProgress(10);
-  
-  // 获取视频信息
-  let data;
+
+  // 优先使用分享链接 API（支持高清画质）
+  let data = {};
   try {
-    data = await tikhubRequest(`/api/v1/douyin/web/fetch_one_video?aweme_id=${awemeId}`, API_KEY_DOUYIN);
+    data = await tikhubRequest(`/api/v1/douyin/web/fetch_one_video_by_share_url?share_url=${encodeURIComponent(url)}`, API_KEY_DOUYIN);
+    console.log(`[TikHub] fetch_one_video_by_share_url succeeded`);
   } catch (e) {
-    console.log(`[TikHub] fetch_one_video failed:`, e.message);
-    data = {};
+    console.log(`[TikHub] fetch_one_video_by_share_url failed: ${e.message}, trying aweme_id...`);
+    // fallback: 用 aweme_id 方式
+    if (awemeId) {
+      try {
+        data = await tikhubRequest(`/api/v1/douyin/web/fetch_one_video?aweme_id=${awemeId}`, API_KEY_DOUYIN);
+      } catch (e2) {
+        console.log(`[TikHub] fetch_one_video also failed: ${e2.message}`);
+      }
+    }
   }
   if (onProgress) onProgress(20);
-  
+
   const detail = data.aweme_detail || {};
   const video = detail.video || {};
   const title = detail.desc || '抖音作品';
-  
-  // 获取播放地址（优先使用 H.265 高画质）
-  let videoUrl = '';
-  
-  // 获取 H.265 画质 URL（作为备用）
+
+  // 获取 H.265 画质 URL（备用，通常有 1080p）
   const playAddr265 = video.play_addr_265 || {};
   const playAddr265Url = playAddr265.url_list?.[0] || '';
-  
-  // 尝试使用高画质 API 获取原始视频
+
+  // 尝试使用高清 API 获取原始视频（可能有 2K/4K）
   console.log(`[TikHub] Fetching high quality video...`);
   if (onProgress) onProgress(15);
-  
+
   let hqVideoUrl = '';
-  // 注意：hqVideoUrl 是原始素材（无音频），抖音创作者上传的是视频+音频分离的
-  // 为了保证用户体验，优先使用 bit_rate（有音频），跳过 hqVideoUrl
-  // 如果未来需要无音频的原画，再单独处理
-  /*
+  let hqFileSize = 0;
   try {
-    const hqData = await tikhubRequest(`/api/v1/douyin/web/fetch_video_high_quality_play_url?aweme_id=${awemeId}`, API_KEY_DOUYIN);
-    
+    // 用 share_url 参数才能拿到高清
+    const hqData = await tikhubRequest(`/api/v1/douyin/web/fetch_video_high_quality_play_url?share_url=${encodeURIComponent(url)}`, API_KEY_DOUYIN);
     if (hqData.original_video_url) {
-      const https = require('https');
-      const hqUrl = hqData.original_video_url;
-      
-      const isAccessible = await new Promise((resolve) => {
-        const req = https.request(hqUrl, { method: 'HEAD', timeout: 5000 }, (res) => {
-          resolve(res.statusCode === 200 || res.statusCode === 302 || res.statusCode === 303);
-        }).on('error', () => resolve(false));
-        req.end();
-      });
-      
-      if (isAccessible) {
-        hqVideoUrl = hqUrl;
-        console.log(`[TikHub] Using original video: ${hqData.file_size_in_mb || 'N/A'} MB`);
-      } else {
-        console.log(`[TikHub] High quality URL not accessible, will use H.265 fallback`);
-      }
+      hqVideoUrl = hqData.original_video_url;
+      hqFileSize = hqData.file_size_in_mb || 0;
+      console.log(`[TikHub] HQ video found: ${hqFileSize} MB`);
     }
   } catch (e) {
-    console.log(`[TikHub] High quality API failed:`, e.message);
+    console.log(`[TikHub] fetch_video_high_quality_play_url failed: ${e.message}`);
   }
-  */
-  
+
   // 收集所有可用画质源
   const candidates = [];
   let selectedWidth = 0;
   let selectedHeight = 0;
-  
-  // 1. H.265 源（可能有更高分辨率如 2K）
+
+  // 1. H.265 源(可能有更高分辨率如 2K)
   if (playAddr265Url) {
     candidates.push({
       url: playAddr265Url,
@@ -444,8 +432,8 @@ async function parseDouyin(url, taskId, onProgress, quality = null) {
       bitrate: playAddr265?.bit_rate || 0
     });
   }
-  
-  // 2. bit_rate 数组（H.264，通常有音频）
+
+  // 2. bit_rate 数组(H.264,通常有音频)
   if (video.bit_rate) {
     for (const br of video.bit_rate) {
       const url = br.play_addr?.url_list?.[0];
@@ -461,7 +449,7 @@ async function parseDouyin(url, taskId, onProgress, quality = null) {
       }
     }
   }
-  
+
   // 3. play_addr 兜底
   if (video.play_addr?.url_list?.[0]) {
     candidates.push({
@@ -472,55 +460,61 @@ async function parseDouyin(url, taskId, onProgress, quality = null) {
       bitrate: video.play_addr.bit_rate || 0
     });
   }
-  
+
   console.log(`[TikHub] Found ${candidates.length} video sources:`);
   for (const c of candidates) {
     console.log(`  ${c.codec} ${c.width}x${c.height} ${c.bitrate}bps${c.hasAudio ? ' (hasAudio)' : ''}`);
   }
-  
-  // 排序：有音频的优先，然后按分辨率降序
+
+  // 排序:高清原始 URL 优先,然后有音频的,最后按分辨率降序
   candidates.sort((a, b) => {
     if (a.hasAudio !== b.hasAudio) return b.hasAudio - a.hasAudio;
     return (b.height || 0) - (a.height || 0);
   });
-  
-  // 选择：先过滤画质限制，再选最好的
+
+  // 选择:高清原始 URL 直接用,否则从候选选最佳
   let selected = null;
-  for (const c of candidates) {
-    if (maxHeight < 99999 && c.height > maxHeight) continue;
-    selected = c;
-    break;
+  if (hqVideoUrl) {
+    // hqUrl 是原始素材(无音频),但文件更大画质更高
+    // 如果有比特率信息,用它判断是否有音频
+    selected = { url: hqVideoUrl, width: 0, height: 0, codec: 'original', bitrate: 0, hasAudio: false };
+    console.log(`[TikHub] Using HQ original video: ${hqFileSize} MB`);
+  } else {
+    for (const c of candidates) {
+      if (maxHeight < 99999 && c.height > maxHeight) continue;
+      selected = c;
+      break;
+    }
+    // 如果所有候选都超了限制,选分辨率最低的
+    if (!selected && candidates.length > 0) {
+      selected = candidates[candidates.length - 1];
+    }
   }
-  
-  // 如果所有候选都超了限制，选分辨率最低的
-  if (!selected && candidates.length > 0) {
-    selected = candidates[candidates.length - 1];
-  }
-  
+
   if (selected) {
     videoUrl = selected.url;
     selectedWidth = selected.width;
     selectedHeight = selected.height;
     console.log(`[TikHub] Selected: ${selected.codec} ${selectedWidth}x${selectedHeight} ${selected.bitrate}bps`);
   }
-  
+
   if (!videoUrl) throw new Error('No download URL found');
-  
+
   console.log(`[TikHub] Found Douyin video URL`);
   if (onProgress) onProgress(30);
-  
+
   // 下载视频
   const fs = require('fs');
   const path = require('path');
   const outputPath = path.join(DOWNLOAD_DIR, `${taskId}.mp4`);
-  
+
   await downloadFile(videoUrl, outputPath, (percent, downloaded, total) => {
     if (onProgress) onProgress(30 + Math.floor(percent * 0.65), downloaded, total);
   }, {
     'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)',
     'Referer': 'https://www.douyin.com/'
   });
-  
+
   // 下载封面
   let thumbnailUrl = '';
   const coverUrl = video.cover?.url_list?.[0] || video.origin_cover?.url_list?.[0] || '';
@@ -535,9 +529,9 @@ async function parseDouyin(url, taskId, onProgress, quality = null) {
       console.log(`[TikHub] Thumbnail failed: ${e.message}`);
     }
   }
-  
+
   if (onProgress) onProgress(100);
-  
+
   const qualityLabel = selectedHeight >= 2160 ? '4K' : selectedHeight >= 1440 ? '2K' : selectedHeight >= 1080 ? '1080p' : selectedHeight >= 720 ? '720p' : selectedHeight >= 480 ? '480p' : selectedHeight >= 360 ? '360p' : `${selectedHeight || 0}p`;
   return {
     title,
@@ -559,12 +553,12 @@ async function downloadFile(url, outputPath, onProgress, headers = {}) {
   const fs = require('fs');
   const protocol = url.startsWith('https') ? https : http;
   const MAX_SIZE = 500 * 1024 * 1024; // 500MB
-  
+
   return new Promise((resolve, reject) => {
     const file = fs.createWriteStream(outputPath);
     let totalSize = 0;
     let downloaded = 0;
-    
+
     protocol.get(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)',
@@ -577,16 +571,16 @@ async function downloadFile(url, outputPath, onProgress, headers = {}) {
         downloadFile(response.headers.location, outputPath, onProgress, headers).then(resolve).catch(reject);
         return;
       }
-      
+
       if (response.statusCode !== 200) {
         file.close();
         fs.unlink(outputPath, () => {});
         reject(new Error(`HTTP ${response.statusCode}`));
         return;
       }
-      
+
       totalSize = parseInt(response.headers['content-length']) || 0;
-      
+
       response.on('data', (chunk) => {
         downloaded += chunk.length;
         if (downloaded > MAX_SIZE) {
@@ -600,7 +594,7 @@ async function downloadFile(url, outputPath, onProgress, headers = {}) {
           onProgress(totalSize > 0 ? Math.floor((downloaded / totalSize) * 100) : 0, downloaded, totalSize);
         }
       });
-      
+
       response.pipe(file);
       file.on('finish', () => {
         file.close();
@@ -617,16 +611,16 @@ async function downloadFile(url, outputPath, onProgress, headers = {}) {
 
 async function parseInstagram(url) {
   if (!API_KEY_INSTAGRAM) throw new Error('TikHub Instagram API key not configured');
-  
+
   const response = await tikhubRequest(
     '/api/v1/instagram/v1/fetch_post_by_url?post_url=' + encodeURIComponent(url),
     API_KEY_INSTAGRAM
   );
-  
+
   const data = response.data || response;
   const videoUrl = data.video_url;
   if (!videoUrl) throw new Error('No video URL found');
-  
+
   return {
     title: (data.caption?.text || data.shortcode || 'Instagram Video').substring(0, 200),
     videoUrl,
@@ -638,9 +632,9 @@ async function parseInstagram(url) {
 }
 
 /**
- * 使用 web_v2 API 解析 YouTube（支持高清画质）
+ * 使用 web_v2 API 解析 YouTube(支持高清画质)
  * 接口: get_video_streams_v2
- * 返回所有画质流（1080p/720p/480p/360p等）+ 音频流
+ * 返回所有画质流(1080p/720p/480p/360p等)+ 音频流
  */
 async function parseYouTubeV2(url, taskId, onProgress, quality = null) {
   const videoIdMatch = url.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/);
