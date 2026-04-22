@@ -660,6 +660,8 @@ async function parseYouTubeV2(url, taskId, onProgress, quality = null) {
     API_KEY_YT
   );
 
+  console.log(`[TikHub v2] API response: formats=${data.formats?.length || 0}, adaptive=${data.adaptive_formats?.length || 0}`);
+
   const title = data.title || 'YouTube Video';
   const duration = data.length_seconds ? parseInt(data.length_seconds) : 0;
   const thumbnails = Array.isArray(data.thumbnail) ? data.thumbnail : [];
