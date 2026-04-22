@@ -16,7 +16,7 @@ import {
   Play, Search, Clipboard, Crown, Sun, Moon, Keyboard, User,
 } from 'lucide-react'
 
-const API = 'https://orange-production-95b9.up.railway.app/api'
+const API = 'https://api.orangedl.com/api'
 const BASE_URL = API.replace('/api', '')
 
 // Share file using native share sheet (Android: shows save to Photos/Files option)
