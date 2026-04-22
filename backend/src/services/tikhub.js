@@ -43,7 +43,11 @@ function tikhubRequest(endpoint, apiKey = null) {
       }
     };
 
-    https.get(url, options, (res) => {
+    const req = https.get(url, options, (res) => {
+      req.setTimeout(30000, () => {
+        req.destroy();
+        reject(new Error('TikHub API timeout'));
+      });
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
