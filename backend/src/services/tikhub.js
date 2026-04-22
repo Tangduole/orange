@@ -748,9 +748,17 @@ async function parseYouTubeV2(url, taskId, onProgress, quality = null) {
   // 下载
   // 直接下载单个视频流
   if (onProgress) onProgress(25);
-  await downloadFile(videoUrl, outputPath, (percent, downloaded, total) => {
-    if (onProgress) onProgress(25 + Math.floor(percent * 0.65), downloaded, total);
-  }, { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.youtube.com/' });
+  try {
+    await downloadFile(videoUrl, outputPath, (percent, downloaded, total) => {
+      if (onProgress) onProgress(25 + Math.floor(percent * 0.65), downloaded, total);
+    }, { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.youtube.com/' });
+  } catch (dlErr) {
+    // 403/401 可能是 Railway IP 被 Google 限制
+    if (dlErr.message && (dlErr.message.includes('403') || dlErr.message.includes('401'))) {
+      throw new Error(`视频下载失败(Google IP限制)，请尝试更换节点或稍后重试`);
+    }
+    throw dlErr;
+  }
 
   if (onProgress) onProgress(90);
 
