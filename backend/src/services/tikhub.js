@@ -651,7 +651,7 @@ async function parseYouTubeV2(url, taskId, onProgress, quality = null) {
   if (!videoIdMatch) throw new Error('Invalid YouTube URL');
   const videoId = videoIdMatch[1];
 
-  console.log(`[TikHub v2] Parsing YouTube: ${videoId}`);
+  console.log(`[TikHub v2] Parsing YouTube: ${videoId}, API_KEY present: ${!!API_KEY_YT}`);
   if (onProgress) onProgress(5);
 
   // 调用 web_v2 接口, need_format=true 获取完整格式列表
