@@ -750,74 +750,35 @@ async function processX(taskId, url, needAsr, options = ['video']) {
  * 处理 YouTube 下载 (TikHub API)
  */
 async function processYouTube(taskId, url, needAsr, options = ['video'], quality = null) {
+    console.log('[ZZZzzZ] processYouTube CALLED for task:', taskId, 'url:', url, 'quality:', quality);
   try {
-    const axios = require('axios');
     const path = require('path');
-    const fs = require('fs');
-    const { spawn } = require('child_process');
-    const ytdlp = require('../services/yt-dlp');
 
     store.update(taskId, { status: 'parsing', progress: 5 });
 
-    // 获取视频 ID
-    const videoIdMatch = url.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/);
-    if (!videoIdMatch) throw new Error('Invalid YouTube URL');
-    const videoId = videoIdMatch[1];
-
-    // 解析用户选择的画质
-    let maxHeight = 99999; // 默认无限制(VIP)
-    if (quality) {
-      const heightMatch = quality.match(/height<=?(\d+)/i);
-      if (heightMatch) {
-        maxHeight = parseInt(heightMatch[1]);
-      }
-    }
-    // 保存用户请求的画质参数
     store.update(taskId, { requestedQuality: quality });
 
-    // ========== YouTube: 直接使用 v2 API (高清支持) ==========
-    try {
-      const { parseYouTubeV2 } = require('../services/tikhub');
-      const result = await parseYouTubeV2(url, taskId, (percent, downloaded, total) => {
-        store.update(taskId, { status: percent < 30 ? 'parsing' : 'downloading', progress: percent, downloadedBytes: downloaded || 0, totalBytes: total || 0 });
-      }, quality);
+    // ========== TikHub v2 API (唯一下载方式,不使用 yt-dlp) ==========
+    const { parseYouTubeV2 } = require('../services/tikhub');
+    const result = await parseYouTubeV2(url, taskId, (percent, downloaded, total) => {
+      store.update(taskId, { status: percent < 30 ? 'parsing' : 'downloading', progress: percent, downloadedBytes: downloaded || 0, totalBytes: total || 0 });
+    }, quality);
 
-      const update = {
-        status: 'completed',
-        width: result.width,
-        height: result.height,
-        quality: result.quality || `${result.height}p`,
-        progress: 100,
-        title: result.title,
-        thumbnailUrl: result.thumbnailUrl,
-        downloadUrl: `/download/${taskId}.mp4`,
-        filePath: result.filePath,
-        ext: 'mp4'
-      };
-      store.update(taskId, update);
-      saveHistory(taskId);
-      console.log(`[task] ${taskId} youtube completed via TikHub v2 (${result.quality})`);
-      return;
-    } catch (v2Err) {
-      console.log(`[task] ${taskId} TikHub v2 failed: ${v2Err.message}, trying yt-dlp...`);
-    }
-
-    // ========== yt-dlp 兜底 ==========
-    try {
-      const ytdlp = require('../services/yt-dlp');
-      const outputPath = path.join(__dirname, '../../downloads', `${taskId}.mp4`);
-      store.update(taskId, { status: 'downloading', progress: 10 });
-      await ytdlp.download(url, outputPath, (percent) => {
-        store.update(taskId, { status: 'downloading', progress: Math.min(percent * 0.9 + 10, 95) });
-      });
-      store.update(taskId, { status: 'completed', progress: 100, downloadUrl: `/download/${taskId}.mp4`, filePath: outputPath, ext: 'mp4' });
-      saveHistory(taskId);
-      console.log(`[task] ${taskId} youtube completed via yt-dlp`);
-      return;
-    } catch (ydlpErr) {
-      console.error(`[task] ${taskId} yt-dlp failed: ${ydlpErr.message}`);
-      throw ydlpErr;
-    }
+    const update = {
+      status: 'completed',
+      width: result.width,
+      height: result.height,
+      quality: result.quality || `${result.height}p`,
+      progress: 100,
+      title: result.title,
+      thumbnailUrl: result.thumbnailUrl,
+      downloadUrl: `/download/${taskId}.mp4`,
+      filePath: result.filePath,
+      ext: 'mp4'
+    };
+    store.update(taskId, update);
+    saveHistory(taskId);
+    console.log(`[task] ${taskId} youtube completed via TikHub v2 (${result.quality})`);
   } catch (error) {
     console.error(`[task] ${taskId} youtube failed:`, error);
     store.update(taskId, { status: 'error', error: error.message });
