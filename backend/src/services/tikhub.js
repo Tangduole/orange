@@ -740,33 +740,11 @@ async function parseYouTubeV2(url, taskId, onProgress, quality = null) {
   const tempAudio = path.join(DOWNLOAD_DIR, `${taskId}_audio.mp4`);
 
   // 下载
-  if (audioUrl && selectedHeight >= 720) {
-    if (onProgress) onProgress(25);
-    await downloadFile(videoUrl, tempVideo, (percent, downloaded, total) => {
-      if (onProgress) onProgress(25 + Math.floor(percent * 0.35), downloaded, total);
-    }, { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.youtube.com/' });
-
-    if (onProgress) onProgress(60);
-    await downloadFile(audioUrl, tempAudio, (percent, downloaded, total) => {
-      if (onProgress) onProgress(60 + Math.floor(percent * 0.25), downloaded, total);
-    }, { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.youtube.com/' });
-
-    if (onProgress) onProgress(85);
-    await new Promise((resolve, reject) => {
-      const ffmpeg = spawn('ffmpeg', ['-i', tempVideo, '-i', tempAudio, '-c:v', 'copy', '-c:a', 'aac', '-y', outputPath]);
-      ffmpeg.on('close', (code) => {
-        try { fs.unlinkSync(tempVideo); } catch {}
-        try { fs.unlinkSync(tempAudio); } catch {}
-        if (code === 0) resolve(); else reject(new Error(`ffmpeg exited with code ${code}`));
-      });
-      ffmpeg.on('error', reject);
-    });
-  } else {
-    if (onProgress) onProgress(25);
-    await downloadFile(videoUrl, outputPath, (percent, downloaded, total) => {
-      if (onProgress) onProgress(25 + Math.floor(percent * 0.65), downloaded, total);
-    }, { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.youtube.com/' });
-  }
+  // 直接下载单个视频流
+  if (onProgress) onProgress(25);
+  await downloadFile(videoUrl, outputPath, (percent, downloaded, total) => {
+    if (onProgress) onProgress(25 + Math.floor(percent * 0.65), downloaded, total);
+  }, { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.youtube.com/' });
 
   if (onProgress) onProgress(90);
 
