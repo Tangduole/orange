@@ -80,16 +80,12 @@ const shareFile = async (url: string, title: string, fileType: 'video' | 'audio'
       }
     }
   } else {
-    // Web: iOS Safari - open video and guide user to save
-    if (isIOS()) {
-      window.open(fullUrl, '_blank')
-      return { success: true }
-    }
-    
-    // Other browsers: fetch as blob → force download
+    // Web: 尝试 fetch blob 方式下载
     try {
       const resp = await fetch(fullUrl)
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       const blob = await resp.blob()
+      if (blob.size === 0) throw new Error('Empty file')
       const blobUrl = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = blobUrl
@@ -100,6 +96,8 @@ const shareFile = async (url: string, title: string, fileType: 'video' | 'audio'
       URL.revokeObjectURL(blobUrl)
       return { success: true }
     } catch (e) {
+      console.error('[shareFile] blob download failed:', e)
+      // Fallback: 用 window.open，iOS Safari 会在新标签页播放视频
       window.open(fullUrl, '_blank')
       return { success: false, error: String(e) }
     }
