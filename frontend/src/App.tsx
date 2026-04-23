@@ -1483,8 +1483,9 @@ export default function App() {
                     setDownloading(true)
                     // 检查是否为直接Link（YouTube等）
                     if (task.directLink) {
-                      // 直接在新窗口打开Link
-                      window.open(task.downloadUrl, '_blank')
+                      // 直接在新窗口打开Link（需完整URL，否则打到前端域名）
+                      const fullUrl = task.downloadUrl.startsWith('http') ? task.downloadUrl : `${BASE_URL}${task.downloadUrl}`
+                      window.open(fullUrl, '_blank')
                       setDownloading(false)
                     } else {
                       await shareFile(task.downloadUrl, task.title || 'video', 'video')
