@@ -84,8 +84,17 @@ const shareFile = async (url: string, title: string, fileType: 'video' | 'audio'
     try {
       const resp = await fetch(fullUrl)
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
+      const contentType = resp.headers.get('content-type') || ''
+      if (contentType.includes('text/html') || contentType.includes('application/json')) {
+        throw new Error('Download link expired')
+      }
       const blob = await resp.blob()
       if (blob.size === 0) throw new Error('Empty file')
+      // 安全检查：读取文件头验证不是 HTML
+      const head = await blob.slice(0, 512).text()
+      if (head.trim().startsWith('<!DOCTYPE') || head.trim().startsWith('<html')) {
+        throw new Error('Download link expired')
+      }
       const blobUrl = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = blobUrl
