@@ -1,0 +1,38 @@
+name: Deploy Backend to Vultr
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'backend/**'
+      - 'src/**'
+      - 'package.json'
+      - 'ecosystem.config.js'
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            backend
+            ecosystem.config.js
+            package.json
+
+      - name: Deploy to Vultr via SSH
+        uses: appleboy/ssh-action@v0.1.11
+        with:
+          host: ${{ secrets.VULTR_HOST }}
+          username: root
+          key: ${{ secrets.VULTR_SSH_PRIVATE_KEY }}
+          port: 22
+          script: |
+            cd /opt/orange/backend
+            git pull origin master
+            npm install --production
+            pm2 restart orange-backend
+            pm2 save
