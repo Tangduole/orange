@@ -2,8 +2,8 @@
  * API 服务 - 认证相关
  */
 
-// 如果没配置 VITE_API_URL，本地开发用相对路径，生产环境用 Railway
-const API_BASE = import.meta.env.VITE_API_URL || 'https://orange-production-95b9.up.railway.app';
+// 如果没配置 VITE_API_URL，本地开发用相对路径，生产环境用 Vultr
+const API_BASE = import.meta.env.VITE_API_URL || 'https://api.orangedl.com';
 
 interface AuthResponse {
   token: string;
