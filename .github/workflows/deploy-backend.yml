@@ -24,7 +24,7 @@ jobs:
             package.json
 
       - name: Deploy to Vultr via SSH
-        uses: appleboy/ssh-action@v0.1.11
+        uses: appleboy/ssh-action@v1.2.5
         with:
           host: ${{ secrets.VULTR_HOST }}
           username: root
