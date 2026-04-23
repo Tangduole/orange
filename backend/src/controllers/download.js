@@ -48,11 +48,35 @@ function saveHistory(taskId) {
 async function downloadToStream(url, destPath, timeout = 120000) {
   const writer = fs.createWriteStream(destPath);
   const response = await axios.get(url, { responseType: 'stream', timeout });
+
+  // 检查 Content-Type，防止下载到 HTML 错误页
+  const contentType = response.headers['content-type'] || '';
+  if (contentType.includes('text/html') || contentType.includes('application/json')) {
+    writer.close();
+    try { fs.unlinkSync(destPath); } catch {}
+    throw new Error('Video link expired or blocked');
+  }
+
   return new Promise((resolve, reject) => {
     response.data.pipe(writer);
-    writer.on('finish', resolve);
+    writer.on('finish', () => {
+      // 下载完成后再次检查文件内容（防止 Content-Type 误报）
+      try {
+        const fd = fs.openSync(destPath, 'r');
+        const head = Buffer.alloc(1024);
+        fs.readSync(fd, head, 0, 1024, 0);
+        fs.closeSync(fd);
+        const text = head.toString('utf8').trim();
+        if (text.startsWith('<!DOCTYPE') || text.startsWith('<html') || text.startsWith('<!doctype')) {
+          try { fs.unlinkSync(destPath); } catch {}
+          reject(new Error('Video link expired or blocked'));
+          return;
+        }
+      } catch {}
+      resolve();
+    });
     writer.on('error', (err) => {
-      fs.unlink(destPath, () => {});
+      try { fs.unlinkSync(destPath); } catch {}
       reject(err);
     });
   });

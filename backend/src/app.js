@@ -93,10 +93,13 @@ app.use('/download', (req, res, next) => {
     
     const mimeType = mimeTypes[ext] || 'application/octet-stream';
     res.setHeader('Content-Type', mimeType);
-    
-    // inline 播放（浏览器会尝试播放而不是下载）
+
+    // 视频/音频强制下载（不用 inline，避免浏览器拦截）
+    // 图片保持 inline（可以预览）
     const encodedFilename = encodeURIComponent(filename);
-    res.setHeader('Content-Disposition', `inline; filename*=UTF-8''${encodedFilename}`);
+    const isMedia = ['.mp4', '.mp3', '.avi', '.mov', '.mkv', '.flv', '.webm'].includes(ext);
+    const disposition = isMedia ? 'attachment' : 'inline';
+    res.setHeader('Content-Disposition', `${disposition}; filename*=UTF-8''${encodedFilename}`);
     
     // 允许跨域访问
     res.setHeader('Access-Control-Allow-Origin', '*');
