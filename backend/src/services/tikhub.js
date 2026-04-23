@@ -343,6 +343,7 @@ async function downloadYouTubeViaAPI(url, taskId, onProgress, quality) {
 async function parseDouyin(url, taskId, onProgress, quality = null, isVip = false) {
   // 解析画质限制
   let maxHeight = 99999; // 默认无限制
+  let videoUrl = null;
   if (quality && quality.includes('height<=')) {
     const heightMatch = quality.match(/height<=(\d+)/);
     if (heightMatch) {
