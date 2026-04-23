@@ -575,7 +575,7 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
 async function downloadFile(url, outputPath, onProgress, headers = {}) {
   const https = require('https');
   const http = require('http');
-//   const fs = require('fs');
+  const fs = require('fs');
   const protocol = url.startsWith('https') ? https : http;
   const MAX_SIZE = 500 * 1024 * 1024; // 500MB
 
@@ -583,6 +583,7 @@ async function downloadFile(url, outputPath, onProgress, headers = {}) {
     const file = fs.createWriteStream(outputPath);
     let totalSize = 0;
     let downloaded = 0;
+    let contentType = '';
 
     protocol.get(url, {
       headers: {
@@ -590,6 +591,16 @@ async function downloadFile(url, outputPath, onProgress, headers = {}) {
         ...headers
       }
     }, (response) => {
+      contentType = response.headers['content-type'] || '';
+      
+      // 检查是否为 HTML 内容（链接失效的标志）
+      if (contentType.includes('text/html') || contentType.includes('application/json')) {
+        file.close();
+        fs.unlink(outputPath, () => {});
+        reject(new Error('Video link expired or blocked'));
+        return;
+      }
+
       if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
         file.close();
         fs.unlink(outputPath, () => {});
@@ -623,6 +634,19 @@ async function downloadFile(url, outputPath, onProgress, headers = {}) {
       response.pipe(file);
       file.on('finish', () => {
         file.close();
+        // 下载完成后再次检查文件内容（防止 Content-Type 误报）
+        try {
+          const fd = fs.openSync(outputPath, 'r');
+          const head = Buffer.alloc(1024);
+          fs.readSync(fd, head, 0, 1024, 0);
+          fs.closeSync(fd);
+          const text = head.toString('utf8').trim();
+          if (text.startsWith('<!DOCTYPE') || text.startsWith('<html') || text.startsWith('<!doctype')) {
+            fs.unlink(outputPath, () => {});
+            reject(new Error('Video link expired or blocked'));
+            return;
+          }
+        } catch {}
         resolve();
       });
     }).on('error', (err) => {

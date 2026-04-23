@@ -29,6 +29,38 @@ function httpGet(rawUrl, options = {}) {
         ...(options.headers || {})
       }
     }, (res) => {
+      const contentType = res.headers['content-type'] || '';
+      // HTML or JSON typically means link expired/blocked
+      if (contentType.includes('text/html') || contentType.includes('application/json')) {
+        if (options.responseType === 'arraybuffer') {
+          const chunks = [];
+          res.on('data', c => chunks.push(c));
+          res.on('end', () => {
+            const buf = Buffer.concat(chunks);
+            // Check if content is actually HTML
+            const text = buf.slice(0, 1024).toString('utf8').trim();
+            if (text.startsWith('<!DOCTYPE') || text.startsWith('<html')) {
+              reject(new Error('Video link expired or blocked'));
+            } else {
+              resolve(buf);
+            }
+          });
+        } else {
+          const chunks = [];
+          res.on('data', c => chunks.push(c));
+          res.on('end', () => {
+            const body = Buffer.concat(chunks).toString('utf-8');
+            const text = body.slice(0, 1024).trim();
+            if (text.startsWith('<!DOCTYPE') || text.startsWith('<html')) {
+              reject(new Error('Video link expired or blocked'));
+            } else {
+              resolve({ body, finalUrl: url.href });
+            }
+          });
+        }
+        return;
+      }
+
       if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
         return httpGet(res.headers.location, options).then(resolve).catch(reject);
       }
