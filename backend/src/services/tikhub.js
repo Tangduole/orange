@@ -489,7 +489,21 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
     selected = { url: hqVideoUrl, width: 0, height: 0, codec: 'original', bitrate: 0, hasAudio: false };
     console.log(`[TikHub] Using HQ original video (no quality limit): ${hqFileSize} MB`);
   } else if (hqVideoUrl) {
-    console.log(`[TikHub] User selected quality ${maxHeight}p, skipping HQ URL`);
+    // VIP用户选画质限制时，先尝试候选列表，否则用HQ原始URL兜底
+    for (const c of candidates) {
+      if (maxHeight < 99999 && c.height > maxHeight) continue;
+      selected = c;
+      break;
+    }
+    if (!selected && candidates.length > 0) {
+      selected = candidates[candidates.length - 1];
+    }
+    if (!selected) {
+      selected = { url: hqVideoUrl, width: 0, height: 0, codec: 'original', bitrate: 0, hasAudio: false };
+      console.log(`[TikHub] Using HQ original video as fallback: ${hqFileSize} MB`);
+    } else {
+      console.log(`[TikHub] User selected quality ${maxHeight}p, using candidate`);
+    }
   } else {
     for (const c of candidates) {
       if (maxHeight < 99999 && c.height > maxHeight) continue;
