@@ -80,9 +80,14 @@ const shareFile = async (url: string, title: string, fileType: 'video' | 'audio'
       }
     }
   } else {
-    // Web: 直接用 location.href 触发下载
-    // 服务器返回 Content-Disposition: attachment，浏览器会弹出保存对话框
-    location.href = fullUrl
+    // Web: 用隐藏的 iframe 触发下载（不跳转页面）
+    console.log('[shareFile] Using iframe download, url:', fullUrl)
+    const iframe = document.createElement('iframe')
+    iframe.style.display = 'none'
+    iframe.src = fullUrl
+    document.body.appendChild(iframe)
+    // 5秒后移除 iframe
+    setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe) }, 5000)
     return { success: true }
   }
 }
