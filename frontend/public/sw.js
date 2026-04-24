@@ -20,8 +20,8 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
 
-  // API 请求不缓存
-  if (request.url.includes('/api/')) return;
+  // API 和下载请求不缓存
+  if (request.url.includes('/api/') || request.url.includes('/download/')) return;
 
   // 导航请求：network first
   if (request.mode === 'navigate') {
