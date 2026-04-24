@@ -413,7 +413,7 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
   if (isVip) {
     // VIP用户:调用付费高清API获取原始素材(支持2K/4K)
     try {
-      const hqData = await tikhubRequest(`/api/v1/douyin/web/fetch_video_high_quality_play_url?share_url=${encodeURIComponent(url)}`, API_KEY_DOUYIN);
+      const hqData = await tikhubRequest(`/api/v1/douyin/app/v3/fetch_video_high_quality_play_url?share_url=${encodeURIComponent(url)}`, API_KEY_DOUYIN);
       if (hqData.original_video_url) {
         hqVideoUrl = hqData.original_video_url;
         hqFileSize = hqData.file_size_in_mb || 0;
