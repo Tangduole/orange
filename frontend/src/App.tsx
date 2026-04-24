@@ -81,11 +81,10 @@ const shareFile = async (url: string, title: string, fileType: 'video' | 'audio'
     }
   } else {
     // Web: 直接用 <a> 标签下载（服务器返回 Content-Disposition: attachment）
-    // 最简单可靠的方式，PC 和手机浏览器都支持
+    // 服务器设置了 attachment，浏览器会自动弹出下载
     const a = document.createElement('a')
     a.href = fullUrl
-    a.download = title || 'video.mp4'
-    a.target = '_blank'
+    a.download = title || 'video'
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
