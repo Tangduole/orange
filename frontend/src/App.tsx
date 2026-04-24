@@ -243,10 +243,10 @@ export default function App() {
   // IP自动检测语言（仅首次访问时）
   useEffect(() => {
     if (localStorage.getItem('orange_language')) return // 用户已手动选择过
-    fetch('https://ipapi.co/json/')
+    fetch('https://ip-api.com/json/')
       .then(r => r.json())
       .then(data => {
-        if (data.country_code === 'CN') {
+        if (data.country === 'China') {
           i18n.changeLanguage('zh-CN')
         } else {
           i18n.changeLanguage('en')
