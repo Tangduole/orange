@@ -66,6 +66,24 @@ const auth = {
   },
 
   /**
+   * 要求管理员 API Key
+   */
+  requireAdminKey(req, res, next) {
+    const adminKey = process.env.ADMIN_API_KEY;
+    if (!adminKey) {
+      console.error('[auth] ADMIN_API_KEY not configured');
+      return res.status(500).json({ code: 500, message: '管理员功能未配置' });
+    }
+
+    const requestKey = req.headers['x-admin-key'];
+    if (requestKey !== adminKey) {
+      return res.status(403).json({ code: 403, message: '无权访问' });
+    }
+
+    next();
+  },
+
+  /**
    * 生成 token
    */
   generateToken(user) {

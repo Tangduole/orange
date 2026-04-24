@@ -622,7 +622,7 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
     }, quality, isVip);
 
     // 获取用户请求的画质
-    const task = store.get(taskId) || {};
+    let task = store.get(taskId) || {};
     const reqQ = task.requestedQuality || requestedQuality;
 
     // 计算画质调整提示

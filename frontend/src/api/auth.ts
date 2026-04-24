@@ -2,8 +2,8 @@
  * API 服务 - 认证相关
  */
 
-// 如果没配置 VITE_API_URL，本地开发用相对路径，生产环境用 Vultr
-const API_BASE = import.meta.env.VITE_API_URL || 'https://api.orangedl.com';
+// 本地开发优先走 Vite 代理，生产环境默认走线上 API。
+export const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://api.orangedl.com');
 
 interface AuthResponse {
   token: string;

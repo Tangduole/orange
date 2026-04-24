@@ -7,7 +7,7 @@ import SubscriptionPage from './components/SubscriptionPage'
 import ReferralModal from './components/ReferralModal'
 import GallerySaver from './plugins/GallerySaver'
 import { initNotifications, showDownloadComplete } from './plugins/Notifications'
-import api from './api/auth'
+import api, { API_BASE } from './api/auth'
 import {
   Download, Link2, CheckCircle2, XCircle, Loader2,
   Video, FileText, Image as ImageIcon, Mic, Languages,
@@ -16,8 +16,19 @@ import {
   Play, Search, Clipboard, Crown, Sun, Moon, Keyboard, User,
 } from 'lucide-react'
 
-const API = 'https://api.orangedl.com/api'
-const BASE_URL = API.replace('/api', '')
+const BASE_URL = API_BASE
+const API = `${BASE_URL}/api`
+
+function readStoredJson<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return fallback
+    return JSON.parse(raw) as T
+  } catch {
+    localStorage.removeItem(key)
+    return fallback
+  }
+}
 
 // Share file using native share sheet (Android: shows save to Photos/Files option)
 const isNativeApp = () => {
@@ -108,6 +119,7 @@ interface Task {
 interface HistoryItem {
   taskId: string; status: string; title?: string
   platform?: string; thumbnailUrl?: string; createdAt: string | number
+  url?: string; height?: number
 }
 
 const PLATFORMS = [
@@ -188,7 +200,7 @@ export default function App() {
   // Auth state
   const [showAuthModal, setShowAuthModal] = useState(false)
   const [authToken, setAuthToken] = useState<string | null>(localStorage.getItem('orange_token'))
-  const [authUser, setAuthUser] = useState<any>(JSON.parse(localStorage.getItem('orange_user') || 'null'))
+  const [authUser, setAuthUser] = useState<any>(() => readStoredJson('orange_user', null))
   const [showSubscription, setShowSubscription] = useState(false)
   const [showReferral, setShowReferral] = useState(false)
   const [showUpgradePopup, setShowUpgradePopup] = useState(false)
@@ -210,6 +222,7 @@ export default function App() {
   })
   const { t, i18n } = useTranslation()
   const [showLangMenu, setShowLangMenu] = useState(false)
+  const getAuthHeaders = () => authToken ? { Authorization: `Bearer ${authToken}` } : {}
   const changeLanguage = (lng: string) => {
     i18n.changeLanguage(lng)
     localStorage.setItem('orange_language', lng)
@@ -294,22 +307,17 @@ export default function App() {
       setIsVip(false)
       // Check localStorage for guest remaining downloads
       const today = new Date().toISOString().split('T')[0]
-      const guestData = localStorage.getItem('orange_guest_downloads')
-      if (guestData) {
-        const parsed = JSON.parse(guestData)
-        if (parsed.date === today) {
-          setRemainingDownloads(Math.max(0, GUEST_DAILY_LIMIT - parsed.count))
-        } else {
-          setRemainingDownloads(GUEST_DAILY_LIMIT)
-        }
+      const parsed = readStoredJson<{ date?: string; count?: number } | null>('orange_guest_downloads', null)
+      if (parsed?.date === today) {
+        setRemainingDownloads(Math.max(0, GUEST_DAILY_LIMIT - (parsed.count || 0)))
       } else {
         setRemainingDownloads(GUEST_DAILY_LIMIT)
       }
     }
   }, [authToken])
   const [historySearch, setHistorySearch] = useState('')
-  const [historyFilter, setHistoryFilter] = useState<'all' | 'completed' | 'error'>('all')
-  const [favorites, setFavorites] = useState<Set<string>>(new Set(JSON.parse(localStorage.getItem('orange_favorites') || '[]')))
+  const [historyFilter, setHistoryFilter] = useState<'all' | 'completed' | 'error' | 'favorites'>('all')
+  const [favorites, setFavorites] = useState<Set<string>>(() => new Set(readStoredJson<string[]>('orange_favorites', [])))
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set())
 
   const filteredHistory = history.filter(item => {
@@ -340,7 +348,7 @@ export default function App() {
     setResetPwdMsg('')
     try {
       const result = await api.forgotPassword(resetEmail)
-      if (result.resetToken) {
+      if (import.meta.env.DEV && result.resetToken) {
         // Demo mode：直接Showtoken让用户重置
         setResetPwdToken(result.resetToken)
         setResetPwdStep(true)
@@ -611,9 +619,8 @@ export default function App() {
       // UpdateGuest本地DownloadCount
       if (!authToken) {
         const today = new Date().toISOString().split('T')[0]
-        const guestData = localStorage.getItem('orange_guest_downloads')
-        const parsed = guestData ? JSON.parse(guestData) : { date: '', count: 0 }
-        const newCount = parsed.date === today ? parsed.count + 1 : 1
+        const parsed = readStoredJson<{ date?: string; count?: number }>('orange_guest_downloads', { date: '', count: 0 })
+        const newCount = parsed.date === today ? (parsed.count || 0) + 1 : 1
         localStorage.setItem('orange_guest_downloads', JSON.stringify({ date: today, count: newCount }))
         setRemainingDownloads(Math.max(0, GUEST_DAILY_LIMIT - newCount))
       }
@@ -641,11 +648,11 @@ export default function App() {
 
   const fetchHistory = useCallback(async () => {
     try { 
-      const r = await axios.get(`${API}/history`); 
+      const r = await axios.get(`${API}/history`, { headers: getAuthHeaders() }); 
       const data = r.data.data || {};
       setHistory(Array.isArray(data.tasks) ? data.tasks : (Array.isArray(data) ? data : [])) 
     } catch {}
-  }, [])
+  }, [authToken])
   useEffect(() => { fetchHistory() }, [fetchHistory])
 
   const handleUrlChange = (value: string) => {
@@ -768,7 +775,7 @@ export default function App() {
       
       // 检查第一个Link是否已Download
       const firstUrl = urls[0]
-      const dupItem = history.find(h => h.url === firstUrl || h.title && firstUrl.includes(h.taskId))
+      const dupItem = history.find(h => h.url === firstUrl)
       if (dupItem && dupItem.status === 'completed') {
         setDupUrl(firstUrl)
         setPendingDownload(() => () => doBatchDownload(urls))
@@ -783,7 +790,7 @@ export default function App() {
     if (!url.trim()) { setError('Please enter a video link'); return }
     
     // 检查是否已Download
-    const dupItem = history.find(h => h.url === url.trim() || h.title && url.trim().includes(h.taskId))
+    const dupItem = history.find(h => h.url === url.trim())
     if (dupItem && dupItem.status === 'completed') {
       setDupUrl(url.trim())
       setPendingDownload(() => () => doSingleDownload())
@@ -890,13 +897,13 @@ export default function App() {
     return n
   })
   const del = async (id: string) => {
-    try { await axios.delete(`${API}/tasks/${id}`); fetchHistory(); if (task?.taskId === id) setTask(null) } catch {}
+    try { await axios.delete(`${API}/tasks/${id}`, { headers: getAuthHeaders() }); fetchHistory(); if (task?.taskId === id) setTask(null) } catch {}
   }
   const deleteSelected = async () => {
     if (selectedTasks.size === 0) return
     if (!confirm(`Delete ${selectedTasks.size} item(s)?`)) return
     try {
-      await Promise.all([...selectedTasks].map(id => axios.delete(`${API}/tasks/${id}`)))
+      await Promise.all([...selectedTasks].map(id => axios.delete(`${API}/tasks/${id}`, { headers: getAuthHeaders() })))
       setSelectedTasks(new Set())
       fetchHistory()
     } catch {}
@@ -914,7 +921,7 @@ export default function App() {
       // 尝试Use断点续传 API
       if (item.taskId) {
         try {
-          r = await axios.post(`${API}/download/${item.taskId}/retry`, {}, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} });
+          r = await axios.post(`${API}/download/${item.taskId}/retry`, {}, { timeout: 120000, headers: getAuthHeaders() });
           if (r?.data?.code === 0) {
             // 续传Success，获取新任务状态
             const newTaskId = r.data.data.taskId;
@@ -945,13 +952,13 @@ export default function App() {
         }
       }
       // 普通Download
-      r = await axios.post(`${API}/download`, { url: item.url, platform: item.platform || 'auto', needAsr: false, options: ['video'] }, { timeout: 120000 })
+      r = await axios.post(`${API}/download`, { url: item.url, platform: item.platform || 'auto', needAsr: false, options: ['video'] }, { timeout: 120000, headers: getAuthHeaders() })
       setTask(r.data.data)
     } catch (e: any) { setError(getErrorMessage(e.response?.data?.message || e.message)) }
     finally { setLoading(false) }
   }
   const clearAllHistory = async () => {
-    try { await axios.delete(`${API}/history`); fetchHistory(); setTask(null) } catch {}
+    try { await axios.delete(`${API}/history`, { headers: getAuthHeaders() }); fetchHistory(); setTask(null) } catch {}
   }
   const openSavedFile = (item: HistoryItem) => {
     // 在新窗口打开视频File
@@ -1452,7 +1459,7 @@ export default function App() {
                   <p className="text-xs text-slate-300 mb-2">Total {task.imageFiles.length}  images</p>
                   <div className="grid grid-cols-3 gap-2">
                     {task.imageFiles.map(img => (
-                      <a key={img.filename} href={`${API.replace('/api', '')}${img.url}`} download><img src={`${API.replace('/api', '')}${img.url}`} alt="" className="w-full aspect-square object-cover rounded-xl bg-slate-700/30" loading="lazy" /></a>
+                      <a key={img.filename} href={`${BASE_URL}${img.url}`} download><img src={`${BASE_URL}${img.url}`} alt="" className="w-full aspect-square object-cover rounded-xl bg-slate-700/30" loading="lazy" /></a>
                     ))}
                   </div>
                 </div>
@@ -1550,7 +1557,7 @@ export default function App() {
               {task.status === 'completed' && task.subtitleFiles?.length > 0 && (
                 <div className="flex gap-2 flex-wrap">
                   {task.subtitleFiles.map(s => (
-                    <a key={s.filename} href={`${API.replace('/api', '')}${s.url}`} download={s.filename} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs bg-slate-700/30 border border-slate-700/60 text-slate-300 hover:text-white transition-all">
+                    <a key={s.filename} href={`${BASE_URL}${s.url}`} download={s.filename} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs bg-slate-700/30 border border-slate-700/60 text-slate-300 hover:text-white transition-all">
                       <Languages className="w-3 h-3" />{s.filename}
                     </a>
                   ))}
@@ -1647,7 +1654,7 @@ export default function App() {
                     <input type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} placeholder="Search..." className={`w-full pl-8 pr-3 py-2 border rounded-lg text-sm placeholder:text-slate-300 ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`} />
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
                   </div>
-                  <select value={historyFilter} onChange={(e) => setHistoryFilter(e.target.value as any)} className={`px-3 py-2 border rounded-lg text-sm ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`}>
+                  <select value={historyFilter} onChange={(e) => setHistoryFilter(e.target.value as 'all' | 'completed' | 'error' | 'favorites')} className={`px-3 py-2 border rounded-lg text-sm ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`}>
                     <option value="all">All</option>
                     <option value="completed">Done</option>
                     <option value="error">Failed</option>

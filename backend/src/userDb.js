@@ -145,6 +145,8 @@ async function initDb() {
 initDb();
 
 const userDb = {
+  db,
+
   /**
    * 创建用户
    */

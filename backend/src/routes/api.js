@@ -43,11 +43,11 @@ router.get('/history', getHistory);
 // 删除任务
 router.delete('/tasks/:taskId', auth.required, deleteTask);
 router.delete('/history', auth.optional, clearHistory);
-router.delete('/history/all', adminClearAllHistory);
+router.delete('/history/all', auth.requireAdminKey, adminClearAllHistory);
 
 // 系统状态
-router.get('/system/status', getSystemStatus);
-router.get('/admin/stats', getAdminStats);
+router.get('/system/status', auth.requireAdminKey, getSystemStatus);
+router.get('/admin/stats', auth.requireAdminKey, getAdminStats);
 
 // 健康检查
 router.get('/health', (req, res) => {
@@ -64,7 +64,7 @@ router.get('/health', (req, res) => {
 // YouTube Cookies 上传（管理员）
 const multer = require('multer');
 const cookiesUpload = multer({ dest: '/tmp/' });
-router.post('/admin/cookies', cookiesUpload.single('cookies'), (req, res) => {
+router.post('/admin/cookies', auth.requireAdminKey, cookiesUpload.single('cookies'), (req, res) => {
   try {
     if (!req.file) return res.json({ code: 400, message: 'No file' });
     const fs = require('fs');
@@ -81,7 +81,7 @@ router.post('/admin/cookies', cookiesUpload.single('cookies'), (req, res) => {
 
 
 // Debug: 检查 cookies 文件
-router.get('/admin/cookies-debug', (req, res) => {
+router.get('/admin/cookies-debug', auth.requireAdminKey, (req, res) => {
   const fs = require('fs');
   const path = require('path');
   
@@ -109,7 +109,7 @@ router.get('/admin/cookies-debug', (req, res) => {
 });
 
 
-router.get('/admin/env-debug', (req, res) => {
+router.get('/admin/env-debug', auth.requireAdminKey, (req, res) => {
   const vars = ['TIKHUB_API_KEY_INSTAGRAM', 'TIKHUB_API_KEY_DOUYIN', 'TIKHUB_API_KEY_YT', 'CLOUDFLARE_ACCOUNT_ID'];
   const result = {};
   for (const v of vars) {
