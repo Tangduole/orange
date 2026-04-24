@@ -1,50 +1,58 @@
 /**
- * 任务存储 v2 - JSON 文件持久化
+ * 任务存储 v3 - 异步操作 + 文件引用管理
  * 
  * 改进：
- * 1. 内存 + JSON 文件双写，重启不丢失
- * 2. 增加字段：thumbnailUrl, subtitleFiles, duration, url
- * 3. 文件清理联动
+ * 1. 使用异步文件操作，避免阻塞事件循环
+ * 2. 集成文件引用计数，防止过早删除
+ * 3. 使用常量配置
  */
 
-const fs = require('fs');
+const fs = require('fs').promises;
+const fsSync = require('fs');
 const path = require('path');
+const asyncFs = require('./utils/asyncFs');
+const fileRefManager = require('./utils/fileRefManager');
+const logger = require('./utils/logger');
+const { CLEANUP, TIME } = require('./config/constants');
 
-const DATA_DIR = path.join(__dirname, '../../data');
+const DATA_DIR = path.join(__dirname, '../data');
 const TASKS_FILE = path.join(DATA_DIR, 'tasks.json');
-const DOWNLOAD_DIR = path.join(__dirname, '../../downloads');
+const DOWNLOAD_DIR = path.join(__dirname, '../downloads');
 
-// 确保目录存在
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
+// 确保目录存在（同步，仅启动时）
+if (!fsSync.existsSync(DATA_DIR)) {
+  fsSync.mkdirSync(DATA_DIR, { recursive: true });
 }
 
 // 内存缓存
 const tasks = new Map();
 
 // 启动时从文件加载
-function loadFromFile() {
+async function loadFromFile() {
   try {
-    if (fs.existsSync(TASKS_FILE)) {
-      const data = fs.readFileSync(TASKS_FILE, 'utf-8');
-      const parsed = JSON.parse(data);
-      for (const task of parsed) {
-        tasks.set(task.taskId, task);
+    const exists = await asyncFs.fileExists(TASKS_FILE);
+    if (exists) {
+      const data = await asyncFs.safeReadFile(TASKS_FILE);
+      if (data) {
+        const parsed = JSON.parse(data);
+        for (const task of parsed) {
+          tasks.set(task.taskId, task);
+        }
+        logger.info(`[store] Loaded ${tasks.size} tasks from disk`);
       }
-      console.log(`[store] Loaded ${tasks.size} tasks from disk`);
     }
   } catch (e) {
-    console.error(`[store] Failed to load tasks: ${e.message}`);
+    logger.error(`[store] Failed to load tasks: ${e.message}`);
   }
 }
 
-// 写入文件
-function saveToFile() {
+// 写入文件（异步）
+async function saveToFile() {
   try {
     const data = Array.from(tasks.values());
-    fs.writeFileSync(TASKS_FILE, JSON.stringify(data, null, 2), 'utf-8');
+    await asyncFs.safeWriteFile(TASKS_FILE, JSON.stringify(data, null, 2));
   } catch (e) {
-    console.error(`[store] Failed to save tasks: ${e.message}`);
+    logger.error(`[store] Failed to save tasks: ${e.message}`);
   }
 }
 
@@ -52,9 +60,9 @@ function saveToFile() {
 let saveTimer = null;
 function scheduleSave() {
   if (saveTimer) return;
-  saveTimer = setTimeout(() => {
+  saveTimer = setTimeout(async () => {
     saveTimer = null;
-    saveToFile();
+    await saveToFile();
   }, 1000);
 }
 
@@ -92,75 +100,104 @@ function remove(taskId) {
 /**
  * 按 userId 删除任务及其关联文件
  */
-function removeByUserId(userId) {
+async function removeByUserId(userId) {
   let count = 0;
+  const taskIds = [];
+  
   for (const [id, task] of tasks) {
     if (task.userId === userId) {
-      removeWithFiles(id);
-      count++;
+      taskIds.push(id);
     }
   }
+  
+  for (const id of taskIds) {
+    await removeWithFiles(id);
+    count++;
+  }
+  
   return count;
 }
 
 /**
  * 清理过期任务及其关联文件
- * @param {number} maxAgeMs 最大存活时间，默认 24 小时
+ * @param {number} maxAgeMs 最大存活时间
  */
-function cleanup(maxAgeMs = 86400000) {
+async function cleanup(maxAgeMs = CLEANUP.TASK_RETENTION) {
   const now = Date.now();
   let count = 0;
+  const toDelete = [];
 
   for (const [id, task] of tasks) {
     if ((task.status === 'completed' || task.status === 'error') && now - task.createdAt > maxAgeMs) {
-      // 删除关联的下载文件
-      try {
-        const files = fs.readdirSync(DOWNLOAD_DIR).filter(f => f.startsWith(id));
-        for (const file of files) {
-          fs.unlinkSync(path.join(DOWNLOAD_DIR, file));
-        }
-      } catch (e) {
-        console.error(`[cleanup] Failed to delete files for ${id}: ${e.message}`);
-      }
-      tasks.delete(id);
-      count++;
+      toDelete.push(id);
     }
   }
 
-  if (count > 0) {
-    console.log(`[cleanup] Cleaned up ${count} expired tasks`);
-    saveToFile();
+  for (const id of toDelete) {
+    await removeWithFiles(id);
+    count++;
   }
+
+  if (count > 0) {
+    logger.info(`[cleanup] Cleaned up ${count} expired tasks`);
+    await saveToFile();
+  }
+  
   return count;
 }
 
 /**
- * 删除任务及其所有关联文件
+ * 删除任务及其所有关联文件（使用引用计数）
  */
-function removeWithFiles(taskId) {
+async function removeWithFiles(taskId) {
   const task = tasks.get(taskId);
   if (!task) return false;
 
-  // 删除所有关联文件
   try {
-    const files = fs.readdirSync(DOWNLOAD_DIR).filter(f => f.startsWith(taskId));
+    // 列出所有关联文件
+    const files = await asyncFs.listFiles(DOWNLOAD_DIR, `^${taskId}`);
+    
+    // 删除文件（检查引用计数）
     for (const file of files) {
-      fs.unlinkSync(path.join(DOWNLOAD_DIR, file));
+      const filePath = path.join(DOWNLOAD_DIR, file);
+      
+      // 减少引用计数
+      const canDelete = fileRefManager.removeRef(file);
+      
+      if (canDelete) {
+        await asyncFs.safeUnlink(filePath);
+      } else {
+        logger.debug(`[store] File ${file} still has references, not deleting`);
+      }
     }
   } catch (e) {
-    console.error(`[store] Failed to delete files for ${taskId}: ${e.message}`);
+    logger.error(`[store] Failed to delete files for ${taskId}: ${e.message}`);
   }
 
   return remove(taskId);
 }
 
-// 启动时加载
-loadFromFile();
+// 启动时加载（异步）
+loadFromFile().catch(err => {
+  logger.error(`[store] Failed to load on startup: ${err.message}`);
+});
 
-// 定时清理（每 6 小时）
-setInterval(() => cleanup(), 21600000);
+// 定期清理（每小时）
+setInterval(async () => {
+  try {
+    await cleanup();
+  } catch (err) {
+    logger.error(`[store] Cleanup error: ${err.message}`);
+  }
+}, CLEANUP.CLEANUP_INTERVAL);
 
-// 首次启动时清理
-cleanup();
+// 首次启动时清理（延迟5秒，避免启动时阻塞）
+setTimeout(async () => {
+  try {
+    await cleanup();
+  } catch (err) {
+    logger.error(`[store] Initial cleanup error: ${err.message}`);
+  }
+}, 5000);
 
 module.exports = { save, get, list, update, remove, removeWithFiles, removeByUserId, cleanup };

@@ -19,6 +19,22 @@ const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
 
+// 新增工具导入
+const taskLock = require('../utils/taskLock');
+const cacheManager = require('../utils/cacheManager');
+const asyncFs = require('../utils/asyncFs');
+const fileRefManager = require('../utils/fileRefManager');
+const logger = require('../utils/logger');
+const { 
+  QUALITY, 
+  TIMEOUT, 
+  LIMITS, 
+  TASK_STATUS, 
+  RESPONSE_CODE,
+  HTTP_STATUS,
+  PLATFORM 
+} = require('../config/constants');
+
 const API_KEY_DOUYIN = process.env.TIKHUB_API_KEY_DOUYIN;
 
 /**
@@ -38,14 +54,14 @@ function saveHistory(taskId) {
       title: task.title,
       thumbnailUrl: task.thumbnailUrl,
       duration: task.duration
-    }).then(() => store.update(taskId, { historySaved: true })).catch(e => console.error('[history] save failed:', e.message));
-  } catch (e) { console.error('[history]', e.message); }
+    }).then(() => store.update(taskId, { historySaved: true })).catch(e => logger.error('[history] save failed:', e.message));
+  } catch (e) { logger.error('[history]', e.message); }
 }
 
 /**
  * 流式下载文件到磁盘(避免 OOM)
  */
-async function downloadToStream(url, destPath, timeout = 120000) {
+async function downloadToStream(url, destPath, timeout = TIMEOUT.DOWNLOAD) {
   const writer = fs.createWriteStream(destPath);
   const response = await axios.get(url, { responseType: 'stream', timeout });
 
@@ -53,30 +69,24 @@ async function downloadToStream(url, destPath, timeout = 120000) {
   const contentType = response.headers['content-type'] || '';
   if (contentType.includes('text/html') || contentType.includes('application/json')) {
     writer.close();
-    try { fs.unlinkSync(destPath); } catch {}
+    await asyncFs.safeUnlink(destPath);
     throw new Error('Video link expired or blocked');
   }
 
   return new Promise((resolve, reject) => {
     response.data.pipe(writer);
-    writer.on('finish', () => {
+    writer.on('finish', async () => {
       // 下载完成后再次检查文件内容（防止 Content-Type 误报）
-      try {
-        const fd = fs.openSync(destPath, 'r');
-        const head = Buffer.alloc(1024);
-        fs.readSync(fd, head, 0, 1024, 0);
-        fs.closeSync(fd);
-        const text = head.toString('utf8').trim();
-        if (text.startsWith('<!DOCTYPE') || text.startsWith('<html') || text.startsWith('<!doctype')) {
-          try { fs.unlinkSync(destPath); } catch {}
-          reject(new Error('Video link expired or blocked'));
-          return;
-        }
-      } catch {}
+      const isHtml = await asyncFs.isHtmlFile(destPath);
+      if (isHtml) {
+        await asyncFs.safeUnlink(destPath);
+        reject(new Error('Video link expired or blocked'));
+        return;
+      }
       resolve();
     });
-    writer.on('error', (err) => {
-      try { fs.unlinkSync(destPath); } catch {}
+    writer.on('error', async (err) => {
+      await asyncFs.safeUnlink(destPath);
       reject(err);
     });
   });
@@ -139,12 +149,11 @@ async function createDownload(req, res) {
           const usage = await userDb.getUsage(userId);
           if (!usage.isPro && usage.remaining <= 0) {
             return res.json({
-              code: 403,
+              code: RESPONSE_CODE.FORBIDDEN,
               message: `今日下载次数已用完(${usage.dailyLimit}次/天)。升级 Pro 解锁无限制下载`
             });
           }
-          // 增加登录用户下载计数
-          await userDb.incrementDownloads(userId);
+          // 注意：不在这里增加计数，等下载成功后再增加
         }
       } catch (e) {
         // token 无效,继续作为游客
@@ -159,12 +168,11 @@ async function createDownload(req, res) {
       const guestUsage = await userDb.checkGuestDownload(guestIp);
       if (!guestUsage.allowed) {
         return res.json({
-          code: 403,
+          code: RESPONSE_CODE.FORBIDDEN,
           message: `今日下载次数已用完(${guestUsage.limit}次/天)。注册账号获得更多下载次数`
         });
       }
-      // 增加游客下载计数
-      await userDb.incrementGuestDownload(guestIp);
+      // 注意：不在这里增加计数，等下载成功后再增加
     }
 
     // ========== 画质VIP限制检查 ==========
@@ -173,25 +181,25 @@ async function createDownload(req, res) {
       const heightMatch = quality.match(/height<=(\d+)/i);
       const selectedHeight = heightMatch ? parseInt(heightMatch[1]) : 99999;
 
-      if (selectedHeight > 720 && !isVip) {
+      if (selectedHeight > QUALITY.HD_THRESHOLD && !isVip) {
         // 免费用户允许试用1次高清画质
         const userDb = require('../userDb');
         const trialUsed = await userDb.useHdTrial(userId);
         if (!trialUsed) {
           return res.json({
-            code: 403,
-            message: `720p以上画质为会员专享。试用次数已用完,请升级Pro解锁高清下载。`
+            code: RESPONSE_CODE.FORBIDDEN,
+            message: `${QUALITY.HD_THRESHOLD}p以上画质为会员专享。试用次数已用完,请升级Pro解锁高清下载。`
           });
         }
         // 试用成功,继续下载(不报错)
-        console.log(`[task] HD trial used for user ${userId}`);
+        logger.info(`[task] HD trial used for user ${userId}`);
       }
     }
     // ========== 画质VIP限制检查结束 ==========
 
     const limitStatus = getLimiterStatus();
-    if (limitStatus.queued >= 10) {
-      return res.json({ code: 429, message: '任务队列已满,请稍后再试' });
+    if (limitStatus.queued >= LIMITS.MAX_QUEUE) {
+      return res.json({ code: HTTP_STATUS.TOO_MANY_REQUESTS, message: '任务队列已满,请稍后再试' });
     }
 
     const taskId = uuidv4();
@@ -217,29 +225,29 @@ async function createDownload(req, res) {
     if (isDouyinUrl(url)) {
       const maxQuality = isVip ? null : 'height<=720';
       processDouyin(taskId, url, wantsAsr, normalizedOptions, quality, asrLanguage, null, isVip).catch(err => {
-        console.error(`[task] ${taskId} douyin failed:`, err);
-        store.update(taskId, { status: 'error', progress: 0, error: err.message });
+        logger.error(`[task] ${taskId} douyin failed:`, err);
+        store.update(taskId, { status: TASK_STATUS.ERROR, progress: 0, error: err.message });
       });
-      return res.json({ code: 0, data: { taskId, status: 'pending', platform: finalPlatform } });
+      return res.json({ code: RESPONSE_CODE.SUCCESS, data: { taskId, status: TASK_STATUS.PENDING, platform: finalPlatform } });
     }
 
     // X/Twitter 链接:走专用下载器
     const { isXUrl } = require('../services/x-download');
     if (isXUrl(url)) {
       processX(taskId, url, wantsAsr, normalizedOptions).catch(err => {
-        console.error(`[task] ${taskId} x failed:`, err);
-        store.update(taskId, { status: 'error', progress: 0, error: err.message });
+        logger.error(`[task] ${taskId} x failed:`, err);
+        store.update(taskId, { status: TASK_STATUS.ERROR, progress: 0, error: err.message });
       });
-      return res.json({ code: 0, data: { taskId, status: 'pending', platform: finalPlatform } });
+      return res.json({ code: RESPONSE_CODE.SUCCESS, data: { taskId, status: TASK_STATUS.PENDING, platform: finalPlatform } });
     }
 
     // TikTok 链接:走 TikHub API
     if (/tiktok\.com|tiktok\.cn/i.test(url)) {
       processTikTok(taskId, url, wantsAsr, normalizedOptions, quality).catch(err => {
-        console.error(`[task] ${taskId} tiktok failed:`, err);
-        store.update(taskId, { status: 'error', progress: 0, error: err.message });
+        logger.error(`[task] ${taskId} tiktok failed:`, err);
+        store.update(taskId, { status: TASK_STATUS.ERROR, progress: 0, error: err.message });
       });
-      return res.json({ code: 0, data: { taskId, status: 'pending', platform: 'tiktok' } });
+      return res.json({ code: RESPONSE_CODE.SUCCESS, data: { taskId, status: TASK_STATUS.PENDING, platform: PLATFORM.TIKTOK } });
     }
 
     // YouTube 链接:走 TikHub API(直接链接)
@@ -247,66 +255,66 @@ async function createDownload(req, res) {
       // VIP用户不传quality限制,后端自动使用最高画质
       const ytQuality = isVip ? null : quality;
       processYouTube(taskId, url, wantsAsr, normalizedOptions, ytQuality).catch(err => {
-        console.error(`[task] ${taskId} youtube failed:`, err);
-        store.update(taskId, { status: 'error', progress: 0, error: err.message });
+        logger.error(`[task] ${taskId} youtube failed:`, err);
+        store.update(taskId, { status: TASK_STATUS.ERROR, progress: 0, error: err.message });
       });
-      return res.json({ code: 0, data: { taskId, status: 'pending', platform: 'youtube' } });
+      return res.json({ code: RESPONSE_CODE.SUCCESS, data: { taskId, status: TASK_STATUS.PENDING, platform: PLATFORM.YOUTUBE } });
     }
 
     // 小红书链接:走 TikHub API
     if (/xiaohongshu\.com|xhslink\.com/i.test(url)) {
       processXiaohongshu(taskId, url, wantsAsr, normalizedOptions).catch(err => {
-        console.error(`[task] ${taskId} xiaohongshu failed:`, err);
-        store.update(taskId, { status: 'error', progress: 0, error: err.message });
+        logger.error(`[task] ${taskId} xiaohongshu failed:`, err);
+        store.update(taskId, { status: TASK_STATUS.ERROR, progress: 0, error: err.message });
       });
-      return res.json({ code: 0, data: { taskId, status: 'pending', platform: 'xiaohongshu' } });
+      return res.json({ code: RESPONSE_CODE.SUCCESS, data: { taskId, status: TASK_STATUS.PENDING, platform: PLATFORM.XIAOHONGSHU } });
     }
 
     // 快手链接:暂不支持
     if (/kuaishou\.com|v\.kuaishou\.com/i.test(url)) {
-      store.update(taskId, { status: 'error', progress: 0, error: '快手平台暂不支持,请使用其他平台链接' });
-      return res.json({ code: 0, data: { taskId, status: 'error', platform: 'kuaishou', message: '快手平台暂不支持' } });
+      store.update(taskId, { status: TASK_STATUS.ERROR, progress: 0, error: '快手平台暂不支持,请使用其他平台链接' });
+      return res.json({ code: RESPONSE_CODE.SUCCESS, data: { taskId, status: TASK_STATUS.ERROR, platform: PLATFORM.KUAISHOU, message: '快手平台暂不支持' } });
     }
 
     // Instagram 链接:走 TikHub API
     if (/instagram\.com|instagr\.am/i.test(url)) {
       processInstagram(taskId, url, wantsAsr, normalizedOptions).catch(err => {
-        console.error(`[task] ${taskId} instagram failed:`, err);
-        store.update(taskId, { status: 'error', progress: 0, error: err.message });
+        logger.error(`[task] ${taskId} instagram failed:`, err);
+        store.update(taskId, { status: TASK_STATUS.ERROR, progress: 0, error: err.message });
       });
-      return res.json({ code: 0, data: { taskId, status: 'pending', platform: 'instagram' } });
+      return res.json({ code: RESPONSE_CODE.SUCCESS, data: { taskId, status: TASK_STATUS.PENDING, platform: PLATFORM.INSTAGRAM } });
     }
 
     // Bilibili 链接:走 yt-dlp(待完善)
     if (/bilibili\.com|b23\.tv/i.test(url)) {
       processDownload(taskId, url, wantsAsr, normalizedOptions, quality).catch(err => {
-        console.error(`[task] ${taskId} bilibili failed:`, err);
-        store.update(taskId, { status: 'error', progress: 0, error: err.message });
+        logger.error(`[task] ${taskId} bilibili failed:`, err);
+        store.update(taskId, { status: TASK_STATUS.ERROR, progress: 0, error: err.message });
       });
-      return res.json({ code: 0, data: { taskId, status: 'pending', platform: 'bilibili' } });
+      return res.json({ code: RESPONSE_CODE.SUCCESS, data: { taskId, status: TASK_STATUS.PENDING, platform: PLATFORM.BILIBILI } });
     }
 
     // 其他平台:走 yt-dlp
     processDownload(taskId, url, wantsAsr, normalizedOptions, quality).catch(err => {
-      console.error(`[task] ${taskId} failed:`, err);
+      logger.error(`[task] ${taskId} failed:`, err);
       store.update(taskId, {
-        status: 'error',
+        status: TASK_STATUS.ERROR,
         progress: 0,
         error: err.message
       });
     });
 
     res.json({
-      code: 0,
+      code: RESPONSE_CODE.SUCCESS,
       data: {
         taskId,
-        status: 'pending',
+        status: TASK_STATUS.PENDING,
         platform: finalPlatform
       }
     });
   } catch (e) {
-    console.error('[createDownload] Error:', e);
-    res.json({ code: 500, message: e.message });
+    logger.error('[createDownload] Error:', e);
+    res.json({ code: HTTP_STATUS.INTERNAL_ERROR, message: e.message });
   }
 }
 
@@ -330,11 +338,11 @@ async function getInfo(req, res) {
 /**
  * 保存文本为可下载的 .txt 文件
  */
-function saveTextFile(taskId, text, suffix = 'txt') {
+async function saveTextFile(taskId, text, suffix = 'txt') {
   if (!text) return null;
   const filename = taskId + '_' + suffix + '.txt';
   const filepath = path.join(__dirname, '../../downloads', filename);
-  fs.writeFileSync(filepath, text, 'utf-8');
+  await asyncFs.safeWriteFile(filepath, text, 'utf-8');
   return '/download/' + filename;
 }
 
@@ -343,7 +351,7 @@ function saveTextFile(taskId, text, suffix = 'txt') {
  */
 async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
   try {
-    store.update(taskId, { status: 'asr', progress: 100 });
+    store.update(taskId, { status: TASK_STATUS.ASR, progress: 100 });
     const asr = require('../services/asr');
     const { spawn } = require('child_process');
     const audioPath = path.join(path.dirname(filePath), taskId + '_asr.mp3');
@@ -351,7 +359,7 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
     // 用 ffmpeg 提取音频
     await new Promise((resolve, reject) => {
       const ff = spawn('ffmpeg', ['-i', filePath, '-vn', '-acodec', 'libmp3lame', '-b:a', '128k', '-y', audioPath]);
-      const timer = setTimeout(() => { ff.kill('SIGKILL'); reject(new Error('timeout')); }, 30000);
+      const timer = setTimeout(() => { ff.kill('SIGKILL'); reject(new Error('timeout')); }, TIMEOUT.FFMPEG);
       ff.on('close', code => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error('ffmpeg exit ' + code)); });
       ff.on('error', err => { clearTimeout(timer); reject(err); });
     });
@@ -362,27 +370,27 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
     // 翻译(如果指定了目标语言)
     const task = store.get(taskId);
     const tLang = targetLang || task?.targetLang;
-    console.log(`[ASR] ${taskId} targetLang=${targetLang}, task.targetLang=${task?.targetLang}, tLang=${tLang}`);
+    logger.info(`[ASR] ${taskId} targetLang=${targetLang}, task.targetLang=${task?.targetLang}, tLang=${tLang}`);
     let translatedText = null;
     if (tLang && text) {
       try {
-        console.log(`[ASR] ${taskId} translating: ${asrLanguage === 'auto' ? 'zh' : asrLanguage} -> ${tLang}, textLen=${text.length}`);
+        logger.info(`[ASR] ${taskId} translating: ${asrLanguage === 'auto' ? 'zh' : asrLanguage} -> ${tLang}, textLen=${text.length}`);
         translatedText = await asr.translateText(text, asrLanguage === 'auto' ? 'zh' : asrLanguage, tLang);
       } catch (e) {
-        console.error(`[ASR] Translation failed: ${e.message}`);
+        logger.error(`[ASR] Translation failed: ${e.message}`);
       }
     }
 
     // 保存为 txt 文件
-    const txtUrl = saveTextFile(taskId, text, 'subtitle');
-    const translatedTxtUrl = translatedText ? saveTextFile(taskId, translatedText, 'translation') : null;
+    const txtUrl = await saveTextFile(taskId, text, 'subtitle');
+    const translatedTxtUrl = translatedText ? await saveTextFile(taskId, translatedText, 'translation') : null;
 
     // 清理临时音频
-    try { fs.unlinkSync(audioPath); } catch {}
+    await asyncFs.safeUnlink(audioPath);
 
     return { text, txtUrl, translatedText, translatedTxtUrl };
   } catch (e) {
-    console.error(`[ASR] ${taskId} failed:`, e.message);
+    logger.error(`[ASR] ${taskId} failed:`, e.message);
     return null;
   }
 }
@@ -391,6 +399,16 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
  * 处理下载任务(异步)
  */
 async function processDownload(taskId, url, needAsr, options = ['video'], quality = null) {
+  // 获取任务锁
+  if (!taskLock.tryAcquire(taskId)) {
+    logger.warn(`[task] ${taskId} is already being processed`);
+    store.update(taskId, { 
+      status: TASK_STATUS.ERROR, 
+      error: 'Task is already in progress' 
+    });
+    return;
+  }
+
   try {
     const normalizedOptions = (Array.isArray(options) ? options : [options]).map(
       o => o === 'asr' || o === 'audio_only' ? 'audio' : o
@@ -403,13 +421,13 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
     const wantsSubtitle = normalizedOptions.includes('subtitle');
 
     // 1. 解析阶段
-    store.update(taskId, { status: 'parsing', progress: 5 });
+    store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
 
     let result = null;
 
     // 2. 需要实际下载的情况
     if (wantsVideo || wantsCover || wantsSubtitle || wantsAudio || wantsAudioOnly || wantsCopywriting || needAsr) {
-      store.update(taskId, { status: 'downloading', progress: 10 });
+      store.update(taskId, { status: TASK_STATUS.DOWNLOADING, progress: 10 });
 
       const isYouTube = /youtube\.com|youtu\.be/i.test(url);
 
@@ -422,7 +440,7 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
           if (wantsOnlyAudio) {
             return await ytdlp.downloadAudio(url, taskId, (percent, speed, eta) => {
               store.update(taskId, {
-                status: 'downloading',
+                status: TASK_STATUS.DOWNLOADING,
                 progress: percent,
                 speed,
                 eta,
@@ -435,7 +453,7 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
           return await executeWithRetry(async () => {
             return await ytdlp.download(url, taskId, (percent, speed, eta, downloaded, total) => {
               store.update(taskId, {
-                status: 'downloading',
+                status: TASK_STATUS.DOWNLOADING,
                 progress: percent,
                 speed,
                 eta,
@@ -447,11 +465,11 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
         } catch (err) {
           // YouTube 失败时用 Invidious 备用方案
           if (isYouTube && err.message.includes('Sign in to confirm')) {
-            console.log(`[task] ${taskId} yt-dlp failed, trying Invidious...`);
+            logger.info(`[task] ${taskId} yt-dlp failed, trying Invidious...`);
             store.update(taskId, { progress: 5 });
             return await ytdlp.downloadViaInvidious(url, taskId, (percent) => {
               store.update(taskId, {
-                status: 'downloading',
+                status: TASK_STATUS.DOWNLOADING,
                 progress: percent,
               });
             });
@@ -461,10 +479,10 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
       });
 
       const update = {
-        status: 'completed',
-      width: result.width,
-      height: result.height,
-      quality: result.quality,
+        status: TASK_STATUS.COMPLETED,
+        width: result.width,
+        height: result.height,
+        quality: result.quality,
         progress: 100,
         title: result.title,
         duration: result.duration || 0,
@@ -474,6 +492,7 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
       // 音频下载链接(只想要音频的情况)
       if (wantsOnlyAudio) {
         update.audioUrl = `/download/${path.basename(result.filePath)}`;
+        fileRefManager.addRef(path.basename(result.filePath));
       }
 
       // 视频下载链接
@@ -481,6 +500,7 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
         update.filePath = result.filePath;
         update.ext = result.ext;
         update.downloadUrl = `/download/${path.basename(result.filePath)}`;
+        fileRefManager.addRef(path.basename(result.filePath));
       }
 
       // 封面(总是返回,供显示和下载)
@@ -493,7 +513,7 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
       // 文案(总是提取标题和描述)
       if (result.title) {
         update.copyText = result.title;
-        console.log(`[task] ${taskId} set copyText=${result.title?.substring(0, 50)}`);
+        logger.info(`[task] ${taskId} set copyText=${result.title?.substring(0, 50)}`);
       }
 
       // 原声音频
@@ -502,8 +522,9 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
           const audioPath = path.join(path.dirname(result.filePath), `${taskId}_audio.mp3`);
           await ytdlp.extractAudio(result.filePath, audioPath);
           update.audioUrl = `/download/${path.basename(audioPath)}`;
+          fileRefManager.addRef(path.basename(audioPath));
         } catch (audioErr) {
-          console.error(`[audio] ${taskId} extract failed:`, audioErr);
+          logger.error(`[audio] ${taskId} extract failed:`, audioErr);
         }
       }
 
@@ -517,7 +538,7 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
       // 仅文案:获取信息不下载
       const info = await ytdlp.getInfo(url);
       store.update(taskId, {
-        status: 'completed',
+        status: TASK_STATUS.COMPLETED,
         width: 0,
         height: 0,
         quality: 'N/A',
@@ -530,11 +551,13 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
 
     // 3. ASR(可选)
     if (needAsr && result) {
-      store.update(taskId, { status: 'asr', progress: 100 });
+      store.update(taskId, { status: TASK_STATUS.ASR, progress: 100 });
 
       try {
-        const asrResult = await handleAsr(taskId, result.filePath, asrLanguage);
-        const update = { status: 'completed', width: result.width, height: result.height, quality: result.quality };
+        const task = store.get(taskId);
+        const asrLang = task?.asrLanguage || 'zh';
+        const asrResult = await handleAsr(taskId, result.filePath, asrLang);
+        const update = { status: TASK_STATUS.COMPLETED, width: result.width, height: result.height, quality: result.quality };
         if (asrResult?.text) {
           update.asrText = asrResult.text;
           update.asrTxtUrl = asrResult.txtUrl;
@@ -542,16 +565,30 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
         }
         store.update(taskId, update);
       } catch (asrError) {
-        console.error(`[ASR] ${taskId} failed:`, asrError);
+        logger.error(`[ASR] ${taskId} failed:`, asrError);
         store.update(taskId, { asrError: asrError.message });
       }
     }
 
+    // 下载成功后增加用户计数
+    let task = store.get(taskId);
+    if (task.status === TASK_STATUS.COMPLETED) {
+      const userDb = require('../userDb');
+      if (task.userId) {
+        await userDb.incrementDownloads(task.userId);
+      } else if (task.guestIp) {
+        await userDb.incrementGuestDownload(task.guestIp);
+      }
+    }
+
     saveHistory(taskId);
-    console.log(`[task] ${taskId} completed`);
+    logger.info(`[task] ${taskId} completed`);
   } catch (error) {
-    console.error(`[task] ${taskId} failed:`, error);
-    store.update(taskId, { status: 'error', error: error.message });
+    logger.error(`[task] ${taskId} failed:`, error);
+    store.update(taskId, { status: TASK_STATUS.ERROR, error: error.message });
+  } finally {
+    // 释放任务锁
+    taskLock.release(taskId);
   }
 }
 
@@ -559,15 +596,25 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
  * 处理抖音下载(视频/图文,不依赖 yt-dlp)
  */
 async function processDouyin(taskId, url, needAsr, options = ['video'], quality = null, asrLanguage = 'zh', requestedQuality = null, isVip = false) {
+  // 获取任务锁
+  if (!taskLock.tryAcquire(taskId)) {
+    logger.warn(`[task] ${taskId} is already being processed`);
+    store.update(taskId, { 
+      status: TASK_STATUS.ERROR, 
+      error: 'Task is already in progress' 
+    });
+    return;
+  }
+
   try {
     const { parseDouyin } = require('../services/tikhub');
 
     // 保存用户请求的画质参数
-    store.update(taskId, { status: 'parsing', progress: 5, requestedQuality });
+    store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5, requestedQuality });
 
     const result = await parseDouyin(url, taskId, (percent, downloaded, total) => {
       store.update(taskId, {
-        status: percent < 30 ? 'parsing' : 'downloading',
+        status: percent < 30 ? TASK_STATUS.PARSING : TASK_STATUS.DOWNLOADING,
         progress: percent,
         downloadedBytes: downloaded || 0,
         totalBytes: total || 0
@@ -593,7 +640,7 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
     }
 
     const update = {
-      status: 'completed',
+      status: TASK_STATUS.COMPLETED,
       width: result.width,
       height: result.height,
       quality: result.quality,
@@ -607,6 +654,7 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
       update.filePath = result.filePath;
       update.ext = result.ext;
       update.downloadUrl = `/download/${path.basename(result.filePath)}`;
+      fileRefManager.addRef(path.basename(result.filePath));
     }
 
     // 处理封面
@@ -627,7 +675,7 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
         const { spawn } = require('child_process');
         await new Promise((resolve, reject) => {
           const ff = spawn('ffmpeg', ['-i', result.filePath, '-vn', '-acodec', 'libmp3lame', '-b:a', '128k', '-y', audioPath]);
-          const timer = setTimeout(() => { ff.kill('SIGKILL'); reject(new Error('timeout')); }, 30000);
+          const timer = setTimeout(() => { ff.kill('SIGKILL'); reject(new Error('timeout')); }, TIMEOUT.FFMPEG);
           ff.on('close', code => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error('ffmpeg exit ' + code)); });
           ff.on('error', err => { clearTimeout(timer); reject(err); });
         });
@@ -635,17 +683,18 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
         update.filePath = audioPath;
         update.ext = 'mp3';
         update.audioUrl = `/download/${taskId}.mp3`;
+        fileRefManager.addRef(`${taskId}.mp3`);
         // 删除视频文件
-        try { fs.unlinkSync(result.filePath); } catch {}
+        await asyncFs.safeUnlink(result.filePath);
       } catch (e) {
-        console.error(`[audio] ${taskId} extract failed:`, e.message);
+        logger.error(`[audio] ${taskId} extract failed:`, e.message);
       }
     }
 
     // 处理 ASR + 翻译
     if (needAsr && result.filePath) {
       try {
-        store.update(taskId, { status: 'asr', progress: 100 });
+        store.update(taskId, { status: TASK_STATUS.ASR, progress: 100 });
         const asr = require('../services/asr');
         const audioPath = path.join(path.dirname(result.filePath), `${taskId}_asr.mp3`);
 
@@ -653,7 +702,7 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
         const { spawn } = require('child_process');
         await new Promise((resolve, reject) => {
           const ff = spawn('ffmpeg', ['-i', result.filePath, '-vn', '-acodec', 'libmp3lame', '-b:a', '128k', '-y', audioPath]);
-          const timer = setTimeout(() => { ff.kill('SIGKILL'); reject(new Error('timeout')); }, 30000);
+          const timer = setTimeout(() => { ff.kill('SIGKILL'); reject(new Error('timeout')); }, TIMEOUT.FFMPEG);
           ff.on('close', code => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error('ffmpeg exit ' + code)); });
           ff.on('error', err => { clearTimeout(timer); reject(err); });
         });
@@ -662,37 +711,52 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
         const text = await asr.transcribe(audioPath, asrLanguage);
         if (text) {
           update.asrText = text;
-          update.asrTxtUrl = saveTextFile(taskId, text, 'subtitle');
+          update.asrTxtUrl = await saveTextFile(taskId, text, 'subtitle');
         }
 
         // 翻译
-        const task = store.get(taskId);
+        let task = store.get(taskId);
         if (task?.targetLang && text) {
           try {
             const translated = await asr.translateText(text, asrLanguage === 'auto' ? 'zh' : asrLanguage, task.targetLang);
             if (translated) {
               update.translatedText = translated;
-              update.translatedTxtUrl = saveTextFile(taskId, translated, 'translation');
+              update.translatedTxtUrl = await saveTextFile(taskId, translated, 'translation');
             }
           } catch (e) {
-            console.error(`[ASR] ${taskId} translate failed:`, e.message);
+            logger.error(`[ASR] ${taskId} translate failed:`, e.message);
           }
         }
 
         // 清理临时音频
-        try { fs.unlinkSync(audioPath); } catch {}
+        await asyncFs.safeUnlink(audioPath);
       } catch (asrError) {
-        console.error(`[ASR] ${taskId} failed:`, asrError.message);
+        logger.error(`[ASR] ${taskId} failed:`, asrError.message);
         update.asrError = asrError.message;
       }
     }
 
     store.update(taskId, update);
+
+    // 下载成功后增加用户计数
+    task = store.get(taskId);
+    if (task.status === TASK_STATUS.COMPLETED) {
+      const userDb = require('../userDb');
+      if (task.userId) {
+        await userDb.incrementDownloads(task.userId);
+      } else if (task.guestIp) {
+        await userDb.incrementGuestDownload(task.guestIp);
+      }
+    }
+
     saveHistory(taskId);
-    console.log(`[task] ${taskId} douyin completed`);
+    logger.info(`[task] ${taskId} douyin completed`);
   } catch (error) {
-    console.error(`[task] ${taskId} douyin failed:`, error);
-    store.update(taskId, { status: 'error', error: error.message });
+    logger.error(`[task] ${taskId} douyin failed:`, error);
+    store.update(taskId, { status: TASK_STATUS.ERROR, error: error.message });
+  } finally {
+    // 释放任务锁
+    taskLock.release(taskId);
   }
 }
 
@@ -700,12 +764,22 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
  * 处理 X/Twitter 下载
  */
 async function processX(taskId, url, needAsr, options = ['video']) {
+  // 获取任务锁
+  if (!taskLock.tryAcquire(taskId)) {
+    logger.warn(`[task] ${taskId} is already being processed`);
+    store.update(taskId, { 
+      status: TASK_STATUS.ERROR, 
+      error: 'Task is already in progress' 
+    });
+    return;
+  }
+
   try {
     const { downloadX } = require('../services/x-download');
-    store.update(taskId, { status: 'parsing', progress: 5 });
+    store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
     const result = await downloadX(url, taskId, (percent, msg) => {
       store.update(taskId, {
-        status: percent < 30 ? 'parsing' : 'downloading',
+        status: percent < 30 ? TASK_STATUS.PARSING : TASK_STATUS.DOWNLOADING,
         progress: percent
       });
     });
@@ -716,7 +790,7 @@ async function processX(taskId, url, needAsr, options = ['video']) {
     }
 
     const update = {
-      status: 'completed',
+      status: TASK_STATUS.COMPLETED,
       width: result.width || 0,
       height: result.height || 0,
       quality: result.quality || 'unknown',
@@ -728,6 +802,7 @@ async function processX(taskId, url, needAsr, options = ['video']) {
       update.filePath = result.filePath;
       update.ext = result.ext || 'mp4';
       update.downloadUrl = result.downloadUrl;
+      fileRefManager.addRef(path.basename(result.filePath));
     }
     if (result.images) {
       update.imageFiles = result.images;
@@ -741,16 +816,17 @@ async function processX(taskId, url, needAsr, options = ['video']) {
         const { spawn } = require('child_process');
         await new Promise((resolve, reject) => {
           const ff = spawn('ffmpeg', ['-i', result.filePath, '-vn', '-acodec', 'libmp3lame', '-b:a', '128k', '-y', audioPath]);
-          const timer = setTimeout(() => { ff.kill('SIGKILL'); reject(new Error('timeout')); }, 30000);
+          const timer = setTimeout(() => { ff.kill('SIGKILL'); reject(new Error('timeout')); }, TIMEOUT.FFMPEG);
           ff.on('close', code => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error('ffmpeg exit ' + code)); });
           ff.on('error', err => { clearTimeout(timer); reject(err); });
         });
         update.downloadUrl = '/download/' + taskId + '.mp3';
         update.filePath = audioPath;
         update.ext = 'mp3';
-        try { fs.unlinkSync(result.filePath); } catch {}
+        fileRefManager.addRef(taskId + '.mp3');
+        await asyncFs.safeUnlink(result.filePath);
       } catch (e) {
-        console.error('[x audio] extract failed:', e.message);
+        logger.error('[x audio] extract failed:', e.message);
       }
     }
 
@@ -759,14 +835,28 @@ async function processX(taskId, url, needAsr, options = ['video']) {
     // ASR 语音转文字
     if (needAsr && update.filePath) {
       const result = await handleAsr(taskId, update.filePath, 'zh');
-      if (result?.text) { const upd = { status: "completed", asrText: result.text, asrTxtUrl: result.txtUrl }; if (result.translatedText) { upd.translatedText = result.translatedText; upd.translatedTxtUrl = result.translatedTxtUrl; } store.update(taskId, upd); }
+      if (result?.text) { const upd = { status: TASK_STATUS.COMPLETED, asrText: result.text, asrTxtUrl: result.txtUrl }; if (result.translatedText) { upd.translatedText = result.translatedText; upd.translatedTxtUrl = result.translatedTxtUrl; } store.update(taskId, upd); }
+    }
+
+    // 下载成功后增加用户计数
+    let task = store.get(taskId);
+    if (task.status === TASK_STATUS.COMPLETED) {
+      const userDb = require('../userDb');
+      if (task.userId) {
+        await userDb.incrementDownloads(task.userId);
+      } else if (task.guestIp) {
+        await userDb.incrementGuestDownload(task.guestIp);
+      }
     }
 
     saveHistory(taskId);
-    console.log(`[task] ${taskId} x completed`);
+    logger.info(`[task] ${taskId} x completed`);
   } catch (error) {
-    console.error(`[task] ${taskId} x failed:`, error);
-    store.update(taskId, { status: 'error', error: error.message || 'X/Twitter 下载失败' });
+    logger.error(`[task] ${taskId} x failed:`, error);
+    store.update(taskId, { status: TASK_STATUS.ERROR, error: error.message || 'X/Twitter 下载失败' });
+  } finally {
+    // 释放任务锁
+    taskLock.release(taskId);
   }
 }
 
@@ -774,22 +864,36 @@ async function processX(taskId, url, needAsr, options = ['video']) {
  * 处理 YouTube 下载 (TikHub API)
  */
 async function processYouTube(taskId, url, needAsr, options = ['video'], quality = null) {
-    console.log('[ZZZzzZ] processYouTube CALLED for task:', taskId, 'url:', url, 'quality:', quality);
+  // 获取任务锁
+  if (!taskLock.tryAcquire(taskId)) {
+    logger.warn(`[task] ${taskId} is already being processed`);
+    store.update(taskId, { 
+      status: TASK_STATUS.ERROR, 
+      error: 'Task is already in progress' 
+    });
+    return;
+  }
+
   try {
+    logger.info('[processYouTube] CALLED for task:', taskId, 'url:', url, 'quality:', quality);
     const path = require('path');
 
-    store.update(taskId, { status: 'parsing', progress: 5 });
-
+    store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
     store.update(taskId, { requestedQuality: quality });
 
     // ========== TikHub v2 API (唯一下载方式,不使用 yt-dlp) ==========
     const { parseYouTubeV2 } = require('../services/tikhub');
     const result = await parseYouTubeV2(url, taskId, (percent, downloaded, total) => {
-      store.update(taskId, { status: percent < 30 ? 'parsing' : 'downloading', progress: percent, downloadedBytes: downloaded || 0, totalBytes: total || 0 });
+      store.update(taskId, { 
+        status: percent < 30 ? TASK_STATUS.PARSING : TASK_STATUS.DOWNLOADING, 
+        progress: percent, 
+        downloadedBytes: downloaded || 0, 
+        totalBytes: total || 0 
+      });
     }, quality);
 
     const update = {
-      status: 'completed',
+      status: TASK_STATUS.COMPLETED,
       width: result.width,
       height: result.height,
       quality: result.quality || `${result.height}p`,
@@ -800,12 +904,29 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
       filePath: result.filePath,
       ext: 'mp4'
     };
+    
+    fileRefManager.addRef(`${taskId}.mp4`);
     store.update(taskId, update);
+
+    // 下载成功后增加用户计数
+    let task = store.get(taskId);
+    if (task.status === TASK_STATUS.COMPLETED) {
+      const userDb = require('../userDb');
+      if (task.userId) {
+        await userDb.incrementDownloads(task.userId);
+      } else if (task.guestIp) {
+        await userDb.incrementGuestDownload(task.guestIp);
+      }
+    }
+
     saveHistory(taskId);
-    console.log(`[task] ${taskId} youtube completed via TikHub v2 (${result.quality})`);
+    logger.info(`[task] ${taskId} youtube completed via TikHub v2 (${result.quality})`);
   } catch (error) {
-    console.error(`[task] ${taskId} youtube failed:`, error);
-    store.update(taskId, { status: 'error', error: error.message });
+    logger.error(`[task] ${taskId} youtube failed:`, error);
+    store.update(taskId, { status: TASK_STATUS.ERROR, error: error.message });
+  } finally {
+    // 释放任务锁
+    taskLock.release(taskId);
   }
 }
 
@@ -813,8 +934,18 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
  * 处理 TikTok 下载 (TikHub API)
  */
 async function processTikTok(taskId, url, needAsr, options = ['video'], quality = null) {
+  // 获取任务锁
+  if (!taskLock.tryAcquire(taskId)) {
+    logger.warn(`[task] ${taskId} is already being processed`);
+    store.update(taskId, { 
+      status: TASK_STATUS.ERROR, 
+      error: 'Task is already in progress' 
+    });
+    return;
+  }
+
   try {
-    store.update(taskId, { status: 'parsing', progress: 5 });
+    store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
 
     // 从 URL 提取视频 ID
     let videoId = null;
@@ -827,7 +958,7 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
     if (!videoId) {
       try {
         // 方法1: HEAD 请求跟踪重定向
-        const headResp = await axios.head(url, { maxRedirects: 5, timeout: 10000 });
+        const headResp = await axios.head(url, { maxRedirects: 5, timeout: TIMEOUT.API_REQUEST });
         const redirectUrl = headResp.request?.res?.responseUrl || headResp.headers?.location || '';
         const redirectMatch = redirectUrl.match(/\/video\/(\d+)/);
         if (redirectMatch) videoId = redirectMatch[1];
@@ -838,7 +969,7 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
         try {
           const resp = await axios.get(url, {
             maxRedirects: 5,
-            timeout: 15000,
+            timeout: TIMEOUT.API_REQUEST,
             headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)' }
           });
           const finalUrl = resp.request?.res?.responseUrl || '';
@@ -890,18 +1021,18 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
       throw new Error('无法获取 TikTok 视频下载链接');
     }
 
-    store.update(taskId, { status: 'downloading', progress: 30 });
+    store.update(taskId, { status: TASK_STATUS.DOWNLOADING, progress: 30 });
 
     // 下载视频到服务器
     const filename = taskId + '.mp4';
     const outputPath = path.join(__dirname, '../../downloads', filename);
-    await downloadToStream(videoUrl, outputPath, 120000);
+    await downloadToStream(videoUrl, outputPath, TIMEOUT.DOWNLOAD);
 
     // 获取封面
     const coverUrl = video.cover?.url_list?.[0] || video.origin_cover?.url_list?.[0] || '';
 
     const update = {
-      status: 'completed',
+      status: TASK_STATUS.COMPLETED,
       progress: 100,
       title: title,
       duration: video.duration ? Math.floor(video.duration / 1000) : 0,
@@ -913,6 +1044,8 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
       copyText: title
     };
 
+    fileRefManager.addRef(filename);
+
     // 纯音频
     const wantsAudioOnly = options.includes('audio') && !options.includes('video');
     if (wantsAudioOnly) {
@@ -921,7 +1054,7 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
         const { spawn } = require('child_process');
         await new Promise((resolve, reject) => {
           const ff = spawn('ffmpeg', ['-i', outputPath, '-vn', '-acodec', 'libmp3lame', '-b:a', '128k', '-y', audioPath]);
-          const timer = setTimeout(() => { ff.kill('SIGKILL'); reject(new Error('timeout')); }, 30000);
+          const timer = setTimeout(() => { ff.kill('SIGKILL'); reject(new Error('timeout')); }, TIMEOUT.FFMPEG);
           ff.on('close', code => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error('ffmpeg exit ' + code)); });
           ff.on('error', err => { clearTimeout(timer); reject(err); });
         });
@@ -929,9 +1062,10 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
         update.filePath = audioPath;
         update.ext = 'mp3';
         update.audioUrl = '/download/' + taskId + '.mp3';
-        try { fs.unlinkSync(outputPath); } catch {}
+        fileRefManager.addRef(taskId + '.mp3');
+        await asyncFs.safeUnlink(outputPath);
       } catch (e) {
-        console.error('[tiktok audio] extract failed:', e.message);
+        logger.error('[tiktok audio] extract failed:', e.message);
       }
     }
 
@@ -940,18 +1074,32 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
     // ASR 语音转文字
     if (needAsr && update.filePath) {
       const result = await handleAsr(taskId, update.filePath, 'zh');
-      if (result?.text) { const upd = { status: "completed", asrText: result.text, asrTxtUrl: result.txtUrl }; if (result.translatedText) { upd.translatedText = result.translatedText; upd.translatedTxtUrl = result.translatedTxtUrl; } store.update(taskId, upd); }
+      if (result?.text) { const upd = { status: TASK_STATUS.COMPLETED, asrText: result.text, asrTxtUrl: result.txtUrl }; if (result.translatedText) { upd.translatedText = result.translatedText; upd.translatedTxtUrl = result.translatedTxtUrl; } store.update(taskId, upd); }
+    }
+
+    // 下载成功后增加用户计数
+    let task = store.get(taskId);
+    if (task.status === TASK_STATUS.COMPLETED) {
+      const userDb = require('../userDb');
+      if (task.userId) {
+        await userDb.incrementDownloads(task.userId);
+      } else if (task.guestIp) {
+        await userDb.incrementGuestDownload(task.guestIp);
+      }
     }
 
     saveHistory(taskId);
-    console.log('[task] ' + taskId + ' tiktok completed');
+    logger.info(`[task] ${taskId} tiktok completed`);
   } catch (error) {
-    console.error('[task] ' + taskId + ' tiktok failed:', error);
+    logger.error(`[task] ${taskId} tiktok failed:`, error);
     store.update(taskId, {
-      status: 'error',
+      status: TASK_STATUS.ERROR,
       progress: 0,
       error: error.message || 'TikTok 下载失败'
     });
+  } finally {
+    // 释放任务锁
+    taskLock.release(taskId);
   }
 }
 
@@ -959,19 +1107,29 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
  * 处理小红书下载 (TikHub API)
  */
 async function processXiaohongshu(taskId, url, needAsr, options = ['video']) {
+  // 获取任务锁
+  if (!taskLock.tryAcquire(taskId)) {
+    logger.warn(`[task] ${taskId} is already being processed`);
+    store.update(taskId, { 
+      status: TASK_STATUS.ERROR, 
+      error: 'Task is already in progress' 
+    });
+    return;
+  }
+
   try {
     const { parseXiaohongshu } = require('../services/tikhub');
-    store.update(taskId, { status: 'parsing', progress: 5 });
+    store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
 
     const result = await parseXiaohongshu(url, taskId, (percent) => {
       store.update(taskId, {
-        status: percent < 20 ? 'parsing' : 'downloading',
+        status: percent < 20 ? TASK_STATUS.PARSING : TASK_STATUS.DOWNLOADING,
         progress: percent
       });
     });
 
     const update = {
-      status: 'completed',
+      status: TASK_STATUS.COMPLETED,
       width: result.width,
       height: result.height,
       quality: result.quality,
@@ -984,6 +1142,7 @@ async function processXiaohongshu(taskId, url, needAsr, options = ['video']) {
       update.filePath = result.filePath;
       update.ext = result.ext;
       update.downloadUrl = `/download/${path.basename(result.filePath)}`;
+      fileRefManager.addRef(path.basename(result.filePath));
     }
 
     if (result.isNote && result.imageFiles) {
@@ -992,11 +1151,26 @@ async function processXiaohongshu(taskId, url, needAsr, options = ['video']) {
     }
 
     store.update(taskId, update);
+
+    // 下载成功后增加用户计数
+    let task = store.get(taskId);
+    if (task.status === TASK_STATUS.COMPLETED) {
+      const userDb = require('../userDb');
+      if (task.userId) {
+        await userDb.incrementDownloads(task.userId);
+      } else if (task.guestIp) {
+        await userDb.incrementGuestDownload(task.guestIp);
+      }
+    }
+
     saveHistory(taskId);
-    console.log(`[task] ${taskId} xiaohongshu completed`);
+    logger.info(`[task] ${taskId} xiaohongshu completed`);
   } catch (error) {
-    console.error(`[task] ${taskId} xiaohongshu failed:`, error);
-    store.update(taskId, { status: 'error', error: error.message });
+    logger.error(`[task] ${taskId} xiaohongshu failed:`, error);
+    store.update(taskId, { status: TASK_STATUS.ERROR, error: error.message });
+  } finally {
+    // 释放任务锁
+    taskLock.release(taskId);
   }
 }
 
@@ -1004,21 +1178,31 @@ async function processXiaohongshu(taskId, url, needAsr, options = ['video']) {
  * 处理 Instagram 下载（TikHub API）
  */
 async function processInstagram(taskId, url, needAsr, options = ['video']) {
+  // 获取任务锁
+  if (!taskLock.tryAcquire(taskId)) {
+    logger.warn(`[task] ${taskId} is already being processed`);
+    store.update(taskId, { 
+      status: TASK_STATUS.ERROR, 
+      error: 'Task is already in progress' 
+    });
+    return;
+  }
+
   try {
     const { parseInstagram } = require('../services/tikhub');
-    store.update(taskId, { status: 'parsing', progress: 10 });
+    store.update(taskId, { status: TASK_STATUS.PARSING, progress: 10 });
 
     const info = await parseInstagram(url);
     store.update(taskId, { title: info.title, thumbnailUrl: info.thumbnailUrl, progress: 20 });
 
     // 下载视频
     const outputPath = path.join(__dirname, '../../downloads', `${taskId}.mp4`);
-    store.update(taskId, { status: 'downloading', progress: 30 });
+    store.update(taskId, { status: TASK_STATUS.DOWNLOADING, progress: 30 });
 
-    await downloadToStream(info.videoUrl, outputPath, 120000);
+    await downloadToStream(info.videoUrl, outputPath, TIMEOUT.DOWNLOAD);
 
     const update = {
-      status: 'completed',
+      status: TASK_STATUS.COMPLETED,
       width: info.width,
       height: info.height,
       quality: `${info.width}x${info.height}`,
@@ -1030,12 +1214,28 @@ async function processInstagram(taskId, url, needAsr, options = ['video']) {
       ext: 'mp4'
     };
 
+    fileRefManager.addRef(`${taskId}.mp4`);
     store.update(taskId, update);
+
+    // 下载成功后增加用户计数
+    let task = store.get(taskId);
+    if (task.status === TASK_STATUS.COMPLETED) {
+      const userDb = require('../userDb');
+      if (task.userId) {
+        await userDb.incrementDownloads(task.userId);
+      } else if (task.guestIp) {
+        await userDb.incrementGuestDownload(task.guestIp);
+      }
+    }
+
     saveHistory(taskId);
-    console.log(`[task] ${taskId} instagram completed`);
+    logger.info(`[task] ${taskId} instagram completed`);
   } catch (error) {
-    console.error(`[task] ${taskId} instagram failed:`, error);
-    store.update(taskId, { status: 'error', error: error.message });
+    logger.error(`[task] ${taskId} instagram failed:`, error);
+    store.update(taskId, { status: TASK_STATUS.ERROR, error: error.message });
+  } finally {
+    // 释放任务锁
+    taskLock.release(taskId);
   }
 }
 
@@ -1084,7 +1284,7 @@ function getStatus(req, res) {
       title: task.title,
       thumbnailUrl: task.thumbnailUrl,
       duration: task.duration
-    }).catch(e => console.error('[history]', e.message));
+    }).catch(e => logger.error('[history]', e.message));
     store.update(taskId, { historySaved: true });
   }
 
@@ -1170,7 +1370,7 @@ async function getHistory(req, res) {
   try {
     dbHistory = await userDb.getHistory(userId, guestIp, parseInt(limit) + parseInt(offset));
   } catch (e) {
-    console.error('[history] DB query failed:', e.message);
+    logger.error('[history] DB query failed:', e.message);
   }
 
   // 合并：内存中的任务 + 数据库历史（去重）
@@ -1339,21 +1539,9 @@ function clearHistory(req, res) {
   }
 }
 
-// TikHub API 简单内存缓存(5分钟 TTL)
-const infoCache = new Map();
-const INFO_CACHE_TTL = 5 * 60 * 1000; // 5分钟
-
+// 使用 LRU 缓存管理器
 function getCachedInfo(key, fetcher) {
-  const cached = infoCache.get(key);
-  if (cached && Date.now() - cached.ts < INFO_CACHE_TTL) {
-    console.log(`[cache] HIT: ${key}`);
-    return Promise.resolve(cached.data);
-  }
-  console.log(`[cache] MISS: ${key}`);
-  return fetcher().then(data => {
-    infoCache.set(key, { data, ts: Date.now() });
-    return data;
-  });
+  return cacheManager.getOrSet(key, fetcher, 'info');
 }
 
 /**
@@ -1523,7 +1711,7 @@ async function getVideoInfo(req, res) {
           });
         }
       } catch (e) {
-        console.error('[video-info] Douyin error:', e.message);
+        logger.error('[video-info] Douyin error:', e.message);
       }
     }
 
@@ -1541,8 +1729,8 @@ async function getVideoInfo(req, res) {
       }
     });
   } catch (e) {
-    console.error('[video-info] Error:', e.message);
-    return res.status(500).json({ code: -1, message: e.message });
+    logger.error('[video-info] Error:', e.message);
+    return res.status(HTTP_STATUS.INTERNAL_ERROR).json({ code: RESPONSE_CODE.ERROR, message: e.message });
   }
 }
 

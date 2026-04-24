@@ -6,6 +6,8 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const auth = require('../auth');
+const logger = require('../utils/logger');
+const { downloadLimiter } = require('../middleware/rateLimiter');
 const {
   createDownload,
   getInfo,
@@ -25,8 +27,8 @@ const APP_VERSION = packageJson.version || '1.0.0';
 
 const router = express.Router();
 
-// 创建下载任务
-router.post('/download', createDownload);
+// 创建下载任务（带速率限制）
+router.post('/download', downloadLimiter, createDownload);
 
 // 获取视频信息（不下载）
 router.get('/info', getInfo);

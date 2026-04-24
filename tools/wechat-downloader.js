@@ -16,8 +16,15 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const API_KEY = 'lrwNPvEUzE2ph0K5Oces5Q/RNRHRZ5tTzTTogR7aU/mj1li7O0XfZgWPCQ==';
+// 从环境变量读取API密钥（安全）
+require('dotenv').config();
+const API_KEY = process.env.TIKHUB_API_KEY_WECHAT || '';
 const API_BASE = 'https://api.tikhub.io';
+
+if (!API_KEY) {
+  console.error('❌ TIKHUB_API_KEY_WECHAT environment variable is required!');
+  process.exit(1);
+}
 
 /**
  * 提取视频 ID

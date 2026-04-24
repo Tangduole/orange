@@ -2,14 +2,25 @@
  * 小电驴 - 后端入口
  */
 
+require('dotenv').config();
+
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
 const path = require('path');
 const fs = require('fs');
+const logger = require('./utils/logger');
+const { validateEnv, isProduction } = require('./utils/envValidator');
+const { startCleanupSchedule } = require('./utils/fileCleanup');
+const { apiLimiter } = require('./middleware/rateLimiter');
 const apiRouter = require('./routes/api');
 const authRouter = require('./routes/auth');
 const subscribeRouter = require('./routes/subscribe');
+const healthRouter = require('./routes/health');
 const { DOWNLOAD_DIR } = require('./services/yt-dlp');
+
+// 验证环境变量
+validateEnv();
 
 const backend = require('path').join(__dirname, '..', '..');
 if (!fs.existsSync(path.join(backend, 'data'))) {
@@ -29,14 +40,33 @@ if (process.env.YT_COOKIES_B64) {
     if (!fs.existsSync(cookiesDir)) fs.mkdirSync(cookiesDir, { recursive: true });
     const cookiesPath = path.join(cookiesDir, 'youtube_cookies.txt');
     fs.writeFileSync(cookiesPath, Buffer.from(process.env.YT_COOKIES_B64, 'base64').toString('utf-8'));
-    console.log('[startup] YouTube cookies written from env var');
+    logger.info('[startup] YouTube cookies written from env var');
   } catch (e) {
-    console.error('[startup] Failed to write cookies:', e.message);
+    logger.error('[startup] Failed to write cookies:', e.message);
   }
 }
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// 安全中间件
+app.use(helmet({
+  contentSecurityPolicy: false, // 允许内联脚本（前端需要）
+  crossOriginEmbedderPolicy: false
+}));
+
+// 信任代理（用于获取真实IP）
+app.set('trust proxy', 1);
+
+// HTTPS 重定向（生产环境）
+if (isProduction()) {
+  app.use((req, res, next) => {
+    if (req.headers['x-forwarded-proto'] !== 'https') {
+      return res.redirect('https://' + req.headers.host + req.url);
+    }
+    next();
+  });
+}
 
 // 中间件
 // CORS 配置
@@ -63,10 +93,14 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// 全局速率限制
+app.use('/api', apiLimiter);
+
 // API 路由
 app.use('/api', apiRouter);
 app.use('/api/auth', authRouter);
 app.use('/api/subscribe', subscribeRouter);
+app.use('/health', healthRouter);
 
 // 静态提供下载文件（带正确的 Content-Disposition 头）
 app.use('/download', (req, res, next) => {
@@ -149,19 +183,27 @@ if (fs.existsSync(frontendDist)) {
 
 // 全局错误处理 - 防止未捕获的 async 错误导致进程崩溃
 process.on('uncaughtException', (err) => {
-  console.error('[FATAL] Uncaught Exception:', err.message);
+  logger.error('[FATAL] Uncaught Exception:', err);
+  // 生产环境不退出，记录错误后继续运行
+  if (!isProduction()) {
+    process.exit(1);
+  }
 });
 
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('[FATAL] Unhandled Rejection at:', promise, 'reason:', reason?.message || reason);
+  logger.error('[FATAL] Unhandled Rejection at:', promise, 'reason:', reason?.message || reason);
 });
+
+// 启动文件清理任务
+startCleanupSchedule();
 
 // 启动
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Orange后端启动成功`);
-  console.log(`   http://0.0.0.0:${PORT}`);
-  console.log(`   API: http://0.0.0.0:${PORT}/api`);
-  console.log(`   下载目录: ${DOWNLOAD_DIR}`);
+  logger.info(`🚀 Orange后端启动成功`);
+  logger.info(`   环境: ${process.env.NODE_ENV || 'development'}`);
+  logger.info(`   地址: http://0.0.0.0:${PORT}`);
+  logger.info(`   API: http://0.0.0.0:${PORT}/api`);
+  logger.info(`   下载目录: ${DOWNLOAD_DIR}`);
 });
 
 module.exports = app;

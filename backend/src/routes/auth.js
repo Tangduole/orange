@@ -6,6 +6,8 @@ const express = require('express');
 const router = express.Router();
 const userDb = require('../userDb');
 const auth = require('../auth');
+const logger = require('../utils/logger');
+const { authLimiter, strictLimiter } = require('../middleware/rateLimiter');
 
 // 简单的登录频率限制（5分钟内失败5次封IP）
 const loginAttempts = new Map();
@@ -37,9 +39,9 @@ function checkLoginRateLimit(ip) {
 
 /**
  * POST /api/auth/register
- * 注册
+ * 注册（带速率限制）
  */
-router.post('/register', async (req, res) => {
+router.post('/register', authLimiter, async (req, res) => {
   const { email, password } = req.body;
   
   if (!email || !password) {
@@ -116,9 +118,9 @@ router.post('/register', async (req, res) => {
 
 /**
  * POST /api/auth/login
- * 登录
+ * 登录（带速率限制）
  */
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, async (req, res) => {
   const clientIp = req.ip || req.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
   
   // 检查频率限制
@@ -186,8 +188,8 @@ router.get('/me', auth.required, async (req, res) => {
   });
 });
 
-// 忘记密码 - 发送重置邮件
-router.post('/forgot-password', async (req, res) => {
+// 忘记密码 - 发送重置邮件（严格限制）
+router.post('/forgot-password', strictLimiter, async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) return res.status(400).json({ code: 400, message: '请提供邮箱' });
@@ -364,8 +366,8 @@ router.get('/verify-email', async (req, res) => {
   }
 });
 
-// 注销账号
-router.post('/delete-account', auth.required, async (req, res) => {
+// 注销账号（严格限制）
+router.post('/delete-account', auth.required, strictLimiter, async (req, res) => {
   try {
     const { password } = req.body;
     if (!password) {
