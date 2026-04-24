@@ -106,10 +106,11 @@ const shareFile = async (url: string, title: string, fileType: 'video' | 'audio'
       URL.revokeObjectURL(blobUrl)
       return { success: true }
     } catch (e) {
-      console.error('[shareFile] blob download failed, trying link download:', e)
-      // Fallback: 用 window.open 下载，iOS Safari 会在新标签页播放视频
-      window.open(fullUrl, '_blank')
-      return { success: false, error: String(e) }
+      console.error('[shareFile] blob download failed, falling back to direct download:', e)
+      // 直接导航到 URL 触发下载（最可靠的方式，手机浏览器都支持）
+      // Content-Disposition: attachment 让浏览器弹出保存对话框
+      location.href = fullUrl
+      return { success: true }
     }
   }
 }

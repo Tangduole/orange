@@ -1,4 +1,4 @@
-const CACHE_NAME = 'orange-v1';
+const CACHE_NAME = 'orange-v2';
 const STATIC_ASSETS = ['/', '/index.html'];
 
 self.addEventListener('install', (event) => {
@@ -20,8 +20,10 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
 
-  // API 和下载请求不缓存
-  if (request.url.includes('/api/') || request.url.includes('/download/')) return;
+  // 明确不拦截 API 和下载请求（让浏览器直接处理）
+  if (request.url.includes('/api/') || request.url.includes('/download/')) {
+    return;
+  }
 
   // 导航请求：network first
   if (request.mode === 'navigate') {
