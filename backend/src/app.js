@@ -105,6 +105,11 @@ app.use('/download', (req, res, next) => {
     // 允许跨域访问
     res.setHeader('Access-Control-Allow-Origin', '*');
     
+    // 禁用缓存，确保每次下载都是最新的
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
+    
     // 发送文件
     res.sendFile(filePath);
   } else {

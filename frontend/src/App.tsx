@@ -108,8 +108,9 @@ const shareFile = async (url: string, title: string, fileType: 'video' | 'audio'
     } catch (e) {
       console.error('[shareFile] blob download failed, falling back to direct download:', e)
       // 直接导航到 URL 触发下载（最可靠的方式，手机浏览器都支持）
-      // Content-Disposition: attachment 让浏览器弹出保存对话框
-      location.href = fullUrl
+      // 加时间戳参数防止缓存（后端会忽略查询参数）
+      const noCacheUrl = fullUrl + (fullUrl.includes('?') ? '&' : '?') + '_nocache=' + Date.now()
+      location.href = noCacheUrl
       return { success: true }
     }
   }
