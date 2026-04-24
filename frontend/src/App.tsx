@@ -216,19 +216,15 @@ export default function App() {
     setShowLangMenu(false)
   }
 
-  // IP自动检测语言（仅首次访问时）
+  // 浏览器语言自动检测（仅首次访问时）
   useEffect(() => {
     if (localStorage.getItem('orange_language')) return // 用户已手动选择过
-    fetch('https://ip-api.com/json/')
-      .then(r => r.json())
-      .then(data => {
-        if (data.country === 'China') {
-          i18n.changeLanguage('zh-CN')
-        } else {
-          i18n.changeLanguage('en')
-        }
-      })
-      .catch(() => {}) // 失败保持默认
+    const browserLang = navigator.language || ''
+    if (browserLang.toLowerCase().startsWith('zh')) {
+      i18n.changeLanguage('zh-CN')
+    } else {
+      i18n.changeLanguage('en')
+    }
   }, [])
 
   // 检查 URL 是否有重置Password token
