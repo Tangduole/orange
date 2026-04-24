@@ -80,14 +80,17 @@ const shareFile = async (url: string, title: string, fileType: 'video' | 'audio'
       }
     }
   } else {
-    // Web: 直接用 <a> 标签下载（服务器返回 Content-Disposition: attachment）
-    // 服务器设置了 attachment，浏览器会自动弹出下载
-    const a = document.createElement('a')
-    a.href = fullUrl
-    a.download = title || 'video'
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
+    // Web: 用 iframe 触发下载（最稳定的跨域下载方式）
+    // 服务器返回 Content-Disposition: attachment，浏览器会自动处理下载
+    const iframe = document.createElement('iframe')
+    iframe.style.visibility = 'hidden'
+    iframe.style.position = 'fixed'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = 'none'
+    iframe.src = fullUrl
+    document.body.appendChild(iframe)
+    // 不要移除 iframe，让它自然触发下载
     return { success: true }
   }
 }
