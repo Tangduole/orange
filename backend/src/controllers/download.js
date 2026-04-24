@@ -241,6 +241,16 @@ async function createDownload(req, res) {
       return res.json({ code: RESPONSE_CODE.SUCCESS, data: { taskId, status: TASK_STATUS.PENDING, platform: finalPlatform } });
     }
 
+    // 微信视频号链接:走专用下载器
+    const { parseWechatExportId } = require('../services/tikhub');
+    if (parseWechatExportId(url)) {
+      processWechat(taskId, url, wantsAsr, normalizedOptions).catch(err => {
+        logger.error(`[task] ${taskId} wechat failed:`, err);
+        store.update(taskId, { status: TASK_STATUS.ERROR, progress: 0, error: err.message });
+      });
+      return res.json({ code: RESPONSE_CODE.SUCCESS, data: { taskId, status: TASK_STATUS.PENDING, platform: 'wechat' } });
+    }
+
     // TikTok 链接:走 TikHub API
     if (/tiktok\.com|tiktok\.cn/i.test(url)) {
       processTikTok(taskId, url, wantsAsr, normalizedOptions, quality).catch(err => {
@@ -1731,6 +1741,56 @@ async function getVideoInfo(req, res) {
   } catch (e) {
     logger.error('[video-info] Error:', e.message);
     return res.status(HTTP_STATUS.INTERNAL_ERROR).json({ code: RESPONSE_CODE.ERROR, message: e.message });
+  }
+}
+
+// ============ 微信视频号 ============
+
+const { downloadWechat } = require('../services/tikhub');
+
+async function processWechat(taskId, url, needAsr, options = ['video']) {
+  // 获取任务锁
+  if (!taskLock.tryAcquire(taskId)) {
+    logger.warn(`[task] ${taskId} is already being processed`);
+    store.update(taskId, { status: TASK_STATUS.ERROR, error: 'Task is already in progress' });
+    return;
+  }
+
+  try {
+    logger.info('[processWechat] CALLED for task:', taskId, 'url:', url);
+    const path = require('path');
+
+    store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
+
+    const result = await downloadWechat(url, taskId, (percent, downloaded, total) => {
+      store.update(taskId, {
+        status: TASK_STATUS.DOWNLOADING,
+        progress: percent,
+        downloadedBytes: downloaded || 0,
+        totalBytes: total || 0
+      });
+    });
+
+    // 更新任务状态
+    const update = {
+      status: TASK_STATUS.COMPLETED,
+      progress: 100,
+      filePath: result.filePath,
+      width: result.width,
+      height: result.height,
+      quality: result.quality,
+      title: result.description
+    };
+
+    store.update(taskId, update);
+
+    logger.info(`[task] ${taskId} wechat completed: ${result.width}x${result.height} ${result.quality}`);
+
+  } catch (err) {
+    logger.error(`[task] ${taskId} wechat error:`, err.message);
+    store.update(taskId, { status: TASK_STATUS.ERROR, progress: 0, error: err.message });
+  } finally {
+    taskLock.release(taskId);
   }
 }
 

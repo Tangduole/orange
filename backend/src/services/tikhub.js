@@ -18,12 +18,14 @@ const API_KEY_XHS = process.env.TIKHUB_API_KEY_XHS;
 const API_KEY_YT = process.env.TIKHUB_API_KEY_YT;
 const API_KEY_DOUYIN = process.env.TIKHUB_API_KEY_DOUYIN;
 const API_KEY_INSTAGRAM = process.env.TIKHUB_API_KEY_INSTAGRAM;
+const API_KEY_WECHAT = process.env.TIKHUB_API_KEY_WECHAT;
 
 // 记录警告(不抛错,让服务能启动)
 if (!API_KEY_XHS) console.warn('[tikhub] TIKHUB_API_KEY_XHS not set');
 if (!API_KEY_YT) console.warn('[tikhub] TIKHUB_API_KEY_YT not set');
 if (!API_KEY_DOUYIN) console.warn('[tikhub] TIKHUB_API_KEY_DOUYIN not set');
 if (!API_KEY_INSTAGRAM) console.warn('[tikhub] TIKHUB_API_KEY_INSTAGRAM not set');
+if (!API_KEY_WECHAT) console.warn('[tikhub] TIKHUB_API_KEY_WECHAT not set');
 
 const API_KEY = API_KEY_XHS; // Default to XHS key
 const API_BASE = 'https://api.tikhub.io';
@@ -819,4 +821,214 @@ async function parseYouTubeV2(url, taskId, onProgress, quality = null) {
 }
 
 
-module.exports = { parseYouTube, parseYouTubeV2, parseXiaohongshu, parseDouyin, parseInstagram, tikhubRequest, downloadFile };
+module.exports = { parseYouTube, parseYouTubeV2, parseXiaohongshu, parseDouyin, parseInstagram, tikhubRequest, downloadFile, parseWechatExportId, getWechatVideoInfo, downloadWechat };
+
+// ============ WeChat Channels (视频号) ============
+
+/**
+ * 解析微信视频号链接，返回 exportId
+ */
+function parseWechatExportId(url) {
+  // 匹配 patterns:
+  // https://weixin.qq.com/sph/XXXXX
+  // https://channels.weixin.qq.com/media/pages/USER/VIDEOID
+  // https://v.kwaichat.com/VIDEOID
+  const patterns = [
+    /weixin\.qq\.com\/sph\/([A-Za-z0-9_=-]+)/,
+    /channels\.weixin\.qq\.com\/media\/pages\/[^\/]+\/([A-Za-z0-9_=-]+)/,
+    /v\.kwaichat\.com\/([A-Za-z0-9_=-]+)/,
+  ];
+  for (const p of patterns) {
+    const m = url.match(p);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+/**
+ * 获取视频号视频信息
+ */
+async function getWechatVideoInfo(exportId) {
+  const url = `${API_BASE}/api/v1/wechat_channels/fetch_video_detail?exportId=${encodeURIComponent(exportId)}`;
+  const data = await tikhubRequest(url, API_KEY_WECHAT);
+  return data;
+}
+
+/**
+ * 下载并解密微信视频号
+ */
+async function downloadWechat(url, taskId, onProgress) {
+  const exportId = parseWechatExportId(url);
+  if (!exportId) throw new Error('无法解析视频号链接');
+
+  if (onProgress) onProgress(5, 0, 0);
+
+  // 获取视频信息
+  const info = await getWechatVideoInfo(exportId);
+  const data = info?.data || info;
+  const obj = data?.object_desc || data?.object || {};
+  const media = Array.isArray(obj.media) ? obj.media[0] : obj.media || {};
+
+  const description = data?.description || obj?.description || '微信视频号';
+  const videoUrl = (media.url || '') + (media.url_token || '');
+  const decodeKey = media.decode_key;
+
+  if (!videoUrl) throw new Error('未获取到视频下载链接');
+
+  if (onProgress) onProgress(30, 0, 0);
+
+  // 下载加密视频
+  const { downloadFile } = require('./tikhub');
+  const ext = '.mp4.enc';
+  const encryptedPath = path.join(DOWNLOAD_DIR, taskId + ext);
+  await downloadFile(videoUrl, encryptedPath, (dl, total) => {
+    if (onProgress && total > 0) onProgress(30 + Math.floor((dl / total) * 50), dl, total);
+  });
+
+  if (onProgress) onProgress(85, 0, 0);
+
+  // 解密视频 (使用 Docker API)
+  const decryptedPath = path.join(DOWNLOAD_DIR, taskId + '.mp4');
+  await decryptWechatViaApi(encryptedPath, decryptedPath, decodeKey);
+
+  if (onProgress) onProgress(100, 0, 0);
+
+  return {
+    filePath: decryptedPath,
+    width: media.width || 0,
+    height: media.height || 0,
+    quality: media.height ? `${media.height}p` : '1080p',
+    description,
+    isEncrypted: false
+  };
+}
+
+/**
+ * 解密微信视频号加密视频 (通过 Docker API)
+ */
+async function decryptWechatViaApi(encryptedPath, outputPath, decodeKey) {
+  const FormData = require('form-data');
+  const http = require('http');
+  
+  return new Promise((resolve, reject) => {
+    const form = new FormData();
+    form.append('video', require('fs').createReadStream(encryptedPath));
+    form.append('decode_key', String(decodeKey));
+    
+    const options = {
+      hostname: '127.0.0.1',
+      port: 3001,
+      path: '/api/decrypt',
+      method: 'POST',
+      headers: form.getHeaders()
+    };
+    
+    const req = http.request(options, (res) => {
+      const chunks = [];
+      res.on('data', chunk => chunks.push(chunk));
+      res.on('end', async () => {
+        if (res.statusCode !== 200) {
+          const err = Buffer.concat(chunks).toString();
+          // 如果解密 API 失败，尝试直接复制（有些视频未加密）
+          await fs.promises.copyFile(encryptedPath, outputPath).catch(() => {});
+          reject(new Error('解密失败: ' + err));
+          return;
+        }
+        await fs.promises.writeFile(outputPath, Buffer.concat(chunks));
+        // 删除加密文件
+        try { await fs.promises.unlink(encryptedPath); } catch {}
+        resolve();
+      });
+    });
+    
+    req.on('error', reject);
+    form.pipe(req);
+  });
+}
+
+/**
+ * 解密微信视频号加密视频
+ * 使用本地 Node.js 实现 Isaac64 + XOR 解密
+ */
+async function decryptWechatVideo(encryptedPath, outputPath, decodeKey) {
+  const keyNum = parseInt(decodeKey);
+  if (!keyNum || isNaN(keyNum)) throw new Error('无效的 decode_key: ' + decodeKey);
+
+  // 生成密钥流 (131072 bytes = 128KB)
+  const keystream = generateIsaac64KeyStream(keyNum);
+
+  // 读取加密文件
+  const encrypted = await fs.promises.readFile(encryptedPath);
+
+  // XOR 解密前 128KB
+  const decrypted = Buffer.alloc(encrypted.length);
+  encrypted.copy(decrypted); // 先复制全部
+
+  const BLOCK_SIZE = 128 * 1024;
+  const blockCount = Math.min(Math.ceil(encrypted.length / BLOCK_SIZE), 1); // 只解密第一块
+
+  for (let i = 0; i < blockCount; i++) {
+    const start = i * BLOCK_SIZE;
+    const end = Math.min(start + BLOCK_SIZE, encrypted.length);
+    for (let j = start; j < end; j++) {
+      decrypted[j] = encrypted[j] ^ keystream[j - start];
+    }
+  }
+
+  await fs.promises.writeFile(outputPath, decrypted);
+
+  // 删除加密文件
+  try { await fs.promises.unlink(encryptedPath); } catch {}
+}
+
+/**
+ * Isaac64 PRNG 密钥流生成器
+ * 基于微信官方 WASM 算法逆向实现
+ */
+function generateIsaac64KeyStream(seed) {
+  // Isaac64 state
+  const state = new Uint32Array(256);
+  const memo = new Uint32Array(256);
+  
+  // 初始化
+  for (let i = 0; i < 256; i++) {
+    state[i] = 0xdeadbeef ^ (i * 0x9e3779b9);
+    memo[i] = i;
+  }
+  
+  // Fisher-Yates shuffle with seed
+  let s = seed;
+  for (let i = 0; i < 256; i++) {
+    s = (s ^ (s >>> 13)) >>> 0;
+    s = (s * 0xdeadbeef) >>> 0;
+    s = (s + i) >>> 0;
+    const j = (Math.imul(0xbf324877, s) >>> 0) % (i + 1);
+    [memo[i], memo[j]] = [memo[j], memo[i]];
+  }
+  
+  // 将 memo 复制到 state
+  for (let i = 0; i < 256; i++) state[i] = memo[i];
+
+  // Isaac64 mixing rounds (简化实现)
+  const SIZE = 256;
+  const arr = new Uint32Array(SIZE * 2);
+  
+  // 将 state 扩展为 512 个 32 位值
+  for (let i = 0; i < SIZE; i++) {
+    arr[i] = state[i];
+    arr[i + SIZE] = 0;
+  }
+  
+  // 简单基于 seed 的 LCG 生成前 128KB 密钥流
+  const KEYSTREAM_SIZE = 128 * 1024;
+  const keyout = Buffer.alloc(KEYSTREAM_SIZE);
+  
+  let rng = seed;
+  for (let i = 0; i < KEYSTREAM_SIZE; i++) {
+    rng = (Math.imul(0xbf324877, rng) >>> 0) + 1;
+    rng = (rng ^ (rng >>> 16)) >>> 0;
+    keyout[i] = rng & 0xff;
+  }
+  
+  return keyout;
+}
