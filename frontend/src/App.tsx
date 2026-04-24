@@ -80,39 +80,16 @@ const shareFile = async (url: string, title: string, fileType: 'video' | 'audio'
       }
     }
   } else {
-    // Web: 直接用 link download 方式（兼容 PC 和手机浏览器）
-    try {
-      // 优先用 fetch + blob（桌面浏览器）
-      const resp = await fetch(fullUrl)
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
-      const contentType = resp.headers.get('content-type') || ''
-      if (contentType.includes('text/html') || contentType.includes('application/json')) {
-        throw new Error('Download link expired')
-      }
-      const blob = await resp.blob()
-      if (blob.size === 0) throw new Error('Empty file')
-      // 安全检查：读取文件头验证不是 HTML
-      const head = await blob.slice(0, 512).text()
-      if (head.trim().startsWith('<!DOCTYPE') || head.trim().startsWith('<html')) {
-        throw new Error('Download link expired')
-      }
-      const blobUrl = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = blobUrl
-      a.download = title || 'video.mp4'
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(blobUrl)
-      return { success: true }
-    } catch (e) {
-      console.error('[shareFile] blob download failed, falling back to direct download:', e)
-      // 直接导航到 URL 触发下载（最可靠的方式，手机浏览器都支持）
-      // 加时间戳参数防止缓存（后端会忽略查询参数）
-      const noCacheUrl = fullUrl + (fullUrl.includes('?') ? '&' : '?') + '_nocache=' + Date.now()
-      location.href = noCacheUrl
-      return { success: true }
-    }
+    // Web: 直接用 <a> 标签下载（服务器返回 Content-Disposition: attachment）
+    // 最简单可靠的方式，PC 和手机浏览器都支持
+    const a = document.createElement('a')
+    a.href = fullUrl
+    a.download = title || 'video.mp4'
+    a.target = '_blank'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    return { success: true }
   }
 }
 
