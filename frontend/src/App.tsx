@@ -80,8 +80,9 @@ const shareFile = async (url: string, title: string, fileType: 'video' | 'audio'
       }
     }
   } else {
-    // Web: 尝试 fetch blob 方式下载
+    // Web: 直接用 link download 方式（兼容 PC 和手机浏览器）
     try {
+      // 优先用 fetch + blob（桌面浏览器）
       const resp = await fetch(fullUrl)
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`)
       const contentType = resp.headers.get('content-type') || ''
@@ -105,10 +106,10 @@ const shareFile = async (url: string, title: string, fileType: 'video' | 'audio'
       URL.revokeObjectURL(blobUrl)
       return { success: true }
     } catch (e) {
-      console.error('[shareFile] blob download failed:', e)
-      // Fallback: 用 window.open，iOS Safari 会在新标签页播放视频
-      window.open(fullUrl, '_blank')
-      return { success: false, error: String(e) }
+      console.error('[shareFile] blob download failed, trying link download:', e)
+      // Fallback: 直接导航到 URL，服务器会作为附件下载
+      window.location.href = fullUrl
+      return { success: true }
     }
   }
 }
