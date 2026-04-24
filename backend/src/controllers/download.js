@@ -1484,8 +1484,8 @@ async function getAdminStats(req, res) {
   try {
     const platR = await userDb.db.execute('SELECT platform, COUNT(*) as c FROM download_history GROUP BY platform');
     for (const row of platR.rows) {
-      const p = row.platform || 'unknown';
-      platformCounts[p] = (platformCounts[p] || 0) + Number(row.c || 0);
+      const rowPlatform = row.platform || 'unknown';
+      platformCounts[rowPlatform] = (platformCounts[rowPlatform] || 0) + Number(row.c || 0);
     }
   } catch (e) {}
 
