@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>橙子下载器 - 管理后台</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+.header { background: #1e293b; padding: 16px 24px; border-bottom: 1px solid #334155; display: flex; align-items: center; gap: 12px; }
+.header h1 { font-size: 18px; font-weight: 600; color: #f97316; }
+.header span { font-size: 12px; color: #64748b; }
+.tab-bar { background: #1e293b; padding: 0 24px; border-bottom: 1px solid #334155; }
+.tab { padding: 12px 20px; font-size: 14px; color: #94a3b8; cursor: pointer; border-bottom: 2px solid transparent; display: inline-block; }
+.tab.active { color: #f97316; border-color: #f97316; }
+.content { padding: 24px; }
+.card { background: #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+.card-title { font-size: 14px; color: #94a3b8; margin-bottom: 16px; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.stat { background: #0f172a; border-radius: 8px; padding: 16px; }
+.stat .label { font-size: 12px; color: #64748b; margin-bottom: 4px; }
+.stat .value { font-size: 28px; font-weight: 700; color: #f97316; }
+.stat .sub { font-size: 11px; color: #475569; margin-top: 2px; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 10px 12px; font-size: 12px; color: #64748b; font-weight: 500; border-bottom: 1px solid #334155; }
+td { padding: 12px 12px; font-size: 13px; border-bottom: 1px solid #1e293b; }
+tr:hover td { background: #0f172a; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+.badge-pro { background: #f9731620; color: #f97316; }
+.badge-free { background: #334155; color: #94a3b8; }
+.badge-active { background: #22c55e20; color: #22c55e; }
+.badge-inactive { background: #334155; color: #64748b; }
+.badge-past_due { background: #eab30820; color: #eab308; }
+.btn { padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; border: none; font-weight: 500; }
+.btn-primary { background: #f97316; color: #fff; }
+.btn-sm { padding: 4px 8px; font-size: 11px; }
+.btn-dange { background: #ef4444; color: #fff; }
+input, select { background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 6px 10px; color: #e2e8f0; font-size: 13px; }
+input::placeholder { color: #475569; }
+.form-row { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
+.form-row label { font-size: 12px; color: #64748b; width: 80px; }
+.hidden { display: none; }
+.loading { text-align: center; padding: 40px; color: #64748b; }
+.error { background: #ef444420; border: 1px solid #ef4444; border-radius: 8px; padding: 12px; color: #ef4444; margin-bottom: 16px; font-size: 13px; }
+.pagination { display: flex; justify-content: center; gap: 8px; margin-top: 16px; }
+.pagination button { padding: 6px 12px; border-radius: 6px; background: #334155; color: #e2e8f0; border: none; cursor: pointer; }
+.pagination button:disabled { opacity: 0.4; cursor: not-allowed; }
+.pagination span { padding: 6px 12px; font-size: 12px; color: #64748b; }
+.platform-tag { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; background: #334155; color: #94a3b8; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🍊 橙子下载器</h1>
+  <span>管理后台</span>
+</div>
+
+<div class="tab-bar">
+  <div class="tab active" onclick="switchTab('stats')">数据概览</div>
+  <div class="tab" onclick="switchTab('users')">会员管理</div>
+  <div class="tab" onclick="switchTab('logs')">操作日志</div>
+</div>
+
+<div id="stats" class="content">
+  <div class="stat-grid" id="statGrid">
+    <div class="loading">加载中...</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">平台下载分布</div>
+    <table id="platformTable">
+      <thead><tr><th>平台</th><th>下载次数</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+</div>
+
+<div id="users" class="content hidden">
+  <div class="card">
+    <div class="card-title">会员列表</div>
+    <div class="form-row" style="margin-bottom:16px">
+      <input type="text" id="searchEmail" placeholder="搜索邮箱..." onkeyup="if(event.key==='Enter')loadUsers()">
+      <select id="filterTier">
+        <option value="">全部会员</option>
+        <option value="pro">Pro会员</option>
+        <option value="free">免费用户</option>
+      </select>
+      <button class="btn btn-primary" onclick="loadUsers()">搜索</button>
+      <button class="btn" style="background:#334155;color:#94a3b8" onclick="exportUsers()">导出CSV</button>
+    </div>
+    <table>
+      <thead><tr>
+        <th>ID</th><th>邮箱</th><th>等级</th><th>订阅状态</th><th>下载次数</th><th>每日限额</th><th>到期时间</th><th>注册时间</th><th>操作</th>
+      </tr></thead>
+      <tbody id="usersTable"></tbody>
+    </table>
+    <div class="pagination" id="pagination"></div>
+  </div>
+</div>
+
+<div id="logs" class="content hidden">
+  <div class="card">
+    <div class="card-title">最近下载记录</div>
+    <table>
+      <thead><tr><th>任务ID</th><th>平台</th><th>画质</th><th>下载时间</th></tr></thead>
+      <tbody id="logsTable"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div id="editModal" class="hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:100">
+  <div style="background:#1e293b;border-radius:12px;padding:24px;width:400px">
+    <h3 style="margin-bottom:16px;font-size:16px">编辑会员</h3>
+    <div id="modalError" class="error hidden"></div>
+    <div style="margin-bottom:12px">
+      <label style="display:block;font-size:12px;color:#64748b;margin-bottom:4px">会员等级</label>
+      <select id="editTier" style="width:100%">
+        <option value="free">免费用户</option>
+        <option value="pro">Pro会员</option>
+      </select>
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="display:block;font-size:12px;color:#64748b;margin-bottom:4px">订阅状态</label>
+      <select id="editStatus" style="width:100%">
+        <option value="active">active</option>
+        <option value="past_due">past_due</option>
+        <option value="inactive">inactive</option>
+        <option value="canceled">canceled</option>
+      </select>
+    </div>
+    <div style="margin-bottom:12px">
+      <label style="display:block;font-size:12px;color:#64748b;margin-bottom:4px">到期时间</label>
+      <input type="datetime-local" id="editExpires" style="width:100%">
+    </div>
+    <div style="margin-bottom:16px">
+      <label style="display:block;font-size:12px;color:#64748b;margin-bottom:4px">下载次数</label>
+      <input type="number" id="editDownloads" style="width:100%">
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-primary" onclick="saveUser()">保存</button>
+      <button class="btn" style="background:#334155;color:#94a3b8" onclick="closeModal()">取消</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = '..';
+let adminKey = localStorage.getItem('adminKey') || prompt('请输入 Admin API Key:');
+if (!adminKey) { document.body.innerHTML = '<div style="padding:40px;text-align:center;color:#64748b">需要 Admin Key</div>'; }
+localStorage.setItem('adminKey', adminKey);
+
+const headers = { 'Authorization': adminKey };
+
+function get(el) { return document.getElementById(el); }
+function $(el) { return document.querySelector(el); }
+
+function switchTab(tab) {
+  ['stats','users','logs'].forEach(t => get(t).classList.add('hidden'));
+  get(tab).classList.remove('hidden');
+  $$('.tab').forEach((tb, i) => tb.classList.toggle('active', ['stats','users','logs'][i] === tab));
+  if (tab === 'stats') loadStats();
+  if (tab === 'users') loadUsers();
+  if (tab === 'logs') loadLogs();
+}
+
+async function api(path) {
+  const r = await fetch(API + path, { headers });
+  const j = await r.json();
+  if (j.code !== 0 && j.code !== undefined) throw new Error(j.message || 'API错误');
+  return j;
+}
+
+async function loadStats() {
+  try {
+    const d = await api('/api/admin/stats');
+    const s = d.data;
+    get('statGrid').innerHTML = `
+      <div class="stat"><div class="label">总用户数</div><div class="value">${s.users.total}</div></div>
+      <div class="stat"><div class="label">Pro会员</div><div class="value">${s.users.vip}</div><div class="sub">活跃订阅</div></div>
+      <div class="stat"><div class="label">总下载量</div><div class="value">${s.downloads.total}</div></div>
+      <div class="stat"><div class="label">今日下载</div><div class="value">${s.downloads.today}</div></div>
+      <div class="stat"><div class="label">本周下载</div><div class="value">${s.downloads.week}</div></div>
+      <div class="stat"><div class="label">任务总数</div><div class="value">${s.memory.totalTasks}</div><div class="sub">活跃: ${s.memory.activeTasks}</div></div>
+    `;
+    const tbody = $('table#platformTable tbody');
+    tbody.innerHTML = Object.entries(s.platforms).map(([k,v]) => `<tr><td><span class="platform-tag">${k}</span></td><td>${v}</td></tr>`).join('');
+  } catch(e) { get('statGrid').innerHTML = `<div class="error">${e.message}</div>`; }
+}
+
+let currentPage = 1, editingId = null;
+async function loadUsers(page = 1) {
+  currentPage = page;
+  const search = get('searchEmail').value;
+  const tier = get('filterTier').value;
+  try {
+    const d = await api(`/api/admin/users?page=${page}&limit=20&search=${encodeURIComponent(search)}&tier=${tier}`);
+    const tbody = get('usersTable');
+    tbody.innerHTML = d.data.users.map(u => `
+      <tr>
+        <td style="color:#475569;font-size:11px">${u.id.slice(0,8)}...</td>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${u.email||'-'}</td>
+        <td><span class="badge ${u.tier==='pro'?'badge-pro':'badge-free'}">${u.tier}</span></td>
+        <td><span class="badge badge-${u.subscription_status||'inactive'}">${u.subscription_status||'inactive'}</span></td>
+        <td>${u.downloads_count||0}</td>
+        <td>${u.daily_limit||3}</td>
+        <td style="font-size:12px;color:#64748b">${u.subscription_ends_at ? new Date(u.subscription_ends_at*1000).toLocaleString('zh-CN') : '-'}</td>
+        <td style="font-size:12px;color:#64748b">${u.created_at ? new Date(u.created_at*1000).toLocaleDateString('zh-CN') : '-'}</td>
+        <td><button class="btn btn-sm" style="background:#334155;color:#94a3b8" onclick="openModal('${u.id}')">编辑</button></td>
+      </tr>`).join('');
+    // pagination
+    const total = Math.ceil(d.data.total / 20);
+    get('pagination').innerHTML = `<button ${page<=1?'disabled':''} onclick="loadUsers(${page-1})">上一页</button><span>第${page}页，共${total}页</span><button ${page>=total?'disabled':''} onclick="loadUsers(${page+1})">下一页</button>`;
+  } catch(e) { get('usersTable').innerHTML = `<tr><td colspan="9" style="color:#ef4444;text-align:center;padding:20px">${e.message}</td></tr>`; }
+}
+
+function openModal(id) {
+  editingId = id;
+  // find user row
+  const row = [...get('usersTable').rows].find(r => r.cells[0].textContent.includes(id.slice(0,8)));
+  if (row) {
+    get('editTier').value = row.cells[2].textContent.trim();
+    get('editStatus').value = row.cells[3].textContent.trim();
+    const expires = row.cells[6].textContent;
+    if (expires && expires !== '-') get('editExpires').value = new Date(expires).toISOString().slice(0,16);
+    get('editDownloads').value = row.cells[4].textContent;
+  }
+  get('editModal').classList.remove('hidden');
+  get('modalError').classList.add('hidden');
+}
+
+function closeModal() { get('editModal').classList.add('hidden'); editingId = null; }
+
+async function saveUser() {
+  if (!editingId) return;
+  try {
+    const tier = get('editTier').value;
+    const status = get('editStatus').value;
+    const expires = get('editExpires').value;
+    const downloads = get('editDownloads').value;
+    await fetch(`${API}/api/admin/users/${editingId}/set-tier`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify({ tier, subscription_status: status, subscription_ends_at: expires ? Math.floor(new Date(expires).getTime()/1000) : null })
+    });
+    if (downloads) await fetch(`${API}/api/admin/users/${editingId}/set-downloads`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify({ downloads_count: parseInt(downloads) })
+    });
+    closeModal();
+    loadUsers(currentPage);
+  } catch(e) {
+    get('modalError').textContent = e.message;
+    get('modalError').classList.remove('hidden');
+  }
+}
+
+function exportUsers() {
+  const rows = [['ID','邮箱','等级','状态','下载次数','每日限额','到期','注册']];
+  document.querySelectorAll('#usersTable tr').forEach(tr => {
+    const cells = [...tr.cells].slice(0,8).map(c => c.textContent.trim().replace(/\n/g,' '));
+    rows.push(cells);
+  });
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv,' + encodeURIComponent(csv);
+  a.download = 'users_' + new Date().toISOString().slice(0,10) + '.csv';
+  a.click();
+}
+
+async function loadLogs() {
+  try {
+    const d = await api('/api/admin/stats');
+    // Use tasks from stats for recent activity
+    get('logsTable').innerHTML = '<tr><td colspan="4" style="color:#64748b;text-align:center;padding:20px">日志功能开发中...</td></tr>';
+  } catch(e) {}
+}
+
+// Init
+loadStats();
+</script>
+</body>
+</html>

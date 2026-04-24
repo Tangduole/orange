@@ -1,240 +1,279 @@
 <!DOCTYPE html>
 <html lang="zh">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>橙子下载器 - Admin</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { 
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #0f172a;
-      min-height: 100vh;
-      color: #e2e8f0;
-      padding: 20px;
-    }
-    .container { max-width: 900px; margin: 0 auto; }
-    h1 { color: #f97316; margin-bottom: 24px; text-align: center; font-size: 28px; }
-    
-    /* Stats Cards */
-    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
-    .stat-card {
-      background: #1e293b;
-      border-radius: 16px;
-      padding: 20px;
-      text-align: center;
-      border: 1px solid #334155;
-    }
-    .stat-card .label { font-size: 12px; color: #94a3b8; margin-bottom: 8px; text-transform: uppercase; }
-    .stat-card .value { font-size: 32px; font-weight: 700; }
-    .stat-card .value.orange { color: #f97316; }
-    .stat-card .value.green { color: #22c55e; }
-    .stat-card .value.blue { color: #3b82f6; }
-    .stat-card .value.red { color: #ef4444; }
-    .stat-card .value.yellow { color: #eab308; }
-    
-    /* Platform Breakdown */
-    .section { background: #1e293b; border-radius: 16px; padding: 20px; margin-bottom: 24px; border: 1px solid #334155; }
-    .section h2 { font-size: 16px; color: #94a3b8; margin-bottom: 16px; }
-    .platform-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
-    .platform-name { width: 80px; font-size: 13px; color: #cbd5e1; }
-    .platform-fill { flex: 1; height: 24px; background: #0f172a; border-radius: 8px; overflow: hidden; }
-    .platform-fill-inner { height: 100%; background: linear-gradient(90deg, #f97316, #fb923c); border-radius: 8px; transition: width 0.5s; }
-    .platform-count { width: 40px; text-align: right; font-size: 13px; color: #94a3b8; }
-    
-    /* Admin Panel */
-    .admin-card {
-      background: #1e293b;
-      border-radius: 16px;
-      padding: 24px;
-      border: 1px solid #334155;
-      margin-bottom: 24px;
-    }
-    .admin-card h2 { font-size: 16px; color: #94a3b8; margin-bottom: 16px; }
-    label { display: block; color: #94a3b8; margin-bottom: 6px; font-size: 13px; }
-    input {
-      width: 100%;
-      padding: 12px 14px;
-      border: 2px solid #334155;
-      border-radius: 10px;
-      font-size: 14px;
-      margin-bottom: 14px;
-      background: #0f172a;
-      color: #e2e8f0;
-      transition: border-color 0.3s;
-    }
-    input:focus { outline: none; border-color: #f97316; }
-    button.action {
-      padding: 12px 24px;
-      background: linear-gradient(135deg, #f97316, #fb923c);
-      color: white;
-      border: none;
-      border-radius: 10px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: transform 0.2s;
-    }
-    button.action:hover { transform: translateY(-1px); }
-    button.action:disabled { opacity: 0.5; cursor: not-allowed; }
-    .result { margin-top: 12px; padding: 12px; border-radius: 10px; font-size: 13px; }
-    .result.success { background: #166534; color: #bbf7d0; }
-    .result.error { background: #991b1b; color: #fecaca; }
-    
-    .refresh-btn {
-      position: fixed;
-      bottom: 24px;
-      right: 24px;
-      width: 48px;
-      height: 48px;
-      border-radius: 50%;
-      background: #f97316;
-      color: white;
-      border: none;
-      font-size: 20px;
-      cursor: pointer;
-      box-shadow: 0 4px 12px rgba(249,115,22,0.4);
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>橙子下载器 - 管理后台</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+.header { background: #1e293b; padding: 16px 24px; border-bottom: 1px solid #334155; display: flex; align-items: center; gap: 12px; }
+.header h1 { font-size: 18px; font-weight: 600; color: #f97316; }
+.header span { font-size: 12px; color: #64748b; }
+.tab-bar { background: #1e293b; padding: 0 24px; border-bottom: 1px solid #334155; display: flex; gap: 4px; }
+.tab { padding: 12px 20px; font-size: 14px; color: #94a3b8; cursor: pointer; border-bottom: 2px solid transparent; }
+.tab.active { color: #f97316; border-color: #f97316; }
+.content { padding: 24px; }
+.card { background: #1e293b; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+.card-title { font-size: 13px; color: #64748b; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 0.5px; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 24px; }
+.stat { background: #0f172a; border-radius: 8px; padding: 16px; }
+.stat .label { font-size: 11px; color: #64748b; margin-bottom: 4px; text-transform: uppercase; }
+.stat .value { font-size: 28px; font-weight: 700; color: #f97316; }
+.stat .sub { font-size: 11px; color: #475569; margin-top: 2px; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; padding: 10px 12px; font-size: 11px; color: #475569; font-weight: 500; border-bottom: 1px solid #334155; text-transform: uppercase; letter-spacing: 0.5px; }
+td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid #1e293b; }
+tr:hover td { background: #0f172a; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+.badge-pro { background: #f9731620; color: #f97316; }
+.badge-free { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
+.badge-active { background: #22c55e20; color: #22c55e; }
+.badge-inactive { background: #1e293b; color: #64748b; border: 1px solid #334155; }
+.badge-past_due { background: #eab30820; color: #eab308; }
+.badge-canceled { background: #ef444420; color: #ef4444; }
+.btn { padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; border: none; font-weight: 500; }
+.btn-primary { background: #f97316; color: #fff; }
+.btn-sm { padding: 4px 8px; font-size: 11px; background: #334155; color: #94a3b8; border: none; }
+.btn-sm:hover { background: #475569; }
+.form-row { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
+input, select { background: #0f172a; border: 1px solid #334155; border-radius: 6px; padding: 6px 10px; color: #e2e8f0; font-size: 13px; }
+input:focus, select:focus { outline: none; border-color: #f97316; }
+.hidden { display: none; }
+.loading { text-align: center; padding: 40px; color: #64748b; }
+.error { background: #ef444420; border: 1px solid #ef4444; border-radius: 8px; padding: 12px; color: #ef4444; margin-bottom: 16px; font-size: 13px; }
+.pagination { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 16px; }
+.pagination button { padding: 6px 12px; border-radius: 6px; background: #334155; color: #e2e8f0; border: none; cursor: pointer; font-size: 12px; }
+.pagination button:disabled { opacity: 0.3; cursor: not-allowed; }
+.pagination span { font-size: 12px; color: #64748b; }
+.platform-tag { display: inline-block; padding: 2px 6px; border-radius: 4px; font-size: 10px; background: #334155; color: #94a3b8; }
+.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal { background: #1e293b; border-radius: 16px; padding: 24px; width: 420px; max-width: 90vw; }
+.modal h3 { font-size: 16px; margin-bottom: 20px; color: #f1f5f9; }
+.modal-field { margin-bottom: 14px; }
+.modal-field label { display: block; font-size: 11px; color: #64748b; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px; }
+.modal-field input, .modal-field select { width: 100%; }
+.modal-actions { display: flex; gap: 8px; margin-top: 20px; }
+.col-50 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+</style>
 </head>
 <body>
-  <div class="container">
-    <h1>🍊 Orange Admin</h1>
-    
-    <!-- Dashboard -->
-    <div class="stats-grid">
-      <div class="stat-card">
-        <div class="label">Total Users</div>
-        <div class="value orange" id="totalUsers">-</div>
-      </div>
-      <div class="stat-card">
-        <div class="label">VIP Users</div>
-        <div class="value yellow" id="vipUsers">-</div>
-      </div>
-      <div class="stat-card">
-        <div class="label">Downloads Today</div>
-        <div class="value green" id="todayDownloads">-</div>
-      </div>
-      <div class="stat-card">
-        <div class="label">Downloads Week</div>
-        <div class="value blue" id="weekDownloads">-</div>
-      </div>
-      <div class="stat-card">
-        <div class="label">Total Downloads</div>
-        <div class="value orange" id="totalDownloads">-</div>
-      </div>
-      <div class="stat-card">
-        <div class="label">Active Tasks</div>
-        <div class="value green" id="activeTasks">-</div>
-      </div>
-    </div>
-    
-    <!-- Platform Breakdown -->
-    <div class="section">
-      <h2>📊 Platform Breakdown</h2>
-      <div id="platformBars"></div>
-    </div>
-    
-    <!-- VIP Grant -->
-    <div class="admin-card">
-      <h2>🔑 Grant VIP</h2>
-      <label>Admin Key</label>
-      <input type="password" id="adminKey" placeholder="Enter Admin Key">
-      <label>User Email</label>
-      <input type="email" id="email" placeholder="user@example.com">
-      <label>VIP Days</label>
-      <input type="number" id="days" value="30" min="1" max="365">
-      <button class="action" onclick="grantVip()">Set VIP</button>
-      <div id="vipResult"></div>
-    </div>
-  
-    <!-- Cookies Upload -->
-    <div class="admin-card">
-      <h2>🍪 YouTube Cookies</h2>
-      <p style="color: #94a3b8; font-size: 13px; margin-bottom: 12px;">Upload cookies.txt to enable high quality YouTube downloads (1080p/4K)</p>
-      <input type="file" id="cookiesFile" accept=".txt" style="margin-bottom: 12px;">
-      <button class="action" onclick="uploadCookies()">Upload Cookies</button>
-      <div id="cookiesResult"></div>
-      <p style="color: #6b7280; font-size: 11px; margin-top: 8px;">Get cookies: Browser → YouTube login → "Get cookies.txt LOCALLY" extension → Export</p>
-    </div>
+
+<div class="header">
+  <h1>🍊 橙子下载器</h1>
+  <span>管理后台</span>
 </div>
-  
-  <button class="refresh-btn" onclick="loadStats()">🔄</button>
 
-  <script>
-    const API = `${window.location.origin}/api`;
+<div class="tab-bar">
+  <div class="tab active" id="tabStats" onclick="switchTab('stats')">📊 数据概览</div>
+  <div class="tab" id="tabUsers" onclick="switchTab('users')">👥 会员管理</div>
+  <div class="tab" id="tabSystem" onclick="switchTab('system')">⚙️ 系统状态</div>
+</div>
 
-    function getAdminKey() {
-      return document.getElementById('adminKey').value.trim();
-    }
+<div id="stats" class="content">
+  <div class="stat-grid" id="statGrid"><div class="loading">加载中...</div></div>
+  <div class="card">
+    <div class="card-title">平台下载分布</div>
+    <table><thead><tr><th>平台</th><th>下载次数</th><th>占比</th></tr></thead><tbody id="platformTable"></tbody></table>
+  </div>
+</div>
 
-    async function loadStats() {
-      try {
-        const key = getAdminKey();
-        const headers = key ? { 'X-Admin-Key': key } : {};
-        const r = await fetch(API + '/admin/stats', { headers });
-        const d = (await r.json()).data;
-        if (!d) throw new Error('Missing admin key or stats unavailable');
-        document.getElementById('totalUsers').textContent = d.users.total;
-        document.getElementById('vipUsers').textContent = d.users.vip;
-        document.getElementById('todayDownloads').textContent = d.downloads.today;
-        document.getElementById('weekDownloads').textContent = d.downloads.week;
-        document.getElementById('totalDownloads').textContent = d.downloads.total;
-        document.getElementById('activeTasks').textContent = d.memory.activeTasks;
-        const platforms = d.platforms || {};
-        const maxCount = Math.max(...Object.values(platforms), 1);
-        const container = document.getElementById('platformBars');
-        container.innerHTML = '';
-        for (const [name, count] of Object.entries(platforms).sort((a,b) => b[1]-a[1])) {
-          const pct = (count / maxCount * 100).toFixed(0);
-          container.innerHTML += '<div class="platform-bar"><span class="platform-name">' + name + '</span><div class="platform-fill"><div class="platform-fill-inner" style="width:' + pct + '%"></div></div><span class="platform-count">' + count + '</span></div>';
-        }
-      } catch (e) { console.error('Failed to load stats:', e); }
-    }
+<div id="users" class="content hidden">
+  <div class="card">
+    <div class="card-title">会员列表</div>
+    <div class="form-row" style="margin-bottom:16px">
+      <input type="text" id="searchEmail" placeholder="搜索邮箱..." style="flex:1">
+      <select id="filterTier"><option value="">全部</option><option value="pro">Pro</option><option value="free">免费</option></select>
+      <button class="btn btn-primary" onclick="loadUsers(1)">🔍 搜索</button>
+    </div>
+    <table><thead><tr><th>ID</th><th>邮箱</th><th>等级</th><th>状态</th><th>下载量</th><th>日限额</th><th>到期时间</th><th>注册日期</th><th>操作</th></tr></thead>
+    <tbody id="usersTable"></tbody></table>
+    <div class="pagination" id="pagination"></div>
+  </div>
+</div>
 
-    async function grantVip() {
-      const key = document.getElementById('adminKey').value;
-      const email = document.getElementById('email').value;
-      const days = parseInt(document.getElementById('days').value);
-      const result = document.getElementById('vipResult');
-      if (!key || !email || !days) { result.className = 'result error'; result.textContent = '❌ Please fill all fields'; return; }
-      try {
-        const r = await fetch(API + '/subscribe/admin/grant-vip', {
-          method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Admin-Key': key },
-          body: JSON.stringify({ email, days })
-        });
-        const data = await r.json();
-        if (r.ok && data.code === 0) {
-          result.className = 'result success'; result.textContent = '✅ VIP granted!';
-        } else {
-          result.className = 'result error'; result.textContent = '❌ ' + (data.message || 'Failed');
-        }
-      } catch (e) { result.className = 'result error'; result.textContent = '❌ Network error'; }
-    }
+<div id="system" class="content hidden">
+  <div class="card">
+    <div class="card-title">内存任务状态</div>
+    <div id="memoryStats" style="color:#64748b;font-size:13px"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">活跃任务</div>
+    <div id="activeTasks" style="max-height:300px;overflow-y:auto;font-size:12px;color:#94a3b8"></div>
+  </div>
+</div>
 
-    async function uploadCookies() {
-      const key = getAdminKey();
-      const fileInput = document.getElementById('cookiesFile');
-      const file = fileInput.files[0];
-      const result = document.getElementById('cookiesResult');
-      if (!key) { result.className = 'result error'; result.textContent = '❌ Enter Admin Key first'; return; }
-      if (!file) { result.className = 'result error'; result.textContent = '❌ Select a file first'; return; }
-      result.className = 'result'; result.textContent = 'Uploading...'; result.style.display = 'block';
-      const formData = new FormData();
-      formData.append('cookies', file);
-      try {
-        const r = await fetch(API + '/admin/cookies', { method: 'POST', headers: { 'X-Admin-Key': key }, body: formData });
-        const data = await r.json();
-        if (data.code === 0) {
-          result.className = 'result success'; result.textContent = '✅ Cookies uploaded!';
-        } else {
-          result.className = 'result error'; result.textContent = '❌ ' + (data.message || 'Failed');
-        }
-      } catch (e) { result.className = 'result error'; result.textContent = '❌ Error: ' + e.message; }
-    }
+<!-- Edit Modal -->
+<div id="editModal" class="hidden modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <h3>编辑会员</h3>
+    <div id="modalError" class="error hidden"></div>
+    <div class="col-50">
+      <div class="modal-field">
+        <label>会员等级</label>
+        <select id="editTier"><option value="free">免费用户</option><option value="pro">Pro会员</option></select>
+      </div>
+      <div class="modal-field">
+        <label>订阅状态</label>
+        <select id="editStatus"><option value="active">active</option><option value="past_due">past_due</option><option value="inactive">inactive</option><option value="canceled">canceled</option></select>
+      </div>
+    </div>
+    <div class="col-50">
+      <div class="modal-field">
+        <label>到期时间</label>
+        <input type="datetime-local" id="editExpires">
+      </div>
+      <div class="modal-field">
+        <label>下载次数</label>
+        <input type="number" id="editDownloads" placeholder="不限">
+      </div>
+    </div>
+    <div class="modal-field">
+      <label>每日下载限额</label>
+      <input type="number" id="editDailyLimit" placeholder="默认3次">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-primary" onclick="saveUser()">💾 保存</button>
+      <button onclick="closeModal()" style="background:#334155;color:#94a3b8;padding:6px 12px;border-radius:6px;font-size:12px;cursor:pointer;border:none">取消</button>
+    </div>
+  </div>
+</div>
 
-    loadStats();
-    setInterval(loadStats, 30000);
-  </script>
+<script>
+const API = location.origin;
+let adminKey = localStorage.getItem('adminKey');
+if (!adminKey) {
+  adminKey = prompt('🔑 请输入 Admin API Key:');
+  if (adminKey) localStorage.setItem('adminKey', adminKey);
+}
+if (!adminKey) document.body.innerHTML = '<div style="padding:60px;text-align:center"><div style="color:#64748b;font-size:14px">需要 Admin API Key 才能访问</div></div>';
+
+const headers = { 'Authorization': adminKey };
+
+function get(id) { return document.getElementById(id); }
+function hide(id) { get(id).classList.add('hidden'); }
+function show(id) { get(id).classList.remove('hidden'); }
+
+async function api(path, opts = {}) {
+  const r = await fetch(API + path, { headers, ...opts });
+  const j = await r.json();
+  if (j.code !== 0 && j.code !== undefined) throw new Error(j.message || 'API Error');
+  return j;
+}
+
+function switchTab(tab) {
+  ['stats','users','system'].forEach(t => {
+    get(t).classList.toggle('hidden', t !== tab);
+    get('tab' + t.charAt(0).toUpperCase() + t.slice(1)).classList.toggle('active', t === tab);
+  });
+  if (tab === 'stats') loadStats();
+  if (tab === 'users') loadUsers(1);
+  if (tab === 'system') loadSystem();
+}
+
+let currentPage = 1, editingId = null;
+
+async function loadStats() {
+  try {
+    const d = await api('/api/admin/stats');
+    const s = d.data;
+    get('statGrid').innerHTML = `
+      <div class="stat"><div class="label">总用户</div><div class="value">${s.users.total}</div></div>
+      <div class="stat"><div class="label">Pro会员</div><div class="value">${s.users.vip}</div><div class="sub">活跃订阅</div></div>
+      <div class="stat"><div class="label">总下载</div><div class="value">${s.downloads.total}</div></div>
+      <div class="stat"><div class="label">今日</div><div class="value">${s.downloads.today}</div></div>
+      <div class="stat"><div class="label">本周</div><div class="value">${s.downloads.week}</div></div>
+      <div class="stat"><div class="label">任务总数</div><div class="value">${s.memory.totalTasks}</div><div class="sub">活跃 ${s.memory.activeTasks} | 错误 ${s.memory.errorTasks}</div></div>
+    `;
+    const total = Object.values(s.platforms).reduce((a,b)=>a+b,0);
+    const tbody = get('platformTable');
+    tbody.innerHTML = Object.entries(s.platforms).sort((a,b)=>b[1]-a[1]).map(([k,v]) => {
+      const pct = total ? Math.round(v/total*100) : 0;
+      return `<tr><td><span class="platform-tag">${k}</span></td><td>${v}</td><td><div style="display:flex;align-items:center;gap:8px"><div style="flex:1;height:4px;background:#334155;border-radius:2px"><div style="width:${pct}%;height:100%;background:#f97316;border-radius:2px"></div></div><span style="font-size:11px;color:#64748b">${pct}%</span></td></tr>`;
+    }).join('');
+  } catch(e) { get('statGrid').innerHTML = `<div class="error">${e.message}</div>`; }
+}
+
+async function loadUsers(page = 1) {
+  currentPage = page;
+  const search = get('searchEmail').value;
+  const tier = get('filterTier').value;
+  try {
+    const d = await api(`/api/admin/users?page=${page}&limit=20&search=${encodeURIComponent(search)}&tier=${tier}`);
+    const u = d.data;
+    const tbody = get('usersTable');
+    if (!u.users.length) { tbody.innerHTML = '<tr><td colspan="9" style="text-align:center;color:#64748b;padding:30px">暂无数据</td></tr>'; hide('pagination'); return; }
+    tbody.innerHTML = u.users.map(row => `
+      <tr>
+        <td style="font-family:monospace;font-size:11px;color:#475569">${row.id.slice(0,8)}</td>
+        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${row.email||''}">${row.email||'-'}</td>
+        <td><span class="badge ${row.tier==='pro'?'badge-pro':'badge-free'}">${row.tier}</span></td>
+        <td><span class="badge badge-${row.subscription_status||'inactive'}">${row.subscription_status||'inactive'}</span></td>
+        <td>${row.downloads_count ?? 0}</td>
+        <td>${row.daily_limit ?? 3}</td>
+        <td style="font-size:11px;color:${row.subscription_ends_at&&row.subscription_ends_at*1000<Date.now()?'#ef4444':'#94a3b8'}">${row.subscription_ends_at?new Date(row.subscription_ends_at*1000).toLocaleString('zh-CN'):'-'}</td>
+        <td style="font-size:11px;color:#475569">${row.created_at?new Date(row.created_at*1000).toLocaleDateString('zh-CN'):'-'}</td>
+        <td><button class="btn btn-sm" onclick="openModal('${row.id}')">✏️ 编辑</button></td>
+      </tr>`).join('');
+    const totalPages = Math.ceil(u.total / 20);
+    get('pagination').innerHTML = `<button ${page<=1?'disabled':''} onclick="loadUsers(${page-1})">◀ 上一页</button><span>第 ${page} / ${totalPages} 页，共 ${u.total} 用户</span><button ${page>=totalPages?'disabled':''} onclick="loadUsers(${page+1})">下一页 ▶</button>`;
+  } catch(e) { get('usersTable').innerHTML = `<tr><td colspan="9" style="color:#ef4444;text-align:center;padding:20px">${e.message}</td></tr>`; }
+}
+
+function openModal(id) {
+  editingId = id;
+  const rows = [...get('usersTable').rows];
+  const row = rows.find(r => r.cells[0].textContent.includes(id.slice(0,8)));
+  if (row) {
+    get('editTier').value = row.cells[2].textContent.trim();
+    get('editStatus').value = row.cells[3].textContent.trim();
+    const expires = row.cells[6].textContent;
+    if (expires && expires !== '-') { try { get('editExpires').value = new Date(expires).toISOString().slice(0,16); } catch {} }
+    get('editDownloads').value = row.cells[4].textContent;
+    get('editDailyLimit').value = row.cells[5].textContent;
+  }
+  hide('modalError');
+  show('editModal');
+}
+
+function closeModal() { hide('editModal'); editingId = null; }
+
+async function saveUser() {
+  if (!editingId) return;
+  try {
+    const tier = get('editTier').value;
+    const status = get('editStatus').value;
+    const expires = get('editExpires').value;
+    const downloads = get('editDownloads').value;
+    const dailyLimit = get('editDailyLimit').value;
+    await fetch(`${API}/api/admin/users/${editingId}/set-tier`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify({ tier, subscription_status: status, subscription_ends_at: expires ? Math.floor(new Date(expires).getTime()/1000) : null })
+    });
+    if (downloads) await fetch(`${API}/api/admin/users/${editingId}/set-downloads`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify({ downloads_count: parseInt(downloads) })
+    });
+    if (dailyLimit) await fetch(`${API}/api/admin/users/${editingId}/set-daily-limit`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...headers },
+      body: JSON.stringify({ daily_limit: parseInt(dailyLimit) })
+    });
+    closeModal();
+    loadUsers(currentPage);
+  } catch(e) { get('modalError').textContent = e.message; show('modalError'); }
+}
+
+async function loadSystem() {
+  try {
+    const d = await api('/api/admin/stats');
+    const m = d.data.memory;
+    get('memoryStats').innerHTML = `总任务: ${m.totalTasks} | 活跃: ${m.activeTasks} | 已完成: ${m.completedTasks} | 错误: ${m.errorTasks}`;
+    get('activeTasks').innerHTML = '<div style="color:#475569">系统状态已加载</div>';
+  } catch(e) { get('memoryStats').innerHTML = '<div class="error">'+e.message+'</div>'; }
+}
+
+// Init
+loadStats();
+</script>
 </body>
 </html>

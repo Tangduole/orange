@@ -849,8 +849,8 @@ function parseWechatExportId(url) {
  * 获取视频号视频信息
  */
 async function getWechatVideoInfo(exportId) {
-  const url = `${API_BASE}/api/v1/wechat_channels/fetch_video_detail?exportId=${encodeURIComponent(exportId)}`;
-  const data = await tikhubRequest(url, API_KEY_WECHAT);
+  const endpoint = `/api/v1/wechat_channels/fetch_video_detail?exportId=${encodeURIComponent(exportId)}`;
+  const data = await tikhubRequest(endpoint, API_KEY_WECHAT);
   return data;
 }
 
@@ -878,7 +878,6 @@ async function downloadWechat(url, taskId, onProgress) {
   if (onProgress) onProgress(30, 0, 0);
 
   // 下载加密视频
-  const { downloadFile } = require('./tikhub');
   const ext = '.mp4.enc';
   const encryptedPath = path.join(DOWNLOAD_DIR, taskId + ext);
   await downloadFile(videoUrl, encryptedPath, (dl, total) => {

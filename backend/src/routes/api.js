@@ -120,3 +120,53 @@ router.get('/admin/env-debug', auth.requireAdminKey, (req, res) => {
 });
 
 module.exports = router;
+
+// ============ 会员管理 ============
+router.get('/admin/users', auth.requireAdminKey, async (req, res) => {
+  const userDb = require('../userDb');
+  const { page = 1, limit = 20, tier, search } = req.query;
+  try {
+    let sql = 'SELECT id, email, tier, subscription_status, subscription_ends_at, downloads_count, created_at FROM users WHERE 1=1';
+    const args = [];
+    if (tier) { sql += ' AND tier = ?'; args.push(tier); }
+    if (search) { sql += ' AND email LIKE ?'; args.push(`%${search}%`); }
+    sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    args.push(Number(limit), (Number(page) - 1) * Number(limit));
+    const result = await userDb.db.execute({ sql, args });
+    const totalR = await userDb.db.execute('SELECT COUNT(*) as count FROM users' + (tier ? ` WHERE tier='${tier}'` : ''));
+    res.json({ code: 0, data: { users: result.rows, total: totalR.rows[0]?.count || 0, page: Number(page), limit: Number(limit) } });
+  } catch (e) { res.status(500).json({ code: 1, message: e.message }); }
+});
+
+router.post('/admin/users/:id/set-tier', auth.requireAdminKey, async (req, res) => {
+  const userDb = require('../userDb');
+  const { id } = req.params;
+  const { tier, subscription_status, subscription_ends_at } = req.body;
+  try {
+    await userDb.db.execute({
+      sql: 'UPDATE users SET tier = ?, subscription_status = ?, subscription_ends_at = ? WHERE id = ?',
+      args: [tier || 'free', subscription_status || 'inactive', subscription_ends_at || null, id]
+    });
+    res.json({ code: 0, message: '会员设置成功' });
+  } catch (e) { res.status(500).json({ code: 1, message: e.message }); }
+});
+
+router.post('/admin/users/:id/set-downloads', auth.requireAdminKey, async (req, res) => {
+  const userDb = require('../userDb');
+  const { id } = req.params;
+  const { downloads_count } = req.body;
+  try {
+    await userDb.db.execute({ sql: 'UPDATE users SET downloads_count = ? WHERE id = ?', args: [Number(downloads_count), id] });
+    res.json({ code: 0, message: '下载次数已更新' });
+  } catch (e) { res.status(500).json({ code: 1, message: e.message }); }
+});
+
+router.post('/admin/users/:id/set-daily-limit', auth.requireAdminKey, async (req, res) => {
+  const userDb = require('../userDb');
+  const { id } = req.params;
+  const { daily_limit } = req.body;
+  try {
+    await userDb.db.execute({ sql: 'UPDATE users SET daily_limit = ? WHERE id = ?', args: [Number(daily_limit), id] });
+    res.json({ code: 0, message: '每日限制已更新' });
+  } catch (e) { res.status(500).json({ code: 1, message: e.message }); }
+});

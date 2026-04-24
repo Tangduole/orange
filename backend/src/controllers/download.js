@@ -1776,6 +1776,7 @@ async function processWechat(taskId, url, needAsr, options = ['video']) {
       status: TASK_STATUS.COMPLETED,
       progress: 100,
       filePath: result.filePath,
+      downloadUrl: `/download/${path.basename(result.filePath)}`,
       width: result.width,
       height: result.height,
       quality: result.quality,
