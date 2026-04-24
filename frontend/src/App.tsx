@@ -107,9 +107,9 @@ const shareFile = async (url: string, title: string, fileType: 'video' | 'audio'
       return { success: true }
     } catch (e) {
       console.error('[shareFile] blob download failed, trying link download:', e)
-      // Fallback: 直接导航到 URL，服务器会作为附件下载
-      window.location.href = fullUrl
-      return { success: true }
+      // Fallback: 用 window.open 下载，iOS Safari 会在新标签页播放视频
+      window.open(fullUrl, '_blank')
+      return { success: false, error: String(e) }
     }
   }
 }
