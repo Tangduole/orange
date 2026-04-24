@@ -834,8 +834,8 @@ async function processX(taskId, url, needAsr, options = ['video']) {
 
     // ASR 语音转文字
     if (needAsr && update.filePath) {
-      const result = await handleAsr(taskId, update.filePath, 'zh');
-      if (result?.text) { const upd = { status: TASK_STATUS.COMPLETED, asrText: result.text, asrTxtUrl: result.txtUrl }; if (result.translatedText) { upd.translatedText = result.translatedText; upd.translatedTxtUrl = result.translatedTxtUrl; } store.update(taskId, upd); }
+      const asrResult = await handleAsr(taskId, update.filePath, 'zh');
+      if (asrResult?.text) { const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl }; if (asrResult.translatedText) { upd.translatedText = asrResult.translatedText; upd.translatedTxtUrl = asrResult.translatedTxtUrl; } store.update(taskId, upd); }
     }
 
     // 下载成功后增加用户计数
@@ -1073,8 +1073,8 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
 
     // ASR 语音转文字
     if (needAsr && update.filePath) {
-      const result = await handleAsr(taskId, update.filePath, 'zh');
-      if (result?.text) { const upd = { status: TASK_STATUS.COMPLETED, asrText: result.text, asrTxtUrl: result.txtUrl }; if (result.translatedText) { upd.translatedText = result.translatedText; upd.translatedTxtUrl = result.translatedTxtUrl; } store.update(taskId, upd); }
+      const asrResult = await handleAsr(taskId, update.filePath, 'zh');
+      if (asrResult?.text) { const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl }; if (asrResult.translatedText) { upd.translatedText = asrResult.translatedText; upd.translatedTxtUrl = asrResult.translatedTxtUrl; } store.update(taskId, upd); }
     }
 
     // 下载成功后增加用户计数
