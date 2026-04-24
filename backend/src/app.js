@@ -43,6 +43,7 @@ const PORT = process.env.PORT || 3000;
 const allowedOrigins = [
   'https://orangedl.com',
   'https://www.orangedl.com',
+  'https://api.orangedl.com',
   'https://orange-production-95b9.up.railway.app',
   /^https:\/\/frontend-.*\.vercel\.app$/, // Vercel preview
   /^http:\/\/localhost:\d+$/,             // 本地开发
