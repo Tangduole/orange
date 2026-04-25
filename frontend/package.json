@@ -9,13 +9,6 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@capacitor/android": "^8.3.0",
-    "@capacitor/cli": "^8.2.0",
-    "@capacitor/core": "^8.2.0",
-    "@capacitor/filesystem": "^8.1.2",
-    "@capacitor/ios": "^8.2.0",
-    "@capacitor/local-notifications": "^8.0.2",
-    "@capacitor/share": "^8.0.1",
     "axios": "^1.6.0",
     "i18next": "^26.0.5",
     "i18next-browser-languagedetector": "^8.2.1",

@@ -1,5 +1,16 @@
 /**
- * 订阅路由 - Lemon Squeezy 集成
+ * 订阅路由
+ *
+ * 支持的支付渠道（PAYMENT_PROVIDER 环境变量切换）:
+ *   - lemonsqueezy (默认)
+ *   - creem        （走 services/payments/creem.js）
+ *
+ * 切到 creem 只需:
+ *   PAYMENT_PROVIDER=creem
+ *   CREEM_API_KEY=...
+ *   CREEM_WEBHOOK_SECRET=...
+ *   CREEM_PRODUCT_ID_*=...
+ * 其他业务逻辑（订阅状态机、幂等表、admin 接口）完全复用。
  */
 
 const express = require('express');
@@ -9,6 +20,9 @@ const axios = require('axios');
 const userDb = require('../userDb');
 const auth = require('../auth');
 const logger = require('../utils/logger');
+const creemProvider = require('../services/payments/creem');
+
+const PAYMENT_PROVIDER = (process.env.PAYMENT_PROVIDER || 'lemonsqueezy').toLowerCase();
 
 // Lemon Squeezy 配置
 const LS_API_KEY = process.env.LEMON_SQUEEZY_API_KEY || '';
@@ -55,7 +69,27 @@ async function ensureWebhookTable() {
 router.post('/checkout', auth.required, async (req, res) => {
   const { email } = req.user;
   const { plan = 'pro_monthly' } = req.body; // 默认 Pro 月付
+  const redirectUrl = `${process.env.FRONTEND_URL || 'https://orangedl.com'}/subscription?success=true`;
 
+  // ---- Creem 分支 ----
+  if (PAYMENT_PROVIDER === 'creem') {
+    if (!creemProvider.isConfigured()) {
+      return res.json({ code: 500, message: '订阅服务未配置（Creem），请联系管理员' });
+    }
+    try {
+      const result = await creemProvider.createCheckout({
+        user: { id: req.user.id, email },
+        plan,
+        redirectUrl,
+      });
+      return res.json({ code: 0, data: result });
+    } catch (e) {
+      logger.error('[subscribe][creem] Checkout error: ' + (e.response?.data ? JSON.stringify(e.response.data) : e.message));
+      return res.json({ code: 500, message: '创建订阅失败，请稍后重试' });
+    }
+  }
+
+  // ---- LemonSqueezy 分支（默认） ----
   const variantId = VARIANT_MAP[plan] || LS_VARIANT_ID_PRO;
 
   if (!LS_API_KEY || !LS_STORE_ID || !variantId) {
@@ -80,7 +114,7 @@ router.post('/checkout', auth.required, async (req, res) => {
               }
             },
             product_options: {
-              redirect_url: `${process.env.FRONTEND_URL || 'https://orangedl.com'}/subscription?success=true`
+              redirect_url: redirectUrl
             }
           },
           relationships: {
@@ -150,81 +184,95 @@ router.get('/status', auth.required, async (req, res) => {
 //   app.use('/api/subscribe/webhook', express.raw({ type: '*\/*' }))
 // 完成；这里直接使用 req.body（Buffer）。
 router.post('/webhook', async (req, res) => {
-  const signature = req.headers['x-signature'] || '';
-
-  if (!LS_WEBHOOK_SECRET) {
-    logger.error('[webhook] LEMON_SQUEEZY_WEBHOOK_SECRET not configured, webhook disabled');
-    return res.status(500).json({ error: 'Webhook not configured' });
-  }
-
   // req.body 必须是 Buffer，否则说明中间件顺序错了
   if (!Buffer.isBuffer(req.body)) {
     logger.error('[webhook] req.body is not a Buffer; check express middleware order in app.js');
     return res.status(500).json({ error: 'Webhook body parser misconfigured' });
   }
 
-  // —— 安全的 HMAC 校验 —— //
-  const expectedHex = crypto
-    .createHmac('sha256', LS_WEBHOOK_SECRET)
-    .update(req.body)
-    .digest('hex');
+  // ---- 用对应 provider 验签 + 解析事件 ----
+  let eventName, eventId, email, subscriptionStatus, endsAt, renewsAt;
+  let providerLabel;
 
-  let valid = false;
-  try {
-    const sigBuf = Buffer.from(String(signature), 'hex');
-    const expBuf = Buffer.from(expectedHex, 'hex');
-    valid =
-      sigBuf.length === expBuf.length &&
-      crypto.timingSafeEqual(sigBuf, expBuf);
-  } catch {
-    valid = false;
+  if (PAYMENT_PROVIDER === 'creem') {
+    providerLabel = 'creem';
+    if (!creemProvider.isConfigured()) {
+      logger.error('[webhook][creem] CREEM_WEBHOOK_SECRET not configured, webhook disabled');
+      return res.status(500).json({ error: 'Webhook not configured' });
+    }
+    if (!creemProvider.verifyWebhook(req.body, req.headers)) {
+      logger.warn('[webhook][creem] Invalid signature');
+      return res.status(403).json({ error: 'Invalid signature' });
+    }
+    const parsed = creemProvider.parseEvent(req.body, req.headers);
+    if (!parsed) return res.status(400).json({ error: 'Invalid JSON' });
+    eventName = creemProvider.normalizeEventName(parsed.eventName);
+    eventId = parsed.eventId;
+    email = parsed.email;
+    subscriptionStatus = parsed.subscriptionStatus;
+    endsAt = parsed.endsAt;
+    renewsAt = parsed.renewsAt;
+  } else {
+    providerLabel = 'lemonsqueezy';
+    const signature = req.headers['x-signature'] || '';
+    if (!LS_WEBHOOK_SECRET) {
+      logger.error('[webhook][ls] LEMON_SQUEEZY_WEBHOOK_SECRET not configured, webhook disabled');
+      return res.status(500).json({ error: 'Webhook not configured' });
+    }
+    const expectedHex = crypto
+      .createHmac('sha256', LS_WEBHOOK_SECRET)
+      .update(req.body)
+      .digest('hex');
+    let valid = false;
+    try {
+      const sigBuf = Buffer.from(String(signature), 'hex');
+      const expBuf = Buffer.from(expectedHex, 'hex');
+      valid = sigBuf.length === expBuf.length && crypto.timingSafeEqual(sigBuf, expBuf);
+    } catch {
+      valid = false;
+    }
+    if (!valid) {
+      logger.warn('[webhook][ls] Invalid signature');
+      return res.status(403).json({ error: 'Invalid signature' });
+    }
+    let event;
+    try {
+      event = JSON.parse(req.body.toString('utf8'));
+    } catch (e) {
+      logger.error('[webhook][ls] Parse error: ' + e.message);
+      return res.status(400).json({ error: 'Invalid JSON' });
+    }
+    eventName = event?.meta?.event_name;
+    eventId =
+      event?.meta?.webhook_id ||
+      req.headers['x-event-id'] ||
+      `${eventName}:${event?.data?.id}:${event?.data?.attributes?.updated_at || ''}`;
+    email = event?.data?.attributes?.user_email?.toLowerCase();
+    subscriptionStatus = event?.data?.attributes?.status;
+    endsAt = event?.data?.attributes?.ends_at
+      ? Math.floor(new Date(event.data.attributes.ends_at).getTime() / 1000)
+      : null;
+    renewsAt = event?.data?.attributes?.renews_at
+      ? Math.floor(new Date(event.data.attributes.renews_at).getTime() / 1000)
+      : null;
   }
 
-  if (!valid) {
-    logger.warn('[webhook] Invalid signature');
-    return res.status(403).json({ error: 'Invalid signature' });
-  }
-
-  // —— 解析 JSON —— //
-  let event;
-  try {
-    event = JSON.parse(req.body.toString('utf8'));
-  } catch (e) {
-    logger.error('[webhook] Parse error: ' + e.message);
-    return res.status(400).json({ error: 'Invalid JSON' });
-  }
-
-  const eventName = event?.meta?.event_name;
-  // LemonSqueezy 推荐的幂等键：webhook_id（来自 meta），降级用 X-Event-Id 头
-  const eventId =
-    event?.meta?.webhook_id ||
-    req.headers['x-event-id'] ||
-    `${eventName}:${event?.data?.id}:${event?.data?.attributes?.updated_at || ''}`;
-
-  // —— 幂等去重 —— //
+  // —— 幂等去重（两种 provider 共用同一张表，eventId 加 provider 前缀防撞）——
   await ensureWebhookTable();
+  const idempotentKey = `${providerLabel}:${eventId}`;
   try {
     await userDb.db.execute({
       sql: 'INSERT INTO webhook_events (event_id, event_name, received_at) VALUES (?, ?, ?)',
-      args: [String(eventId), String(eventName || ''), Date.now()]
+      args: [idempotentKey, String(eventName || ''), Date.now()]
     });
   } catch (e) {
     if (String(e.message || '').includes('UNIQUE')) {
-      logger.info(`[webhook] Duplicate event ignored: ${eventId}`);
+      logger.info(`[webhook][${providerLabel}] Duplicate event ignored: ${eventId}`);
       return res.json({ success: true, deduped: true });
     }
-    logger.error('[webhook] Idempotency insert failed: ' + e.message);
+    logger.error(`[webhook][${providerLabel}] Idempotency insert failed: ` + e.message);
     // 即便去重表写入失败，也继续处理，不要把订阅事件丢了
   }
-
-  const email = event?.data?.attributes?.user_email?.toLowerCase();
-  const subscriptionStatus = event?.data?.attributes?.status;
-  const endsAt = event?.data?.attributes?.ends_at
-    ? Math.floor(new Date(event.data.attributes.ends_at).getTime() / 1000)
-    : null;
-  const renewsAt = event?.data?.attributes?.renews_at
-    ? Math.floor(new Date(event.data.attributes.renews_at).getTime() / 1000)
-    : null;
 
   if (!email) {
     return res.status(400).json({ error: 'Missing email' });

@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import axios from 'axios'
 import { useTranslation } from 'react-i18next'
-import { Share } from '@capacitor/share'
 import AuthModal from './components/AuthModal'
 import SubscriptionPage from './components/SubscriptionPage'
 import ReferralModal from './components/ReferralModal'
-import GallerySaver from './plugins/GallerySaver'
-import { initNotifications, showDownloadComplete } from './plugins/Notifications'
+import PWAInstallPrompt from './components/PWAInstallPrompt'
+import { initNotifications, showDownloadComplete } from './utils/notify'
 import api, { API_BASE } from './api/auth'
 import {
   Download, Link2, CheckCircle2, XCircle, Loader2,
@@ -30,74 +29,47 @@ function readStoredJson<T>(key: string, fallback: T): T {
   }
 }
 
-// Share file using native share sheet (Android: shows save to Photos/Files option)
-const isNativeApp = () => {
-  try {
-    return (window as any).Capacitor?.isNativePlatform?.() ?? false
-  } catch { return false }
-}
-
-// Detect iOS Safari
+// Detect iOS Safari (用于提示 iOS 用户长按保存)
 const isIOS = () => {
   try {
-    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream
   } catch { return false }
 }
 
-const shareFile = async (url: string, title: string, fileType: 'video' | 'audio' | 'image' = 'video') => {
+/**
+ * 触发文件下载（PWA + 浏览器通用）
+ *
+ * 策略:
+ *   1. 优先：<a download> 同源直链触发浏览器原生「另存为」
+ *   2. 兜底：隐藏 iframe（适用于跨源/旧浏览器）
+ *
+ * 注：原生 App 走 Capacitor 的逻辑已下线，PWA 已经能覆盖 99% 场景。
+ *     iOS Safari 不支持自动 download，会原地播放/打开，需要用户长按选择「下载」。
+ */
+const shareFile = async (
+  url: string,
+  title: string,
+  _fileType: 'video' | 'audio' | 'image' = 'video',
+) => {
   const fullUrl = url.startsWith('http') ? url : `${BASE_URL}${url}`
-  
-  if (isNativeApp() && GallerySaver) {
-    try {
-      console.log('[GallerySaver] Calling native plugin, fileType: ' + fileType)
-      // Use原生插件直接Save到相册
-      let result
-      if (fileType === 'audio') {
-        result = await GallerySaver.saveAudio({ url: fullUrl, filename: title || 'audio' })
-      } else if (fileType === 'image') {
-        result = await GallerySaver.saveImage({ url: fullUrl, filename: title || 'image' })
-      } else {
-        result = await GallerySaver.saveVideo({ url: fullUrl, filename: title || 'video' })
-      }
-      
-      console.log('[GallerySaver] Result:', result)
-      if (result.success) {
-        return { success: true }
-      } else {
-        console.error('Gallery save failed:', result.error)
-        // Fallback to share
-        await Share.share({
-          title: title || 'Orange Video',
-          url: fullUrl,
-        })
-        return { success: true }
-      }
-    } catch (e: any) {
-      console.error('[GallerySaver] Error:', e?.message || e)
-      // 如果User cancelled了分享，不算Error
-      if (e?.message?.includes('cancel') || e?.message?.includes('canceled')) {
-        return { success: true }
-      }
-      // Fallback to share
-      try {
-        await Share.share({
-          title: title || 'Orange Video',
-          url: fullUrl,
-        })
-        return { success: true }
-      } catch (e2: any) {
-        if (e2?.message?.includes('cancel')) return { success: true }
-        return { success: false, error: String(e) }
-      }
-    }
-  } else {
-    // Web: 用隐藏的 iframe 触发下载（不跳转页面）
-    console.log('[shareFile] Using iframe download, url:', fullUrl)
+  const filename = (title || 'orange-download').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 120)
+
+  try {
+    const a = document.createElement('a')
+    a.href = fullUrl
+    a.download = filename
+    a.rel = 'noopener'
+    a.style.display = 'none'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    return { success: true }
+  } catch (_) {
+    // Fallback：iframe（兼容某些不识别 download 属性的环境）
     const iframe = document.createElement('iframe')
     iframe.style.display = 'none'
     iframe.src = fullUrl
     document.body.appendChild(iframe)
-    // 5秒后移除 iframe
     setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe) }, 5000)
     return { success: true }
   }
@@ -630,8 +602,8 @@ export default function App() {
       // 延迟 500ms 后AutoDownload
       autoDownloadTimer.current = setTimeout(() => {
         setDownloading(true)
-        // iOS Safari web: 不触发自动下载，让用户通过inline video长按保存
-        if (isIOS() && !isNativeApp() && !task.directLink) {
+        // iOS Safari: 不触发自动下载，让用户通过 inline video 长按保存
+        if (isIOS() && !task.directLink) {
           setShowIosGuide(true)
           setDownloading(false)
           return
@@ -1956,6 +1928,7 @@ export default function App() {
             </div>
           </div>
         )}
+        <PWAInstallPrompt />
       </div>
     </div>
   )

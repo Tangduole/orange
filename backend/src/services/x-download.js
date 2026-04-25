@@ -1,14 +1,11 @@
 /**
- * X/Twitter 视频下载器（不依赖 yt-dlp）
+ * X/Twitter 视频下载器
  *
- * ⚠️ 注意：当前使用 fxtwitter/vxtwitter 免费 API，画质受限（通常是 540p 或 720p）
- * 如果需要高清视频，需要：
- * 1. 使用付费的 Twitter API
- * 2. 提供已登录的 Cookie
- * 3. 使用本地 yt-dlp（需要服务器有美国 IP）
+ * 下载策略（按优先级）:
+ *   1. cobalt（自托管实例，画质 = 推文原画，最高 1080p+）—— 当 COBALT_API_URL 已配置
+ *   2. fxtwitter / vxtwitter 免费 API —— 兜底，画质受限（通常 540p–720p）
  *
- * 通过 vxtwitter.com API 解析推文，提取视频直链
- * 不需要登录 cookies
+ * cobalt 部署: 见 docs/COBALT_SETUP.md
  */
 
 const https = require('https');
@@ -16,6 +13,8 @@ const http = require('http');
 const { URL } = require('url');
 const fs = require('fs');
 const path = require('path');
+const logger = require('../utils/logger');
+const { isCobaltConfigured, downloadViaCobalt } = require('./cobalt');
 
 function httpGet(rawUrl, options = {}) {
   return new Promise((resolve, reject) => {
@@ -237,14 +236,95 @@ async function parseTweet(url) {
 }
 
 /**
+ * 通过 cobalt 下载（高清优先路径）
+ * 失败时返回 null，由调用方 fallback 到 fxtwitter
+ */
+async function tryDownloadViaCobalt(url, taskId, onProgress) {
+  if (!isCobaltConfigured()) return null;
+  try {
+    const cobaltResult = await downloadViaCobalt(url, taskId, {
+      onProgress,
+      options: { videoQuality: 'max', filenameStyle: 'basic', downloadMode: 'auto' },
+    });
+
+    // 仍尝试解析 fxtwitter 拿元数据（标题、作者、封面），但不阻塞主流程
+    let meta = {};
+    try {
+      const info = await Promise.race([
+        parseTweet(url),
+        new Promise((resolve) => setTimeout(() => resolve(null), 5000)),
+      ]);
+      if (info) {
+        meta = {
+          title: info.author ? `${info.author}: ${(info.title || '').substring(0, 80)}` : '',
+          width: info.videoUrls && info.videoUrls[0] ? info.videoUrls[0].width : 0,
+          height: info.videoUrls && info.videoUrls[0] ? info.videoUrls[0].height : 0,
+        };
+        // 同步下载封面
+        if (info.coverUrl) {
+          try {
+            const buf = await httpGet(info.coverUrl, { responseType: 'arraybuffer', timeout: 15000 });
+            const downloadDir = path.dirname(cobaltResult.filePath || path.join(__dirname, '../../downloads'));
+            const coverPath = path.join(downloadDir, `${taskId}_thumb.jpg`);
+            fs.writeFileSync(coverPath, buf);
+            meta.thumbnailUrl = `/download/${taskId}_thumb.jpg`;
+          } catch (_) { /* cover optional */ }
+        }
+      }
+    } catch (_) { /* meta optional */ }
+
+    if (cobaltResult.isPicker) {
+      // 图集
+      return {
+        title: meta.title || `X Post ${taskId}`,
+        duration: 0,
+        thumbnailUrl: meta.thumbnailUrl || '',
+        subtitleFiles: [],
+        isNote: true,
+        images: cobaltResult.images,
+        ext: 'images',
+        videoQuality: 'cobalt',
+      };
+    }
+
+    return {
+      title: meta.title || `X Video ${taskId}`,
+      duration: 0,
+      thumbnailUrl: meta.thumbnailUrl || '',
+      subtitleFiles: [],
+      filePath: cobaltResult.filePath,
+      ext: cobaltResult.ext,
+      downloadUrl: cobaltResult.downloadUrl,
+      width: meta.width || 0,
+      height: meta.height || 0,
+      quality: meta.height ? `${meta.height}p` : 'hd',
+      videoQuality: 'cobalt',
+    };
+  } catch (e) {
+    logger.warn(`[x-download] cobalt path failed, will fallback to fxtwitter: ${e.message}`);
+    return null;
+  }
+}
+
+/**
  * 下载 X/Twitter 视频
+ *   优先 cobalt（自托管，高画质），失败回落到 fxtwitter
  */
 async function downloadX(url, taskId, onProgress) {
   const downloadDir = path.join(__dirname, '../../downloads');
   if (!fs.existsSync(downloadDir)) fs.mkdirSync(downloadDir, { recursive: true });
 
-  if (onProgress) onProgress(5);
+  if (onProgress) onProgress(2);
 
+  // 路径 1: cobalt（高清）
+  const cobaltResult = await tryDownloadViaCobalt(url, taskId, onProgress);
+  if (cobaltResult) {
+    if (onProgress) onProgress(100);
+    return cobaltResult;
+  }
+
+  // 路径 2: fxtwitter 兜底（画质受限）
+  if (onProgress) onProgress(5);
   const info = await parseTweet(url);
   if (onProgress) onProgress(25);
 
