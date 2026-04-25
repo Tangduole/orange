@@ -617,56 +617,73 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
   }
 
   try {
-    const { parseDouyin } = require('../services/tikhub');
+    // 主力：iesdouyin.com 解析器（免费稳定，不需要 API Key）
+    const { downloadDouyin } = require('../services/douyin');
     const ytdlp = require('../services/yt-dlp');
+    const { parseDouyin: parseDouyinTikHub } = require('../services/tikhub');
 
-    // 保存用户请求的画质参数
     store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5, requestedQuality });
 
     let result;
     let usedYtdlpFallback = false;
 
+    // Step 1: 尝试 iesdouyin.com（主力方案）
     try {
-      result = await parseDouyin(url, taskId, (percent, downloaded, total) => {
+      store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
+      result = await downloadDouyin(url, taskId, (percent, msg) => {
         store.update(taskId, {
-          status: percent < 30 ? TASK_STATUS.PARSING : TASK_STATUS.DOWNLOADING,
+          status: percent < 90 ? TASK_STATUS.DOWNLOADING : TASK_STATUS.PROCESSING,
           progress: percent,
-          downloadedBytes: downloaded || 0,
-          totalBytes: total || 0
         });
-      }, quality, isVip);
-    } catch (tikhubErr) {
-      // TikHub 解析失败时，尝试 yt-dlp 作为 fallback
-      logger.warn(`[task] ${taskId} TikHub failed: ${tikhubErr.message}, trying yt-dlp fallback...`);
-      
+      });
+      logger.info(`[task] ${taskId} iesdouyin.com succeeded`);
+    } catch (iesErr) {
+      logger.warn(`[task] ${taskId} iesdouyin.com failed: ${iesErr.message}, trying TikHub...`);
+
+      // Step 2: TikHub API fallback
       try {
         store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
-        const ytdlpResult = await ytdlp.download(url, taskId, (percent, speed, eta, downloaded, total) => {
+        const tikhubResult = await parseDouyinTikHub(url, taskId, (percent, downloaded, total) => {
           store.update(taskId, {
-            status: percent < 90 ? TASK_STATUS.DOWNLOADING : TASK_STATUS.PROCESSING,
-            progress: Math.round(percent * 0.9),
+            status: percent < 30 ? TASK_STATUS.PARSING : TASK_STATUS.DOWNLOADING,
+            progress: percent,
             downloadedBytes: downloaded || 0,
-            totalBytes: total || 0,
-            speed: speed || '',
-            eta: eta || ''
+            totalBytes: total || 0
           });
-        }, quality);
-        
-        // 转换 yt-dlp 结果格式以匹配 processDouyin 期望的格式
-        result = {
-          title: ytdlpResult.title || '抖音作品',
-          width: 0,
-          height: 0,
-          quality: ytdlpResult.ext || 'mp4',
-          thumbnailUrl: ytdlpResult.thumbnailUrl || '',
-          filePath: ytdlpResult.filePath,
-          ext: ytdlpResult.ext || 'mp4'
-        };
-        usedYtdlpFallback = true;
-        logger.info(`[task] ${taskId} yt-dlp fallback succeeded`);
-      } catch (ytdlpErr) {
-        logger.error(`[task] ${taskId} yt-dlp fallback also failed: ${ytdlpErr.message}`);
-        throw new Error(`抖音解析失败: TikHub(${tikhubErr.message}) → yt-dlp(${ytdlpErr.message})`);
+        }, quality, isVip);
+        result = tikhubResult;
+        logger.info(`[task] ${taskId} TikHub succeeded`);
+      } catch (tikhubErr) {
+        logger.warn(`[task] ${taskId} TikHub failed: ${tikhubErr.message}, trying yt-dlp...`);
+
+        // Step 3: yt-dlp 最后的兜底
+        try {
+          store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
+          const ytdlpResult = await ytdlp.download(url, taskId, (percent, speed, eta, downloaded, total) => {
+            store.update(taskId, {
+              status: percent < 90 ? TASK_STATUS.DOWNLOADING : TASK_STATUS.PROCESSING,
+              progress: Math.round(percent * 0.9),
+              downloadedBytes: downloaded || 0,
+              totalBytes: total || 0,
+              speed: speed || '',
+              eta: eta || ''
+            });
+          }, quality);
+          result = {
+            title: ytdlpResult.title || '抖音作品',
+            width: 0,
+            height: 0,
+            quality: ytdlpResult.ext || 'mp4',
+            thumbnailUrl: ytdlpResult.thumbnailUrl || '',
+            filePath: ytdlpResult.filePath,
+            ext: ytdlpResult.ext || 'mp4'
+          };
+          usedYtdlpFallback = true;
+          logger.info(`[task] ${taskId} yt-dlp fallback succeeded`);
+        } catch (ytdlpErr) {
+          logger.error(`[task] ${taskId} yt-dlp fallback also failed: ${ytdlpErr.message}`);
+          throw new Error(`抖音解析失败: iesdouyin(${iesErr.message}) → TikHub(${tikhubErr.message}) → yt-dlp(${ytdlpErr.message})`);
+        }
       }
     }
 
