@@ -221,10 +221,11 @@ async function createDownload(req, res) {
     store.save(task);
 
     // 抖音链接:走专用下载器(不依赖 yt-dlp)
+    // VIP 不限画质（默认 1080p），免费用户最高 720p
     const { isDouyinUrl } = require('../services/douyin');
     if (isDouyinUrl(url)) {
-      const maxQuality = isVip ? null : 'height<=720';
-      processDouyin(taskId, url, wantsAsr, normalizedOptions, quality, asrLanguage, null, isVip).catch(err => {
+      const douyinQuality = quality || (isVip ? null : 'bestvideo[height<=720]+bestaudio/best[height<=720]');
+      processDouyin(taskId, url, wantsAsr, normalizedOptions, douyinQuality, asrLanguage, douyinQuality, isVip).catch(err => {
         logger.error(`[task] ${taskId} douyin failed:`, err);
         store.update(taskId, { status: TASK_STATUS.ERROR, progress: 0, error: err.message });
       });
@@ -635,8 +636,8 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
           status: percent < 90 ? TASK_STATUS.DOWNLOADING : TASK_STATUS.PROCESSING,
           progress: percent,
         });
-      });
-      logger.info(`[task] ${taskId} iesdouyin.com succeeded`);
+      }, { quality, isVip });
+      logger.info(`[task] ${taskId} iesdouyin.com succeeded (quality=${result.quality}, watermarked=${!!result.watermarked})`);
     } catch (iesErr) {
       logger.warn(`[task] ${taskId} iesdouyin.com failed: ${iesErr.message}, trying TikHub...`);
 

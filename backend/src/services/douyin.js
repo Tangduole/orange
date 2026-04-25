@@ -1,8 +1,16 @@
 /**
  * 抖音专用下载器（不依赖 yt-dlp）
- * 
+ *
  * 通过 iesdouyin.com 移动端页面解析视频/图文/封面
  * 不需要登录 cookies
+ *
+ * 关键逻辑:
+ *   1. 去水印: 抖音 bit_rate[].play_addr.url_list 数组里第 0 个常常是 playwm（带水印），
+ *              要主动挑无水印（含 /play/ 不含 /playwm/）；只有 playwm 时把 playwm 改写为 play。
+ *   2. 高画质: iesdouyin 默认对游客返回最高 720p，但 aweme/v1/play/ 接口加 ratio=1080p
+ *              通常能拿到原画 1080p（甚至 4K）。VIP 主动注入 ratio=1080p。
+ *   3. 多候选 URL 兜底: 抖音 CDN 域名经常切换（aweme.snssdk.com / api.amemv.com /
+ *              aweme.amemv.com 等），按优先级一个个试，任一成功即返回。
  */
 
 const https = require('https');
@@ -13,6 +21,101 @@ const path = require('path');
 
 // 视频下载最大 500MB
 const MAX_SIZE = 500 * 1024 * 1024;
+
+// ============ 候选 URL 构造工具 ============
+
+/**
+ * 把 ratio=720p 这种参数改写为目标 target；
+ * 如果原 URL 没有 ratio 参数，append 一个。
+ * 仅对 aweme/v1/play(wm)? 形式的 URL 有效，其它 URL 原样返回。
+ */
+function bumpRatio(rawUrl, target) {
+  if (!rawUrl || !target) return rawUrl;
+  if (!/aweme\/v1\/play(wm)?\//.test(rawUrl)) return rawUrl;
+  if (/[?&]ratio=/.test(rawUrl)) {
+    return rawUrl.replace(/([?&]ratio=)[^&]*/, `$1${target}`);
+  }
+  return rawUrl + (rawUrl.includes('?') ? '&' : '?') + 'ratio=' + target;
+}
+
+/** playwm → play（去水印改写） */
+function stripWatermark(rawUrl) {
+  if (!rawUrl) return rawUrl;
+  return rawUrl.replace('/aweme/v1/playwm/', '/aweme/v1/play/');
+}
+
+/** URL 是否带水印 */
+function isWatermarked(rawUrl) {
+  return !!rawUrl && /\/aweme\/v1\/playwm\//.test(rawUrl);
+}
+
+/**
+ * 抖音 CDN 多 host 备份。给 aweme/v1/play/ URL 替换 host 拿到一个备用直链。
+ */
+const ALT_HOSTS = ['aweme.snssdk.com', 'api.amemv.com', 'aweme.amemv.com'];
+function withAltHost(rawUrl, host) {
+  try {
+    const u = new URL(rawUrl);
+    u.host = host;
+    u.protocol = 'https:';
+    return u.toString();
+  } catch { return rawUrl; }
+}
+
+/**
+ * 把一个 url_list（来自 bit_rate[].play_addr.url_list 或 play_addr.url_list）
+ * 展开成「最佳 → 兜底」的候选列表（已去重）。
+ *
+ * @param {string[]} rawUrls 抖音返回的原始 url 数组
+ * @param {string|null} targetRatio  '1080p' | '720p' | '540p' | null
+ * @returns {string[]} 去重后的候选 URL 列表
+ */
+function buildCandidates(rawUrls, targetRatio) {
+  if (!Array.isArray(rawUrls)) return [];
+  const out = [];
+  const seen = new Set();
+  const push = (u) => {
+    if (!u || typeof u !== 'string') return;
+    // 抖音 URL 偶发以 // 开头
+    if (u.startsWith('//')) u = 'https:' + u;
+    if (u.startsWith('http://')) u = 'https://' + u.substring(7);
+    if (seen.has(u)) return;
+    seen.add(u); out.push(u);
+  };
+
+  // —— 第 1 优先级：原本就无水印 + bumped 到 targetRatio —— //
+  for (const raw of rawUrls) {
+    if (!isWatermarked(raw)) {
+      const bumped = targetRatio ? bumpRatio(raw, targetRatio) : raw;
+      push(bumped);
+      // 同时给该 URL 的所有 alt host 也加入
+      for (const h of ALT_HOSTS) push(withAltHost(bumped, h));
+    }
+  }
+
+  // —— 第 2 优先级：原本无水印的原始 URL（不 bump，防止 ratio 被服务端不认） —— //
+  for (const raw of rawUrls) {
+    if (!isWatermarked(raw)) push(raw);
+  }
+
+  // —— 第 3 优先级：playwm → play 改写 + bumped —— //
+  for (const raw of rawUrls) {
+    if (isWatermarked(raw)) {
+      const stripped = stripWatermark(raw);
+      const bumped = targetRatio ? bumpRatio(stripped, targetRatio) : stripped;
+      push(bumped);
+      for (const h of ALT_HOSTS) push(withAltHost(bumped, h));
+      push(stripped); // 不 bump 的版本
+    }
+  }
+
+  // —— 最后兜底：原始 playwm（有水印，但能下） —— //
+  for (const raw of rawUrls) {
+    if (isWatermarked(raw)) push(raw);
+  }
+
+  return out;
+}
 
 function httpGet(rawUrl, options = {}) {
   return new Promise((resolve, reject) => {
@@ -65,8 +168,13 @@ function httpGet(rawUrl, options = {}) {
 
 /**
  * 从 iesdouyin.com 页面解析作品数据
+ *
+ * @param {string} url 抖音作品 URL
+ * @param {object} [opts]
+ * @param {string|null} [opts.targetRatio] '1080p' / '720p' / '540p'，影响候选 URL 的 ratio 改写
  */
-async function parseDouyinPage(url) {
+async function parseDouyinPage(url, opts = {}) {
+  const targetRatio = opts.targetRatio || null;
   // 先解析短链接
   let resolvedUrl;
   try {
@@ -121,22 +229,31 @@ async function parseDouyinPage(url) {
     awemeId,
     title: '',
     type: 'unknown', // video, note, image
-    videoUrl: '',
+    videoUrl: '',           // 兼容旧字段：== videoCandidates[0]
+    videoCandidates: [],    // 按优先级排序的候选 URL（无水印 + 高画质优先）
+    videoId: '',            // play_addr.uri，用于必要时重构 URL
+    width: 0,
+    height: 0,
+    quality: '',
     audioUrl: '',
     coverUrl: '',
     images: [],
     duration: 0,
   };
 
+  // 收集所有 bit_rate 项 + 默认 play_addr，最后统一排序
+  const videoChoices = [];
+  // { width, height, urlList, watermarked, vid }
+
   // 递归搜索
   function search(obj) {
     if (!obj || typeof obj !== 'object') return;
     if (Array.isArray(obj)) { obj.forEach(search); return; }
-    
+
     if (obj.desc && typeof obj.desc === 'string' && obj.desc.length > result.title.length) {
       result.title = obj.desc;
     }
-    
+
     // 图片列表
     if (obj.images && Array.isArray(obj.images) && obj.images.length > 0) {
       result.type = 'note';
@@ -146,40 +263,37 @@ async function parseDouyinPage(url) {
       }
     }
 
-    // 视频播放地址
-    // 注意：bit_rate 数组已包含高清无水印视频，playwm替换逻辑无效已移除
-    if (obj.play_addr && obj.play_addr.url_list) {
-      const urls = obj.play_addr.url_list;
-      const playUrl = urls[0] || '';
-      if (playUrl && (playUrl.includes('.mp4') || playUrl.includes('video_id'))) {
-        if (obj.bit_rate || obj.width > 0 || playUrl.includes('aweme')) {
-          result.videoUrl = playUrl;
-          result.type = 'video';
-          result.duration = obj.duration || result.duration;
-        }
+    // play_addr (无 bit_rate 时的兜底)
+    if (obj.play_addr && Array.isArray(obj.play_addr.url_list) && obj.play_addr.url_list.length > 0) {
+      const pa = obj.play_addr;
+      const sample = pa.url_list[0] || '';
+      if (sample && (sample.includes('.mp4') || sample.includes('video_id') || sample.includes('aweme'))) {
+        videoChoices.push({
+          width: pa.width || obj.width || 0,
+          height: pa.height || obj.height || 0,
+          urlList: pa.url_list.filter(Boolean),
+          vid: pa.uri || obj.uri || '',
+        });
+        result.type = 'video';
+        if (obj.duration) result.duration = obj.duration;
       }
-      // 音频
-      if (obj.uri && obj.uri.includes('.mp3')) {
-        result.audioUrl = obj.uri;
+      if (pa.uri && /\.mp3$/i.test(pa.uri)) {
+        result.audioUrl = pa.uri;
       }
     }
 
-    // 高清视频 - 选择最高画质
-    if (obj.bit_rate && Array.isArray(obj.bit_rate)) {
-      // 按画质排序（高度优先）
-      const sortedBr = obj.bit_rate
-        .filter(br => br.play_addr?.url_list?.[0])
-        .sort((a, b) => {
-          const heightA = a.play_addr?.height || a.height || 0;
-          const heightB = b.play_addr?.height || b.height || 0;
-          return heightB - heightA; // 降序排列
+    // bit_rate 数组（最常见的高画质入口）
+    if (Array.isArray(obj.bit_rate)) {
+      for (const br of obj.bit_rate) {
+        const pa = br.play_addr;
+        if (!pa || !Array.isArray(pa.url_list) || pa.url_list.length === 0) continue;
+        videoChoices.push({
+          width: pa.width || br.width || 0,
+          height: pa.height || br.height || 0,
+          urlList: pa.url_list.filter(Boolean),
+          vid: pa.uri || br.uri || '',
         });
-      
-      if (sortedBr.length > 0) {
-        const bestBr = sortedBr[0];
-        result.videoUrl = bestBr.play_addr.url_list[0];
         result.type = 'video';
-        result.quality = `${bestBr.play_addr?.width || bestBr.width || 0}x${bestBr.play_addr?.height || bestBr.height || 0}`;
       }
     }
 
@@ -206,8 +320,41 @@ async function parseDouyinPage(url) {
 
   search(data);
 
+  // 把所有 video choices 按高度降序排序，组装出最终 candidates
+  if (videoChoices.length > 0) {
+    videoChoices.sort((a, b) => (b.height || 0) - (a.height || 0));
+    const best = videoChoices[0];
+    result.width = best.width;
+    result.height = best.height;
+    result.quality = `${best.width || 0}x${best.height || 0}`;
+    result.videoId = best.vid || '';
+
+    // 把所有 choice 的 url_list 合并成一个超大候选池（buildCandidates 会做去重 + 优先级排序）
+    const aggregated = [];
+    for (const c of videoChoices) {
+      for (const u of c.urlList) aggregated.push(u);
+    }
+    result.videoCandidates = buildCandidates(aggregated, targetRatio);
+
+    // 如果有 video_id 且最高画质 < 1080p 但用户要 1080p，主动构造一条直链试试
+    if (result.videoId && targetRatio && /1080p|2k|4k/i.test(targetRatio) && (best.height || 0) < 1080) {
+      const synth = `https://aweme.snssdk.com/aweme/v1/play/?video_id=${encodeURIComponent(result.videoId)}&ratio=${targetRatio}&line=0`;
+      // 放在候选列表最前
+      if (!result.videoCandidates.includes(synth)) {
+        result.videoCandidates.unshift(synth);
+        for (const h of ALT_HOSTS) {
+          const alt = withAltHost(synth, h);
+          if (!result.videoCandidates.includes(alt)) result.videoCandidates.push(alt);
+        }
+      }
+    }
+
+    // 兼容旧字段
+    result.videoUrl = result.videoCandidates[0] || '';
+  }
+
   if (!result.title) result.title = '抖音作品';
-  if (result.images.length === 0 && !result.videoUrl && !result.audioUrl) {
+  if (result.images.length === 0 && result.videoCandidates.length === 0 && !result.audioUrl) {
     throw new Error('无法提取媒体文件，可能需要登录查看');
   }
 
@@ -215,18 +362,49 @@ async function parseDouyinPage(url) {
 }
 
 /**
- * 下载抖音作品（统一入口）
+ * 把上层传下来的 quality 字符串（如 'bestvideo[height<=1080]+...'）转换为目标 ratio
  */
-async function downloadDouyin(url, taskId, onProgress) {
+function deriveTargetRatio(quality, isVip) {
+  // VIP 默认拉满（除非用户明确指定低画质）
+  if (quality && typeof quality === 'string') {
+    const m = quality.match(/height\s*<=\s*(\d+)/i);
+    if (m) {
+      const h = parseInt(m[1], 10);
+      if (h >= 2160) return '4k';
+      if (h >= 1440) return '2k';
+      if (h >= 1080) return '1080p';
+      if (h >= 720) return '720p';
+      return '540p';
+    }
+    if (/4k|2160/i.test(quality)) return '4k';
+    if (/2k|1440/i.test(quality)) return '2k';
+    if (/1080/i.test(quality)) return '1080p';
+    if (/720/i.test(quality)) return '720p';
+  }
+  return isVip ? '1080p' : '720p';
+}
+
+/**
+ * 下载抖音作品（统一入口）
+ *
+ * @param {string} url
+ * @param {string} taskId
+ * @param {function} onProgress
+ * @param {object} [opts]
+ * @param {string|null} [opts.quality]  上层传下来的 yt-dlp 风格 quality 串
+ * @param {boolean}     [opts.isVip]
+ */
+async function downloadDouyin(url, taskId, onProgress, opts = {}) {
   const downloadDir = path.join(__dirname, '../../downloads');
   if (!fs.existsSync(downloadDir)) fs.mkdirSync(downloadDir, { recursive: true });
 
   if (onProgress) onProgress(5, '解析链接');
 
-  const info = await parseDouyinPage(url);
+  const targetRatio = deriveTargetRatio(opts.quality, opts.isVip);
+  const info = await parseDouyinPage(url, { targetRatio });
   if (onProgress) onProgress(30, '获取作品信息');
 
-  console.log(`[douyin] Parsed: type=${info.type}, title="${info.title.substring(0, 50)}", images=${info.images.length}, video=${!!info.videoUrl}`);
+  console.log(`[douyin] Parsed: type=${info.type}, title="${(info.title||'').substring(0, 50)}", images=${info.images.length}, candidates=${info.videoCandidates.length}, target=${targetRatio}, parsedHeight=${info.height}`);
 
   const result = {
     title: info.title,
@@ -235,6 +413,9 @@ async function downloadDouyin(url, taskId, onProgress) {
     subtitleFiles: [],
     images: [],
     isNote: false,
+    width: info.width,
+    height: info.height,
+    quality: info.quality,
   };
 
   // 1. 下载封面
@@ -269,22 +450,49 @@ async function downloadDouyin(url, taskId, onProgress) {
     return result;
   }
 
-  // 3. 视频作品 → 下载视频
-  if (info.videoUrl) {
+  // 3. 视频作品 → 按候选 URL 顺序尝试，第一个成功 + 通过 sanity 检查的就用
+  if (info.videoCandidates.length > 0) {
     if (onProgress) onProgress(35, '下载视频');
 
     let videoBuf;
-    try {
-      videoBuf = await httpGet(info.videoUrl, { responseType: 'arraybuffer', timeout: 120000 });
-    } catch (e) {
-      // 备用：试试 playwm 链接
-      if (info.videoUrl.includes('playwm')) {
-        // playwm 需要去掉水印参数
-        const cleanUrl = info.videoUrl.replace('playwm', 'play');
-        try { videoBuf = await httpGet(cleanUrl, { responseType: 'arraybuffer', timeout: 120000 }); }
-        catch {}
+    let pickedUrl = '';
+    let lastErr;
+    let attempt = 0;
+    const totalCandidates = info.videoCandidates.length;
+
+    for (const candidate of info.videoCandidates) {
+      attempt++;
+      try {
+        const buf = await httpGet(candidate, { responseType: 'arraybuffer', timeout: 120000 });
+        // sanity 检查：视频应该 > 50KB 且不是 HTML 错误页
+        if (!buf || buf.length < 50 * 1024) {
+          throw new Error(`response too small: ${buf ? buf.length : 0} bytes`);
+        }
+        const head = buf.slice(0, 32).toString('utf8').trim().toLowerCase();
+        if (head.startsWith('<!doctype') || head.startsWith('<html') || head.startsWith('{')) {
+          throw new Error('response looks like HTML/JSON error page');
+        }
+        videoBuf = buf;
+        pickedUrl = candidate;
+        const wm = isWatermarked(candidate) ? ' [WATERMARKED!]' : '';
+        console.log(`[douyin] video downloaded via candidate ${attempt}/${totalCandidates}${wm}: ${candidate.substring(0, 120)}`);
+        break;
+      } catch (e) {
+        lastErr = e;
+        console.log(`[douyin] candidate ${attempt}/${totalCandidates} failed: ${e.message} (${candidate.substring(0, 80)}...)`);
       }
-      if (!videoBuf) throw new Error(`视频下载失败: ${e.message}`);
+      if (onProgress) {
+        const pct = 35 + Math.round((attempt / totalCandidates) * 50);
+        onProgress(Math.min(85, pct), `尝试候选源 ${attempt}/${totalCandidates}`);
+      }
+    }
+
+    if (!videoBuf) {
+      throw new Error(`视频下载失败（${totalCandidates} 个候选源全部失败）: ${lastErr?.message || 'unknown'}`);
+    }
+
+    if (isWatermarked(pickedUrl)) {
+      console.warn(`[douyin] WARN: only watermarked source available for taskId=${taskId}; user may see watermark`);
     }
 
     const filename = `${taskId}.mp4`;
@@ -294,6 +502,7 @@ async function downloadDouyin(url, taskId, onProgress) {
     result.filePath = filepath;
     result.ext = 'mp4';
     result.downloadUrl = `/download/${filename}`;
+    result.watermarked = isWatermarked(pickedUrl);
 
     if (onProgress) onProgress(100, '完成');
     return result;
@@ -321,4 +530,14 @@ function isDouyinUrl(url) {
   return /douyin\.com|iesdouyin\.com/.test(url);
 }
 
-module.exports = { downloadDouyin, parseDouyinPage, isDouyinUrl };
+module.exports = {
+  downloadDouyin,
+  parseDouyinPage,
+  isDouyinUrl,
+  // exposed for tests / advanced callers
+  buildCandidates,
+  bumpRatio,
+  stripWatermark,
+  isWatermarked,
+  deriveTargetRatio,
+};
