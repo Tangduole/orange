@@ -618,18 +618,57 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
 
   try {
     const { parseDouyin } = require('../services/tikhub');
+    const ytdlp = require('../services/yt-dlp');
 
     // 保存用户请求的画质参数
     store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5, requestedQuality });
 
-    const result = await parseDouyin(url, taskId, (percent, downloaded, total) => {
-      store.update(taskId, {
-        status: percent < 30 ? TASK_STATUS.PARSING : TASK_STATUS.DOWNLOADING,
-        progress: percent,
-        downloadedBytes: downloaded || 0,
-        totalBytes: total || 0
-      });
-    }, quality, isVip);
+    let result;
+    let usedYtdlpFallback = false;
+
+    try {
+      result = await parseDouyin(url, taskId, (percent, downloaded, total) => {
+        store.update(taskId, {
+          status: percent < 30 ? TASK_STATUS.PARSING : TASK_STATUS.DOWNLOADING,
+          progress: percent,
+          downloadedBytes: downloaded || 0,
+          totalBytes: total || 0
+        });
+      }, quality, isVip);
+    } catch (tikhubErr) {
+      // TikHub 解析失败时，尝试 yt-dlp 作为 fallback
+      logger.warn(`[task] ${taskId} TikHub failed: ${tikhubErr.message}, trying yt-dlp fallback...`);
+      
+      try {
+        store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
+        const ytdlpResult = await ytdlp.download(url, taskId, (percent, speed, eta, downloaded, total) => {
+          store.update(taskId, {
+            status: percent < 90 ? TASK_STATUS.DOWNLOADING : TASK_STATUS.PROCESSING,
+            progress: Math.round(percent * 0.9),
+            downloadedBytes: downloaded || 0,
+            totalBytes: total || 0,
+            speed: speed || '',
+            eta: eta || ''
+          });
+        }, quality);
+        
+        // 转换 yt-dlp 结果格式以匹配 processDouyin 期望的格式
+        result = {
+          title: ytdlpResult.title || '抖音作品',
+          width: 0,
+          height: 0,
+          quality: ytdlpResult.ext || 'mp4',
+          thumbnailUrl: ytdlpResult.thumbnailUrl || '',
+          filePath: ytdlpResult.filePath,
+          ext: ytdlpResult.ext || 'mp4'
+        };
+        usedYtdlpFallback = true;
+        logger.info(`[task] ${taskId} yt-dlp fallback succeeded`);
+      } catch (ytdlpErr) {
+        logger.error(`[task] ${taskId} yt-dlp fallback also failed: ${ytdlpErr.message}`);
+        throw new Error(`抖音解析失败: TikHub(${tikhubErr.message}) → yt-dlp(${ytdlpErr.message})`);
+      }
+    }
 
     // 获取用户请求的画质
     let task = store.get(taskId) || {};
