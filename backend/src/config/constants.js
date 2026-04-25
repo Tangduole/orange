@@ -102,9 +102,11 @@ module.exports = {
     PENDING: 'pending',
     PARSING: 'parsing',
     DOWNLOADING: 'downloading',
+    PROCESSING: 'processing', // 后处理（合并视频/音频、转码等）
     ASR: 'asr',
     COMPLETED: 'completed',
-    ERROR: 'error'
+    ERROR: 'error',
+    CANCELLED: 'cancelled'
   },
 
   // 用户等级

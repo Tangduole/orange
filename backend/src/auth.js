@@ -4,6 +4,7 @@
 
 const jwt = require('jsonwebtoken');
 const userDb = require('./userDb');
+const logger = require('./utils/logger');
 
 // JWT_SECRET 必须设置，不允许 fallback
 if (!process.env.JWT_SECRET) {
@@ -14,7 +15,12 @@ const JWT_SECRET = process.env.JWT_SECRET;
 
 const auth = {
   /**
-   * 验证 JWT token（可选，用于获取当前用户）
+   * 验证 JWT token（可选）
+   *
+   * 行为：
+   *  - 没有 Authorization 头        → req.user = null, 继续（游客）
+   *  - 头存在但 token 已过期/被吊销 → 401，避免被吊销 token 仍以"游客"身份消耗免费额度
+   *  - 头存在且 token 合法但用户不存在 → 401
    */
   optional(req, res, next) {
     const authHeader = req.headers.authorization;
@@ -28,12 +34,20 @@ const auth = {
       .then(() => jwt.verify(token, JWT_SECRET))
       .then(payload => userDb.getById(payload.sub))
       .then(user => {
-        req.user = user || null;
+        if (!user) {
+          return res
+            .status(401)
+            .json({ code: 401, message: '用户不存在，请重新登录' });
+        }
+        req.user = user;
         next();
       })
-      .catch(() => {
-        req.user = null;
-        next();
+      .catch(err => {
+        // 显式带了 Authorization 头但 token 非法 → 拒绝，而不是静默降级为游客
+        logger.warn(`[auth.optional] reject invalid token: ${err.message}`);
+        return res
+          .status(401)
+          .json({ code: 401, message: 'Token 无效或已过期，请重新登录' });
       });
   },
 

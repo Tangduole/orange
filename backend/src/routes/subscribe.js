@@ -3,10 +3,12 @@
  */
 
 const express = require('express');
+const crypto = require('crypto');
 const router = express.Router();
 const axios = require('axios');
 const userDb = require('../userDb');
 const auth = require('../auth');
+const logger = require('../utils/logger');
 
 // Lemon Squeezy 配置
 const LS_API_KEY = process.env.LEMON_SQUEEZY_API_KEY || '';
@@ -28,6 +30,24 @@ const VARIANT_MAP = {
 // Lemon Squeezy API Base
 const LS_API_BASE = 'https://api.lemonsqueezy.com/v1';
 
+// ---------- Webhook 幂等：在 Turso 上建一张事件去重表 ----------
+let webhookTableReady = false;
+async function ensureWebhookTable() {
+  if (webhookTableReady) return;
+  try {
+    await userDb.db.execute({
+      sql: `CREATE TABLE IF NOT EXISTS webhook_events (
+        event_id TEXT PRIMARY KEY,
+        event_name TEXT,
+        received_at INTEGER NOT NULL
+      )`
+    });
+    webhookTableReady = true;
+  } catch (e) {
+    logger.error('[webhook] ensureWebhookTable failed: ' + e.message);
+  }
+}
+
 /**
  * 创建 Pro 订阅 checkout
  * POST /api/subscribe/checkout
@@ -35,9 +55,9 @@ const LS_API_BASE = 'https://api.lemonsqueezy.com/v1';
 router.post('/checkout', auth.required, async (req, res) => {
   const { email } = req.user;
   const { plan = 'pro_monthly' } = req.body; // 默认 Pro 月付
-  
+
   const variantId = VARIANT_MAP[plan] || LS_VARIANT_ID_PRO;
-  
+
   if (!LS_API_KEY || !LS_STORE_ID || !variantId) {
     return res.json({
       code: 500,
@@ -46,7 +66,6 @@ router.post('/checkout', auth.required, async (req, res) => {
   }
 
   try {
-    // 创建 Lemon Squeezy Checkout
     const response = await axios.post(
       `${LS_API_BASE}/checkouts`,
       {
@@ -90,7 +109,7 @@ router.post('/checkout', auth.required, async (req, res) => {
       }
     });
   } catch (e) {
-    console.error('[subscribe] Checkout error:', e.response?.data || e.message);
+    logger.error('[subscribe] Checkout error: ' + (e.response?.data ? JSON.stringify(e.response.data) : e.message));
     res.json({
       code: 500,
       message: '创建订阅失败，请稍后重试'
@@ -104,7 +123,7 @@ router.post('/checkout', auth.required, async (req, res) => {
  */
 router.get('/status', auth.required, async (req, res) => {
   const usage = await userDb.getUsage(req.user.id);
-  
+
   // 检查订阅是否过期
   let subscriptionStatus = req.user.subscription_status;
   const endsAt = req.user.subscription_ends_at;
@@ -112,7 +131,7 @@ router.get('/status', auth.required, async (req, res) => {
     // 订阅已过期，降级为 free
     subscriptionStatus = 'expired';
   }
-  
+
   res.json({
     code: 0,
     data: {
@@ -124,44 +143,88 @@ router.get('/status', auth.required, async (req, res) => {
   });
 });
 
-/**
- * Lemon Squeezy Webhook - 处理订阅事件
- * POST /api/subscribe/webhook
- */
-router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
-  const signature = req.headers['x-signature'];
-  
-  // 验证签名（必须有密钥才验证）
+// Lemon Squeezy Webhook - 处理订阅事件
+// POST /api/subscribe/webhook
+//
+// 注意：本路由的 raw body 解析在 app.js 中通过
+//   app.use('/api/subscribe/webhook', express.raw({ type: '*\/*' }))
+// 完成；这里直接使用 req.body（Buffer）。
+router.post('/webhook', async (req, res) => {
+  const signature = req.headers['x-signature'] || '';
+
   if (!LS_WEBHOOK_SECRET) {
-    console.error('[webhook] LEMON_SQUEEZY_WEBHOOK_SECRET not configured, webhook disabled');
+    logger.error('[webhook] LEMON_SQUEEZY_WEBHOOK_SECRET not configured, webhook disabled');
     return res.status(500).json({ error: 'Webhook not configured' });
   }
-  
-  const crypto = require('crypto');
-  const hmac = crypto.createHmac('sha256', LS_WEBHOOK_SECRET);
-  hmac.update(req.body);
-  const expectedSignature = hmac.digest('hex');
-  
-  if (signature !== expectedSignature) {
-    console.error('[webhook] Invalid signature');
+
+  // req.body 必须是 Buffer，否则说明中间件顺序错了
+  if (!Buffer.isBuffer(req.body)) {
+    logger.error('[webhook] req.body is not a Buffer; check express middleware order in app.js');
+    return res.status(500).json({ error: 'Webhook body parser misconfigured' });
+  }
+
+  // —— 安全的 HMAC 校验 —— //
+  const expectedHex = crypto
+    .createHmac('sha256', LS_WEBHOOK_SECRET)
+    .update(req.body)
+    .digest('hex');
+
+  let valid = false;
+  try {
+    const sigBuf = Buffer.from(String(signature), 'hex');
+    const expBuf = Buffer.from(expectedHex, 'hex');
+    valid =
+      sigBuf.length === expBuf.length &&
+      crypto.timingSafeEqual(sigBuf, expBuf);
+  } catch {
+    valid = false;
+  }
+
+  if (!valid) {
+    logger.warn('[webhook] Invalid signature');
     return res.status(403).json({ error: 'Invalid signature' });
   }
 
+  // —— 解析 JSON —— //
   let event;
   try {
-    event = JSON.parse(req.body.toString());
+    event = JSON.parse(req.body.toString('utf8'));
   } catch (e) {
-    console.error('[webhook] Parse error:', e.message);
+    logger.error('[webhook] Parse error: ' + e.message);
     return res.status(400).json({ error: 'Invalid JSON' });
   }
 
-  console.log('[webhook] Received event:', event.meta?.event_name);
+  const eventName = event?.meta?.event_name;
+  // LemonSqueezy 推荐的幂等键：webhook_id（来自 meta），降级用 X-Event-Id 头
+  const eventId =
+    event?.meta?.webhook_id ||
+    req.headers['x-event-id'] ||
+    `${eventName}:${event?.data?.id}:${event?.data?.attributes?.updated_at || ''}`;
 
-  const eventName = event.meta?.event_name;
-  const email = event.data?.attributes?.user_email?.toLowerCase();
-  const subscriptionStatus = event.data?.attributes?.status;
-  const endsAt = event.data?.attributes?.ends_at ? new Date(event.data.attributes.ends_at).getTime() : null;
-  const renewsAt = event.data?.attributes?.renews_at ? new Date(event.data.attributes.renews_at).getTime() : null;
+  // —— 幂等去重 —— //
+  await ensureWebhookTable();
+  try {
+    await userDb.db.execute({
+      sql: 'INSERT INTO webhook_events (event_id, event_name, received_at) VALUES (?, ?, ?)',
+      args: [String(eventId), String(eventName || ''), Date.now()]
+    });
+  } catch (e) {
+    if (String(e.message || '').includes('UNIQUE')) {
+      logger.info(`[webhook] Duplicate event ignored: ${eventId}`);
+      return res.json({ success: true, deduped: true });
+    }
+    logger.error('[webhook] Idempotency insert failed: ' + e.message);
+    // 即便去重表写入失败，也继续处理，不要把订阅事件丢了
+  }
+
+  const email = event?.data?.attributes?.user_email?.toLowerCase();
+  const subscriptionStatus = event?.data?.attributes?.status;
+  const endsAt = event?.data?.attributes?.ends_at
+    ? Math.floor(new Date(event.data.attributes.ends_at).getTime() / 1000)
+    : null;
+  const renewsAt = event?.data?.attributes?.renews_at
+    ? Math.floor(new Date(event.data.attributes.renews_at).getTime() / 1000)
+    : null;
 
   if (!email) {
     return res.status(400).json({ error: 'Missing email' });
@@ -173,103 +236,135 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       case 'subscription_updated':
         if (subscriptionStatus === 'active' || subscriptionStatus === 'past_due') {
           await userDb.upgradeToPro(email, renewsAt || endsAt);
-          console.log(`[webhook] Upgraded ${email} to Pro`);
-        } else if (subscriptionStatus === 'cancelled' || subscriptionStatus === 'expired') {
+          logger.info(`[webhook] Upgraded ${email} to Pro (status=${subscriptionStatus})`);
+        } else if (
+          subscriptionStatus === 'cancelled' ||
+          subscriptionStatus === 'expired' ||
+          subscriptionStatus === 'unpaid'
+        ) {
           await userDb.downgradeToFree(email);
-          console.log(`[webhook] Downgraded ${email} to Free`);
+          logger.info(`[webhook] Downgraded ${email} to Free (status=${subscriptionStatus})`);
         }
         break;
 
       case 'subscription_cancelled':
+        // LemonSqueezy 的 cancelled 会在 ends_at 之前继续可用，这里仅打日志
+        // 真正的下线交给 ends_at 到期 + status_check 触发的 updated 事件，或本次 status === 'expired'
+        if (subscriptionStatus === 'expired') {
+          await userDb.downgradeToFree(email);
+        }
+        logger.info(`[webhook] Cancelled ${email} (ends_at=${endsAt})`);
+        break;
+
+      case 'subscription_resumed':
+        await userDb.upgradeToPro(email, renewsAt || endsAt);
+        logger.info(`[webhook] Resumed ${email}`);
+        break;
+
+      case 'subscription_expired':
         await userDb.downgradeToFree(email);
-        console.log(`[webhook] Cancelled ${email}`);
+        logger.info(`[webhook] Expired ${email}`);
         break;
 
       case 'subscription_payment_success':
-        // 续费成功，保持 Pro
         if (renewsAt) {
           await userDb.upgradeToPro(email, renewsAt);
         }
-        console.log(`[webhook] Payment success for ${email}`);
+        logger.info(`[webhook] Payment success for ${email}`);
         break;
 
       case 'subscription_payment_failed':
-        console.log(`[webhook] Payment failed for ${email}`);
+        // 标记为 past_due，但保留 Pro 权益直到到期，便于用户补卡
+        try {
+          await userDb.db.execute({
+            sql: `UPDATE users SET subscription_status = 'past_due' WHERE email = ?`,
+            args: [email]
+          });
+        } catch (e) {
+          logger.error('[webhook] mark past_due failed: ' + e.message);
+        }
+        logger.warn(`[webhook] Payment failed for ${email}`);
         break;
 
       default:
-        console.log(`[webhook] Unhandled event: ${eventName}`);
+        logger.info(`[webhook] Unhandled event: ${eventName}`);
     }
   } catch (e) {
-    console.error('[webhook]处理失败:', e.message);
+    logger.error('[webhook] handler failed: ' + e.message);
     return res.status(500).json({ error: '处理失败' });
   }
 
   res.json({ success: true });
 });
 
-module.exports = router;
+// ============== 管理员路由 ==============
 
-// 管理员 API 密钥验证中间件
-// 管理员密钥验证（同时验证请求者的身份）
+/**
+ * 管理员密钥验证（要求 X-Admin-Key 头与 ADMIN_API_KEY 一致）
+ */
 function requireAdmin(req, res, next) {
   const key = req.headers['x-admin-key'];
   const adminKey = process.env.ADMIN_API_KEY;
-  
-  // Production 环境必须设置 ADMIN_API_KEY
+
   if (!adminKey) {
-    console.error('[admin] ADMIN_API_KEY not set! Production requires this environment variable.');
-    if (process.env.NODE_ENV === 'production') {
-      process.exit(1);
-    }
+    logger.error('[admin] ADMIN_API_KEY not set');
     return res.status(500).json({ code: 500, message: '管理员功能未配置' });
   }
-  
-  // 验证 admin key
-  if (key !== adminKey) {
+
+  if (!key || key !== adminKey) {
     return res.status(403).json({ code: 403, message: '无权访问' });
   }
-  
-  // 额外验证：检查调用者是否是管理员（通过 user.email）
-  const adminEmails = (process.env.ADMIN_EMAILS || '').split(',').filter(Boolean);
-  if (adminEmails.length > 0 && req.user) {
-    if (!adminEmails.includes(req.user.email)) {
-      return res.status(403).json({ code: 403, message: '无权限' });
-    }
-  }
-  
+
   next();
 }
 
 // 管理员：手动赋予会员资格
 router.post('/admin/grant-vip', requireAdmin, async (req, res) => {
   try {
-    const { email, days = 365 } = req.body;
-    if (!email) return res.status(400).json({ code: 400, message: '请提供邮箱' });
-    
-    const endsAt = Math.floor(Date.now() / 1000) + days * 24 * 60 * 60;
+    const { email, days = 365 } = req.body || {};
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ code: 400, message: '请提供邮箱' });
+    }
+    const safeDays = Math.max(1, Math.min(3650, Number(days) || 365));
+
+    // 验证用户存在
+    const user = await userDb.getByEmail(email);
+    if (!user) {
+      return res.status(404).json({ code: 404, message: '用户不存在' });
+    }
+
+    const endsAt = Math.floor(Date.now() / 1000) + safeDays * 24 * 60 * 60;
     await userDb.upgradeToPro(email.toLowerCase(), endsAt);
-    
-    console.log(`[admin] VIP granted to ${email} for ${days} days, expires: ${new Date(endsAt * 1000).toISOString()}`);
-    res.json({ code: 0, message: `已赋予 ${email} 会员资格 ${days} 天` });
+
+    logger.info(`[admin] VIP granted to ${email} for ${safeDays} days`);
+    res.json({ code: 0, message: `已赋予 ${email} 会员资格 ${safeDays} 天` });
   } catch (err) {
-    console.error('[admin] Grant VIP error:', err);
-    res.status(500).json({ code: 500, message: '操作失败: ' + err.message });
+    logger.error('[admin] Grant VIP error: ' + err.message);
+    res.status(500).json({ code: 500, message: '操作失败' });
   }
 });
 
 // 管理员：撤销会员资格
 router.post('/admin/revoke-vip', requireAdmin, async (req, res) => {
   try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ code: 400, message: '请提供邮箱' });
-    
+    const { email } = req.body || {};
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ code: 400, message: '请提供邮箱' });
+    }
+
+    const user = await userDb.getByEmail(email);
+    if (!user) {
+      return res.status(404).json({ code: 404, message: '用户不存在' });
+    }
+
     await userDb.downgradeToFree(email);
-    
-    console.log(`[admin] VIP revoked from ${email}`);
+
+    logger.info(`[admin] VIP revoked from ${email}`);
     res.json({ code: 0, message: `已撤销 ${email} 会员资格` });
   } catch (err) {
-    console.error('[admin] Revoke VIP error:', err);
+    logger.error('[admin] Revoke VIP error: ' + err.message);
     res.status(500).json({ code: 500, message: '操作失败' });
   }
 });
+
+module.exports = router;

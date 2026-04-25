@@ -574,88 +574,155 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
 }
 
 // 下载文件工具函数
-async function downloadFile(url, outputPath, onProgress, headers = {}) {
+/**
+ * 安全下载远端文件到本地。
+ * 修复点：
+ *  - 限制最大重定向次数（防止恶意服务器无限跳转）
+ *  - 阻止协议外/私网地址（防 SSRF）
+ *  - 阻断 HTML/JSON 误判，分块阶段就 abort，不等到读完整个文件
+ *  - 严格关闭 file stream，避免半写文件残留
+ */
+async function downloadFile(url, outputPath, onProgress, headers = {}, opts = {}) {
   const https = require('https');
   const http = require('http');
   const fs = require('fs');
-  const protocol = url.startsWith('https') ? https : http;
+
   const MAX_SIZE = 500 * 1024 * 1024; // 500MB
+  const MAX_REDIRECTS = Number.isFinite(opts.maxRedirects) ? opts.maxRedirects : 5;
+  const TIMEOUT_MS = Number.isFinite(opts.timeoutMs) ? opts.timeoutMs : 60_000;
+
+  // 仅允许 http(s) 协议
+  let parsed;
+  try { parsed = new URL(url); } catch { throw new Error('Invalid URL'); }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('Only http/https URLs are allowed');
+  }
+
+  // 简单的私网阻断（防 SSRF）；按域名形态判断，IP 直连命中私网段的也拦掉
+  const host = parsed.hostname.toLowerCase();
+  const isPrivateHost =
+    host === 'localhost' ||
+    host === '127.0.0.1' ||
+    host === '0.0.0.0' ||
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[0-1])\./.test(host) ||
+    /^169\.254\./.test(host) ||
+    host.endsWith('.internal') ||
+    host.endsWith('.local');
+  if (isPrivateHost && !opts.allowPrivateHost) {
+    throw new Error('Refused to download from private/local address');
+  }
+
+  const protocol = parsed.protocol === 'https:' ? https : http;
 
   return new Promise((resolve, reject) => {
     const file = fs.createWriteStream(outputPath);
     let totalSize = 0;
     let downloaded = 0;
-    let contentType = '';
+    let settled = false;
 
-    protocol.get(url, {
+    const cleanup = (err) => {
+      if (settled) return;
+      settled = true;
+      try { file.destroy(); } catch {}
+      fs.unlink(outputPath, () => {});
+      if (err) reject(err); else resolve();
+    };
+
+    const req = protocol.get(url, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)',
         ...headers
       }
     }, (response) => {
-      contentType = response.headers['content-type'] || '';
-      
-      // 检查是否为 HTML 内容（链接失效的标志）
-      if (contentType.includes('text/html') || contentType.includes('application/json')) {
-        file.close();
+      // 重定向：递归调用，但带"剩余次数"
+      if (
+        response.statusCode >= 300 &&
+        response.statusCode < 400 &&
+        response.headers.location
+      ) {
+        if (MAX_REDIRECTS <= 0) {
+          response.resume();
+          return cleanup(new Error('Too many redirects'));
+        }
+        const nextUrl = new URL(response.headers.location, url).toString();
+        response.resume();
+        try { file.destroy(); } catch {}
         fs.unlink(outputPath, () => {});
-        reject(new Error('Video link expired or blocked'));
-        return;
-      }
-
-      if (response.statusCode >= 300 && response.statusCode < 400 && response.headers.location) {
-        file.close();
-        fs.unlink(outputPath, () => {});
-        downloadFile(response.headers.location, outputPath, onProgress, headers).then(resolve).catch(reject);
-        return;
+        settled = true;
+        return downloadFile(nextUrl, outputPath, onProgress, headers, {
+          ...opts,
+          maxRedirects: MAX_REDIRECTS - 1,
+          timeoutMs: TIMEOUT_MS
+        }).then(resolve).catch(reject);
       }
 
       if (response.statusCode !== 200) {
-        file.close();
-        fs.unlink(outputPath, () => {});
-        reject(new Error(`HTTP ${response.statusCode}`));
-        return;
+        response.resume();
+        return cleanup(new Error(`HTTP ${response.statusCode}`));
       }
 
-      totalSize = parseInt(response.headers['content-length']) || 0;
+      const contentType = response.headers['content-type'] || '';
+      // 早期就拒绝 HTML / JSON（视频 CDN 不应返回这种类型）
+      if (
+        contentType.includes('text/html') ||
+        contentType.includes('application/json') ||
+        contentType.startsWith('text/')
+      ) {
+        response.resume();
+        return cleanup(new Error('Video link expired or blocked'));
+      }
+
+      totalSize = parseInt(response.headers['content-length'], 10) || 0;
+      if (totalSize > MAX_SIZE) {
+        response.resume();
+        return cleanup(new Error('File too large (max 500MB)'));
+      }
+
+      let firstChunkChecked = false;
 
       response.on('data', (chunk) => {
+        // 即便 content-type 撒谎，第一块字节里通常也能看出 HTML 头
+        if (!firstChunkChecked) {
+          firstChunkChecked = true;
+          const head = chunk.slice(0, Math.min(chunk.length, 256))
+            .toString('utf8').trim().toLowerCase();
+          if (head.startsWith('<!doctype') || head.startsWith('<html') || head.startsWith('{')) {
+            response.destroy();
+            return cleanup(new Error('Video link expired or blocked'));
+          }
+        }
+
         downloaded += chunk.length;
         if (downloaded > MAX_SIZE) {
-          file.close();
-          fs.unlink(outputPath, () => {});
-          reject(new Error('File too large (max 500MB)'));
           response.destroy();
-          return;
+          return cleanup(new Error('File too large (max 500MB)'));
         }
         if (onProgress) {
-          onProgress(totalSize > 0 ? Math.floor((downloaded / totalSize) * 100) : 0, downloaded, totalSize);
+          onProgress(
+            totalSize > 0 ? Math.floor((downloaded / totalSize) * 100) : 0,
+            downloaded,
+            totalSize
+          );
         }
       });
 
+      response.on('error', (err) => cleanup(err));
       response.pipe(file);
+
       file.on('finish', () => {
-        file.close();
-        // 下载完成后再次检查文件内容（防止 Content-Type 误报）
-        try {
-          const fd = fs.openSync(outputPath, 'r');
-          const head = Buffer.alloc(1024);
-          fs.readSync(fd, head, 0, 1024, 0);
-          fs.closeSync(fd);
-          const text = head.toString('utf8').trim();
-          if (text.startsWith('<!DOCTYPE') || text.startsWith('<html') || text.startsWith('<!doctype')) {
-            fs.unlink(outputPath, () => {});
-            reject(new Error('Video link expired or blocked'));
-            return;
-          }
-        } catch {}
-        resolve();
+        if (settled) return;
+        settled = true;
+        file.close(() => resolve());
       });
-    }).on('error', (err) => {
-      file.close();
-      fs.unlink(outputPath, () => {});
-      reject(err);
+      file.on('error', (err) => cleanup(err));
     });
+
+    req.setTimeout(TIMEOUT_MS, () => {
+      req.destroy(new Error('Download timeout'));
+    });
+    req.on('error', (err) => cleanup(err));
   });
 }
 

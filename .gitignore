@@ -1,7 +1,38 @@
 node_modules/
 dist/
+build/
+
+# 环境变量与密钥
 .env
-*.log
-.DS_Store
-logs/
+.env.*
+!.env.example
+*.pem
+*.key
+
+# 运行时数据 / 用户上传 / 缓存
+data/
 downloads/
+logs/
+*.log
+
+# 数据库本地文件
+*.db
+*.sqlite
+*.sqlite3
+
+# 移动端构建产物
+*.apk
+*.aab
+*.ipa
+
+# 编辑器/系统文件
+.DS_Store
+.idea/
+.vscode/
+Thumbs.db
+
+# 临时备份与设计稿
+*.backup
+*.bak
+*.tmp
+**/*.patch.md

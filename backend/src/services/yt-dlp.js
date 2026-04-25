@@ -47,16 +47,9 @@ function download(url, taskId, onProgress, quality = null) {
       '--no-check-certificates',
     ];
     
-    // YouTube 专用参数
+    // YouTube 专用参数（YouTube 主链路已切到 TikHub V2，此处仅作通用入口的兜底）
     if (/youtube\.com|youtu\.be/i.test(url)) {
-      const cookiesPath = path.join(__dirname, '../../data/youtube_cookies.txt');
-      if (fs.existsSync(cookiesPath)) {
-        args.push('--cookies', cookiesPath);
-        console.log('[yt-dlp] Using YouTube cookies');
-        // 有cookies时用默认web客户端
-      } else {
-        args.push('--extractor-args', 'youtube:player_client=android');
-      }
+      args.push('--extractor-args', 'youtube:player_client=android');
     }
     
     // Bilibili 专用参数
@@ -218,15 +211,6 @@ function getInfo(url) {
       '--no-warnings',
     ];
 
-    // YouTube 使用 cookies
-    if (/youtube\.com|youtu\.be/i.test(url)) {
-      const cookiesPath = path.join(__dirname, '../../data/youtube_cookies.txt');
-      if (fs.existsSync(cookiesPath)) {
-        args.push('--cookies', cookiesPath);
-        console.log('[yt-dlp] Using YouTube cookies:', cookiesPath);
-      }
-    }
-
     args.push(url);
 
     let stdout = '';
@@ -327,15 +311,8 @@ function downloadAudio(url, taskId, onProgress) {
       '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     ];
 
-    // YouTube 专用参数
+    // YouTube 专用参数（YouTube 主链路已切到 TikHub V2，此处仅作通用入口的兜底）
     if (/youtube\.com|youtu\.be/i.test(url)) {
-      // 检查是否有 cookies 文件
-      const cookiesPath = path.join(__dirname, '../../data/youtube_cookies.txt');
-      if (fs.existsSync(cookiesPath)) {
-        args.push('--cookies', cookiesPath);
-        console.log('[yt-dlp] Using YouTube cookies:', cookiesPath);
-        console.log('[yt-dlp] Using YouTube cookies');
-      }
       args.push('--extractor-args', 'youtube:player_client=android');
     }
 

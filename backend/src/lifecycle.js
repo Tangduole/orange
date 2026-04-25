@@ -10,8 +10,15 @@
 const { createClient } = require('@libsql/client');
 const { sendWelcomeEmail, sendDay3Email, sendDay7Email } = require('./services/email');
 
+// 与 userDb.js 保持一致：本地 SQLite 路径通过 LOCAL_DB_PATH 覆盖
+function buildDbUrl() {
+  if (process.env.TURSO_DATABASE_URL) return process.env.TURSO_DATABASE_URL;
+  const local = process.env.LOCAL_DB_PATH || './data/users.db';
+  return /^(file|libsql|wss?):/i.test(local) ? local : 'file:' + local;
+}
+
 const db = createClient({
-  url: process.env.TURSO_DATABASE_URL || 'file:data/users.db',
+  url: buildDbUrl(),
   authToken: process.env.TURSO_AUTH_TOKEN,
 });
 

@@ -18,16 +18,42 @@
 const { createClient } = require('@libsql/client');
 const bcrypt = require('bcryptjs');
 
-// Turso 数据库连接
-// 环境变量：TURSO_DATABASE_URL = libsql://xxx.turso.io
-// 环境变量：TURSO_AUTH_TOKEN = xxx (如果需要)
+// 数据库连接 URL 解析
+// 优先 TURSO_DATABASE_URL（云端），否则用本地 SQLite
+// 本地路径可通过 LOCAL_DB_PATH 覆盖（建议指向代码目录之外，避免数据被打包/泄露）
+function buildDbUrl() {
+  if (process.env.TURSO_DATABASE_URL) return process.env.TURSO_DATABASE_URL;
+  const local = process.env.LOCAL_DB_PATH || './data/users.db';
+  return /^(file|libsql|wss?):/i.test(local) ? local : 'file:' + local;
+}
+
 const db = createClient({
-  url: process.env.TURSO_DATABASE_URL || 'file:data/users.db',
+  url: buildDbUrl(),
   authToken: process.env.TURSO_AUTH_TOKEN,
 });
 
 // 免费用户每日下载次数限制
 const FREE_DAILY_LIMIT = 3;
+
+/**
+ * 统一判定一个 user 是否为 VIP（pro 权益生效中）
+ * 规则：tier === 'pro' 且 status ∈ {active, past_due}
+ *       且 subscription_ends_at 未过期（若设置了）
+ */
+function isVip(user) {
+  if (!user) return false;
+  if (user.tier !== 'pro') return false;
+  if (user.subscription_status !== 'active' && user.subscription_status !== 'past_due') {
+    return false;
+  }
+  if (user.subscription_ends_at && Number(user.subscription_ends_at) > 0) {
+    // subscription_ends_at 是秒级时间戳
+    if (Number(user.subscription_ends_at) * 1000 < Date.now()) {
+      return false;
+    }
+  }
+  return true;
+}
 
 // 初始化表
 async function initDb() {
@@ -146,6 +172,7 @@ initDb();
 
 const userDb = {
   db,
+  isVip,
 
   /**
    * 创建用户
@@ -208,40 +235,47 @@ const userDb = {
   },
 
   /**
-   * 检查并重置每日下载次数
+   * 检查并重置每日下载次数（原子化：TOCTOU 防护）
+   * 用一条 UPDATE 同时判断 last_download_reset 是否落后于今天，
+   * 避免并发场景下 daily_downloads 被错误重置或漏重置。
    */
   async checkAndResetDaily(id) {
-    const user = await this.getById(id);
-    if (!user) return null;
-    
     const today = new Date().toISOString().split('T')[0];
-    const lastReset = user.last_download_reset;
-    
-    if (lastReset !== today) {
-      await db.execute({
-        sql: `UPDATE users SET daily_downloads = 0, last_download_reset = ? WHERE id = ?`,
-        args: [today, id]
-      });
-      user.daily_downloads = 0;
-      user.last_download_reset = today;
-    }
-    
-    return user;
+
+    // 一次性原子重置：仅当 last_download_reset != today 时把次数清零
+    await db.execute({
+      sql: `UPDATE users
+              SET daily_downloads = 0, last_download_reset = ?
+            WHERE id = ?
+              AND (last_download_reset IS NULL OR last_download_reset != ?)`,
+      args: [today, id, today]
+    });
+
+    return this.getById(id);
   },
 
   /**
-   * 增加下载次数
+   * 增加下载次数（在下载流程"成功完成"后调用）
+   * 同样使用一条 UPDATE 完成"重置 + 自增"，避免 race。
    */
   async incrementDownloads(id) {
-    const user = await this.checkAndResetDaily(id);
-    if (!user) return null;
-    
+    const today = new Date().toISOString().split('T')[0];
+
+    // 同 SQL 内完成"如有必要先重置今日，再 +1"
     await db.execute({
-      sql: `UPDATE users SET daily_downloads = daily_downloads + 1 WHERE id = ?`,
-      args: [id]
+      sql: `UPDATE users
+              SET
+                daily_downloads = CASE
+                  WHEN last_download_reset IS NULL OR last_download_reset != ?
+                    THEN 1
+                  ELSE daily_downloads + 1
+                END,
+                last_download_reset = ?
+            WHERE id = ?`,
+      args: [today, today, id]
     });
-    
-    return { ...user, daily_downloads: user.daily_downloads + 1 };
+
+    return this.getById(id);
   },
 
   /**
@@ -250,22 +284,24 @@ const userDb = {
   async getUsage(id) {
     const user = await this.checkAndResetDaily(id);
     if (!user) return null;
-    
-    const isPro = user.tier === 'pro' && user.subscription_status === 'active';
-    let limit = isPro ? -1 : FREE_DAILY_LIMIT;
-    
+
+    const vip = isVip(user);
+    let limit = vip ? -1 : FREE_DAILY_LIMIT;
+
     // 推荐奖励：+5次/天（有效期内）
-    const hasReferralBonus = user.referral_bonus_expires && user.referral_bonus_expires > Date.now();
-    if (!isPro && hasReferralBonus) {
+    const hasReferralBonus =
+      !!user.referral_bonus_expires &&
+      Number(user.referral_bonus_expires) > Date.now();
+    if (!vip && hasReferralBonus) {
       limit += 5;
     }
-    
+
     return {
       tier: user.tier,
-      isPro,
-      dailyDownloads: user.daily_downloads,
+      isPro: vip,
+      dailyDownloads: user.daily_downloads || 0,
       dailyLimit: limit,
-      remaining: limit === -1 ? -1 : Math.max(0, limit - user.daily_downloads),
+      remaining: limit === -1 ? -1 : Math.max(0, limit - (user.daily_downloads || 0)),
       hasReferralBonus,
       subscriptionStatus: user.subscription_status,
       subscriptionEndsAt: user.subscription_ends_at
@@ -473,14 +509,21 @@ const userDb = {
 
   /**
    * 获取或生成推荐码
+   * 规则：6 位大写字母+数字，从用户 UUID 中剥离掉非 [A-Z0-9] 字符后取前 6 位
    */
   async getReferralCode(userId) {
     const user = await this.getById(userId);
     if (!user) return null;
     if (user.referral_code) return user.referral_code;
-    
-    // 生成6位推荐码（用户ID前6位大写）
-    const code = userId.substring(0, 8).toUpperCase();
+
+    let raw = String(userId || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    if (raw.length < 6) {
+      // 极少数 UUID 格式异常时，用 crypto 兜底凑齐 6 位
+      const crypto = require('crypto');
+      raw += crypto.randomBytes(4).toString('hex').toUpperCase();
+    }
+    const code = raw.substring(0, 6);
+
     await db.execute({
       sql: 'UPDATE users SET referral_code = ? WHERE id = ?',
       args: [code, userId]
@@ -569,7 +612,7 @@ const userDb = {
     
     const user = await this.getById(userId);
     if (!user) return false;
-    if (user.tier === 'pro') return true; // Pro用户不需要试用
+    if (isVip(user)) return true; // VIP 用户不需要试用
     
     const MAX_TRIALS = 1;
     if (user.hd_trials_used >= MAX_TRIALS) return false;

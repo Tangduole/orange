@@ -129,31 +129,28 @@ router.post('/login', authLimiter, async (req, res) => {
   }
   
   const { email, password } = req.body;
-  
+
   if (!email || !password) {
     return res.json({ code: 400, message: '邮箱和密码不能为空' });
   }
-  
-  // 先检查邮箱是否存在，再验证密码
-  const userByEmail = await userDb.getByEmail(email);
-  if (!userByEmail) {
-    return res.json({ code: 401, message: '该邮箱未注册，请先注册' });
-  }
+
+  // —— 防用户枚举：邮箱不存在与密码错误一律返回相同提示 ——
   const user = await userDb.verifyPassword(email, password);
   if (!user) {
-    return res.json({ code: 401, message: '密码错误' });
+    return res.json({ code: 401, message: '邮箱或密码不正确' });
   }
-  
-  // 检查邮箱是否已验证
-  // 老账号（email_verified != 1）直接通过，视为已验证（兼容旧用户）
+
+  // —— 邮箱必须已验证才能登录；老账号不再自动通过，强制走"重发验证邮件" ——
   if (user.email_verified !== 1) {
-    // 将老账号标记为已验证，避免再次验证
-    await userDb.verifyEmailDirectly(user.id);
-    user.email_verified = 1;
+    return res.json({
+      code: 403,
+      message: '邮箱尚未验证，请前往注册邮箱完成验证',
+      data: { needsEmailVerification: true, email: user.email }
+    });
   }
-  
+
   const token = auth.generateToken(user);
-  
+
   res.json({
     code: 0,
     data: {
@@ -162,7 +159,8 @@ router.post('/login', authLimiter, async (req, res) => {
         id: user.id,
         email: user.email,
         tier: user.tier,
-        subscriptionStatus: user.subscription_status
+        subscriptionStatus: user.subscription_status,
+        emailVerified: true
       }
     }
   });
@@ -296,19 +294,16 @@ router.get('/verify-email', async (req, res) => {
     try {
       const { sendWelcomeEmail } = require('../services/email');
       await sendWelcomeEmail(result.email);
-      const userDb2 = require('../userDb');
-      // 记录已发送
-      const { createClient } = require('@libsql/client');
-      const db = createClient({ url: process.env.TURSO_DATABASE_URL || 'file:data/users.db', authToken: process.env.TURSO_AUTH_TOKEN });
-      await db.execute({
+      // 复用全局 userDb.db，避免重复建立 Turso 连接
+      await userDb.db.execute({
         sql: 'CREATE TABLE IF NOT EXISTS email_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, email_type TEXT NOT NULL, sent_at INTEGER NOT NULL, UNIQUE(user_id, email_type))'
       });
-      await db.execute({
+      await userDb.db.execute({
         sql: 'INSERT OR IGNORE INTO email_logs (user_id, email_type, sent_at) VALUES (?, ?, ?)',
         args: [result.userId, 'welcome', Date.now()]
       });
     } catch (e) {
-      console.error('[auth] Welcome email failed:', e.message);
+      logger.error('[auth] Welcome email failed: ' + e.message);
     }
     
     // 返回成功 HTML 页面
@@ -415,21 +410,23 @@ router.post('/referral/apply', auth.required, async (req, res) => {
   }
 });
 
-// 管理员：触发生命周期邮件
-router.post('/admin/lifecycle-emails', async (req, res) => {
-  const key = req.headers['x-admin-key'];
-  const adminKey = process.env.ADMIN_API_KEY;
-  if (!adminKey || key !== adminKey) {
-    return res.status(403).json({ code: 403, message: '无权访问' });
-  }
-  
+// 管理员：触发生命周期邮件（复用统一的 admin key 中间件）
+router.post('/admin/lifecycle-emails', auth.requireAdminKey, async (req, res) => {
+  let lifecycle;
   try {
-    const lifecycle = require('../lifecycle');
+    lifecycle = require('../lifecycle');
+  } catch (e) {
+    return res.status(501).json({
+      code: 501,
+      message: 'lifecycle module not implemented'
+    });
+  }
+  try {
     const result = await lifecycle.run();
     res.json({ code: 0, data: result });
   } catch (err) {
-    console.error('[admin] Lifecycle emails error:', err);
-    res.status(500).json({ code: 500, message: err.message });
+    logger.error('[admin] Lifecycle emails error: ' + err.message);
+    res.status(500).json({ code: 500, message: 'lifecycle run failed' });
   }
 });
 

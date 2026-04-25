@@ -1,102 +1,147 @@
 /**
- * 文件清理工具 - 定期清理过期下载文件
+ * 文件清理工具 - 定期清理过期下载文件（全部使用异步 fs，避免阻塞事件循环）
  */
 
 const fs = require('fs');
+const fsp = require('fs').promises;
 const path = require('path');
 const logger = require('./logger');
 
 // 下载目录
 const DOWNLOAD_DIR = path.join(__dirname, '../../downloads');
 
-// 文件保留时间（默认24小时）
+// 文件保留时间（默认 24 小时）
 const FILE_RETENTION_HOURS = parseInt(process.env.FILE_RETENTION_HOURS || '24', 10);
 
+// 清理间隔（默认 1 小时）
+const CLEANUP_INTERVAL_MS = parseInt(
+  process.env.FILE_CLEANUP_INTERVAL_MS || String(60 * 60 * 1000),
+  10
+);
+
+// 在途清理"互斥锁"，防止多个 timer 重叠
+let cleaning = false;
+
 /**
- * 清理过期文件
+ * 清理过期文件（异步、限并发）
  */
-function cleanupOldFiles() {
+async function cleanupOldFiles() {
+  if (cleaning) {
+    logger.debug('[cleanup] previous run still in progress, skip');
+    return;
+  }
+  cleaning = true;
   try {
-    if (!fs.existsSync(DOWNLOAD_DIR)) {
-      logger.info('[cleanup] Download directory does not exist, skipping cleanup');
+    let dirExists = true;
+    try {
+      await fsp.access(DOWNLOAD_DIR, fs.constants.F_OK);
+    } catch {
+      dirExists = false;
+    }
+    if (!dirExists) {
+      logger.info('[cleanup] download directory does not exist, skip');
       return;
     }
 
     const now = Date.now();
-    const maxAge = FILE_RETENTION_HOURS * 60 * 60 * 1000; // 转换为毫秒
+    const maxAge = FILE_RETENTION_HOURS * 60 * 60 * 1000;
     let deletedCount = 0;
     let freedSpace = 0;
 
-    const files = fs.readdirSync(DOWNLOAD_DIR);
-    
-    for (const file of files) {
-      const filePath = path.join(DOWNLOAD_DIR, file);
-      
-      try {
-        const stats = fs.statSync(filePath);
-        
-        // 跳过目录
-        if (stats.isDirectory()) continue;
-        
-        // 检查文件年龄
-        const fileAge = now - stats.mtimeMs;
-        
-        if (fileAge > maxAge) {
-          const fileSize = stats.size;
-          fs.unlinkSync(filePath);
-          deletedCount++;
-          freedSpace += fileSize;
-          logger.info(`[cleanup] Deleted old file: ${file} (${(fileSize / 1024 / 1024).toFixed(2)}MB, age: ${(fileAge / 1000 / 60 / 60).toFixed(1)}h)`);
+    let entries = [];
+    try {
+      entries = await fsp.readdir(DOWNLOAD_DIR, { withFileTypes: true });
+    } catch (err) {
+      logger.error(`[cleanup] readdir failed: ${err.message}`);
+      return;
+    }
+
+    // 简单的并发限制（10）
+    const queue = entries.filter((e) => e.isFile()).map((e) => e.name);
+    const CONCURRENCY = 10;
+
+    async function worker() {
+      while (queue.length) {
+        const name = queue.shift();
+        if (!name) return;
+        const filePath = path.join(DOWNLOAD_DIR, name);
+        try {
+          const stat = await fsp.stat(filePath);
+          if (!stat.isFile()) continue;
+
+          const age = now - stat.mtimeMs;
+          if (age > maxAge) {
+            const size = stat.size;
+            try {
+              await fsp.unlink(filePath);
+              deletedCount++;
+              freedSpace += size;
+              logger.info(
+                `[cleanup] deleted ${name} (${(size / 1024 / 1024).toFixed(2)}MB, age=${(age / 3600000).toFixed(1)}h)`
+              );
+            } catch (delErr) {
+              logger.warn(`[cleanup] unlink failed for ${name}: ${delErr.message}`);
+            }
+          }
+        } catch (statErr) {
+          // 单个文件失败不影响整体
+          logger.debug(`[cleanup] stat failed for ${name}: ${statErr.message}`);
         }
-      } catch (err) {
-        logger.error(`[cleanup] Error processing file ${file}: ${err.message}`);
       }
     }
 
+    const workers = Array.from({ length: Math.min(CONCURRENCY, queue.length) }, () => worker());
+    await Promise.all(workers);
+
     if (deletedCount > 0) {
-      logger.info(`[cleanup] Cleanup complete: deleted ${deletedCount} files, freed ${(freedSpace / 1024 / 1024).toFixed(2)}MB`);
+      logger.info(
+        `[cleanup] done: deleted ${deletedCount} files, freed ${(freedSpace / 1024 / 1024).toFixed(2)}MB`
+      );
     } else {
-      logger.info('[cleanup] No old files to delete');
+      logger.info('[cleanup] no old files to delete');
     }
 
-    // 检查磁盘使用情况
-    checkDiskUsage();
+    await checkDiskUsage();
   } catch (err) {
-    logger.error(`[cleanup] Cleanup failed: ${err.message}`);
+    logger.error(`[cleanup] failed: ${err.message}`);
+  } finally {
+    cleaning = false;
   }
 }
 
 /**
- * 检查磁盘使用情况
+ * 异步统计磁盘使用情况
  */
-function checkDiskUsage() {
+async function checkDiskUsage() {
   try {
-    if (!fs.existsSync(DOWNLOAD_DIR)) return;
+    let entries = [];
+    try {
+      entries = await fsp.readdir(DOWNLOAD_DIR, { withFileTypes: true });
+    } catch {
+      return;
+    }
 
     let totalSize = 0;
-    const files = fs.readdirSync(DOWNLOAD_DIR);
-
-    for (const file of files) {
-      const filePath = path.join(DOWNLOAD_DIR, file);
+    let fileCount = 0;
+    for (const ent of entries) {
+      if (!ent.isFile()) continue;
       try {
-        const stats = fs.statSync(filePath);
-        if (stats.isFile()) {
-          totalSize += stats.size;
+        const stat = await fsp.stat(path.join(DOWNLOAD_DIR, ent.name));
+        if (stat.isFile()) {
+          totalSize += stat.size;
+          fileCount += 1;
         }
-      } catch (err) {
-        // 忽略单个文件错误
-      }
+      } catch {}
     }
 
     const totalSizeMB = totalSize / 1024 / 1024;
-    logger.info(`[cleanup] Current disk usage: ${totalSizeMB.toFixed(2)}MB (${files.length} files)`);
+    logger.info(`[cleanup] disk usage: ${totalSizeMB.toFixed(2)}MB (${fileCount} files)`);
 
-    // 如果超过1GB，发出警告
     if (totalSizeMB > 1024) {
-      logger.warn(`[cleanup] ⚠️ Disk usage exceeds 1GB! Consider reducing FILE_RETENTION_HOURS`);
+      logger.warn('[cleanup] ⚠️ disk usage > 1GB; consider lowering FILE_RETENTION_HOURS');
     }
   } catch (err) {
-    logger.error(`[cleanup] Disk usage check failed: ${err.message}`);
+    logger.error(`[cleanup] disk usage check failed: ${err.message}`);
   }
 }
 
@@ -104,14 +149,16 @@ function checkDiskUsage() {
  * 启动定期清理任务
  */
 function startCleanupSchedule() {
-  // 立即执行一次
-  cleanupOldFiles();
+  // 立即触发一次（不阻塞）
+  cleanupOldFiles().catch((e) => logger.error('[cleanup] initial run failed: ' + e.message));
 
-  // 每小时执行一次
-  const intervalMs = 60 * 60 * 1000; // 1小时
-  setInterval(cleanupOldFiles, intervalMs);
+  setInterval(() => {
+    cleanupOldFiles().catch((e) => logger.error('[cleanup] scheduled run failed: ' + e.message));
+  }, CLEANUP_INTERVAL_MS);
 
-  logger.info(`[cleanup] Cleanup scheduler started (interval: 1 hour, retention: ${FILE_RETENTION_HOURS} hours)`);
+  logger.info(
+    `[cleanup] scheduler started (interval=${(CLEANUP_INTERVAL_MS / 60000).toFixed(0)}min, retention=${FILE_RETENTION_HOURS}h)`
+  );
 }
 
 module.exports = {

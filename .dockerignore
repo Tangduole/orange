@@ -1,0 +1,51 @@
+# Git
+.git
+.gitignore
+.github
+
+# Node modules / 构建产物（容器内会重新装）
+**/node_modules
+**/dist
+**/build
+frontend/.vite
+
+# 本地数据 / 下载 / 日志
+data
+downloads
+logs
+*.log
+
+# 本地数据库文件
+*.db
+*.sqlite
+*.sqlite3
+
+# 本地环境与凭据（绝不进镜像）
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# 移动端产物
+*.apk
+*.aab
+*.ipa
+
+# 临时 / 备份 / 设计稿
+*.backup
+*.bak
+*.tmp
+**/*.patch.md
+
+# 系统/编辑器
+.DS_Store
+.idea
+.vscode
+Thumbs.db
+
+# 文档与脚本
+README*.md
+docs
+tools
+scripts/dev*

@@ -22,28 +22,11 @@ const { DOWNLOAD_DIR } = require('./services/yt-dlp');
 // 验证环境变量
 validateEnv();
 
-const backend = require('path').join(__dirname, '..', '..');
-if (!fs.existsSync(path.join(backend, 'data'))) {
-  fs.mkdirSync(path.join(backend, 'data'), { recursive: true });
-}
-if (!fs.existsSync(path.join(backend, 'downloads'))) {
-  fs.mkdirSync(path.join(backend, 'downloads'), { recursive: true });
-}
-
-
-// 从环境变量写入 YouTube cookies
-if (process.env.YT_COOKIES_B64) {
-  try {
-    const fs = require('fs');
-    const path = require('path');
-    const cookiesDir = path.join(__dirname, '..', 'data');
-    if (!fs.existsSync(cookiesDir)) fs.mkdirSync(cookiesDir, { recursive: true });
-    const cookiesPath = path.join(cookiesDir, 'youtube_cookies.txt');
-    fs.writeFileSync(cookiesPath, Buffer.from(process.env.YT_COOKIES_B64, 'base64').toString('utf-8'));
-    logger.info('[startup] YouTube cookies written from env var');
-  } catch (e) {
-    logger.error('[startup] Failed to write cookies:', e.message);
-  }
+// 确保关键目录存在（注意：__dirname 是 backend/src，向上一级才是 backend/）
+const backendRoot = path.join(__dirname, '..');
+for (const dir of ['downloads']) {
+  const p = path.join(backendRoot, dir);
+  if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
 }
 
 const app = express();
@@ -69,15 +52,29 @@ if (isProduction()) {
 }
 
 // 中间件
-// CORS 配置
-const allowedOrigins = [
+// CORS 配置（默认白名单 + 通过 ENV 扩展）
+//   CORS_ALLOWED_ORIGINS  : 逗号分隔的 origin 列表（精确匹配）
+//   CORS_ALLOWED_PATTERNS : 逗号分隔的正则字符串（按 RegExp 解析）
+const defaultOrigins = [
   'https://orangedl.com',
   'https://www.orangedl.com',
   'https://api.orangedl.com',
-  'https://orange-production-95b9.up.railway.app',
   /^https:\/\/frontend-.*\.vercel\.app$/, // Vercel preview
-  /^http:\/\/localhost:\d+$/,             // 本地开发
+  /^http:\/\/localhost:\d+$/              // 本地开发
 ];
+const extraOrigins = String(process.env.CORS_ALLOWED_ORIGINS || '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean);
+const extraPatterns = String(process.env.CORS_ALLOWED_PATTERNS || '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean)
+  .map(p => {
+    try { return new RegExp(p); } catch { return null; }
+  })
+  .filter(Boolean);
+const allowedOrigins = [...defaultOrigins, ...extraOrigins, ...extraPatterns];
 
 app.use(cors({
   origin: function (origin, callback) {
@@ -91,7 +88,16 @@ app.use(cors({
   },
   credentials: true
 }));
-app.use(express.json());
+
+// LemonSqueezy webhook 必须拿到原始 body 才能做 HMAC 校验，
+// 因此对 /api/subscribe/webhook 单独使用 express.raw，不参与全局 JSON 解析。
+app.use('/api/subscribe/webhook', express.raw({ type: '*/*', limit: '1mb' }));
+
+// 其它请求统一走 JSON
+app.use((req, res, next) => {
+  if (req.originalUrl === '/api/subscribe/webhook') return next();
+  return express.json({ limit: '1mb' })(req, res, next);
+});
 
 // 全局速率限制
 app.use('/api', apiLimiter);
@@ -207,5 +213,3 @@ app.listen(PORT, '0.0.0.0', () => {
 });
 
 module.exports = app;
-// force deploy 1774513672
-// deploy 1774516790
