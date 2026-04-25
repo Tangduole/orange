@@ -627,8 +627,11 @@ export default function App() {
       // 延迟 500ms 后AutoDownload
       autoDownloadTimer.current = setTimeout(() => {
         setDownloading(true)
-        if (isIOS() && !isNativeApp()) {
+        // iOS Safari web: 不触发自动下载，让用户通过inline video长按保存
+        if (isIOS() && !isNativeApp() && !task.directLink) {
           setShowIosGuide(true)
+          setDownloading(false)
+          return
         }
         shareFile(task.downloadUrl, task.title || 'video').finally(() => {
           setDownloading(false)
@@ -1465,29 +1468,51 @@ export default function App() {
                 </div>
               )}
 
-              {/* VideoDownload */}
-              {task.status === 'completed' && task.downloadUrl && (
-                <button 
-                  onClick={async () => {
-                    clearAutoDownload()  // 取消AutoDownload
-                    autoDownloaded.current = true  // Mark为已Process
-                    setDownloading(true)
-                    // 检查是否为直接Link（YouTube等）
-                    if (task.directLink) {
-                      // 直接在新窗口打开Link（需完整URL，否则打到前端域名）
-                      const fullUrl = task.downloadUrl.startsWith('http') ? task.downloadUrl : `${BASE_URL}${task.downloadUrl}`
-                      window.open(fullUrl, '_blank')
-                      setDownloading(false)
-                    } else {
+              {/* Video Save - Inline <video> tag for iOS long-press save */}
+              {task.status === 'completed' && task.downloadUrl && !task.directLink && (
+                <div className="mt-2">
+                  <div className="relative rounded-xl overflow-hidden bg-black">
+                    <video
+                      src={task.downloadUrl.startsWith('http') ? task.downloadUrl : `${BASE_URL}${task.downloadUrl}`}
+                      controls
+                      playsInline
+                      style={{ width: '100%', borderRadius: '12px', maxHeight: '400px' }}
+                      preload="metadata"
+                    />
+                  </div>
+                  <p style={{ color: 'gray', fontSize: '13px', marginTop: '6px', textAlign: 'center' }}>
+                    长按视频 → 存储视频
+                  </p>
+                  <button
+                    onClick={async () => {
+                      clearAutoDownload()  // 取消AutoDownload
+                      autoDownloaded.current = true  // Mark为已Process
+                      setDownloading(true)
                       await shareFile(task.downloadUrl, task.title || 'video', 'video')
                       setDownloading(false)
-                    }
+                    }}
+                    disabled={downloading}
+                    className="w-full mt-2 py-3 rounded-xl text-sm font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                    {downloading ? t('downloading') : 'Save to Photos'}
+                  </button>
+                </div>
+              )}
+
+              {/* Direct Link Download (YouTube etc.) */}
+              {task.status === 'completed' && task.downloadUrl && task.directLink && (
+                <button
+                  onClick={() => {
+                    clearAutoDownload()
+                    autoDownloaded.current = true
+                    const fullUrl = task.downloadUrl!.startsWith('http') ? task.downloadUrl : `${BASE_URL}${task.downloadUrl}`
+                    window.open(fullUrl, '_blank')
                   }}
-                  disabled={downloading}
-                  className="w-full py-3.5 rounded-2xl text-sm font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full py-3.5 rounded-2xl text-sm font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-2"
                 >
-                  {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} 
-                  {downloading ? t('downloading') : (task.directLink ? t('openVideo') : (isIOS() ? t('downloadToPhone') : 'Save to Device'))}
+                  <Download className="w-4 h-4" />
+                  {t('openVideo')}
                 </button>
               )}
 
