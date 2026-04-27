@@ -1,0 +1,13 @@
+{
+	"appId": "com.orange.downloader",
+	"appName": "Orange Downloader",
+	"webDir": "dist",
+	"plugins": {
+		"GallerySaver": {},
+		"LocalNotifications": {
+			"smallIcon": "ic_notification",
+			"iconColor": "#FF6B35",
+			"sound": "beep.wav"
+		}
+	}
+}

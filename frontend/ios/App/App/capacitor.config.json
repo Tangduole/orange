@@ -1,0 +1,8 @@
+{
+	"appId": "com.orange.downloader",
+	"appName": "Orange Downloader",
+	"webDir": "dist",
+	"packageClassList": [
+		"FilesystemPlugin"
+	]
+}
