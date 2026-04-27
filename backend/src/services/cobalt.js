@@ -80,7 +80,7 @@ function requestCobalt(url, options = {}) {
     downloadMode: options.downloadMode || 'auto', // auto | audio | mute
     youtubeVideoCodec: options.youtubeVideoCodec || 'h264',
     youtubeDubLang: options.youtubeDubLang,
-    twitterGif: options.twitterGif !== false,
+    // twitterGif removed in cobalt 11.7+ // twitterGif: options.twitterGif !== false,
     tiktokFullAudio: options.tiktokFullAudio || false,
     disableMetadata: options.disableMetadata || false,
     alwaysProxy: options.alwaysProxy || false,
