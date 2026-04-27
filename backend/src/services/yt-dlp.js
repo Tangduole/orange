@@ -50,6 +50,7 @@ function download(url, taskId, onProgress, quality = null) {
     // YouTube 专用参数（YouTube 主链路已切到 TikHub V2，此处仅作通用入口的兜底）
     if (/youtube\.com|youtu\.be/i.test(url)) {
       args.push('--extractor-args', 'youtube:player_client=android');
+      args.push('--extractor-args', 'youtube:player_skip=webpage,configurations');
     }
     
     // Bilibili 专用参数
@@ -58,11 +59,21 @@ function download(url, taskId, onProgress, quality = null) {
       args.push('--extractor-args', 'bilibili:prefer_multi_flv=true');
     }
     
+    // Translate quality string to yt-dlp format selector
+    let ytFormat = 'bestvideo+bestaudio/best';
+    if (quality && quality.includes('height<=')) {
+      const m = quality.match(/height<=(\d+)/);
+      if (m) {
+        const h = m[1];
+        ytFormat = 'bestvideo[height<=' + h + '][ext=mp4]+bestaudio[ext=m4a]/best[height<=' + h + '][ext=mp4]/bestvideo[height<=' + h + ']+bestaudio/best';
+      }
+    }
+
     args.push(
       '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      '--format', quality || 'bestvideo+bestaudio/best',
-      '--write-thumbnail',      // 下载封面
-      '--write-auto-subs',      // 下载自动字幕
+      '--format', ytFormat,
+      '--write-thumbnail',
+      '--write-auto-subs',
       '--sub-langs', 'zh-Hans,zh-Hant,en',
       '--sub-format', 'srt',
       '--output', outputTemplate,
@@ -314,6 +325,7 @@ function downloadAudio(url, taskId, onProgress) {
     // YouTube 专用参数（YouTube 主链路已切到 TikHub V2，此处仅作通用入口的兜底）
     if (/youtube\.com|youtu\.be/i.test(url)) {
       args.push('--extractor-args', 'youtube:player_client=android');
+      args.push('--extractor-args', 'youtube:player_skip=webpage,configurations');
     }
 
     args.push(url);
