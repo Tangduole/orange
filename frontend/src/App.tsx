@@ -166,10 +166,11 @@ export default function App() {
   const [batchMode, setBatchMode] = useState(false)
   const [quality, setQuality] = useState('')
   const [asrLanguage, setAsrLanguage] = useState('zh')
-  const [availableQualities, setAvailableQualities] = useState<Array<{quality: string, format: string, width: number, height: number, hasVideo: boolean, hasAudio: boolean}>>([])
+  const [availableQualities, setAvailableQualities] = useState<Array<{qualityLabel?: string, sizeLabel?: string, quality: string, format: string, width: number, height: number, hasVideo: boolean, hasAudio: boolean, size?: number}>>([])
   const [showQualityPicker, setShowQualityPicker] = useState(false)
   const [qualityCountdown, setQualityCountdown] = useState(0)
   const [pendingUrl, setPendingUrl] = useState('')
+  const [videoInfoForPicker, setVideoInfoForPicker] = useState<{title: string, thumbnail: string}>({title: '', thumbnail: ''})
   const [batchUrls, setBatchUrls] = useState('')
 
   // Auth state
@@ -491,9 +492,9 @@ export default function App() {
     return () => clearInterval(t)
   }, [task?.taskId])
 
-  // VIP画质选择器:3秒倒计时超时自动下载2K
+  // 画质选择器:3秒倒计时超时自动下载最佳画质(VIP=2K, 免费=720p)
   useEffect(() => {
-    if (!showQualityPicker || !isVip) {
+    if (!showQualityPicker) {
       setQualityCountdown(0)
       return
     }
@@ -502,12 +503,12 @@ export default function App() {
       setQualityCountdown(prev => {
         if (prev <= 1) {
           clearInterval(timer)
-          // 超时自动下载2K
           setShowQualityPicker(false)
           setLoading(true)
+          const autoQuality = isVip ? 'height<=1440' : 'height<=720'
           axios.post(`${API}/download`, {
             url: pendingUrl, platform: detected || 'auto',
-            needAsr: selected.has('asr'), options: [...selected], quality: 'height<=1440', asrLanguage,
+            needAsr: selected.has('asr'), options: [...selected], quality: autoQuality, asrLanguage,
           }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} }).then(r => {
             setTask(r.data.data)
             setDetected('')
@@ -808,26 +809,26 @@ export default function App() {
       setLoading(false)
       return
     }
-    // First get video info to show quality selection
     setLoading(true); setError('')
     
-    // ========== VIP用户：弹出画质选择器 ==========
-    if (isVip && !skipQualityPicker) {
+    // ========== 弹出画质选择器（VIP和免费用户都弹） ==========
+    if (!skipQualityPicker) {
       try {
         const infoRes = await axios.post(`${API}/video-info`, { url: url.trim() }, { timeout: 30000 })
         const qualities = infoRes.data.data?.qualities || [];
+        const videoTitle = infoRes.data.data?.title || ''
+        const videoThumb = infoRes.data.data?.thumbnail || ''
         
         if (qualities.length > 0) {
-          // 格式化画质选项（720p/1080p/2K/4K）
           const formattedQualities = qualities
-            .filter((q: any) => q.height >= 720 && q.hasVideo && q.hasAudio)
+            .filter((q: any) => q.height >= 360 && q.hasVideo)
             .map((q: any) => {
               let label = `${q.height}p`
               if (q.height >= 2160) label = '4K'
               else if (q.height >= 1440) label = '2K'
               else if (q.height >= 1080) label = '1080p'
               else if (q.height >= 720) label = '720p'
-              return { ...q, qualityLabel: label }
+              return { ...q, qualityLabel: label, sizeLabel: formatFileSize(q.size) }
             })
             .sort((a: any, b: any) => b.height - a.height);
           
@@ -836,27 +837,29 @@ export default function App() {
             setPendingUrl(url.trim())
             setShowQualityPicker(true)
             setLoading(false)
+            setVideoInfoForPicker({ title: videoTitle, thumbnail: videoThumb })
             return
           }
         }
       } catch (e) {
         console.log('[quality] Failed to fetch qualities')
       }
-      // 获取失败：默认显示2K选项
+      // 获取失败：默认显示选项
       const defaultQualities = [
-        { qualityLabel: '4K', quality: 'height<=2160', width: 3840, height: 2160, hasVideo: true, hasAudio: true },
-        { qualityLabel: '2K', quality: 'height<=1440', width: 2560, height: 1440, hasVideo: true, hasAudio: true },
-        { qualityLabel: '1080p', quality: 'height<=1080', width: 1920, height: 1080, hasVideo: true, hasAudio: true },
-        { qualityLabel: '720p', quality: 'height<=720', width: 1280, height: 720, hasVideo: true, hasAudio: true },
+        { qualityLabel: '4K', quality: 'height<=2160', width: 3840, height: 2160, hasVideo: true, hasAudio: true, sizeLabel: '' },
+        { qualityLabel: '2K', quality: 'height<=1440', width: 2560, height: 1440, hasVideo: true, hasAudio: true, sizeLabel: '' },
+        { qualityLabel: '1080p', quality: 'height<=1080', width: 1920, height: 1080, hasVideo: true, hasAudio: true, sizeLabel: '' },
+        { qualityLabel: '720p', quality: 'height<=720', width: 1280, height: 720, hasVideo: true, hasAudio: true, sizeLabel: '' },
       ]
       setAvailableQualities(defaultQualities)
       setPendingUrl(url.trim())
       setShowQualityPicker(true)
       setLoading(false)
+      setVideoInfoForPicker({ title: '', thumbnail: '' })
       return
     }
     
-    // ========== 非VIP用户：直接下载720p ==========
+    // ========== 直接下载（跳过画质选择） ==========
     const downloadQuality = isVip ? quality : 'height<=720'
     try {
       const r = await axios.post(`${API}/download`, {
@@ -945,6 +948,13 @@ export default function App() {
   }
   const clip = async (text: string, id: string) => {
     try { await navigator.clipboard.writeText(text); setCopied(id); setTimeout(() => setCopied(null), 3000) } catch {}
+  }
+  const formatFileSize = (bytes: number) => {
+    if (!bytes || bytes <= 0) return ''
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`
+    if (bytes < 1073741824) return `${(bytes / 1048576).toFixed(1)} MB`
+    return `${(bytes / 1073741824).toFixed(2)} GB`
   }
   const clearUrl = () => { setUrl(''); setDetected('') }
 
@@ -1691,45 +1701,21 @@ export default function App() {
         {showQualityPicker && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700">
-              <div className="flex items-center justify-between mb-1">
-                <h3 className="text-lg font-bold text-white">{t('selectQuality2K')}</h3>
-                <span className="text-xs text-slate-400" id="quality-countdown">{qualityCountdown > 0 ? `${qualityCountdown}s` : ''}</span>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-bold text-white">{isVip ? t('selectQuality2K') : t('selectQuality')}</h3>
+                <span className="text-xs text-slate-400">{qualityCountdown > 0 ? `${qualityCountdown}s` : ''}</span>
               </div>
-              <p className="text-xs text-slate-300 mb-4">
-                {isVip ? <span className="text-yellow-400">⭐ {t('vipOnly')} · {qualityCountdown > 0 ? t('countdownAuto2K', {count: qualityCountdown}) : t('default2K')}</span> : <span className="text-orange-400">{t('vipOnly')}</span>}
-              </p>
-              <div className="space-y-2 max-h-60 overflow-y-auto">
-                {/* Default 2K option (VIP only, auto-selects best available) */}
-                {isVip && (
-                  <button
-                    onClick={() => {
-                      setShowQualityPicker(false)
-                      setLoading(true)
-                      // VIP默认2K：highest quality available
-                      axios.post(`${API}/download`, {
-                        url: pendingUrl, platform: detected || 'auto',
-                        needAsr: selected.has('asr'), options: [...selected], quality: 'height<=1440', asrLanguage,
-                      }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} }).then(r => {
-                        setTask(r.data.data)
-                        setDetected('')
-                      }).catch((e: any) => {
-                        setError(getErrorMessage(e.response?.data?.message || e.message || 'Download failed'))
-                      }).finally(() => setLoading(false))
-                    }}
-                    className="w-full flex items-center justify-between p-3 rounded-xl transition text-left bg-gradient-to-r from-yellow-500/10 to-orange-500/10 hover:from-yellow-500/20 hover:to-orange-500/20 border border-yellow-500/30"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-yellow-400">⭐ 2K (自动)</span>
-                      <span className="text-xs text-slate-300">{t("bestAvailable")}</span>
-                    </div>
-                    <span className="text-xs text-yellow-400">推荐</span>
-                  </button>
-                )}
+              {!isVip && (
+                <p className="text-xs text-orange-400 mb-3 bg-orange-500/10 px-3 py-2 rounded-lg">
+                  🔒 {t('vipOnly')} — {t('freeLimit')}
+                </p>
+              )}
+              <div className="space-y-2 max-h-64 overflow-y-auto">
                 {availableQualities.map((q, idx) => {
-                  const isHighQuality = q.height > 720
+                  const isHighQuality = q.height > 1080
                   const canSelect = isVip || !isHighQuality
-                  // Use qualityLabel if set, otherwise fallback to display name
                   const qualityLabel = (q as any).qualityLabel || q.quality || `${q.height}p`
+                  const sizeLabel = (q as any).sizeLabel || ''
                   return (
                     <button
                       key={idx}
@@ -1740,12 +1726,7 @@ export default function App() {
                           return
                         }
                         setShowQualityPicker(false)
-                        // Set quality filter for download
-                        let qParam = ''
-                        if (q.height >= 1440) qParam = `height<=${q.height}` // 4K/2K
-                        else if (q.height >= 1080) qParam = 'height<=1080'
-                        else if (q.height >= 720) qParam = 'height<=720'
-                        // Proceed with download
+                        let qParam = `height<=${q.height || 99999}`
                         setLoading(true)
                         axios.post(`${API}/download`, {
                           url: pendingUrl, platform: detected || 'auto',
@@ -1758,15 +1739,20 @@ export default function App() {
                         }).finally(() => setLoading(false))
                       }}
                       className={`w-full flex items-center justify-between p-3 rounded-xl transition text-left ${
-                        canSelect ? 'bg-slate-700/50 hover:bg-slate-700' : 'bg-slate-800/50 opacity-50 cursor-not-allowed'
+                        canSelect ? 'bg-slate-700/50 hover:bg-slate-700 border border-slate-600/50' : 'bg-slate-800/50 opacity-60 cursor-not-allowed border border-slate-700/50'
                       }`}
                     >
-                      <div className="flex items-center gap-2">
-                        <span className={`font-medium ${canSelect ? 'text-white' : 'text-slate-300'}`}>{qualityLabel}</span>
-                        {q.width > 0 && <span className={`text-xs ${canSelect ? 'text-slate-300' : 'text-slate-500'}`}>{q.width}x{q.height}</span>}
-                        {isHighQuality && !isVip && <span className="text-xs text-orange-400 ml-1">🚫 {t('vipOnly')}</span>}
+                      <div className="flex flex-col flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className={`font-medium ${canSelect ? 'text-white' : 'text-slate-300'}`}>{qualityLabel}</span>
+                          {q.width > 0 && <span className={`text-xs ${canSelect ? 'text-slate-400' : 'text-slate-500'}`}>{q.width}x{q.height}</span>}
+                          {isHighQuality && !isVip && <span className="text-xs text-orange-400">⭐ VIP</span>}
+                          {idx === 0 && isVip && <span className="text-xs text-yellow-400">推荐</span>}
+                        </div>
+                        {sizeLabel && <span className="text-xs text-slate-500 mt-0.5">📦 {sizeLabel}{q.hasAudio ? '' : ' (no audio)'}</span>}
                       </div>
-                      <span className="text-xs text-slate-300">{q.hasAudio ? '🎬' : '🎵'}</span>
+                      {q.hasAudio && q.hasVideo && <span className="text-xs text-slate-500 ml-2">🎬</span>}
+                      {!q.hasVideo && q.hasAudio && <span className="text-xs text-slate-500 ml-2">🎵</span>}
                     </button>
                   )
                 })}

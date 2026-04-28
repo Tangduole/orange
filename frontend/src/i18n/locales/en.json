@@ -170,5 +170,6 @@
   "downloadAgain": "Download Again",
   "alreadyInHistory": "Video already in download history",
   "default2K": "Default 2K",
-  "countdownAuto2K": "{count}s until auto 2K"
+  "countdownAuto2K": "{count}s until auto 2K",
+  "freeLimit": "1080p+ is VIP only, free up to 720p"
 }

@@ -170,5 +170,6 @@
   "downloadAgain": "再下载一次",
   "alreadyInHistory": "视频已在下载记录中",
   "default2K": "默认2K",
-  "countdownAuto2K": "{count}s后自动2K"
+  "countdownAuto2K": "{count}s后自动2K",
+  "freeLimit": "1080p以上为VIP专属，免费可用720p"
 }
