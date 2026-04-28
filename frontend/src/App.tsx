@@ -718,10 +718,9 @@ export default function App() {
       console.log('[quality] Failed to fetch qualities, using default')
     }
     // 获取Failed时：抖音默认给720pOption，YouTube给720p
-    const defaultQualities = [
+    setAvailableQualities([
       { quality: '720p', width: 1280, height: 720, hasVideo: true, hasAudio: true },
-    ]
-    setAvailableQualities(defaultQualities)
+    ])
     setPendingUrl(videoUrl)
     setShowQualityPicker(true)
     return true
@@ -844,19 +843,12 @@ export default function App() {
       } catch (e) {
         console.log('[quality] Failed to fetch qualities')
       }
-      // 获取失败：默认显示选项
-      const defaultQualities = [
-        { qualityLabel: '4K', quality: 'height<=2160', width: 3840, height: 2160, hasVideo: true, hasAudio: true, sizeLabel: '' },
-        { qualityLabel: '2K', quality: 'height<=1440', width: 2560, height: 1440, hasVideo: true, hasAudio: true, sizeLabel: '' },
-        { qualityLabel: '1080p', quality: 'height<=1080', width: 1920, height: 1080, hasVideo: true, hasAudio: true, sizeLabel: '' },
-        { qualityLabel: '720p', quality: 'height<=720', width: 1280, height: 720, hasVideo: true, hasAudio: true, sizeLabel: '' },
-      ]
-      setAvailableQualities(defaultQualities)
-      setPendingUrl(url.trim())
-      setShowQualityPicker(true)
+      // 获取失败：显示提示并直接下载（不显示假的画质选项）
       setLoading(false)
-      setVideoInfoForPicker({ title: '', thumbnail: '' })
+      // 直接下载，不弹假画质选择器
+      doSingleDownload(true)
       return
+      // replaced - direct download
     }
     
     // ========== 直接下载（跳过画质选择） ==========

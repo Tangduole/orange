@@ -2002,10 +2002,24 @@ async function getVideoInfo(req, res) {
       }
     }
 
-    // For Instagram & other cobalt-supported platforms, return single best quality
-    // (cobalt doesn't provide multi-quality picker for most platforms)
+    // For platforms without multi-quality support, return single "Best" option
+    if (platform === 'x') {
+      return res.json({
+        code: 0,
+        data: {
+          title: 'X/Twitter Video',
+          thumbnail: '',
+          duration: 0,
+          platform: 'x',
+          qualities: [
+            { quality: 'Best Available', format: 'mp4', width: 1280, height: 720, hasVideo: true, hasAudio: true }
+          ]
+        }
+      });
+    }
+
     const defaultQualities = [
-      { quality: 'Max Quality', format: 'mp4', width: 0, height: 0, hasVideo: true, hasAudio: true }
+      { quality: 'Best Available', format: 'mp4', width: 1280, height: 720, hasVideo: true, hasAudio: true }
     ];
 
     return res.json({
