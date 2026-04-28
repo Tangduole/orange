@@ -505,7 +505,7 @@ export default function App() {
           clearInterval(timer)
           setShowQualityPicker(false)
           setLoading(true)
-          const autoQuality = isVip ? 'height<=1440' : 'height<=720'
+          const autoQuality = isVip ? 'height<=2160' : 'height<=720'
           axios.post(`${API}/download`, {
             url: pendingUrl, platform: detected || 'auto',
             needAsr: selected.has('asr'), options: [...selected], quality: autoQuality, asrLanguage,
