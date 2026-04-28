@@ -561,19 +561,25 @@ async function getDouyinVideoInfo(url) {
       size: 0
     }));
   
-  // Deduplicate and sort
   const seen = new Set();
   const unique = actualQualities.filter(q => !seen.has(q.height) && seen.add(q.height));
   
-  // Build full quality list (from common douyin formats)
   const qualityMap = new Map();
   for (const q of unique) qualityMap.set(q.height, q);
   
-  // Common douyin heights: 540, 720, 1080, 1920(=1080x1920 vertical), 1440, 2160
-  const presets = [540, 720, 1080, 1920, 1440, 2160];
+  const maxHeight = unique.length > 0 ? unique[0].height : 1080;
+  // Generate preset options from 540p up to max available height
+  const presets = [540, 720, 1080, 1920, 1440, 2160, 4320].filter(h => h <= maxHeight);
   const qualities = presets
-    .filter(h => qualityMap.has(h))
-    .map(h => qualityMap.get(h))
+    .map(h => qualityMap.get(h) || {
+      quality: heightToLabel(h),
+      format: 'mp4',
+      width: Math.round(h * 9 / 16),
+      height: h,
+      hasVideo: true,
+      hasAudio: true,
+      size: 0
+    })
     .sort((a, b) => b.height - a.height);
   
   if (qualities.length === 0) {
