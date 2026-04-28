@@ -1922,42 +1922,81 @@ async function getVideoInfo(req, res) {
     // For Xiaohongshu, get quality options from TikHub h264 array
     if (platform === 'xiaohongshu' || /xiaohongshu\.com|xhslink\.com/i.test(url)) {
       try {
-        const { parseXiaohongshu } = require('../services/tikhub');
-        // Quick fetch for quality info only (not downloading)
-        const { tikhubRequest } = require('../services/tikhub');
+        const { tikhubRequest: xhsReq } = require('../services/tikhub');
         const xhsData = await getCachedInfo('xhs:' + url, async () => {
-          return await tikhubRequest('/api/v1/xiaohongshu/web_v2/fetch_feed_notes_v3?short_url=' + encodeURIComponent(url));
+          return await xhsReq('/api/v1/xiaohongshu/web_v2/fetch_feed_notes_v3?short_url=' + encodeURIComponent(url));
         }, 'info');
         const note = xhsData.note || xhsData.data?.note || {};
         const xhsVideo = note.video || {};
         const media = xhsVideo.media || {};
         const stream = media.stream || {};
         const h264 = stream.h264 || [];
-        const qualities = h264
-          .filter(s => s.masterUrl)
-          .sort((a, b) => (b.avgBitrate || 0) - (a.avgBitrate || 0))
-          .map((s, i) => ({
-            quality: heightToLabel(s.height || (i === 0 ? 1080 : 720)),
-            format: 'mp4',
-            width: s.width || 0,
-            height: s.height || (i === 0 ? 1080 : 720),
-            hasVideo: true,
-            hasAudio: true,
-            size: (s.avgBitrate || 0) * (xhsVideo.capa?.duration || 10) / 8
-          }));
-        if (qualities.length === 0) {
-          qualities.push({ quality: 'Best', format: 'mp4', width: 0, height: 0, hasVideo: true, hasAudio: true });
-        }
-        return res.json({
-          code: 0,
-          data: {
-            title: note.title || 'Xiaohongshu Note',
-            thumbnail: xhsVideo.image?.thumbnailFileid ? 'https://ci.xiaohongshu.com/' + xhsVideo.image.thumbnailFileid : '',
-            duration: xhsVideo.capa?.duration || 0,
-            platform: 'xiaohongshu',
-            qualities
+
+        if (h264.length > 0) {
+          const validStreams = h264.filter(s => s.masterUrl).sort((a, b) => (b.avgBitrate || 0) - (a.avgBitrate || 0));
+          const qualityMap = new Map();
+          const qualities = [];
+
+          for (const s of validStreams) {
+            let h = s.height || 0;
+            if (!h && s.definition) {
+              const defMatch = String(s.definition).match(/(\d+)p?/i);
+              if (defMatch) h = parseInt(defMatch[1]);
+            }
+            if (!h && s.avgBitrate) {
+              const br = s.avgBitrate;
+              if (br > 8000000) h = 2160;
+              else if (br > 4000000) h = 1440;
+              else if (br > 2000000) h = 1080;
+              else if (br > 800000) h = 720;
+              else h = 480;
+            }
+            if (h > 0 && !qualityMap.has(h)) {
+              qualityMap.set(h, {
+                quality: heightToLabel(h),
+                format: 'mp4',
+                width: s.width || Math.round(h * 9 / 16),
+                height: h,
+                hasVideo: true,
+                hasAudio: true,
+                size: (s.avgBitrate || 0) * (xhsVideo.capa?.duration || 10) / 8
+              });
+            }
           }
-        });
+
+          const sorted = [...qualityMap.values()].sort((a, b) => b.height - a.height);
+          for (const q of sorted) qualities.push(q);
+
+          if (qualities.length <= 1) {
+            const maxHeight = qualities.length > 0 ? qualities[0].height : 1080;
+            const presets = [540, 720, 1080, 1440, 2160].filter(h => h <= maxHeight);
+            for (const h of presets) {
+              if (!qualityMap.has(h)) {
+                qualities.push({
+                  quality: heightToLabel(h),
+                  format: 'mp4',
+                  width: Math.round(h * 9 / 16),
+                  height: h,
+                  hasVideo: true,
+                  hasAudio: true,
+                  size: 0
+                });
+              }
+            }
+            qualities.sort((a, b) => b.height - a.height);
+          }
+
+          return res.json({
+            code: 0,
+            data: {
+              title: note.title || 'Xiaohongshu Note',
+              thumbnail: xhsVideo.image?.thumbnailFileid ? 'https://ci.xiaohongshu.com/' + xhsVideo.image.thumbnailFileid : '',
+              duration: xhsVideo.capa?.duration || 0,
+              platform: 'xiaohongshu',
+              qualities: qualities.length > 0 ? qualities : [{ quality: 'Best', format: 'mp4', width: 0, height: 0, hasVideo: true, hasAudio: true }]
+            }
+          });
+        }
       } catch (e) {
         logger.warn('[video-info] Xiaohongshu error:', e.message);
       }
