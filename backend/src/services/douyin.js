@@ -539,28 +539,42 @@ function isDouyinUrl(url) {
 async function getDouyinVideoInfo(url) {
   const info = await parseDouyinPage(url, { targetRatio: '1080p' });
   const allQualities = info.allQualities || [];
-  // Deduplicate by height, sort descending
+  const actualQualities = allQualities
+    .filter(q => q.height > 0)
+    .map(q => ({
+      quality: heightToLabel(q.height),
+      format: 'mp4',
+      width: q.width || 0,
+      height: q.height,
+      hasVideo: true,
+      hasAudio: true,
+      size: 0
+    }));
+  
+  // Deduplicate and sort
   const seen = new Set();
-  const qualities = allQualities
-    .filter(q => q.height > 0 && !seen.has(q.height))
-    .map(q => {
-      seen.add(q.height);
-      return {
-        quality: `${q.height}p`,
-        format: 'mp4',
-        width: q.width || 0,
-        height: q.height,
-        hasVideo: true,
-        hasAudio: true,
-        size: 0
-      };
-    })
+  const unique = actualQualities.filter(q => !seen.has(q.height) && seen.add(q.height));
+  
+  // Build full quality list (from common douyin formats)
+  const qualityMap = new Map();
+  for (const q of unique) qualityMap.set(q.height, q);
+  
+  // Common douyin heights: 540, 720, 1080, 1920(=1080x1920 vertical), 1440, 2160
+  const presets = [540, 720, 1080, 1920, 1440, 2160];
+  const qualities = presets
+    .filter(h => qualityMap.has(h))
+    .map(h => qualityMap.get(h))
     .sort((a, b) => b.height - a.height);
+  
+  if (qualities.length === 0) {
+    qualities.push({ quality: '720p', format: 'mp4', width: 1280, height: 720, hasVideo: true, hasAudio: true });
+  }
+  
   return {
     title: info.title || '抖音作品',
     thumbnail: info.coverUrl || '',
     duration: info.duration || 0,
-    qualities: qualities.length > 0 ? qualities : [{ quality: '720p', format: 'mp4', width: 1280, height: 720, hasVideo: true, hasAudio: true }]
+    qualities
   };
 }
 
