@@ -549,29 +549,19 @@ function isDouyinUrl(url) {
 async function getDouyinVideoInfo(url) {
   const info = await parseDouyinPage(url, { targetRatio: '1080p' });
   const allQualities = info.allQualities || [];
-  const actualQualities = allQualities
-    .filter(q => q.height > 0)
-    .map(q => ({
-      quality: heightToLabel(q.height),
-      format: 'mp4',
-      width: q.width || 0,
-      height: q.height,
-      hasVideo: true,
-      hasAudio: true,
-      size: 0
-    }));
   
-  const seen = new Set();
-  const unique = actualQualities.filter(q => !seen.has(q.height) && seen.add(q.height));
+  // Check if we have valid downloadable candidates
+  const hasValidCandidates = info.videoCandidates && info.videoCandidates.length > 0;
   
-  const qualityMap = new Map();
-  for (const q of unique) qualityMap.set(q.height, q);
+  // Max showable quality: only trust metadata if we have valid download URLs
+  const metaMaxHeight = allQualities.length > 0 ? allQualities[0].height : 1080;
+  // Conservative: if no valid candidates, cap at 1080p (iesdouyin often shows fake 4K)
+  const trustedMaxHeight = hasValidCandidates ? metaMaxHeight : Math.min(metaMaxHeight, 1080);
   
-  const maxHeight = unique.length > 0 ? unique[0].height : 1080;
-  // Generate preset options from 540p up to max available height
-  const presets = [540, 720, 1080, 1920, 1440, 2160, 4320].filter(h => h <= maxHeight);
+  // Build preset options from 540p up to trusted max
+  const presets = [540, 720, 1080, 1920, 1440, 2160, 4320].filter(h => h <= trustedMaxHeight);
   const qualities = presets
-    .map(h => qualityMap.get(h) || {
+    .map(h => ({
       quality: heightToLabel(h),
       format: 'mp4',
       width: Math.round(h * 9 / 16),
@@ -579,18 +569,14 @@ async function getDouyinVideoInfo(url) {
       hasVideo: true,
       hasAudio: true,
       size: 0
-    })
+    }))
     .sort((a, b) => b.height - a.height);
-  
-  if (qualities.length === 0) {
-    qualities.push({ quality: '720p', format: 'mp4', width: 1280, height: 720, hasVideo: true, hasAudio: true });
-  }
   
   return {
     title: info.title || '抖音作品',
     thumbnail: info.coverUrl || '',
     duration: info.duration || 0,
-    qualities
+    qualities: qualities.length > 0 ? qualities : [{ quality: '720p', format: 'mp4', width: 1280, height: 720, hasVideo: true, hasAudio: true }]
   };
 }
 
