@@ -358,6 +358,8 @@ async function parseDouyinPage(url, opts = {}) {
     throw new Error('无法提取媒体文件，可能需要登录查看');
   }
 
+  result.allQualities = videoChoices.map(c => ({ width: c.width, height: c.height }));
+
   return result;
 }
 
@@ -530,10 +532,43 @@ function isDouyinUrl(url) {
   return /douyin\.com|iesdouyin\.com/.test(url);
 }
 
+/**
+ * 获取抖音视频画质信息（不下载，只返回画质列表）
+ * 复用 parseDouyinPage 的解析逻辑，提取 bit_rate 数组
+ */
+async function getDouyinVideoInfo(url) {
+  const info = await parseDouyinPage(url, { targetRatio: '1080p' });
+  const allQualities = info.allQualities || [];
+  // Deduplicate by height, sort descending
+  const seen = new Set();
+  const qualities = allQualities
+    .filter(q => q.height > 0 && !seen.has(q.height))
+    .map(q => {
+      seen.add(q.height);
+      return {
+        quality: `${q.height}p`,
+        format: 'mp4',
+        width: q.width || 0,
+        height: q.height,
+        hasVideo: true,
+        hasAudio: true,
+        size: 0
+      };
+    })
+    .sort((a, b) => b.height - a.height);
+  return {
+    title: info.title || '抖音作品',
+    thumbnail: info.coverUrl || '',
+    duration: info.duration || 0,
+    qualities: qualities.length > 0 ? qualities : [{ quality: '720p', format: 'mp4', width: 1280, height: 720, hasVideo: true, hasAudio: true }]
+  };
+}
+
 module.exports = {
   downloadDouyin,
   parseDouyinPage,
   isDouyinUrl,
+  getDouyinVideoInfo,
   // exposed for tests / advanced callers
   buildCandidates,
   bumpRatio,
