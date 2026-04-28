@@ -1462,6 +1462,25 @@ async function processInstagram(taskId, url, needAsr, options = ['video']) {
 /**
  * 平台自动识别
  */
+function heightToLabel(h) {
+  if (h >= 4320) return '8K';
+  if (h >= 2160) return '4K';
+  if (h >= 1440) return '2K';
+  if (h >= 1080) return '1080p';
+  if (h >= 720) return '720p';
+  if (h >= 480) return '480p';
+  if (h >= 360) return '360p';
+  return `${h}p`;
+}
+
+function formatSize(bytes) {
+  if (!bytes || bytes <= 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1073741824) return `${(bytes / 1048576).toFixed(1)} MB`;
+  return `${(bytes / 1073741824).toFixed(2)} GB`;
+}
+
 function detectPlatform(url) {
   const patterns = {
     douyin: /douyin\.com|douyin\.cn|iesdouyin\.com/,
@@ -1469,6 +1488,9 @@ function detectPlatform(url) {
     x: /twitter\.com|x\.com/,
     youtube: /youtube\.com|youtu\.be/,
 
+    instagram: /instagram\.com|instagr\.am/,
+    xiaohongshu: /xiaohongshu\.com|xhslink\.com/,
+    bilibili: /bilibili\.com|b23\.tv/,
     kuaishou: /kuaishou\.com|v\.kuaishou\.com/
   };
 
@@ -1779,69 +1801,55 @@ async function getVideoInfo(req, res) {
       const videoIdMatch = url.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/);
       if (!videoIdMatch) return res.status(400).json({ code: -1, message: 'Invalid YouTube URL' });
 
-      const API_KEY_YT = process.env.TIKHUB_API_KEY_YT;
-      const axios = require('axios');
-      const ytUrl = `https://api.tikhub.io/api/v1/youtube/web/get_video_info?video_id=${videoIdMatch[1]}&need_format=true`;
+      const videoId = videoIdMatch[1];
+      const cacheKey = `yt-dlp:${videoId}`;
+      const ytdlp = require('../services/yt-dlp');
 
-      // 使用缓存避免重复请求 TikHub API
-      const resp = await getCachedInfo(`yt:${videoIdMatch[1]}`, async () => {
-        const response = await axios.get(ytUrl, { headers: { Authorization: `Bearer ${API_KEY_YT}` }, timeout: 30000 });
-        return response.data;
-      });
-      const data = resp.data || resp; // TikHub 返回 {code, data:{...}} 结构
+      let qualities = [];
+      let title = 'YouTube Video';
+      let thumbnail = '';
+      let duration = 0;
 
-      const videos = data.videos?.items || [];
-      const qualities = videos
-        .filter(v => v.url)
-        .map(v => {
-          const w = v.width || 0
-          const h = v.height || 0
-          // Generate quality label from height
-          let qualityLabel = v.qualityLabel || ''
-          if (!qualityLabel && h > 0) {
-            if (h >= 2160) qualityLabel = '4K'
-            else if (h >= 1440) qualityLabel = '2K'
-            else if (h >= 1080) qualityLabel = '1080p'
-            else if (h >= 720) qualityLabel = '720p'
-            else if (h >= 480) qualityLabel = '480p'
-            else if (h >= 360) qualityLabel = '360p'
-            else qualityLabel = `${h}p`
-          }
-          return {
-            quality: qualityLabel || 'unknown',
-            format: v.mimeType?.split(';')[0] || 'video/mp4',
-            width: w,
-            height: h,
-            hasVideo: v.hasVideo !== false,
-            hasAudio: v.hasAudio !== false,
-            size: v.contentLength || 0
-          }
-        })
-        .sort((a, b) => (b.height || 0) - (a.height || 0));
+      try {
+        // 使用 yt-dlp --dump-single-json 获取格式和元数据
+        const ytInfo = await getCachedInfo(cacheKey, async () => {
+          return await ytdlp.getInfo(url);
+        }, 'info');
 
-      // Add audio-only option if available
-      const audioOnly = videos.filter(v => !v.hasVideo && v.url);
-      if (audioOnly.length > 0) {
-        qualities.push({
-          quality: 'Audio Only',
-          format: 'audio/mp4',
-          width: 0,
-          height: 0,
-          hasVideo: false,
-          hasAudio: true,
-          size: audioOnly[0].contentLength || 0
-        });
+        title = ytInfo.title || title;
+        thumbnail = ytInfo.thumbnail || thumbnail;
+        duration = ytInfo.duration || 0;
+
+        if (ytInfo.formats && Array.isArray(ytInfo.formats)) {
+          const seen = new Set();
+          qualities = ytInfo.formats
+            .filter(f => f.vcodec !== 'none' && f.height)
+            .map(f => ({
+              quality: heightToLabel(f.height),
+              format: f.ext || 'mp4',
+              width: f.width || 0,
+              height: f.height,
+              hasVideo: true,
+              hasAudio: f.acodec !== 'none',
+              size: f.filesize || f.filesize_approx || 0,
+              formatId: f.format_id
+            }))
+            .filter(q => !seen.has(q.height) && seen.add(q.height))
+            .sort((a, b) => (b.height || 0) - (a.height || 0));
+        }
+      } catch (e) {
+        logger.warn(`[video-info] yt-dlp failed for ${url}: ${e.message}`);
+        // Fallback: return single best quality
+        qualities = [{ quality: 'Max', format: 'mp4', width: 0, height: 0, hasVideo: true, hasAudio: true }];
+      }
+
+      if (qualities.length === 0) {
+        qualities = [{ quality: 'Max', format: 'mp4', width: 0, height: 0, hasVideo: true, hasAudio: true }];
       }
 
       return res.json({
         code: 0,
-        data: {
-          title: data.title || 'YouTube Video',
-          thumbnail: data.thumbnails?.[0]?.url || '',
-          duration: data.lengthSeconds ? parseInt(data.lengthSeconds) : 0,
-          platform: 'youtube',
-          qualities
-        }
+        data: { title, thumbnail, duration, platform: 'youtube', qualities }
       });
     }
     // For Douyin, get actual qualities from bit_rate
@@ -1935,7 +1943,56 @@ async function getVideoInfo(req, res) {
       }
     }
 
-    // For other platforms, return default quality
+    // For Xiaohongshu, get quality options from TikHub h264 array
+    if (platform === 'xiaohongshu' || /xiaohongshu\.com|xhslink\.com/i.test(url)) {
+      try {
+        const { parseXiaohongshu } = require('../services/tikhub');
+        // Quick fetch for quality info only (not downloading)
+        const { tikhubRequest } = require('../services/tikhub');
+        const xhsData = await getCachedInfo('xhs:' + url, async () => {
+          return await tikhubRequest('/api/v1/xiaohongshu/web_v2/fetch_feed_notes_v3?short_url=' + encodeURIComponent(url));
+        }, 'info');
+        const note = xhsData.note || xhsData.data?.note || {};
+        const xhsVideo = note.video || {};
+        const media = xhsVideo.media || {};
+        const stream = media.stream || {};
+        const h264 = stream.h264 || [];
+        const qualities = h264
+          .filter(s => s.masterUrl)
+          .sort((a, b) => (b.avgBitrate || 0) - (a.avgBitrate || 0))
+          .map((s, i) => ({
+            quality: heightToLabel(s.height || (i === 0 ? 1080 : 720)),
+            format: 'mp4',
+            width: s.width || 0,
+            height: s.height || (i === 0 ? 1080 : 720),
+            hasVideo: true,
+            hasAudio: true,
+            size: (s.avgBitrate || 0) * (xhsVideo.capa?.duration || 10) / 8
+          }));
+        if (qualities.length === 0) {
+          qualities.push({ quality: 'Best', format: 'mp4', width: 0, height: 0, hasVideo: true, hasAudio: true });
+        }
+        return res.json({
+          code: 0,
+          data: {
+            title: note.title || 'Xiaohongshu Note',
+            thumbnail: xhsVideo.image?.thumbnailFileid ? 'https://ci.xiaohongshu.com/' + xhsVideo.image.thumbnailFileid : '',
+            duration: xhsVideo.capa?.duration || 0,
+            platform: 'xiaohongshu',
+            qualities
+          }
+        });
+      } catch (e) {
+        logger.warn('[video-info] Xiaohongshu error:', e.message);
+      }
+    }
+
+    // For Instagram & other cobalt-supported platforms, return single best quality
+    // (cobalt doesn't provide multi-quality picker for most platforms)
+    const defaultQualities = [
+      { quality: 'Max Quality', format: 'mp4', width: 0, height: 0, hasVideo: true, hasAudio: true }
+    ];
+
     return res.json({
       code: 0,
       data: {
@@ -1943,9 +2000,7 @@ async function getVideoInfo(req, res) {
         thumbnail: '',
         duration: 0,
         platform: platform || 'auto',
-        qualities: [
-          { quality: 'Best', format: 'video/mp4', width: 0, height: 0, hasVideo: true, hasAudio: true }
-        ]
+        qualities: defaultQualities
       }
     });
   } catch (e) {
