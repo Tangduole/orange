@@ -93,6 +93,39 @@ async function downloadToStream(url, destPath, timeout = TIMEOUT.DOWNLOAD) {
 }
 
 /**
+ * 提取音频为 MP3（统一处理所有平台的音频转换）
+ */
+async function extractAudioToMp3(videoPath, taskId, destDir = null) {
+  const dir = destDir || path.join(__dirname, '../../downloads');
+  const audioPath = path.join(dir, `${taskId}.mp3`);
+  const { spawn } = require('child_process');
+  await new Promise((resolve, reject) => {
+    const ff = spawn('ffmpeg', ['-i', videoPath, '-vn', '-acodec', 'libmp3lame', '-b:a', '128k', '-y', audioPath]);
+    const timer = setTimeout(() => { ff.kill('SIGKILL'); reject(new Error('timeout')); }, TIMEOUT.FFMPEG);
+    ff.on('close', code => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error('ffmpeg exit ' + code)); });
+    ff.on('error', err => { clearTimeout(timer); reject(err); });
+  });
+  return audioPath;
+}
+
+/**
+ * 任务完成收尾：增加下载计数 + 保存历史 + 释放锁
+ */
+async function finalizeTask(taskId) {
+  const task = store.get(taskId);
+  if (!task) return;
+  if (task.status === TASK_STATUS.COMPLETED) {
+    try {
+      const userDb = require('../userDb');
+      if (task.userId) await userDb.incrementDownloads(task.userId);
+      else if (task.guestIp) await userDb.incrementGuestDownload(task.guestIp);
+    } catch (e) { logger.error('[finalize] count failed:', e.message); }
+  }
+  saveHistory(taskId);
+  taskLock.release(taskId);
+}
+
+/**
  * 创建下载任务
  */
 async function createDownload(req, res) {
@@ -489,16 +522,7 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
             store.update(taskId, update);
           }
 
-          let task = store.get(taskId);
-          if (task.status === TASK_STATUS.COMPLETED) {
-            const userDb = require('../userDb');
-            if (task.userId) {
-              await userDb.incrementDownloads(task.userId);
-            } else if (task.guestIp) {
-              await userDb.incrementGuestDownload(task.guestIp);
-            }
-          }
-          saveHistory(taskId);
+          await finalizeTask(taskId);
           logger.info(`[task] ${taskId} completed via cobalt (generic platform)`);
           return;
         } catch (cobaltErr) {
@@ -643,24 +667,12 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
       }
     }
 
-    // 下载成功后增加用户计数
-    let task = store.get(taskId);
-    if (task.status === TASK_STATUS.COMPLETED) {
-      const userDb = require('../userDb');
-      if (task.userId) {
-        await userDb.incrementDownloads(task.userId);
-      } else if (task.guestIp) {
-        await userDb.incrementGuestDownload(task.guestIp);
-      }
-    }
-
-    saveHistory(taskId);
+    await finalizeTask(taskId);
     logger.info(`[task] ${taskId} completed`);
   } catch (error) {
     logger.error(`[task] ${taskId} failed:`, error);
     store.update(taskId, { status: TASK_STATUS.ERROR, error: error.message });
   } finally {
-    // 释放任务锁
     taskLock.release(taskId);
   }
 }
@@ -867,18 +879,7 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
 
     store.update(taskId, update);
 
-    // 下载成功后增加用户计数
-    task = store.get(taskId);
-    if (task.status === TASK_STATUS.COMPLETED) {
-      const userDb = require('../userDb');
-      if (task.userId) {
-        await userDb.incrementDownloads(task.userId);
-      } else if (task.guestIp) {
-        await userDb.incrementGuestDownload(task.guestIp);
-      }
-    }
-
-    saveHistory(taskId);
+    await finalizeTask(taskId);
     logger.info(`[task] ${taskId} douyin completed`);
   } catch (error) {
     logger.error(`[task] ${taskId} douyin failed:`, error);
@@ -967,24 +968,12 @@ async function processX(taskId, url, needAsr, options = ['video']) {
       if (asrResult?.text) { const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl }; if (asrResult.translatedText) { upd.translatedText = asrResult.translatedText; upd.translatedTxtUrl = asrResult.translatedTxtUrl; } store.update(taskId, upd); }
     }
 
-    // 下载成功后增加用户计数
-    let task = store.get(taskId);
-    if (task.status === TASK_STATUS.COMPLETED) {
-      const userDb = require('../userDb');
-      if (task.userId) {
-        await userDb.incrementDownloads(task.userId);
-      } else if (task.guestIp) {
-        await userDb.incrementGuestDownload(task.guestIp);
-      }
-    }
-
-    saveHistory(taskId);
+    await finalizeTask(taskId);
     logger.info(`[task] ${taskId} x completed`);
   } catch (error) {
     logger.error(`[task] ${taskId} x failed:`, error);
     store.update(taskId, { status: TASK_STATUS.ERROR, error: error.message || 'X/Twitter 下载失败' });
   } finally {
-    // 释放任务锁
     taskLock.release(taskId);
   }
 }
@@ -1053,12 +1042,7 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
       fileRefManager.addRef(cobaltResult.filePath.split('/').pop());
       store.update(taskId, cobaltUpdate);
 
-      let task = store.get(taskId);
-      if (task.userId) {
-        const userDb = require('../userDb');
-        await userDb.incrementDownloads(task.userId);
-      }
-      saveHistory(taskId);
+      await finalizeTask(taskId);
       logger.info(`[task] ${taskId} youtube completed via cobalt`);
       return;
     }
@@ -1095,16 +1079,7 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
       fileRefManager.addRef(`${taskId}.mp4`);
       store.update(taskId, update);
 
-      let task = store.get(taskId);
-      if (task.status === TASK_STATUS.COMPLETED) {
-        const userDb = require('../userDb');
-        if (task.userId) {
-          await userDb.incrementDownloads(task.userId);
-        } else if (task.guestIp) {
-          await userDb.incrementGuestDownload(task.guestIp);
-        }
-      }
-      saveHistory(taskId);
+      await finalizeTask(taskId);
       logger.info(`[task] ${taskId} youtube completed via TikHub v2 (${result.quality})`);
       return;
     }
@@ -1139,12 +1114,7 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
     fileRefManager.addRef(`${taskId}.mp4`);
     store.update(taskId, update);
 
-    let task3 = store.get(taskId);
-    if (task3.userId) {
-      const userDb = require('../userDb');
-      await userDb.incrementDownloads(task3.userId);
-    }
-    saveHistory(taskId);
+    await finalizeTask(taskId);
     logger.info(`[task] ${taskId} youtube completed via yt-dlp`);
   } catch (error) {
     logger.error(`[task] ${taskId} YouTube failed:`, error);
@@ -1302,18 +1272,7 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
       if (asrResult?.text) { const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl }; if (asrResult.translatedText) { upd.translatedText = asrResult.translatedText; upd.translatedTxtUrl = asrResult.translatedTxtUrl; } store.update(taskId, upd); }
     }
 
-    // 下载成功后增加用户计数
-    let task = store.get(taskId);
-    if (task.status === TASK_STATUS.COMPLETED) {
-      const userDb = require('../userDb');
-      if (task.userId) {
-        await userDb.incrementDownloads(task.userId);
-      } else if (task.guestIp) {
-        await userDb.incrementGuestDownload(task.guestIp);
-      }
-    }
-
-    saveHistory(taskId);
+    await finalizeTask(taskId);
     logger.info(`[task] ${taskId} tiktok completed`);
   } catch (error) {
     logger.error(`[task] ${taskId} tiktok failed:`, error);
@@ -1323,7 +1282,6 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
       error: error.message || 'TikTok 下载失败'
     });
   } finally {
-    // 释放任务锁
     taskLock.release(taskId);
   }
 }
@@ -1377,24 +1335,12 @@ async function processXiaohongshu(taskId, url, needAsr, options = ['video']) {
 
     store.update(taskId, update);
 
-    // 下载成功后增加用户计数
-    let task = store.get(taskId);
-    if (task.status === TASK_STATUS.COMPLETED) {
-      const userDb = require('../userDb');
-      if (task.userId) {
-        await userDb.incrementDownloads(task.userId);
-      } else if (task.guestIp) {
-        await userDb.incrementGuestDownload(task.guestIp);
-      }
-    }
-
-    saveHistory(taskId);
+    await finalizeTask(taskId);
     logger.info(`[task] ${taskId} xiaohongshu completed`);
   } catch (error) {
     logger.error(`[task] ${taskId} xiaohongshu failed:`, error);
     store.update(taskId, { status: TASK_STATUS.ERROR, error: error.message });
   } finally {
-    // 释放任务锁
     taskLock.release(taskId);
   }
 }
@@ -1468,16 +1414,7 @@ async function processInstagram(taskId, url, needAsr, options = ['video']) {
         store.update(taskId, update);
       }
 
-      let task = store.get(taskId);
-      if (task.status === TASK_STATUS.COMPLETED) {
-        const userDb = require('../userDb');
-        if (task.userId) {
-          await userDb.incrementDownloads(task.userId);
-        } else if (task.guestIp) {
-          await userDb.incrementGuestDownload(task.guestIp);
-        }
-      }
-      saveHistory(taskId);
+      await finalizeTask(taskId);
       logger.info(`[task] ${taskId} instagram completed via cobalt`);
       return;
     }
@@ -1511,17 +1448,7 @@ async function processInstagram(taskId, url, needAsr, options = ['video']) {
     fileRefManager.addRef(`${taskId}.mp4`);
     store.update(taskId, update);
 
-    let task2 = store.get(taskId);
-    if (task2.status === TASK_STATUS.COMPLETED) {
-      const userDb = require('../userDb');
-      if (task2.userId) {
-        await userDb.incrementDownloads(task2.userId);
-      } else if (task2.guestIp) {
-        await userDb.incrementGuestDownload(task2.guestIp);
-      }
-    }
-
-    saveHistory(taskId);
+    await finalizeTask(taskId);
     logger.info(`[task] ${taskId} instagram completed via TikHub`);
   } catch (error) {
     logger.error(`[task] ${taskId} instagram failed:`, error);
