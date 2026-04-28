@@ -13,6 +13,16 @@
  *              aweme.amemv.com 等），按优先级一个个试，任一成功即返回。
  */
 
+function heightToLabel(h) {
+  if (h >= 4320) return '8K';
+  if (h >= 2160) return '4K';
+  if (h >= 1440) return '2K';
+  if (h >= 1080) return '1080p';
+  if (h >= 720) return '720p';
+  if (h >= 480) return '480p';
+  if (h >= 360) return '360p';
+  return "%sp".replace("%s", String(h));
+}
 const https = require('https');
 const http = require('http');
 const { URL } = require('url');
