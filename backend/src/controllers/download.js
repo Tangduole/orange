@@ -1462,6 +1462,25 @@ async function processInstagram(taskId, url, needAsr, options = ['video']) {
 /**
  * 平台自动识别
  */
+function heightToLabel(h) {
+  if (h >= 4320) return '8K';
+  if (h >= 2160) return '4K';
+  if (h >= 1440) return '2K';
+  if (h >= 1080) return '1080p';
+  if (h >= 720) return '720p';
+  if (h >= 480) return '480p';
+  if (h >= 360) return '360p';
+  return `${h}p`;
+}
+
+function formatSize(bytes) {
+  if (!bytes || bytes <= 0) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1073741824) return `${(bytes / 1048576).toFixed(1)} MB`;
+  return `${(bytes / 1073741824).toFixed(2)} GB`;
+}
+
 function detectPlatform(url) {
   const patterns = {
     douyin: /douyin\.com|douyin\.cn|iesdouyin\.com/,
@@ -1469,6 +1488,9 @@ function detectPlatform(url) {
     x: /twitter\.com|x\.com/,
     youtube: /youtube\.com|youtu\.be/,
 
+    instagram: /instagram\.com|instagr\.am/,
+    xiaohongshu: /xiaohongshu\.com|xhslink\.com/,
+    bilibili: /bilibili\.com|b23\.tv/,
     kuaishou: /kuaishou\.com|v\.kuaishou\.com/
   };
 
@@ -1921,7 +1943,56 @@ async function getVideoInfo(req, res) {
       }
     }
 
-    // For other platforms, return default quality
+    // For Xiaohongshu, get quality options from TikHub h264 array
+    if (platform === 'xiaohongshu' || /xiaohongshu\.com|xhslink\.com/i.test(url)) {
+      try {
+        const { parseXiaohongshu } = require('../services/tikhub');
+        // Quick fetch for quality info only (not downloading)
+        const { tikhubRequest } = require('../services/tikhub');
+        const xhsData = await getCachedInfo('xhs:' + url, async () => {
+          return await tikhubRequest('/api/v1/xiaohongshu/web_v2/fetch_feed_notes_v3?short_url=' + encodeURIComponent(url));
+        }, 'info');
+        const note = xhsData.note || xhsData.data?.note || {};
+        const xhsVideo = note.video || {};
+        const media = xhsVideo.media || {};
+        const stream = media.stream || {};
+        const h264 = stream.h264 || [];
+        const qualities = h264
+          .filter(s => s.masterUrl)
+          .sort((a, b) => (b.avgBitrate || 0) - (a.avgBitrate || 0))
+          .map((s, i) => ({
+            quality: heightToLabel(s.height || (i === 0 ? 1080 : 720)),
+            format: 'mp4',
+            width: s.width || 0,
+            height: s.height || (i === 0 ? 1080 : 720),
+            hasVideo: true,
+            hasAudio: true,
+            size: (s.avgBitrate || 0) * (xhsVideo.capa?.duration || 10) / 8
+          }));
+        if (qualities.length === 0) {
+          qualities.push({ quality: 'Best', format: 'mp4', width: 0, height: 0, hasVideo: true, hasAudio: true });
+        }
+        return res.json({
+          code: 0,
+          data: {
+            title: note.title || 'Xiaohongshu Note',
+            thumbnail: xhsVideo.image?.thumbnailFileid ? 'https://ci.xiaohongshu.com/' + xhsVideo.image.thumbnailFileid : '',
+            duration: xhsVideo.capa?.duration || 0,
+            platform: 'xiaohongshu',
+            qualities
+          }
+        });
+      } catch (e) {
+        logger.warn('[video-info] Xiaohongshu error:', e.message);
+      }
+    }
+
+    // For Instagram & other cobalt-supported platforms, return single best quality
+    // (cobalt doesn't provide multi-quality picker for most platforms)
+    const defaultQualities = [
+      { quality: 'Max Quality', format: 'mp4', width: 0, height: 0, hasVideo: true, hasAudio: true }
+    ];
+
     return res.json({
       code: 0,
       data: {
@@ -1929,9 +2000,7 @@ async function getVideoInfo(req, res) {
         thumbnail: '',
         duration: 0,
         platform: platform || 'auto',
-        qualities: [
-          { quality: 'Best', format: 'video/mp4', width: 0, height: 0, hasVideo: true, hasAudio: true }
-        ]
+        qualities: defaultQualities
       }
     });
   } catch (e) {
