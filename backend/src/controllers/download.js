@@ -1010,23 +1010,75 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
     store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
     store.update(taskId, { requestedQuality: quality });
 
-    // ========== TikHub v2 API (主力) ==========
+    // Parse quality from height<= format if present
+    let videoQuality = 'max';
+    if (quality && quality.includes('height<=')) {
+      const match = quality.match(/height<=(\d+)/);
+      if (match) videoQuality = match[1] + 'p';
+    }
+
+    // ========== Cobalt (第一优先 - 更高画质 + 免费) ==========
+    const { isCobaltConfigured, downloadViaCobalt } = require('../services/cobalt');
+    let cobaltResult = null;
+    if (isCobaltConfigured()) {
+      try {
+        logger.info(`[task] ${taskId} youtube trying cobalt first...`);
+        cobaltResult = await downloadViaCobalt(url, taskId, {
+          onProgress: (percent) => store.update(taskId, {
+            status: percent < 90 ? TASK_STATUS.DOWNLOADING : TASK_STATUS.PROCESSING,
+            progress: percent
+          }),
+          options: {
+            videoQuality,
+            youtubeVideoCodec: 'h264',
+            filenameStyle: 'basic'
+          }
+        });
+      } catch (cobaltErr) {
+        logger.warn(`[task] ${taskId} cobalt failed: ${cobaltErr.message}, trying TikHub...`);
+      }
+    }
+
+    // Cobalt 成功
+    if (cobaltResult) {
+      const cobaltUpdate = {
+        status: TASK_STATUS.COMPLETED,
+        height: 1080,
+        quality: cobaltResult.cobaltFilename || '1080p',
+        progress: 100,
+        downloadUrl: cobaltResult.downloadUrl,
+        filePath: cobaltResult.filePath,
+        ext: cobaltResult.ext
+      };
+      fileRefManager.addRef(cobaltResult.filePath.split('/').pop());
+      store.update(taskId, cobaltUpdate);
+
+      let task = store.get(taskId);
+      if (task.userId) {
+        const userDb = require('../userDb');
+        await userDb.incrementDownloads(task.userId);
+      }
+      saveHistory(taskId);
+      logger.info(`[task] ${taskId} youtube completed via cobalt`);
+      return;
+    }
+
+    // ========== TikHub v2 API Fallback ==========
     let result = null;
     try {
       const { parseYouTubeV2 } = require('../services/tikhub');
       result = await parseYouTubeV2(url, taskId, (percent, downloaded, total) => {
-        store.update(taskId, { 
-          status: percent < 30 ? TASK_STATUS.PARSING : TASK_STATUS.DOWNLOADING, 
-          progress: percent, 
-          downloadedBytes: downloaded || 0, 
-          totalBytes: total || 0 
+        store.update(taskId, {
+          status: percent < 30 ? TASK_STATUS.PARSING : TASK_STATUS.DOWNLOADING,
+          progress: percent,
+          downloadedBytes: downloaded || 0,
+          totalBytes: total || 0
         });
       }, quality);
     } catch (tikhubErr) {
-      logger.warn(`[task] ${taskId} TikHub failed: ${tikhubErr.message}, trying Cobalt...`);
+      logger.warn(`[task] ${taskId} TikHub failed: ${tikhubErr.message}, trying yt-dlp...`);
     }
 
-    // If TikHub succeeded, use that result; otherwise try Cobalt
     if (result) {
       const update = {
         status: TASK_STATUS.COMPLETED,
@@ -1054,100 +1106,48 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
       }
       saveHistory(taskId);
       logger.info(`[task] ${taskId} youtube completed via TikHub v2 (${result.quality})`);
-    } else {
-      // ========== Cobalt Fallback ==========
-      const { isCobaltConfigured, downloadViaCobalt } = require('../services/cobalt');
-      if (!isCobaltConfigured()) {
-        throw new Error('YouTube download failed (TikHub error) and Cobalt is not configured');
-      }
-      
-      store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
-      
-      // Parse quality from height<= format if present
-      let videoQuality = 'max';
-      if (quality && quality.includes('height<=')) {
-        const match = quality.match(/height<=(d+)/);
-        if (match) videoQuality = match[1] + 'p';
-      }
-      
-      const cobaltResult = await downloadViaCobalt(url, taskId, {
-        onProgress: (percent) => store.update(taskId, { 
-          status: percent < 90 ? TASK_STATUS.DOWNLOADING : TASK_STATUS.PROCESSING, 
-          progress: percent 
-        }),
-        options: { 
-          videoQuality,
-          youtubeVideoCodec: 'h264',
-          filenameStyle: 'basic'
-        }
-      });
-      
-      const cobaltUpdate = {
-        status: TASK_STATUS.COMPLETED,
-        height: 1080, // Cobalt doesn't always give exact height in tunnel mode
-        quality: cobaltResult.cobaltFilename || '1080p',
-        progress: 100,
-        downloadUrl: cobaltResult.downloadUrl,
-        filePath: cobaltResult.filePath,
-        ext: cobaltResult.ext
-      };
-      store.update(taskId, cobaltUpdate);
-      fileRefManager.addRef(cobaltResult.filePath.split('/').pop());
-      
-      let task2 = store.get(taskId);
-      if (task2.userId) {
-        const userDb = require('../userDb');
-        await userDb.incrementDownloads(task2.userId);
-      }
-      saveHistory(taskId);
-      logger.info(`[task] ${taskId} youtube completed via Cobalt fallback`);
-    }
-  } catch (error) {
-    logger.error(`[task] ${taskId} YouTube failed: TikHub and Cobalt both failed. Trying yt-dlp...`);
-
-    // Step 3: yt-dlp final fallback
-    try {
-      const ytdlp = require('../services/yt-dlp');
-      store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
-
-      const ytdlpResult = await ytdlp.download(url, taskId, (percent, speed, eta, downloaded, total) => {
-        store.update(taskId, {
-          status: percent < 90 ? TASK_STATUS.DOWNLOADING : TASK_STATUS.PROCESSING,
-          progress: Math.round(percent),
-          downloadedBytes: downloaded || 0,
-          totalBytes: total || 0,
-          speed: speed || '',
-          eta: eta || ''
-        });
-      });
-
-      const update = {
-        status: TASK_STATUS.COMPLETED,
-        height: ytdlpResult.height || 720,
-        quality: ytdlpResult.ext || 'mp4',
-        progress: 100,
-        title: ytdlpResult.title || 'YouTube Video',
-        thumbnailUrl: ytdlpResult.thumbnailUrl || '',
-        downloadUrl: `/download/${taskId}.mp4`,
-        filePath: ytdlpResult.filePath,
-        ext: ytdlpResult.ext || 'mp4'
-      };
-      fileRefManager.addRef(`${taskId}.mp4`);
-      store.update(taskId, update);
-
-      let task3 = store.get(taskId);
-      if (task3.userId) {
-        const userDb = require('../userDb');
-        await userDb.incrementDownloads(task3.userId);
-      }
-      saveHistory(taskId);
-      logger.info(`[task] ${taskId} YouTube completed via yt-dlp fallback`);
-      taskLock.release(taskId);
       return;
-    } catch (ytdlpErr) {
-      logger.error(`[task] ${taskId} yt-dlp fallback also failed: ${ytdlpErr.message}`);
     }
 
+    // ========== yt-dlp 最终兜底 ==========
+    logger.info(`[task] ${taskId} youtube trying yt-dlp...`);
+    const ytdlp = require('../services/yt-dlp');
+    store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
+
+    const ytdlpResult = await ytdlp.download(url, taskId, (percent, speed, eta, downloaded, total) => {
+      store.update(taskId, {
+        status: percent < 90 ? TASK_STATUS.DOWNLOADING : TASK_STATUS.PROCESSING,
+        progress: Math.round(percent),
+        downloadedBytes: downloaded || 0,
+        totalBytes: total || 0,
+        speed: speed || '',
+        eta: eta || ''
+      });
+    });
+
+    const update = {
+      status: TASK_STATUS.COMPLETED,
+      height: ytdlpResult.height || 720,
+      quality: ytdlpResult.ext || 'mp4',
+      progress: 100,
+      title: ytdlpResult.title || 'YouTube Video',
+      thumbnailUrl: ytdlpResult.thumbnailUrl || '',
+      downloadUrl: `/download/${taskId}.mp4`,
+      filePath: ytdlpResult.filePath,
+      ext: ytdlpResult.ext || 'mp4'
+    };
+    fileRefManager.addRef(`${taskId}.mp4`);
+    store.update(taskId, update);
+
+    let task3 = store.get(taskId);
+    if (task3.userId) {
+      const userDb = require('../userDb');
+      await userDb.incrementDownloads(task3.userId);
+    }
+    saveHistory(taskId);
+    logger.info(`[task] ${taskId} youtube completed via yt-dlp`);
+  } catch (error) {
+    logger.error(`[task] ${taskId} YouTube failed:`, error);
     store.update(taskId, { status: TASK_STATUS.ERROR, error: error.message });
   } finally {
     // 释放任务锁
