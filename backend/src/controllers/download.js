@@ -1344,21 +1344,90 @@ async function processInstagram(taskId, url, needAsr, options = ['video']) {
   // 获取任务锁
   if (!taskLock.tryAcquire(taskId)) {
     logger.warn(`[task] ${taskId} is already being processed`);
-    store.update(taskId, { 
-      status: TASK_STATUS.ERROR, 
-      error: 'Task is already in progress' 
+    store.update(taskId, {
+      status: TASK_STATUS.ERROR,
+      error: 'Task is already in progress'
     });
     return;
   }
 
   try {
+    store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
+
+    // ========== Cobalt (第一优先 - 更高画质 + 免费) ==========
+    let cobaltResult = null;
+    const { isCobaltConfigured, downloadViaCobalt } = require('../services/cobalt');
+
+    if (isCobaltConfigured()) {
+      try {
+        logger.info(`[task] ${taskId} instagram trying cobalt first...`);
+        cobaltResult = await downloadViaCobalt(url, taskId, {
+          onProgress: (percent) => store.update(taskId, {
+            status: percent < 90 ? TASK_STATUS.DOWNLOADING : TASK_STATUS.PROCESSING,
+            progress: percent
+          }),
+          options: {
+            videoQuality: 'max',
+            filenameStyle: 'basic'
+          }
+        });
+      } catch (cobaltErr) {
+        logger.warn(`[task] ${taskId} cobalt failed: ${cobaltErr.message}, trying TikHub...`);
+      }
+    } else {
+      logger.info(`[task] ${taskId} cobalt not configured, skipping to TikHub...`);
+    }
+
+    // Cobalt 成功
+    if (cobaltResult) {
+      if (cobaltResult.isPicker) {
+        // 图集：返回第一张
+        const first = cobaltResult.images[0];
+        const update = {
+          status: TASK_STATUS.COMPLETED,
+          quality: 'image',
+          progress: 100,
+          downloadUrl: first.url,
+          filePath: first.path,
+          ext: 'jpg'
+        };
+        fileRefManager.addRef(first.filename);
+        store.update(taskId, update);
+      } else {
+        const update = {
+          status: TASK_STATUS.COMPLETED,
+          quality: cobaltResult.cobaltFilename || 'max',
+          progress: 100,
+          downloadUrl: cobaltResult.downloadUrl,
+          filePath: cobaltResult.filePath,
+          ext: cobaltResult.ext
+        };
+        fileRefManager.addRef(`${taskId}.${cobaltResult.ext}`);
+        store.update(taskId, update);
+      }
+
+      let task = store.get(taskId);
+      if (task.status === TASK_STATUS.COMPLETED) {
+        const userDb = require('../userDb');
+        if (task.userId) {
+          await userDb.incrementDownloads(task.userId);
+        } else if (task.guestIp) {
+          await userDb.incrementGuestDownload(task.guestIp);
+        }
+      }
+      saveHistory(taskId);
+      logger.info(`[task] ${taskId} instagram completed via cobalt`);
+      return;
+    }
+
+    // ========== TikHub Fallback ==========
+    logger.info(`[task] ${taskId} instagram trying TikHub...`);
     const { parseInstagram } = require('../services/tikhub');
     store.update(taskId, { status: TASK_STATUS.PARSING, progress: 10 });
 
     const info = await parseInstagram(url);
     store.update(taskId, { title: info.title, thumbnailUrl: info.thumbnailUrl, progress: 20 });
 
-    // 下载视频
     const outputPath = path.join(__dirname, '../../downloads', `${taskId}.mp4`);
     store.update(taskId, { status: TASK_STATUS.DOWNLOADING, progress: 30 });
 
@@ -1380,19 +1449,18 @@ async function processInstagram(taskId, url, needAsr, options = ['video']) {
     fileRefManager.addRef(`${taskId}.mp4`);
     store.update(taskId, update);
 
-    // 下载成功后增加用户计数
-    let task = store.get(taskId);
-    if (task.status === TASK_STATUS.COMPLETED) {
+    let task2 = store.get(taskId);
+    if (task2.status === TASK_STATUS.COMPLETED) {
       const userDb = require('../userDb');
-      if (task.userId) {
-        await userDb.incrementDownloads(task.userId);
-      } else if (task.guestIp) {
-        await userDb.incrementGuestDownload(task.guestIp);
+      if (task2.userId) {
+        await userDb.incrementDownloads(task2.userId);
+      } else if (task2.guestIp) {
+        await userDb.incrementGuestDownload(task2.guestIp);
       }
     }
 
     saveHistory(taskId);
-    logger.info(`[task] ${taskId} instagram completed`);
+    logger.info(`[task] ${taskId} instagram completed via TikHub`);
   } catch (error) {
     logger.error(`[task] ${taskId} instagram failed:`, error);
     store.update(taskId, { status: TASK_STATUS.ERROR, error: error.message });
