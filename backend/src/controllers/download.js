@@ -445,6 +445,68 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
       // 如果只想要音频(不想要视频/字幕/封面)
       const wantsOnlyAudio = wantsAudioOnly && !wantsVideo && !wantsCover && !wantsSubtitle;
 
+      // ========== Cobalt 优先 (bilibili/facebook/tumblr/reddit 等通用平台) ==========
+      const { isCobaltConfigured, downloadViaCobalt } = require('../services/cobalt');
+      if (isCobaltConfigured() && wantsVideo && !wantsOnlyAudio) {
+        try {
+          logger.info(`[task] ${taskId} trying cobalt first (generic platform)...`);
+          store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
+          const cobaltResult = await downloadViaCobalt(url, taskId, {
+            onProgress: (percent) => store.update(taskId, {
+              status: percent < 90 ? TASK_STATUS.DOWNLOADING : TASK_STATUS.PROCESSING,
+              progress: percent
+            }),
+            options: {
+              videoQuality: 'max',
+              filenameStyle: 'basic'
+            }
+          });
+
+          if (cobaltResult.isPicker) {
+            const first = cobaltResult.images[0];
+            const update = {
+              status: TASK_STATUS.COMPLETED,
+              quality: 'image',
+              progress: 100,
+              downloadUrl: first.url,
+              filePath: first.path,
+              ext: 'jpg'
+            };
+            fileRefManager.addRef(first.filename);
+            store.update(taskId, update);
+          } else {
+            const update = {
+              status: TASK_STATUS.COMPLETED,
+              width: 0,
+              height: 0,
+              quality: cobaltResult.cobaltFilename || 'max',
+              progress: 100,
+              downloadUrl: cobaltResult.downloadUrl,
+              filePath: cobaltResult.filePath,
+              ext: cobaltResult.ext
+            };
+            fileRefManager.addRef(`${taskId}.${cobaltResult.ext}`);
+            store.update(taskId, update);
+          }
+
+          let task = store.get(taskId);
+          if (task.status === TASK_STATUS.COMPLETED) {
+            const userDb = require('../userDb');
+            if (task.userId) {
+              await userDb.incrementDownloads(task.userId);
+            } else if (task.guestIp) {
+              await userDb.incrementGuestDownload(task.guestIp);
+            }
+          }
+          saveHistory(taskId);
+          logger.info(`[task] ${taskId} completed via cobalt (generic platform)`);
+          return;
+        } catch (cobaltErr) {
+          logger.warn(`[task] ${taskId} cobalt failed: ${cobaltErr.message}, falling back to yt-dlp...`);
+        }
+      }
+
+      // ========== yt-dlp Fallback ==========
       result = await downloadWithLimit(async () => {
         try {
           // 如果只想要音频,使用专门的音频下载
