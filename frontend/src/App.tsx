@@ -143,7 +143,7 @@ function detectPlatform(url: string): string {
   if (/bilibili\.com|b23\.tv/i.test(url)) return 'bilibili'
   if (/instagram\.com/i.test(url)) return 'instagram'
   if (/xiaohongshu\.com|xhslink\.com/i.test(url)) return 'xiaohongshu'
-  if (/(?:channels|finder)\.weixin\.qq\.com|wxsnsdy\.|wechat/i.test(url)) return 'wechat'
+  if (/(?:channels|finder|weixin)\.weixin\.qq\.com|weixin\.qq\.com\/sph\/|wxsnsdy\.|wechat/i.test(url)) return 'wechat'
   if (/kuaishou\.com|v\.kuaishou\.com/i.test(url)) return 'kuaishou'
   return ''
 }

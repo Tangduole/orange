@@ -147,7 +147,8 @@ function validateUrl(url, platform) {
       case 'wechat':
         if (
           !url.includes('channels.weixin.qq.com') &&
-          !url.includes('finder.weixin.qq.com')
+          !url.includes('finder.weixin.qq.com') &&
+          !url.includes('weixin.qq.com/sph/')
         ) {
           return { valid: false, message: '微信视频号链接格式不正确' };
         }
