@@ -183,6 +183,7 @@ export default function App() {
   const [showIosGuide, setShowIosGuide] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [showResetPwd, setShowResetPwd] = useState(false)
+  const resetPwdLocked = useRef(false) // 防止弹窗被意外关闭
   const [resetEmail, setResetEmail] = useState('')
   const [resetPwdStep, setResetPwdStep] = useState(false) // false=Send邮件, true=Settings新Password
   const [resetPwdToken, setResetPwdToken] = useState('')
@@ -225,12 +226,34 @@ export default function App() {
       window.history.replaceState({}, '', window.location.pathname)
       // 用 setTimeout 确保状态更新不被批量合并
       setTimeout(() => {
+        resetPwdLocked.current = true
         setResetPwdToken(resetToken)
         setResetPwdStep(true)
         setShowResetPwd(true)
       }, 100)
+    } else {
+      // 无 token 时解锁，允许关闭
+      resetPwdLocked.current = false
     }
   }, [])
+
+  // 重置成功后解锁关闭弹窗
+  const handleResetPwdSuccess = () => {
+    localStorage.removeItem('orange_token')
+    setResetPwdMsg('密码已重置！请使用新密码登录')
+    setTimeout(() => {
+      setShowResetPwd(false)
+      setResetPwdStep(false)
+      setResetEmail('')
+      setResetPwd('')
+      setResetPwdToken('')
+    }, 2000)
+  }
+
+  // 只有通过成功重置才能关闭弹窗（禁止通过X按钮关闭）
+  const safeSetShowResetPwdForClose = () => {
+    // 不允许直接关闭，只有 handleResetPwdSuccess 才能关闭
+  }
 
   // 切换Theme
   const toggleTheme = () => {
@@ -254,11 +277,13 @@ export default function App() {
           doSingleDownload()
         }
       }
-      // Escape: 关闭弹窗
+      // Escape: 关闭弹窗（重置密码弹窗在 URL token 打开时不允许 Escape 关闭）
       if (e.key === 'Escape') {
         setShowUserMenu(false)
         setShowDupConfirm(false)
-        setShowResetPwd(false)
+        if (!resetPwdLocked.current) {
+          setShowResetPwd(false)
+        }
       }
     }
     window.addEventListener('keydown', handleKeyDown)
@@ -1867,7 +1892,7 @@ export default function App() {
             <div className="bg-slate-800 rounded-2xl w-full max-w-xs border border-slate-700 shadow-2xl">
               {/* Header */}
               <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-700">
-                <button onClick={() => setShowResetPwd(false)} className="text-slate-300 hover:text-white transition">
+                <button onClick={safeSetShowResetPwdForClose} className="text-slate-300 hover:text-white transition">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                 </button>
                 <h3 className="text-base font-bold text-white">🔑 修改Password</h3>
