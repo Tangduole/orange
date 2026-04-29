@@ -1892,7 +1892,7 @@ export default function App() {
             <div className="bg-slate-800 rounded-2xl w-full max-w-xs border border-slate-700 shadow-2xl">
               {/* Header */}
               <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-700">
-                <button onClick={safeSetShowResetPwdForClose} className="text-slate-300 hover:text-white transition">
+                <button onClick={() => !resetPwdLocked.current && setShowResetPwd(false)} className={`text-slate-300 hover:text-white transition ${resetPwdLocked.current ? 'opacity-30 cursor-not-allowed' : ''}`}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                 </button>
                 <h3 className="text-base font-bold text-white">🔑 修改Password</h3>
