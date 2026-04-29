@@ -221,11 +221,14 @@ export default function App() {
     const params = new URLSearchParams(window.location.search)
     const resetToken = params.get('token') || params.get('reset')
     if (resetToken) {
-      setResetPwdToken(resetToken)
-      setResetPwdStep(true)
-      setShowResetPwd(true)
-      // 清除 URL 参数
+      // 清除 URL 参数（先清掉避免刷新循环）
       window.history.replaceState({}, '', window.location.pathname)
+      // 用 setTimeout 确保状态更新不被批量合并
+      setTimeout(() => {
+        setResetPwdToken(resetToken)
+        setResetPwdStep(true)
+        setShowResetPwd(true)
+      }, 100)
     }
   }, [])
 
