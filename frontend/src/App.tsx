@@ -1769,7 +1769,7 @@ export default function App() {
                           {isHighQuality && !isVip && <span className="text-xs text-orange-400">⭐ VIP</span>}
                           {idx === 0 && isVip && <span className="text-xs text-yellow-400">推荐</span>}
                         </div>
-                        {sizeLabel && <span className="text-xs text-slate-500 mt-0.5">📦 {sizeLabel}{q.hasAudio ? '' : ' (no audio)'}</span>}
+                        {sizeLabel && <span className="text-xs text-slate-500 mt-0.5">📦 {sizeLabel}{q.hasAudio ? '' : t('noAudio')}</span>}
                       </div>
                       {q.hasAudio && q.hasVideo && <span className="text-xs text-slate-500 ml-2">🎬</span>}
                       {!q.hasVideo && q.hasAudio && <span className="text-xs text-slate-500 ml-2">🎵</span>}
@@ -1804,7 +1804,7 @@ export default function App() {
               <p className="text-xs text-slate-300 mb-4 truncate">{dupUrl}</p>
               <div className="flex gap-3">
                 <button onClick={() => { setShowDupConfirm(false); setPendingDownload(null) }} className="flex-1 py-2 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition">{t("cancel")}</button>
-                <button onClick={() => { setShowDupConfirm(false); if (pendingDownload) pendingDownload() }} className="flex-1 py-2 px-4 rounded-xl bg-orange-500 text-white hover:bg-orange-600 transition">Download Again</button>
+                <button onClick={() => { setShowDupConfirm(false); if (pendingDownload) pendingDownload() }} className="flex-1 py-2 px-4 rounded-xl bg-orange-500 text-white hover:bg-orange-600 transition">{t("downloadAgain")}</button>
               </div>
             </div>
           </div>
