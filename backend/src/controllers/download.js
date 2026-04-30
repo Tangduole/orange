@@ -1084,6 +1084,51 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
       return;
     }
 
+    // ========== Yout.com API (解决 Vultr IP 被 Google 封锁问题) ==========
+    const { isYoutConfigured, downloadViaYout } = require('../services/yout');
+    if (isYoutConfigured()) {
+      try {
+        logger.info(`[task] ${taskId} youtube trying yout.com API...`);
+        
+        // 先获取视频信息（标题）
+        let videoTitle = 'YouTube Video';
+        try {
+          const infoRes = await axios.post(`${API_BASE}/video-info`, { url }, { timeout: 15000 });
+          videoTitle = infoRes.data.data?.title || videoTitle;
+        } catch (e) {
+          logger.warn(`[task] ${taskId} failed to get video title: ${e.message}`);
+        }
+
+        const youtResult = await downloadViaYout(url, taskId, videoQuality, (percent, speed, eta) => {
+          store.update(taskId, {
+            status: percent < 90 ? TASK_STATUS.DOWNLOADING : TASK_STATUS.PROCESSING,
+            progress: percent,
+            speed: speed ? `${Math.round(speed / 1024)}KB/s` : '',
+            eta: eta ? `${Math.round(eta)}s` : ''
+          });
+        });
+
+        const youtUpdate = {
+          status: TASK_STATUS.COMPLETED,
+          height: videoQuality === 'max' ? 2160 : (parseInt(videoQuality) || 1080),
+          quality: videoQuality === 'max' ? '4K' : videoQuality,
+          progress: 100,
+          title: videoTitle,
+          downloadUrl: `/download/${youtResult.filename}`,
+          filePath: youtResult.filePath,
+          ext: 'mp4'
+        };
+        fileRefManager.addRef(youtResult.filename);
+        store.update(taskId, youtUpdate);
+
+        await finalizeTask(taskId);
+        logger.info(`[task] ${taskId} youtube completed via yout.com`);
+        return;
+      } catch (youtErr) {
+        logger.warn(`[task] ${taskId} yout.com failed: ${youtErr.message}, trying yt-dlp...`);
+      }
+    }
+
     // ========== yt-dlp 最终兜底 ==========
     logger.info(`[task] ${taskId} youtube trying yt-dlp...`);
     const ytdlp = require('../services/yt-dlp');
