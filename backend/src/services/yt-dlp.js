@@ -250,7 +250,12 @@ function getInfo(url) {
             formatId: f.format_id,
             ext: f.ext,
             resolution: f.resolution || `${f.width}x${f.height}`,
+            width: f.width || 0,
+            height: f.height || 0,
             filesize: f.filesize || f.filesize_approx || 0,
+            tbr: f.tbr || 0,
+            vcodec: f.vcodec || '',
+            acodec: f.acodec || '',
             format: f.format || ''
           }))
         });
