@@ -173,5 +173,7 @@
   "countdownAuto2K": "{count}s后自动2K",
   "freeLimit": "1080p及以上需升级会员，免费可用720p",
   "noAudio": "无音频",
-  "recommended": "推荐"
+  "recommended": "推荐",
+  "downloadContent": "下载内容",
+  "selectedQuality": "已选：{{quality}}"
 }
