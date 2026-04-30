@@ -170,6 +170,7 @@ export default function App() {
   const [showQualityPicker, setShowQualityPicker] = useState(false)
   const [qualityCountdown, setQualityCountdown] = useState(0)
   const [pendingUrl, setPendingUrl] = useState('')
+  const [pendingQuality, setPendingQuality] = useState('')
   const [videoInfoForPicker, setVideoInfoForPicker] = useState<{title: string, thumbnail: string}>({title: '', thumbnail: ''})
   const [batchUrls, setBatchUrls] = useState('')
 
@@ -670,6 +671,12 @@ export default function App() {
     
     setUrl(finalUrl)
     setDetected(platform)
+    setPendingQuality('')
+    
+    // Fetch video qualities in background for inline quality selector
+    if (finalUrl && !batchMode) {
+      fetchVideoQualities(finalUrl).catch(() => {})
+    }
   }
 
   // ClickPaste按钮 - 从剪贴板Paste
@@ -737,21 +744,26 @@ export default function App() {
     try {
       const r = await axios.post(`${API}/video-info`, { url: videoUrl }, { timeout: 30000 })
       if (r.data.code === 0 && r.data.data.qualities && r.data.data.qualities.length > 0) {
-        setAvailableQualities(r.data.data.qualities)
+        const qualities = r.data.data.qualities
+          .filter((q: any) => q.height >= 360 && q.hasVideo)
+          .map((q: any) => {
+            let label = `${q.height}p`
+            if (q.height >= 2160) label = '4K'
+            else if (q.height >= 1440) label = '2K'
+            else if (q.height >= 1080) label = '1080p'
+            else if (q.height >= 720) label = '720p'
+            return { ...q, qualityLabel: label, sizeLabel: formatFileSize(q.size) }
+          })
+          .sort((a: any, b: any) => b.height - a.height);
+        setAvailableQualities(qualities)
         setPendingUrl(videoUrl)
-        setShowQualityPicker(true)
         return true
       }
     } catch (e) {
-      console.log('[quality] Failed to fetch qualities, using default')
+      console.log('[quality] Failed to fetch qualities')
     }
-    // 获取Failed时：抖音默认给720pOption，YouTube给720p
-    setAvailableQualities([
-      { quality: '720p', width: 1280, height: 720, hasVideo: true, hasAudio: true },
-    ])
-    setPendingUrl(videoUrl)
-    setShowQualityPicker(true)
-    return true
+    setAvailableQualities([])
+    return false
   }
 
   const handleSubmit = async () => {
@@ -829,7 +841,7 @@ export default function App() {
     }
   }
 
-  const doSingleDownload = async (skipQualityPicker = false) => {
+  const doSingleDownload = async () => {
     // 检查GuestDownloadTimes限制
     if (!isVip && remainingDownloads === 0) {
       setShowUpgradePopup(true)
@@ -838,55 +850,16 @@ export default function App() {
     }
     setLoading(true); setError('')
     
-    // ========== 弹出画质选择器（VIP和免费用户都弹） ==========
-    if (!skipQualityPicker) {
-      try {
-        const infoRes = await axios.post(`${API}/video-info`, { url: url.trim() }, { timeout: 30000 })
-        const qualities = infoRes.data.data?.qualities || [];
-        const videoTitle = infoRes.data.data?.title || ''
-        const videoThumb = infoRes.data.data?.thumbnail || ''
-        
-        if (qualities.length > 0) {
-          const formattedQualities = qualities
-            .filter((q: any) => q.height >= 360 && q.hasVideo)
-            .map((q: any) => {
-              let label = `${q.height}p`
-              if (q.height >= 2160) label = '4K'
-              else if (q.height >= 1440) label = '2K'
-              else if (q.height >= 1080) label = '1080p'
-              else if (q.height >= 720) label = '720p'
-              return { ...q, qualityLabel: label, sizeLabel: formatFileSize(q.size) }
-            })
-            .sort((a: any, b: any) => b.height - a.height);
-          
-          if (formattedQualities.length > 0) {
-            setAvailableQualities(formattedQualities)
-            setPendingUrl(url.trim())
-            setShowQualityPicker(true)
-            setLoading(false)
-            setVideoInfoForPicker({ title: videoTitle, thumbnail: videoThumb })
-            return
-          }
-        }
-      } catch (e) {
-        console.log('[quality] Failed to fetch qualities')
-      }
-      // 获取失败：显示提示并直接下载（不显示假的画质选项）
-      setLoading(false)
-      // 直接下载，不弹假画质选择器
-      doSingleDownload(true)
-      return
-      // replaced - direct download
-    }
+    // 使用用户选择的画质，或者默认（VIP=2K, 免费=720p）
+    const downloadQuality = pendingQuality || (isVip ? 'height<=2160' : 'height<=720')
     
-    // ========== 直接下载（跳过画质选择） ==========
-    const downloadQuality = isVip ? quality : 'height<=720'
     try {
       const r = await axios.post(`${API}/download`, {
         url: url.trim(), platform: detected || 'auto',
         needAsr: selected.has('asr'), options: [...selected], quality: downloadQuality, asrLanguage,
       }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} })
       setTask(r.data.data); setDetected('')
+      setPendingQuality('')  // 清空选择的画质
     } catch (e: any) {
       setError(getErrorMessage(e.code === 'ECONNABORTED' ? 'timeout' : (e.response?.data?.message || e.message || 'Download failed')))
     } finally { setLoading(false) }
@@ -1248,6 +1221,50 @@ export default function App() {
                   )
                 })}
               </div>
+
+              {/* Inline Quality Selector */}
+              {availableQualities.length > 0 && !batchMode && (
+                <div className="mt-3">
+                  <p className="text-xs text-slate-300 mb-2">{t('selectQuality')}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {availableQualities.map((q, idx) => {
+                      const isHighQuality = q.height > 1080
+                      const canSelect = isVip || !isHighQuality
+                      const qualityLabel = (q as any).qualityLabel || q.quality || `${q.height}p`
+                      const sizeLabel = (q as any).sizeLabel || ''
+                      const isSelected = pendingQuality === `height<=${q.height}`
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => {
+                            if (!canSelect) {
+                              setShowUpgradePopup(true)
+                              return
+                            }
+                            setPendingQuality(`height<=${q.height}`)
+                          }}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-all ${
+                            isSelected
+                              ? 'bg-orange-500/20 text-orange-300 border border-orange-500/40'
+                              : canSelect
+                                ? 'bg-slate-700/40 text-slate-300 border border-slate-600/40 hover:border-slate-500/60'
+                                : 'bg-slate-800/40 text-slate-500 border border-slate-700/40 cursor-not-allowed opacity-60'
+                          }`}
+                        >
+                          <span>{qualityLabel}</span>
+                          {sizeLabel && <span className="text-slate-500">{sizeLabel}</span>}
+                          {isHighQuality && !isVip && <span className="text-orange-400">⭐</span>}
+                          {isSelected && <Check className="w-3 h-3 text-orange-400" />}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {pendingQuality && (
+                    <p className="text-xs text-emerald-400 mt-1.5">✓ {t('selectedQuality', { quality: pendingQuality.replace('height<=', '') })}</p>
+                  )}
+                </div>
+              )}
+
               {/* ASR Language Selection */}
               {selected.has('asr') && (
                 <div className="mt-3 space-y-2">
