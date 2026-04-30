@@ -52,16 +52,12 @@ const shareFile = async (
   _fileType: 'video' | 'audio' | 'image' = 'video',
 ) => {
   const fullUrl = url.startsWith('http') ? url : `${BASE_URL}${url}`
-  const filename = (task?.title || title || 'orange-download')
-    .replace(/[\\/:*?"<>|]+/g, '_')
-    .slice(0, 120)
-  const ext = task?.ext || 'mp4'
-  const finalName = ext ? `${filename}.${ext}` : filename
+  const filename = (title || 'orange-download').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 120)
 
   try {
     const a = document.createElement('a')
     a.href = fullUrl
-    a.download = finalName
+    a.download = filename
     a.rel = 'noopener'
     a.style.display = 'none'
     document.body.appendChild(a)
@@ -109,11 +105,11 @@ const PLATFORMS = [
 ]
 
 const OPTIONS: { id: string; label: string; icon: typeof Video }[] = [
-  { id: 'video', label: t('videoOnly'), icon: Video },
-  { id: 'audio_only', label: t('audioOnly'), icon: Mic },
-  { id: 'copywriting', label: t('copywriting'), icon: FileText },
-  { id: 'cover', label: t('cover'), icon: ImageIcon },
-  { id: 'asr', label: t('asr'), icon: Languages },
+  { id: 'video', label: 'Video', icon: Video },
+  { id: 'audio_only', label: 'Audio', icon: Mic },
+  { id: 'copywriting', label: 'Text', icon: FileText },
+  { id: 'cover', label: 'Cover', icon: ImageIcon },
+  { id: 'asr', label: 'Subtitle', icon: Languages },
 ]
 
 const ASR_LANGUAGE_OPTIONS = [
@@ -174,7 +170,6 @@ export default function App() {
   const [showQualityPicker, setShowQualityPicker] = useState(false)
   const [qualityCountdown, setQualityCountdown] = useState(0)
   const [pendingUrl, setPendingUrl] = useState('')
-  const [pendingQuality, setPendingQuality] = useState<string>('')
   const [videoInfoForPicker, setVideoInfoForPicker] = useState<{title: string, thumbnail: string}>({title: '', thumbnail: ''})
   const [batchUrls, setBatchUrls] = useState('')
 
@@ -675,12 +670,6 @@ export default function App() {
     
     setUrl(finalUrl)
     setDetected(platform)
-    setPendingQuality('')
-    
-    // Fetch video qualities in background for inline quality selector
-    if (finalUrl && !batchMode) {
-      fetchVideoQualities(finalUrl).catch(() => {})
-    }
   }
 
   // ClickPaste按钮 - 从剪贴板Paste
@@ -748,28 +737,21 @@ export default function App() {
     try {
       const r = await axios.post(`${API}/video-info`, { url: videoUrl }, { timeout: 30000 })
       if (r.data.code === 0 && r.data.data.qualities && r.data.data.qualities.length > 0) {
-        const qualities = r.data.data.qualities
-          .filter((q: any) => q.height >= 360 && q.hasVideo)
-          .map((q: any) => {
-            let label = `${q.height}p`
-            if (q.height >= 2160) label = '4K'
-            else if (q.height >= 1440) label = '2K'
-            else if (q.height >= 1080) label = '1080p'
-            else if (q.height >= 720) label = '720p'
-            return { ...q, qualityLabel: label, sizeLabel: formatFileSize(q.size) }
-          })
-          .sort((a: any, b: any) => b.height - a.height);
-        setAvailableQualities(qualities)
+        setAvailableQualities(r.data.data.qualities)
         setPendingUrl(videoUrl)
-        // NO longer setting showQualityPicker - using inline selector instead
+        setShowQualityPicker(true)
         return true
       }
     } catch (e) {
-      console.log('[quality] Failed to fetch qualities')
+      console.log('[quality] Failed to fetch qualities, using default')
     }
-    // 获取失败：清空画质选项
-    setAvailableQualities([])
-    return false
+    // 获取Failed时：抖音默认给720pOption，YouTube给720p
+    setAvailableQualities([
+      { quality: '720p', width: 1280, height: 720, hasVideo: true, hasAudio: true },
+    ])
+    setPendingUrl(videoUrl)
+    setShowQualityPicker(true)
+    return true
   }
 
   const handleSubmit = async () => {
@@ -856,8 +838,49 @@ export default function App() {
     }
     setLoading(true); setError('')
     
-    // ========== 直接下载（使用用户选择的画质或默认） ==========
-    const downloadQuality = pendingQuality || (isVip ? 'height<=2160' : 'height<=720')
+    // ========== 弹出画质选择器（VIP和免费用户都弹） ==========
+    if (!skipQualityPicker) {
+      try {
+        const infoRes = await axios.post(`${API}/video-info`, { url: url.trim() }, { timeout: 30000 })
+        const qualities = infoRes.data.data?.qualities || [];
+        const videoTitle = infoRes.data.data?.title || ''
+        const videoThumb = infoRes.data.data?.thumbnail || ''
+        
+        if (qualities.length > 0) {
+          const formattedQualities = qualities
+            .filter((q: any) => q.height >= 360 && q.hasVideo)
+            .map((q: any) => {
+              let label = `${q.height}p`
+              if (q.height >= 2160) label = '4K'
+              else if (q.height >= 1440) label = '2K'
+              else if (q.height >= 1080) label = '1080p'
+              else if (q.height >= 720) label = '720p'
+              return { ...q, qualityLabel: label, sizeLabel: formatFileSize(q.size) }
+            })
+            .sort((a: any, b: any) => b.height - a.height);
+          
+          if (formattedQualities.length > 0) {
+            setAvailableQualities(formattedQualities)
+            setPendingUrl(url.trim())
+            setShowQualityPicker(true)
+            setLoading(false)
+            setVideoInfoForPicker({ title: videoTitle, thumbnail: videoThumb })
+            return
+          }
+        }
+      } catch (e) {
+        console.log('[quality] Failed to fetch qualities')
+      }
+      // 获取失败：显示提示并直接下载（不显示假的画质选项）
+      setLoading(false)
+      // 直接下载，不弹假画质选择器
+      doSingleDownload(true)
+      return
+      // replaced - direct download
+    }
+    
+    // ========== 直接下载（跳过画质选择） ==========
+    const downloadQuality = isVip ? quality : 'height<=720'
     try {
       const r = await axios.post(`${API}/download`, {
         url: url.trim(), platform: detected || 'auto',
@@ -1212,7 +1235,7 @@ export default function App() {
 
             {/* DownloadOption */}
             <div className="mb-5">
-              <p className="text-xs text-slate-300 mb-2">{t('downloadContent')}</p>
+              <p className="text-xs text-slate-300 mb-2">Download Content</p>
               <div className="flex flex-wrap gap-1.5">
                 {OPTIONS.map(o => {
                   const Icon = o.icon; const on = selected.has(o.id)
@@ -1225,49 +1248,6 @@ export default function App() {
                   )
                 })}
               </div>
-
-              {/* Quality Selector - Inline (replaces popup) */}
-              {availableQualities.length > 0 && !batchMode && (
-                <div className="mt-3">
-                  <p className="text-xs text-slate-300 mb-2">{t('selectQuality')}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {availableQualities.map((q, idx) => {
-                      const isHighQuality = q.height > 1080
-                      const canSelect = isVip || !isHighQuality
-                      const qualityLabel = (q as any).qualityLabel || q.quality || `${q.height}p`
-                      const sizeLabel = (q as any).sizeLabel || ''
-                      const isSelected = pendingQuality === `height<=${q.height}`
-                      return (
-                        <button
-                          key={idx}
-                          onClick={() => {
-                            if (!canSelect) {
-                              setShowUpgradePopup(true)
-                              return
-                            }
-                            setPendingQuality(`height<=${q.height}`)
-                          }}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-all ${
-                            isSelected
-                              ? 'bg-orange-500/20 text-orange-300 border border-orange-500/40'
-                              : canSelect
-                                ? 'bg-slate-700/40 text-slate-300 border border-slate-600/40 hover:border-slate-500/60'
-                                : 'bg-slate-800/40 text-slate-500 border border-slate-700/40 cursor-not-allowed opacity-60'
-                          }`}
-                        >
-                          <span>{qualityLabel}</span>
-                          {sizeLabel && <span className="text-slate-500">{sizeLabel}</span>}
-                          {isHighQuality && !isVip && <span className="text-orange-400">⭐</span>}
-                          {isSelected && <Check className="w-3 h-3 text-orange-400" />}
-                        </button>
-                      )
-                    })}
-                  </div>
-                  {pendingQuality && (
-                    <p className="text-xs text-emerald-400 mt-1.5">{t('selectedQuality', { quality: pendingQuality.replace('height<=', '') })})</p>
-                  )}
-                </div>
-              )}
               {/* ASR Language Selection */}
               {selected.has('asr') && (
                 <div className="mt-3 space-y-2">
@@ -1591,7 +1571,7 @@ export default function App() {
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url;
-                        a.download = `${task.title || 'copywriting'}_copywriting.txt`;
+                        a.download = `${task.title || 'copywriting'}.txt`;
                         a.click();
                         URL.revokeObjectURL(url);
                       }} className="text-xs text-slate-300 hover:text-orange-400 transition">
@@ -1628,7 +1608,7 @@ export default function App() {
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url;
-                        a.download = `${task.title || 'asr'}_subtitle.txt`;
+                        a.download = `${task.title || 'asr'}.txt`;
                         a.click();
                         URL.revokeObjectURL(url);
                       }} className="text-xs text-slate-300 hover:text-orange-400 transition">
@@ -1653,7 +1633,7 @@ export default function App() {
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url;
-                        a.download = `${task.title || 'translation'}_translation.txt`;
+                        a.download = `${task.title || 'translation'}.txt`;
                         a.click();
                         URL.revokeObjectURL(url);
                       }} className="text-xs text-slate-300 hover:text-orange-400 transition">
