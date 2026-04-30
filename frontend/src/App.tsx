@@ -1767,7 +1767,7 @@ export default function App() {
                           <span className={`font-medium ${canSelect ? 'text-white' : 'text-slate-300'}`}>{qualityLabel}</span>
                           {q.width > 0 && <span className={`text-xs ${canSelect ? 'text-slate-400' : 'text-slate-500'}`}>{q.width}x{q.height}</span>}
                           {isHighQuality && !isVip && <span className="text-xs text-orange-400">⭐ VIP</span>}
-                          {idx === 0 && isVip && <span className="text-xs text-yellow-400">推荐</span>}
+                          {idx === 0 && isVip && <span className="text-xs text-yellow-400">{t('recommended')}</span>}
                         </div>
                         {sizeLabel && <span className="text-xs text-slate-500 mt-0.5">📦 {sizeLabel}{q.hasAudio ? '' : t('noAudio')}</span>}
                       </div>

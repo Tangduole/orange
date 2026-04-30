@@ -172,5 +172,6 @@
   "default2K": "Default 2K",
   "countdownAuto2K": "{count}s until auto 2K",
   "freeLimit": "1080p and above requires VIP, free limited to 720p",
-  "noAudio": "No Audio"
+  "noAudio": "No Audio",
+  "recommended": "Recommended"
 }
