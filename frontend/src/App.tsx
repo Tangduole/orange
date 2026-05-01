@@ -691,9 +691,11 @@ export default function App() {
       } else if (urls.length === 1) {
         setUrl(urls[0])
         setDetected(detectPlatform(urls[0]))
+        fetchVideoQualities(urls[0]).catch(() => {})
       } else if (text) {
         setUrl(text)
         setDetected(detectPlatform(text))
+        fetchVideoQualities(text).catch(() => {})
       }
     } catch (e) {
       console.error('[paste] failed:', e)
@@ -718,6 +720,7 @@ export default function App() {
       e.preventDefault()
       setUrl(urls[0])
       setDetected(detectPlatform(urls[0]))
+      fetchVideoQualities(urls[0]).catch(() => {})
     }
     // 没有Link则Use默认Paste行为
   }
