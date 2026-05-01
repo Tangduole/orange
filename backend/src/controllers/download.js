@@ -1854,6 +1854,7 @@ async function getVideoInfo(req, res) {
       let duration = 0;
 
       // 1. Try TikHub API first (1080p/2K/4K)
+      logger.info(`[video-info] YouTube: trying TikHub for ${videoId}, YT_KEY present: ${!!process.env.TIKHUB_API_KEY_YT}`);
       try {
         const { tikhubRequest } = require('../services/tikhub');
         const YT_KEY = process.env.TIKHUB_API_KEY_YT;
