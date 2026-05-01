@@ -1874,19 +1874,17 @@ async function getVideoInfo(req, res) {
         if (videos.length > 0) {
           const seen = new Set();
           qualities = videos
-            .filter(v => v.url && v.qualityLabel)
+            .filter(v => v.url && v.height)
             .map(v => {
-              const h = parseInt((v.qualityLabel || '').replace('p', '')) || 0;
-              const hasAudio = (v.mimeType || '').includes('audio/mp4') || !v.audioQuality;
+              const h = v.height || 0;
               return {
-                quality: heightToLabel(h > 0 ? h : 720),
-                format: (v.mimeType || '').includes('video/webm') ? 'webm' : 'mp4',
+                quality: heightToLabel(h),
+                format: v.extension || 'mp4',
                 width: v.width || 0,
                 height: h,
                 hasVideo: true,
-                hasAudio: v.audioQuality ? true : false,
-                size: v.contentLength ? parseInt(v.contentLength) : 0,
-                formatId: v.itag || ''
+                hasAudio: v.hasAudio === undefined ? true : v.hasAudio,
+                size: v.size || 0
               };
             })
             .filter(q => q.height > 0 && !seen.has(q.height) && seen.add(q.height))
