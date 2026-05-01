@@ -765,6 +765,7 @@ export default function App() {
           .sort((a: any, b: any) => b.height - a.height);
         setAvailableQualities(qualities)
         setPendingUrl(videoUrl)
+        setQualitiesLoading(false)
         return true
       }
     } catch (e) {
