@@ -167,6 +167,7 @@ export default function App() {
   const [quality, setQuality] = useState('')
   const [asrLanguage, setAsrLanguage] = useState('zh')
   const [availableQualities, setAvailableQualities] = useState<Array<{qualityLabel?: string, sizeLabel?: string, quality: string, format: string, width: number, height: number, hasVideo: boolean, hasAudio: boolean, size?: number}>>([])
+  const [qualitiesLoading, setQualitiesLoading] = useState(false)
   const [showQualityPicker, setShowQualityPicker] = useState(false)
   const [qualityCountdown, setQualityCountdown] = useState(0)
   const [pendingUrl, setPendingUrl] = useState('')
@@ -747,6 +748,7 @@ export default function App() {
   }
 
   const fetchVideoQualities = async (videoUrl: string) => {
+    setQualitiesLoading(true)
     try {
       const r = await axios.post(`${API}/video-info`, { url: videoUrl }, { timeout: 30000 })
       if (r.data.code === 0 && r.data.data.qualities && r.data.data.qualities.length > 0) {
@@ -769,6 +771,7 @@ export default function App() {
       console.log('[quality] Failed to fetch qualities')
     }
     setAvailableQualities([])
+    setQualitiesLoading(false)
     return false
   }
 
@@ -812,6 +815,12 @@ export default function App() {
     
     // 单G模式
     if (!url.trim()) { setError('Please enter a video link'); return }
+    
+    // 正在获取画质信息 → 提示等待
+    if (qualitiesLoading) {
+      setError('正在获取画质信息，请稍候...')
+      return
+    }
     
     // 有画质选项但用户未选择 → 提示先选画质
     if (availableQualities.length > 0 && !pendingQuality) {
