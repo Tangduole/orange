@@ -1847,49 +1847,91 @@ async function getVideoInfo(req, res) {
       if (!videoIdMatch) return res.status(400).json({ code: -1, message: 'Invalid YouTube URL' });
 
       const videoId = videoIdMatch[1];
-      const cacheKey = `yt-dlp:${videoId}`;
-      const ytdlp = require('../services/yt-dlp');
 
       let qualities = [];
       let title = 'YouTube Video';
       let thumbnail = '';
       let duration = 0;
 
+      // 1. Try TikHub API first (1080p/2K/4K)
       try {
-        // 使用 yt-dlp --dump-single-json 获取格式和元数据
-        const ytInfo = await getCachedInfo(cacheKey, async () => {
-          return await ytdlp.getInfo(url);
+        const { tikhubRequest, API_KEY_YT } = require('../services/tikhub');
+        const cacheKeyTik = `yt-tikhub:${videoId}`;
+        const data = await getCachedInfo(cacheKeyTik, async () => {
+          return await require('../services/tikhub').tikhubRequest(
+            `/api/v1/youtube/web/get_video_info?video_id=${videoId}&need_format=true`,
+            API_KEY_YT
+          );
         }, 'info');
 
-        title = ytInfo.title || title;
-        thumbnail = ytInfo.thumbnail || thumbnail;
-        duration = ytInfo.duration || 0;
+        title = data.title || title;
+        duration = data.lengthSeconds ? parseInt(data.lengthSeconds) : 0;
+        const thumbs = data.thumbnails || [];
+        thumbnail = thumbs.length > 0 ? thumbs[0].url : '';
 
-        if (ytInfo.formats && Array.isArray(ytInfo.formats)) {
+        const videos = data.videos?.items || [];
+        if (videos.length > 0) {
           const seen = new Set();
-          qualities = ytInfo.formats
-            .filter(f => f.vcodec !== 'none' && f.height)
-            .map(f => ({
-              quality: heightToLabel(f.height),
-              format: f.ext || 'mp4',
-              width: f.width || 0,
-              height: f.height,
-              hasVideo: true,
-              hasAudio: f.acodec !== 'none',
-              size: f.filesize || f.filesize_approx || 0,
-              formatId: f.format_id
-            }))
-            .filter(q => !seen.has(q.height) && seen.add(q.height))
-            .sort((a, b) => (b.height || 0) - (a.height || 0));
+          qualities = videos
+            .filter(v => v.url && v.qualityLabel)
+            .map(v => {
+              const h = parseInt((v.qualityLabel || '').replace('p', '')) || 0;
+              const hasAudio = (v.mimeType || '').includes('audio/mp4') || !v.audioQuality;
+              return {
+                quality: heightToLabel(h > 0 ? h : 720),
+                format: (v.mimeType || '').includes('video/webm') ? 'webm' : 'mp4',
+                width: v.width || 0,
+                height: h,
+                hasVideo: true,
+                hasAudio: v.audioQuality ? true : false,
+                size: v.contentLength ? parseInt(v.contentLength) : 0,
+                formatId: v.itag || ''
+              };
+            })
+            .filter(q => q.height > 0 && !seen.has(q.height) && seen.add(q.height))
+            .sort((a, b) => b.height - a.height);
         }
       } catch (e) {
-        logger.warn(`[video-info] yt-dlp failed for ${url}: ${e.message}`);
-        // Fallback: return single best quality
-        qualities = [{ quality: 'Max', format: 'mp4', width: 0, height: 0, hasVideo: true, hasAudio: true }];
+        logger.warn(`[video-info] YouTube TikHub failed for ${url}: ${e.message}`);
+      }
+
+      // 2. Fallback: yt-dlp if TikHub failed
+      if (qualities.length === 0) {
+        try {
+          const ytdlp = require('../services/yt-dlp');
+          const cacheKeyYt = `yt-dlp:${videoId}`;
+          const ytInfo = await getCachedInfo(cacheKeyYt, async () => {
+            return await ytdlp.getInfo(url);
+          }, 'info');
+
+          title = ytInfo.title || title;
+          thumbnail = ytInfo.thumbnail || thumbnail;
+          duration = ytInfo.duration || duration;
+
+          if (ytInfo.formats && Array.isArray(ytInfo.formats)) {
+            const seen = new Set();
+            qualities = ytInfo.formats
+              .filter(f => f.vcodec !== 'none' && f.height)
+              .map(f => ({
+                quality: heightToLabel(f.height),
+                format: f.ext || 'mp4',
+                width: f.width || 0,
+                height: f.height,
+                hasVideo: true,
+                hasAudio: f.acodec !== 'none',
+                size: f.filesize || f.filesize_approx || 0,
+                formatId: f.format_id
+              }))
+              .filter(q => !seen.has(q.height) && seen.add(q.height))
+              .sort((a, b) => (b.height || 0) - (a.height || 0));
+          }
+        } catch (e) {
+          logger.warn(`[video-info] yt-dlp failed for ${url}: ${e.message}`);
+        }
       }
 
       if (qualities.length === 0) {
-        qualities = [{ quality: 'Max', format: 'mp4', width: 0, height: 0, hasVideo: true, hasAudio: true }];
+        qualities = [{ quality: 'Best Available', format: 'mp4', width: 0, height: 720, hasVideo: true, hasAudio: true }];
       }
 
       return res.json({
@@ -1897,25 +1939,52 @@ async function getVideoInfo(req, res) {
         data: { title, thumbnail, duration, platform: 'youtube', qualities }
       });
     }
-    // For Douyin, use iesdouyin.com (free, no API key needed)
+    // For Douyin: use TikHub for 1080p/2K/4K, iesdouyin fallback for 720p
     if (platform === 'douyin') {
       try {
-        const { getDouyinVideoInfo } = require('../services/douyin');
-        const douyinInfo = await getCachedInfo('douyin:' + url, async () => {
-          return await getDouyinVideoInfo(url);
-        }, 'info');
+        let qualities = [];
+        let title = 'Video';
+        let thumbnail = '';
+        let duration = 0;
+
+        // 1. Try TikHub API first (1080p/2K/4K)
+        try {
+          const { getDouyinQualities } = require('../services/tikhub');
+          const tikhubInfo = await getCachedInfo('douyin-tikhub:' + url, async () => {
+            return await getDouyinQualities(url);
+          }, 'info');
+          if (tikhubInfo.qualities?.length > 0) {
+            qualities = tikhubInfo.qualities;
+            title = tikhubInfo.title || title;
+            thumbnail = tikhubInfo.thumbnail || thumbnail;
+            duration = tikhubInfo.duration || duration;
+          }
+        } catch (e) {
+          logger.warn('[video-info] Douyin TikHub error:', e.message);
+        }
+
+        // 2. Fallback: iesdouyin for 720p if TikHub failed or returned no qualities
+        if (qualities.length === 0) {
+          const { getDouyinVideoInfo } = require('../services/douyin');
+          const douyinInfo = await getCachedInfo('douyin:' + url, async () => {
+            return await getDouyinVideoInfo(url);
+          }, 'info');
+          qualities = douyinInfo.qualities || [];
+          title = douyinInfo.title || title;
+          thumbnail = douyinInfo.thumbnail || thumbnail;
+          duration = douyinInfo.duration || duration;
+        }
+
+        if (qualities.length === 0) {
+          qualities = [{ quality: 'Best Available', format: 'mp4', width: 1280, height: 720, hasVideo: true, hasAudio: true }];
+        }
+
         return res.json({
           code: 0,
-          data: {
-            title: douyinInfo.title || '抖音作品',
-            thumbnail: douyinInfo.thumbnail || '',
-            duration: douyinInfo.duration || 0,
-            platform: 'douyin',
-            qualities: douyinInfo.qualities || [{ quality: '720p', format: 'mp4', width: 1280, height: 720, hasVideo: true, hasAudio: true }]
-          }
+          data: { title, thumbnail, duration, platform: 'douyin', qualities }
         });
       } catch (e) {
-        logger.warn('[video-info] Douyin iesdouyin error:', e.message);
+        logger.warn('[video-info] Douyin error:', e.message);
       }
     }
 

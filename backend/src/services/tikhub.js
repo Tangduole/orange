@@ -888,7 +888,122 @@ async function parseYouTubeV2(url, taskId, onProgress, quality = null) {
 }
 
 
-module.exports = { parseYouTube, parseYouTubeV2, parseXiaohongshu, parseDouyin, parseInstagram, tikhubRequest, downloadFile, parseWechatExportId, getWechatVideoInfo, downloadWechat };
+/**
+ * 获取抖音视频的画质信息（仅视频信息，不下载）
+ * 用于 /video-info 接口
+ * @param {string} url 抖音视频链接
+ * @returns {Promise<{title: string, thumbnail: string, duration: number, qualities: Array}>}
+ */
+async function getDouyinQualities(url) {
+  // 提取 aweme_id
+  let awemeId;
+  const videoMatch = url.match(/\/video\/(\d+)/);
+  const noteMatch = url.match(/\/note\/(\d+)/);
+  awemeId = videoMatch?.[1] || noteMatch?.[1];
+
+  if (!awemeId) {
+    // 尝试解析短链接
+    const https = require('https');
+    awemeId = await new Promise((resolve) => {
+      https.get(url, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)' }
+      }, (res) => {
+        const loc = res.headers.location || '';
+        const vm = loc.match(/\/video\/(\d+)/);
+        const nm = loc.match(/\/note\/(\d+)/);
+        resolve(vm?.[1] || nm?.[1] || null);
+      }).on('error', () => resolve(null));
+    });
+  }
+
+  if (!awemeId) throw new Error('无法解析抖音作品 ID');
+
+  // 调用 TikHub fetch_one_video 获取 bit_rate 数组
+  let data = {};
+  try {
+    data = await tikhubRequest(
+      `/api/v1/douyin/web/fetch_one_video_by_share_url?share_url=${encodeURIComponent(url)}`,
+      API_KEY_DOUYIN
+    );
+  } catch (e) {
+    // fallback: aweme_id 方式
+    data = await tikhubRequest(
+      `/api/v1/douyin/web/fetch_one_video?aweme_id=${awemeId}`,
+      API_KEY_DOUYIN
+    );
+  }
+
+  const detail = data?.aweme_detail || {};
+  const video = detail.video || {};
+  const title = detail.desc || '抖音作品';
+  const cover = (detail.video?.cover?.url_list?.[0] || detail.video?.origin_cover?.url_list?.[0]) || '';
+  const duration = detail.video?.duration || 0;
+
+  // 从 bit_rate 和 play_addr_265 收集画质
+  const qualityMap = new Map();
+
+  // H.265 源 (可能 1080p/2K)
+  const playAddr265 = video.play_addr_265;
+  if (playAddr265?.url_list?.[0]) {
+    const h = playAddr265.height || 0;
+    if (h && !qualityMap.has(h)) {
+      qualityMap.set(h, {
+        quality: heightToLabel(h),
+        format: 'mp4',
+        width: playAddr265.width || 0,
+        height: h,
+        hasVideo: true,
+        hasAudio: false,
+        size: 0
+      });
+    }
+  }
+
+  // bit_rate 数组 (H.264, 通常有音频)
+  const bitrates = video.bit_rate || [];
+  for (const br of bitrates) {
+    const pa = br.play_addr;
+    if (!pa?.url_list?.[0]) continue;
+    const h = pa.height || 0;
+    if (h && !qualityMap.has(h)) {
+      qualityMap.set(h, {
+        quality: heightToLabel(h),
+        format: 'mp4',
+        width: pa.width || 0,
+        height: h,
+        hasVideo: true,
+        hasAudio: true,
+        size: 0
+      });
+    }
+  }
+
+  // play_addr 兜底 (通常 720p)
+  const playAddr = video.play_addr;
+  if (playAddr?.url_list?.[0]) {
+    const h = playAddr?.height || 720;
+    if (h && !qualityMap.has(h)) {
+      qualityMap.set(h, {
+        quality: heightToLabel(h),
+        format: 'mp4',
+        width: playAddr.width || 0,
+        height: h,
+        hasVideo: true,
+        hasAudio: true,
+        size: 0
+      });
+    }
+  }
+
+  const qualities = Array.from(qualityMap.values())
+    .sort((a, b) => b.height - a.height);
+
+  console.log(`[TikHub] Douyin qualities for ${awemeId}: ${qualities.map(q => q.quality).join(', ')}`);
+
+  return { title, thumbnail: cover, duration, qualities };
+}
+
+module.exports = { parseYouTube, parseYouTubeV2, parseXiaohongshu, parseDouyin, parseInstagram, getDouyinQualities, tikhubRequest, downloadFile, parseWechatExportId, getWechatVideoInfo, downloadWechat };
 
 // ============ WeChat Channels (视频号) ============
 
