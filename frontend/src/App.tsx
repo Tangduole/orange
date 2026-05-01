@@ -691,10 +691,12 @@ export default function App() {
       } else if (urls.length === 1) {
         setUrl(urls[0])
         setDetected(detectPlatform(urls[0]))
+        setPendingQuality('')
         fetchVideoQualities(urls[0]).catch(() => {})
       } else if (text) {
         setUrl(text)
         setDetected(detectPlatform(text))
+        setPendingQuality('')
         fetchVideoQualities(text).catch(() => {})
       }
     } catch (e) {
@@ -720,6 +722,7 @@ export default function App() {
       e.preventDefault()
       setUrl(urls[0])
       setDetected(detectPlatform(urls[0]))
+      setPendingQuality('')
       fetchVideoQualities(urls[0]).catch(() => {})
     }
     // 没有Link则Use默认Paste行为
@@ -810,6 +813,12 @@ export default function App() {
     // 单G模式
     if (!url.trim()) { setError('Please enter a video link'); return }
     
+    // 有画质选项但用户未选择 → 提示先选画质
+    if (availableQualities.length > 0 && !pendingQuality) {
+      setError('请先选择画质再下载')
+      return
+    }
+    
     // 检查是否已Download
     const dupItem = history.find(h => h.url === url.trim())
     if (dupItem && dupItem.status === 'completed') {
@@ -853,8 +862,8 @@ export default function App() {
     }
     setLoading(true); setError('')
     
-    // 使用用户选择的画质，或者默认（VIP=2K, 免费=720p）
-    const downloadQuality = pendingQuality || (isVip ? 'height<=2160' : 'height<=720')
+    // 使用用户选择的画质
+    const downloadQuality = pendingQuality
     
     try {
       const r = await axios.post(`${API}/download`, {
@@ -1225,11 +1234,11 @@ export default function App() {
                 })}
               </div>
 
-              {/* Inline Quality Selector */}
+              {/* Inline Quality Selector - Vertical list */}
               {availableQualities.length > 0 && !batchMode && (
                 <div className="mt-3">
                   <p className="text-xs text-slate-300 mb-2">{t('selectQuality')}</p>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="space-y-1.5">
                     {availableQualities.map((q, idx) => {
                       const isHighQuality = q.height > 1080
                       const canSelect = isVip || !isHighQuality
@@ -1246,7 +1255,7 @@ export default function App() {
                             }
                             setPendingQuality(`height<=${q.height}`)
                           }}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-all ${
+                          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs transition-all ${
                             isSelected
                               ? 'bg-orange-500/20 text-orange-300 border border-orange-500/40'
                               : canSelect
@@ -1254,17 +1263,16 @@ export default function App() {
                                 : 'bg-slate-800/40 text-slate-500 border border-slate-700/40 cursor-not-allowed opacity-60'
                           }`}
                         >
-                          <span>{qualityLabel}</span>
-                          {sizeLabel && <span className="text-slate-500">{sizeLabel}</span>}
-                          {isHighQuality && !isVip && <span className="text-orange-400">⭐</span>}
-                          {isSelected && <Check className="w-3 h-3 text-orange-400" />}
+                          <span className="font-medium">{qualityLabel}</span>
+                          <span className="flex items-center gap-2">
+                            {sizeLabel && <span className="text-slate-500">{sizeLabel}</span>}
+                            {isHighQuality && !isVip && <span className="text-orange-400">⭐</span>}
+                            {isSelected && <Check className="w-3.5 h-3.5 text-orange-400" />}
+                          </span>
                         </button>
                       )
                     })}
                   </div>
-                  {pendingQuality && (
-                    <p className="text-xs text-emerald-400 mt-1.5">✓ {t('selectedQuality', { quality: pendingQuality.replace('height<=', '') })}</p>
-                  )}
                 </div>
               )}
 
