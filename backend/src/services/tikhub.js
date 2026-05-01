@@ -8,7 +8,9 @@ const fs = require('fs');
 const path = require('path');
 
 // 尝试加载 .env 文件(可选, Railway 会用环境变量)
-const envPath = path.join(__dirname, '../../.env');
+// 先尝试 backend/.env, 再尝试项目根 .env
+let envPath = path.join(__dirname, '../../.env');
+if (!fs.existsSync(envPath)) envPath = path.join(__dirname, '../../../.env');
 if (fs.existsSync(envPath)) {
   try { require('dotenv').config({ path: envPath }); } catch {}
 }

@@ -1855,12 +1855,13 @@ async function getVideoInfo(req, res) {
 
       // 1. Try TikHub API first (1080p/2K/4K)
       try {
-        const { tikhubRequest, API_KEY_YT } = require('../services/tikhub');
+        const { tikhubRequest } = require('../services/tikhub');
+        const YT_KEY = process.env.TIKHUB_API_KEY_YT;
         const cacheKeyTik = `yt-tikhub:${videoId}`;
         const data = await getCachedInfo(cacheKeyTik, async () => {
-          return await require('../services/tikhub').tikhubRequest(
+          return await tikhubRequest(
             `/api/v1/youtube/web/get_video_info?video_id=${videoId}&need_format=true`,
-            API_KEY_YT
+            YT_KEY
           );
         }, 'info');
 
