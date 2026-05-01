@@ -71,6 +71,52 @@ function tikhubRequest(endpoint, apiKey = null) {
 }
 
 /**
+ * 通用 TikHub POST API 请求
+ */
+function tikhubRequestPost(endpoint, body, apiKey = null) {
+  return new Promise((resolve, reject) => {
+    const url = new URL(`${API_BASE}${endpoint}`);
+    const key = apiKey || API_KEY;
+    const postData = JSON.stringify(body);
+    
+    const options = {
+      hostname: url.hostname,
+      path: url.pathname + url.search,
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${key}`,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData)
+      },
+      timeout: 30000
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(data);
+          if (json.code === 200 || json.data) {
+            resolve(json.data || json);
+          } else {
+            reject(new Error(json.message || 'TikHub API error'));
+          }
+        } catch (e) {
+          reject(new Error(`TikHub response parse error: ${data.substring(0, 200)}`));
+        }
+      });
+    });
+    
+    req.on('error', reject);
+    req.on('timeout', () => { req.destroy(); reject(new Error('TikHub API timeout')); });
+    req.write(postData);
+    req.end();
+  });
+}
+
+/**
  * 下载文件到本地
  */
 async function parseYouTube(url, taskId, onProgress) {
@@ -415,16 +461,20 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
   let hqVideoUrl = '';
   let hqFileSize = 0;
   if (isVip) {
-    // VIP用户:调用付费高清API获取原始素材(支持2K/4K)
+    // VIP用户:调用付费高清API获取最高画质原始素材(支持2K/4K)
     try {
-      const hqData = await tikhubRequest(`/api/v1/douyin/app/v3/fetch_video_high_quality_play_url?share_url=${encodeURIComponent(url)}`, API_KEY_DOUYIN);
-      if (hqData.original_video_url) {
-        hqVideoUrl = hqData.original_video_url;
-        hqFileSize = hqData.file_size_in_mb || 0;
-        console.log(`[TikHub] VIP HQ video found: ${hqFileSize} MB`);
+      const hqData = await tikhubRequestPost(
+        '/api/v1/douyin/app/v3/fetch_multi_video_high_quality_play_url',
+        { share_url: url },
+        API_KEY_DOUYIN
+      );
+      if (hqData.videos && hqData.videos.length > 0) {
+        hqVideoUrl = hqData.videos[0].original_video_url || '';
+        hqFileSize = hqData.videos[0].file_size_in_mb || 0;
+        console.log(`[TikHub] VIP HQ video found: ${hqFileSize} MB, resolution: ${hqData.videos[0].resolution}`);
       }
     } catch (e) {
-      console.log(`[TikHub] fetch_video_high_quality_play_url failed: ${e.message}`);
+      console.log(`[TikHub] fetch_multi_video_high_quality_play_url failed: ${e.message}`);
     }
   } else {
     console.log(`[TikHub] Non-VIP user, skipping paid HQ API`);
@@ -1005,7 +1055,7 @@ async function getDouyinQualities(url) {
   return { title, thumbnail: cover, duration, qualities };
 }
 
-module.exports = { parseYouTube, parseYouTubeV2, parseXiaohongshu, parseDouyin, parseInstagram, getDouyinQualities, tikhubRequest, downloadFile, parseWechatExportId, getWechatVideoInfo, downloadWechat };
+module.exports = { parseYouTube, parseYouTubeV2, parseXiaohongshu, parseDouyin, parseInstagram, getDouyinQualities, tikhubRequest, tikhubRequestPost, downloadFile, parseWechatExportId, getWechatVideoInfo, downloadWechat };
 
 // ============ WeChat Channels (视频号) ============
 
