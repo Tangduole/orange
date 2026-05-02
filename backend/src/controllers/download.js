@@ -2000,16 +2000,22 @@ async function getVideoInfo(req, res) {
           const detail = data?.aweme_detail || {};
           const video = detail.video || {};
           const bitrates = video.bit_rate || [];
+          const tkDuration = video.duration ? Math.floor(video.duration / 1000) : 0;
           const qualities = bitrates
             .filter(br => br.play_addr?.url_list?.[0])
-            .map(br => ({
-              quality: heightToLabel(br.play_addr?.height || 0),
-              format: 'video/mp4',
-              width: br.play_addr?.width || 0,
-              height: br.play_addr?.height || 0,
-              hasVideo: true,
-              hasAudio: true
-            }))
+            .map(br => {
+              const bitrate = br.bit_rate || 0;
+              const estSize = tkDuration && bitrate ? Math.round(tkDuration * bitrate / 8) : 0;
+              return {
+                quality: heightToLabel(br.play_addr?.height || 0),
+                format: 'video/mp4',
+                width: br.play_addr?.width || 0,
+                height: br.play_addr?.height || 0,
+                hasVideo: true,
+                hasAudio: true,
+                size: estSize
+              };
+            })
             .sort((a, b) => (b.height || 0) - (a.height || 0));
           const unique = [];
           const seen = new Set();

@@ -993,6 +993,12 @@ async function getDouyinQualities(url) {
 
   // 从 bit_rate 和 play_addr_265 收集画质
   const qualityMap = new Map();
+  
+  // 用 duration(秒) × bitrate(bps) / 8 估算文件大小(bytes)
+  const estimateSize = (bitrateBps) => {
+    if (!bitrateBps || !duration) return 0;
+    return Math.round(duration * bitrateBps / 8);
+  };
 
   // H.265 源 (可能 1080p/2K)
   const playAddr265 = video.play_addr_265;
@@ -1006,7 +1012,7 @@ async function getDouyinQualities(url) {
         height: h,
         hasVideo: true,
         hasAudio: false,
-        size: 0
+        size: estimateSize(playAddr265.bit_rate || 0)
       });
     }
   }
@@ -1017,6 +1023,8 @@ async function getDouyinQualities(url) {
     const pa = br.play_addr;
     if (!pa?.url_list?.[0]) continue;
     const h = pa.height || 0;
+    // bit_rate 里的 bit_rate 字段是视频+音频合计码率
+    const totalBitrate = br.bit_rate || pa.bit_rate || 0;
     if (h && !qualityMap.has(h)) {
       qualityMap.set(h, {
         quality: heightToLabel(h),
@@ -1025,7 +1033,7 @@ async function getDouyinQualities(url) {
         height: h,
         hasVideo: true,
         hasAudio: true,
-        size: 0
+        size: estimateSize(totalBitrate)
       });
     }
   }
@@ -1042,7 +1050,7 @@ async function getDouyinQualities(url) {
         height: h,
         hasVideo: true,
         hasAudio: true,
-        size: 0
+        size: estimateSize(playAddr.bit_rate || 0)
       });
     }
   }
@@ -1050,7 +1058,7 @@ async function getDouyinQualities(url) {
   const qualities = Array.from(qualityMap.values())
     .sort((a, b) => b.height - a.height);
 
-  console.log(`[TikHub] Douyin qualities for ${awemeId}: ${qualities.map(q => q.quality).join(', ')}`);
+  console.log(`[TikHub] Douyin qualities for ${awemeId} (duration=${duration}s): ${qualities.map(q => `${q.quality} ~${(q.size/1024/1024).toFixed(1)}MB`).join(', ')}`);
 
   return { title, thumbnail: cover, duration, qualities };
 }
