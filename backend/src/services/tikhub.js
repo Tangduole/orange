@@ -989,7 +989,8 @@ async function getDouyinQualities(url) {
   const video = detail.video || {};
   const title = detail.desc || '抖音作品';
   const cover = (detail.video?.cover?.url_list?.[0] || detail.video?.origin_cover?.url_list?.[0]) || '';
-  const duration = detail.video?.duration || 0;
+  // TikHub API 返回的是毫秒，转换为秒
+  const duration = detail.video?.duration ? Math.floor(detail.video.duration / 1000) : 0;
 
   // 从 bit_rate 和 play_addr_265 收集画质
   const qualityMap = new Map();
