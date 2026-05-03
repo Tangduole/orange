@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Download, X } from 'lucide-react'
 
 /**
@@ -48,6 +49,7 @@ function recentlyDismissed(): boolean {
 }
 
 export default function PWAInstallPrompt() {
+  const { t } = useTranslation()
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [showIosHint, setShowIosHint] = useState(false)
   const [visible, setVisible] = useState(false)
@@ -119,19 +121,19 @@ export default function PWAInstallPrompt() {
           </div>
           <div className="flex-1 min-w-0">
             <div className="font-semibold text-text-primary">
-              {showIosHint ? '添加到主屏幕 / Add to Home Screen' : '安装橙子下载器 / Install Orange'}
+              {showIosHint ? t('pwaIosTitle') : t('pwaInstallTitle')}
             </div>
             <div className="text-sm text-text-tertiary mt-1">
               {showIosHint
-                ? '点击底部 分享 按钮 → 「添加到主屏幕」即可。 Tap the Share button → "Add to Home Screen".'
-                : '装到桌面，离线可用、启动更快、像 App 一样使用。 Install for offline access and a native-app feel.'}
+                ? t('pwaIosDesc')
+                : t('pwaInstallDesc')}
             </div>
             {!showIosHint && deferredPrompt && (
               <button
                 onClick={install}
                 className="mt-3 px-4 py-2 rounded-lg bg-gradient-to-r from-orange to-orange-light text-white font-semibold text-sm hover:shadow-lg hover:shadow-orange/40 transition-all"
               >
-                立即安装 / Install Now
+                {t('pwaInstallNow')}
               </button>
             )}
           </div>

@@ -95,21 +95,21 @@ interface HistoryItem {
 }
 
 const PLATFORMS = [
-  { id: 'douyin', label: '抖音', icon: '📱' },
-  { id: 'tiktok', label: 'TikTok', icon: '🎵' },
-  { id: 'youtube', label: 'YouTube', icon: '▶️' },
-  { id: 'x', label: 'X/Twitter', icon: '🐦' },
-  { id: 'instagram', label: 'Instagram', icon: '📸' },
-  { id: 'xiaohongshu', label: '小紅書', icon: '📕' },
-  { id: 'more', label: 'More / 更多', icon: '🌐' },
+  { id: 'douyin', labelKey: 'platform_douyin', labelFallback: '抖音', icon: '📱' },
+  { id: 'tiktok', labelKey: 'platform_tiktok', labelFallback: 'TikTok', icon: '🎵' },
+  { id: 'youtube', labelKey: 'platform_youtube', labelFallback: 'YouTube', icon: '▶️' },
+  { id: 'x', labelKey: 'platform_x', labelFallback: 'X/Twitter', icon: '🐦' },
+  { id: 'instagram', labelKey: 'platform_instagram', labelFallback: 'Instagram', icon: '📸' },
+  { id: 'xiaohongshu', labelKey: 'platform_xiaohongshu', labelFallback: '小紅書', icon: '📕' },
+  { id: 'more', labelKey: 'morePlatforms', labelFallback: '更多', icon: '🌐' },
 ]
 
-const OPTIONS: { id: string; label: string; icon: typeof Video }[] = [
-  { id: 'video', label: 'Video', icon: Video },
-  { id: 'audio_only', label: 'Audio', icon: Mic },
-  { id: 'copywriting', label: 'Text', icon: FileText },
-  { id: 'cover', label: 'Cover', icon: ImageIcon },
-  { id: 'asr', label: 'Subtitle', icon: Languages },
+const OPTIONS: { id: string; labelKey: string; icon: typeof Video }[] = [
+  { id: 'video', labelKey: 'downloadOptionVideo', icon: Video },
+  { id: 'audio_only', labelKey: 'downloadOptionAudio', icon: Mic },
+  { id: 'copywriting', labelKey: 'downloadOptionText', icon: FileText },
+  { id: 'cover', labelKey: 'downloadOptionCover', icon: ImageIcon },
+  { id: 'asr', labelKey: 'downloadOptionSubtitle', icon: Languages },
 ]
 
 const ASR_LANGUAGE_OPTIONS = [
@@ -117,13 +117,13 @@ const ASR_LANGUAGE_OPTIONS = [
   { value: 'en', label: 'English' },
   { value: 'ja', label: '日本語' },
   { value: 'ko', label: '한국어' },
-  { value: 'auto', label: 'Auto检测' },
+  { value: 'auto', label: 'Auto' },
 ]
 
 const QUALITY_OPTIONS = [
-  { value: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', label: 'Best', vipOnly: true },
-  { value: 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]', label: '1080p', vipOnly: true },
-  { value: 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]', label: '720p', vipOnly: false },
+  { value: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', labelKey: 'qualityBest', vipOnly: true },
+  { value: 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]', labelKey: 'quality1080p', vipOnly: true },
+  { value: 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]', labelKey: 'quality720p', vipOnly: false },
 ]
 
 function formatBytes(bytes: number): string {
@@ -242,7 +242,7 @@ export default function App() {
   // 重置成功后解锁关闭弹窗
   const handleResetPwdSuccess = () => {
     localStorage.removeItem('orange_token')
-    setResetPwdMsg('密码已重置！请使用新密码登录')
+    setResetPwdMsg(t('passwordResetSuccess'))
     setTimeout(() => {
       setShowResetPwd(false)
       setResetPwdStep(false)
@@ -358,12 +358,12 @@ export default function App() {
         // Demo mode：直接Showtoken让用户重置
         setResetPwdToken(result.resetToken)
         setResetPwdStep(true)
-        setResetPwdMsg('Demo mode：Use以下token重置Password')
+        setResetPwdMsg(t('passwordResetSuccess'))
       } else {
-        setResetPwdMsg('Reset link Sent to Email')
+        setResetPwdMsg(t('checkEmail'))
       }
     } catch (err: any) {
-      setResetPwdMsg(err.message || 'SendFailed')
+      setResetPwdMsg(err.message || t('operationFailed'))
     } finally {
       setResetPwdLoading(false)
     }
@@ -378,7 +378,7 @@ export default function App() {
       await api.resetPassword(resetPwdToken, resetPwd)
       // 重置成功后清除本地token，强制重新登录
       localStorage.removeItem('orange_token')
-      setResetPwdMsg('密码已重置！请使用新密码登录')
+      setResetPwdMsg(t('passwordResetSuccess'))
       setTimeout(() => {
         setShowResetPwd(false)
         setResetPwdStep(false)
@@ -388,7 +388,7 @@ export default function App() {
         setResetPwdMsg('')
       }, 2000)
     } catch (err: any) {
-      setResetPwdMsg(err.message || '重置Failed')
+      setResetPwdMsg(err.message || t('operationFailed'))
     } finally {
       setResetPwdLoading(false)
     }
@@ -442,8 +442,8 @@ export default function App() {
 
   const locationLabels: Record<string, { label: string; icon: typeof Smartphone; desc: string }> = {
     album: { label: '手机相册', icon: Smartphone, desc: '默认Save到相册' },
-    downloads: { label: 'Download Folder Download Folder', icon: HardDrive, desc: 'Browser默认DownloadLocation' },
-    desktop: { label: 'Desktop Desktop', icon: HardDrive, desc: 'Save到Desktop' },
+    downloads: { label: t('saveToDownloads'), icon: HardDrive, desc: '' },
+    desktop: { label: t('saveToDesktop'), icon: HardDrive, desc: '' },
     documents: { label: 'Documents', icon: FolderOpen, desc: 'Save到DocumentsFile夹' },
   }
 
@@ -487,7 +487,7 @@ export default function App() {
               taskId: `error-${Date.now()}`, 
               status: 'error', 
               progress: 0, 
-              error: e.response?.data?.message || e.message || 'Download failed',
+              error: e.response?.data?.message || e.message || t('errorDefault'),
               createdAt: Date.now()
             })
           }).finally(() => setLoading(false))
@@ -543,7 +543,7 @@ export default function App() {
             setTask(r.data.data)
             setDetected('')
           }).catch((e: any) => {
-            setError(getErrorMessage(e.response?.data?.message || e.message || 'Download failed'))
+            setError(getErrorMessage(e.response?.data?.message || e.message || t('errorDefault')))
           }).finally(() => setLoading(false))
           return 0
         }
@@ -793,7 +793,7 @@ export default function App() {
         .map(u => u.replace(/^\d+\.\s*/, ''))
         .map(u => extractUrls(u)[0] || u)
         .filter(u => u)
-      if (urls.length === 0) { setError('Please enter a video link'); return }
+      if (urls.length === 0) { setError(t('enterVideoLink')); return }
       
       // 批量下载仅限VIP
       if (!isVip) {
@@ -815,17 +815,17 @@ export default function App() {
     }
     
     // 单G模式
-    if (!url.trim()) { setError('Please enter a video link'); return }
+    if (!url.trim()) { setError(t('enterVideoLink')); return }
     
     // 正在获取画质信息 → 提示等待
     if (qualitiesLoading) {
-      setError('正在获取画质信息，请稍候...')
+      setError(t('fetchingQualities'))
       return
     }
     
     // 有画质选项但用户未选择 → 提示先选画质
     if (availableQualities.length > 0 && !pendingQuality) {
-      setError('请先选择画质再下载')
+      setError(t('pleaseSelectQuality'))
       return
     }
     
@@ -858,7 +858,7 @@ export default function App() {
       }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} })
       setTask(r.data.data)
     } catch (e: any) {
-      setError(getErrorMessage(e.code === 'ECONNABORTED' ? 'timeout' : (e.response?.data?.message || e.message || 'Download failed')))
+      setError(getErrorMessage(e.code === 'ECONNABORTED' ? 'timeout' : (e.response?.data?.message || e.message || t('errorDefault'))))
       setLoading(false)
     }
   }
@@ -883,7 +883,7 @@ export default function App() {
       setTask(r.data.data); setDetected('')
       setPendingQuality('')  // 清空选择的画质
     } catch (e: any) {
-      setError(getErrorMessage(e.code === 'ECONNABORTED' ? 'timeout' : (e.response?.data?.message || e.message || 'Download failed')))
+      setError(getErrorMessage(e.code === 'ECONNABORTED' ? 'timeout' : (e.response?.data?.message || e.message || t('errorDefault'))))
     } finally { setLoading(false) }
   }
 
@@ -897,7 +897,7 @@ export default function App() {
   }
   const deleteSelected = async () => {
     if (selectedTasks.size === 0) return
-    if (!confirm(`Delete ${selectedTasks.size} item(s)?`)) return
+    if (!confirm(t('deleteConfirm', { count: selectedTasks.size }))) return
     try {
       await Promise.all([...selectedTasks].map(id => axios.delete(`${API}/tasks/${id}`, { headers: getAuthHeaders() })))
       setSelectedTasks(new Set())
@@ -930,7 +930,7 @@ export default function App() {
                 return;
               }
               if (status.data.data?.status === 'error') {
-                setError(status.data.data.error || 'Download failed');
+                setError(status.data.data.error || t('errorDefault'));
                 return;
               }
               if (status.data.data?.status === 'downloading') {
@@ -974,19 +974,23 @@ export default function App() {
   const clearUrl = () => { setUrl(''); setDetected('') }
 
   const isWorking = (s: string) => ['pending', 'parsing', 'processing', 'downloading', 'asr'].includes(s)
-  const statusLabel = (s: string) => ({ pending: t('pending') || 'Queuing', parsing: t('parsing') || 'Parsing', downloading: t('downloading') || 'Downloading', asr: t('asr') || 'Speech recognition', completed: t('completed') || 'Completed', error: t('error') || 'Failed' }[s] || s)
+  const statusLabel = (s: string) => ({ pending: t('pending'), parsing: t('parsing'), downloading: t('downloading'), asr: t('speechRecognition'), completed: t('completed'), error: t('failed') }[s] || s)
   
   const getErrorMessage = (err: string) => {
-    if (err.includes('TikHub API error')) return '❌ API service error, please try again later'
-    if (err.includes('Sign in to confirm')) return '❌ YouTube requires verification, try another video'
-    if (err.includes('No download URL')) return '❌ Video not available for download'
-    if (err.includes('timeout')) return '⏱️ Download timeout, please try again'
-    if (err.includes('network')) return '🌐 Network error, check your connection'
-    if (err.includes('403') || err.includes('Forbidden')) return '🚫 Access denied, video may be private'
-    if (err.includes('404') || err.includes('Not Found')) return '🔍 Video not found, check the link'
-    return `❌ ${err || 'Download failed, please try again'}`
+    if (err.includes('TikHub API error')) return t('errorApiService')
+    if (err.includes('Sign in to confirm')) return t('errorYoutubeVerify')
+    if (err.includes('No download URL')) return t('errorNotAvailable')
+    if (err.includes('timeout')) return t('errorTimeoutMsg')
+    if (err.includes('network')) return t('errorNetwork')
+    if (err.includes('403') || err.includes('Forbidden')) return t('errorAccessDenied')
+    if (err.includes('404') || err.includes('Not Found')) return t('errorNotFound')
+    return `❌ ${err || t('errorDefault')}`
   }
-  const platformLabel = (id: string) => PLATFORMS.find(p => p.id === id)?.label || ''
+  const getOptionLabel = (labelKey: string) => t(labelKey)
+  const getPlatformLabel = (id: string) => {
+    const p = PLATFORMS.find(p => p.id === id)
+    return p ? t(p.labelKey as any) || p.labelFallback : ''
+  }
 
   if (showSubscription && authToken) {
     return <SubscriptionPage token={authToken} onBack={() => setShowSubscription(false)} onLogout={handleLogout} />
@@ -1016,7 +1020,7 @@ export default function App() {
               <button
                 onClick={toggleTheme}
                 className={`p-2 rounded-lg transition ${isDark ? 'text-slate-300 hover:text-yellow-400' : 'text-light-textSecondary hover:text-orange-500'}`}
-                title={isDark ? '切换到Light模式' : '切换到Dark模式'}
+                title={isDark ? t('switchToLight') : t('switchToDark')}
               >
                 {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
@@ -1064,9 +1068,9 @@ export default function App() {
                       <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)} />
                       <div className="absolute right-0 top-10 bg-slate-800 rounded-xl py-2 w-56 border border-slate-700 shadow-xl z-50">
                         <div className="px-3 py-2 border-b border-slate-700/50">
-                          <p className="text-xs text-slate-300">Account</p>
-                          <p className="text-sm text-white truncate">{authUser?.email || '未知的Email'}</p>
-                          <p className="text-xs text-orange-400 mt-0.5">{authUser?.tier === 'pro' ? '⭐ Pro Member' : 'Free User'}</p>
+                          <p className="text-xs text-slate-300">{t('account')}</p>
+                          <p className="text-sm text-white truncate">{authUser?.email || t('unknownEmail')}</p>
+                          <p className="text-xs text-orange-400 mt-0.5">{authUser?.tier === 'pro' ? t('proMemberTag') : t('freeUserTag')}</p>
                         </div>
                         <div className="py-1">
                           <button onClick={() => { setShowUserMenu(false); setShowSubscription(true) }} className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700/50 transition flex items-center gap-2">
@@ -1076,12 +1080,12 @@ export default function App() {
                             <span>🎁</span> {t('referral')}
                           </button>
                           <button onClick={() => { setShowUserMenu(false); setShowResetPwd(true) }} className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700/50 transition flex items-center gap-2">
-                            <span>🔑</span> 修改Password
+                            <span>🔑</span> {t('changePassword')}
                           </button>
                         </div>
                         <div className="pt-1 border-t border-slate-700/50">
                           <button onClick={() => { setShowUserMenu(false); handleLogout() }} className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-slate-700/50 transition flex items-center gap-2">
-                            <span>🚪</span> 退出Login
+                            <span>🚪</span> {t('exitLoginLogout')}
                           </button>
                         </div>
                       </div>
@@ -1126,7 +1130,7 @@ export default function App() {
                   <button
                     onClick={handlePasteClick}
                     className="absolute left-3 top-1/2 -translate-y-1/2 p-2 text-slate-300 hover:text-orange-400 transition-colors"
-                    title="Paste from clipboard"
+                    title={t('pasteFromClipboard')}
                   >
                     <Clipboard className="w-5 h-5" />
                   </button>
@@ -1146,7 +1150,7 @@ export default function App() {
                     <button
                       onClick={clearUrl}
                       className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-300 hover:text-slate-300 transition"
-                      title="Clear link"
+                      title={t('clearLink')}
                     >
                       <Eraser className="w-4 h-4" />
                     </button>
@@ -1169,7 +1173,7 @@ export default function App() {
                 <textarea
                   value={batchUrls}
                   onChange={(e) => handleBatchChange(e.target.value)}
-                  placeholder="Paste links (auto-extract) or type one per line：&#10;https://v.douyin.com/xxx&#10;https://x.com/yyy"
+                  placeholder={t('pasteLinksHint') + '\nhttps://v.douyin.com/xxx\nhttps://x.com/yyy'}
                   className={`w-full h-28 px-4 py-3 border-2 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 text-sm transition-all resize-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white placeholder:text-slate-300' : 'bg-light-surface border-light-border text-light-text placeholder:text-light-textMuted'}`}
                 />
                 {/* Link预览列表 - 带数字排序 */}
@@ -1203,7 +1207,7 @@ export default function App() {
                   </div>
                 )}
                 <p className="text-xs text-slate-300 mt-2">
-                  💡 One link per line, max 10 items. {batchUrls.split('\n').filter(u => u.trim()).length}/10
+                  💡 {t('batchTip')} {batchUrls.split('\n').filter(u => u.trim()).length}/10
                 </p>
               </div>
             )}
@@ -1222,7 +1226,7 @@ export default function App() {
                 {PLATFORMS.map((p) => (
                   <span key={p.id} className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-700/30 text-slate-300 text-xs rounded-lg">
                     <span>{p.icon}</span>
-                    <span>{p.label}</span>
+                    <span>{t(p.labelKey as any) || p.labelFallback}</span>
                   </span>
                 ))}
               </div>
@@ -1230,7 +1234,7 @@ export default function App() {
 
             {/* DownloadOption */}
             <div className="mb-5">
-              <p className="text-xs text-slate-300 mb-2">Download Content</p>
+              <p className="text-xs text-slate-300 mb-2">{t('downloadContent')}</p>
               <div className="flex flex-wrap gap-1.5">
                 {OPTIONS.map(o => {
                   const Icon = o.icon; const on = selected.has(o.id)
@@ -1238,7 +1242,7 @@ export default function App() {
                     <button key={o.id} onClick={() => toggle(o.id)}
                       className={`flex items-center gap-1 px-3 py-2 text-xs rounded-lg transition-all
                         ${on ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : 'bg-slate-700/30 text-slate-300 border border-transparent hover:text-slate-300'}`}>
-                      <Icon className="w-3.5 h-3.5" />{o.label}
+                      <Icon className="w-3.5 h-3.5" />{getOptionLabel(o.labelKey)}
                     </button>
                   )
                 })}
@@ -1290,7 +1294,7 @@ export default function App() {
               {selected.has('asr') && (
                 <div className="mt-3 space-y-2">
                   <div>
-                    <label className="text-xs text-slate-300 mb-1 block">ASR Language 語言</label>
+                    <label className="text-xs text-slate-300 mb-1 block">{t('asrLanguageLabel')}</label>
                     <select
                       value={asrLanguage}
                       onChange={(e) => setAsrLanguage(e.target.value)}
@@ -1309,7 +1313,7 @@ export default function App() {
             <div className="mb-5">
               <label className="text-xs text-slate-300 mb-2 flex items-center gap-1.5">
                 <FolderOpen className="w-3.5 h-3.5" />
-                Save Location SaveLocation
+                {t('saveLocation')}
               </label>
               <div className="relative mt-1.5">
                 <select
@@ -1317,16 +1321,16 @@ export default function App() {
                   onChange={(e) => handleLocationChange(e.target.value)}
                   className={`w-full px-4 py-3 border-2 rounded-xl text-sm outline-none focus:border-orange-500/70 cursor-pointer appearance-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-light-surface border-light-border text-light-text'}`}
                 >
-                  <option value="album">📱 Phone Gallery Photos</option>
-                  <option value="download">💻 Download Folder Download Folder</option>
-                  <option value="desktop">🖥️ Desktop Desktop</option>
+                  <option value="album">📱 {t('saveToAlbum')}</option>
+                  <option value="download">💻 {t('saveToDownloads')}</option>
+                  <option value="desktop">🖥️ {t('saveToDesktop')}</option>
                 </select>
                 <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 pointer-events-none" />
               </div>
               {saveLocation === 'download' && (
                 <div className="mt-2 p-2.5 bg-slate-700/30 rounded-xl border border-slate-700/60">
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    💡 <span className="text-orange-400">Tip:</span>To change download path, set default download location in browser settings. Chrome: Settings → Advanced → Downloads.
+                    {t('tipChangeDownloadPath')}
                   </p>
                 </div>
               )}
@@ -1347,9 +1351,9 @@ export default function App() {
               <div className={`mb-3 rounded-xl border overflow-hidden ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-light-surface border-light-border'}`}>
                 <div className={`px-4 py-2 border-b flex justify-between items-center ${isDark ? 'border-slate-700/60' : 'border-light-border'}`}>
                   <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-light-textSecondary'}`}>
-                    Batch Queue: {batchQueue.length} items
+                    {t('batchQueue')}: {batchQueue.length} {t('items')}
                   </p>
-                  {loading && <span className="text-xs text-orange-400">Processing {batchIndex + 1}/{batchQueue.length}</span>}
+                  {loading && <span className="text-xs text-orange-400">{t('batchProcessing')} {batchIndex + 1}/{batchQueue.length}</span>}
                 </div>
                 <div className="max-h-40 overflow-y-auto">
                   {batchQueue.map((item, idx) => {
@@ -1453,7 +1457,7 @@ export default function App() {
                     />
                   </div>
                   <div className={`flex items-center justify-between text-xs ${isDark ? 'text-slate-300' : 'text-light-textSecondary'}`}>
-                    <span className={isDark ? 'text-slate-300' : 'text-light-textSecondary'}>{task.title || 'Parsing...'}</span>
+                    <span className={isDark ? 'text-slate-300' : 'text-light-textSecondary'}>{task.title || t('parsing')}</span>
                     <div className="flex items-center gap-2">
                       {task.downloadedBytes && task.totalBytes ? (
                         <span className={isDark ? 'text-slate-300' : 'text-light-textSecondary'}>
@@ -1462,7 +1466,7 @@ export default function App() {
                       ) : null}
                       <span className="text-orange-400 font-medium">{task.progress}%</span>
                       {task.speed && <span className="text-emerald-400">{task.speed}/s</span>}
-                      {task.eta && <span className={isDark ? 'text-slate-300' : 'text-light-textMuted'}>Remaining {task.eta}</span>}
+                      {task.eta && <span className={isDark ? 'text-slate-300' : 'text-light-textMuted'}>{t('remaining')} {task.eta}</span>}
                     </div>
                   </div>
                 </div>
@@ -1481,12 +1485,12 @@ export default function App() {
                   {/* Quality调整Prompt - 需求2 */}
                   {task.qualityAdjusted === 'downgrade' && (
                     <div className="text-xs text-orange-400 bg-orange-500/10 px-3 py-2 rounded-xl">
-                      💡 Your selected Quality is unavailable, downgraded to {task.height}p
+                      {t('qualityDowngraded', { height: task.height })}
                     </div>
                   )}
                   {task.qualityAdjusted === 'upgrade' && (
                     <div className="text-xs text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded-xl">
-                      💡 Upgraded to best available Quality {task.height}p
+                      {t('qualityUpgraded', { height: task.height })}
                     </div>
                   )}
                   {/* Free User Download limit Prompt */}
@@ -1502,7 +1506,7 @@ export default function App() {
               {/* 图文 */}
               {task.isNote && task.imageFiles?.length > 0 && (
                 <div>
-                  <p className="text-xs text-slate-300 mb-2">Total {task.imageFiles.length}  images</p>
+                  <p className="text-xs text-slate-300 mb-2">{t('totalImages', { count: task.imageFiles.length })}</p>
                   <div className="grid grid-cols-3 gap-2">
                     {task.imageFiles.map(img => (
                       <a key={img.filename} href={`${BASE_URL}${img.url}`} download><img src={`${BASE_URL}${img.url}`} alt="" className="w-full aspect-square object-cover rounded-xl bg-slate-700/30" loading="lazy" /></a>
@@ -1524,7 +1528,7 @@ export default function App() {
                     />
                   </div>
                   <p style={{ color: 'gray', fontSize: '13px', marginTop: '6px', textAlign: 'center' }}>
-                    长按视频 → 存储视频
+                    {t('longPressToSave')}
                   </p>
                   <button
                     onClick={async () => {
@@ -1538,7 +1542,7 @@ export default function App() {
                     className="w-full mt-2 py-3 rounded-xl text-sm font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                   >
                     {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                    {downloading ? t('downloading') : 'Save to Photos'}
+                    {downloading ? t('downloading') : t('saveToPhotos')}
                   </button>
                 </div>
               )}
@@ -1573,7 +1577,7 @@ export default function App() {
                   className="w-full py-3 rounded-xl text-xs bg-slate-700/30 border border-slate-700/60 text-slate-300 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ImageIcon className="w-3.5 h-3.5" />}
-                  {downloading ? 'Downloading...' : 'Save Cover'}
+                  {downloading ? t('downloading') : t('saveCover')}
                 </button>
               )}
 
@@ -1591,7 +1595,7 @@ export default function App() {
                   className="w-full py-3 rounded-xl text-xs bg-slate-700/30 border border-slate-700/60 text-slate-300 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mic className="w-3.5 h-3.5" />}
-                  {downloading ? 'Downloading...' : 'Save MP3'}
+                  {downloading ? t('downloading') : t('saveMp3')}
                 </button>
               )}
 
@@ -1599,7 +1603,7 @@ export default function App() {
               {task.status === 'completed' && task.copyText && (
                 <div className="p-3 bg-slate-900/60 rounded-xl">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs text-slate-300">Copywriting</span>
+                    <span className="text-xs text-slate-300">{t('copywritingLabel')}</span>
                     <div className="flex gap-2">
                       <button onClick={() => clip(task.copyText!, 'copy')} className="text-xs text-slate-300 hover:text-orange-400 transition">
                         {copied === 'copy' ? <><Check className="w-3 h-3 inline" /> Copied</> : <><Copy className="w-3 h-3 inline" /> Copy</>}
@@ -1636,7 +1640,7 @@ export default function App() {
               {task.asrText && (
                 <div className="p-3 bg-slate-900/60 rounded-xl">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs text-slate-300">Speech to Text</span>
+                    <span className="text-xs text-slate-300">{t('speechToTextLabel')}</span>
                     <div className="flex gap-2">
                       <button onClick={() => clip(task.asrText!, 'asr')} className="text-xs text-slate-300 hover:text-orange-400 transition">
                         {copied === 'asr' ? <><Check className="w-3 h-3 inline" /> Copied</> : <><Copy className="w-3 h-3 inline" /> Copy</>}
@@ -1661,7 +1665,7 @@ export default function App() {
               {task.translatedText && (
                 <div className="p-3 bg-slate-900/60 rounded-xl">
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs text-slate-300">Translation 翻译</span>
+                    <span className="text-xs text-slate-300">{t('translationLabel')}</span>
                     <div className="flex gap-2">
                       <button onClick={() => clip(task.translatedText!, 'translated')} className="text-xs text-slate-300 hover:text-orange-400 transition">
                         {copied === 'translated' ? <><Check className="w-3 h-3 inline" /> Copied</> : <><Copy className="w-3 h-3 inline" /> Copy</>}
@@ -1690,11 +1694,11 @@ export default function App() {
           {/* How to Use - 精简版 */}
           <div className={`mt-5 rounded-2xl px-5 py-3 border ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-light-input border-light-border'}`}>
             <div className={`flex items-center gap-4 text-xs ${isDark ? 'text-slate-300' : 'text-light-textSecondary'}`}>
-              <span className="flex items-center gap-1"><span className="text-orange-400 font-bold">1</span> Copy link</span>
+              <span className="flex items-center gap-1"><span className="text-orange-400 font-bold">1</span> {t('step1CopyLink')}</span>
               <span>→</span>
-              <span className="flex items-center gap-1"><span className="text-orange-400 font-bold">2</span> Paste</span>
+              <span className="flex items-center gap-1"><span className="text-orange-400 font-bold">2</span> {t('step2Paste')}</span>
               <span>→</span>
-              <span className="flex items-center gap-1"><span className="text-orange-400 font-bold">3</span> Download</span>
+              <span className="flex items-center gap-1"><span className="text-orange-400 font-bold">3</span> {t('step3Download')}</span>
             </div>
           </div>
 
@@ -1703,12 +1707,12 @@ export default function App() {
             <button onClick={() => setShowHistory(!showHistory)}
               className={`w-full flex items-center justify-between px-5 py-3 rounded-2xl border text-sm transition ${isDark ? 'bg-slate-900/60 border-slate-700/60 text-slate-300 hover:text-slate-300' : 'bg-light-surface border-light-border text-light-textSecondary hover:text-light-text'}`}>
               <span className="flex items-center gap-2">
-                <Clock className="w-4 h-4" /> Download History
+                <Clock className="w-4 h-4" /> {t('downloadHistory')}
                 {history.length > 0 && <span className="bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded text-xs">{history.length}</span>}
               </span>
               <span className="flex items-center gap-2">
                 {history.length > 0 && showHistory && (
-                  <button onClick={(e) => { e.stopPropagation(); clearAllHistory() }} className="text-xs text-red-400 hover:text-red-300 transition">Clear All</button>
+                  <button onClick={(e) => { e.stopPropagation(); clearAllHistory() }} className="text-xs text-red-400 hover:text-red-300 transition">{t('clearAllHistory')}</button>
                 )}
                 {showHistory ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
               </span>
@@ -1717,29 +1721,29 @@ export default function App() {
               <div className={`mt-2 rounded-2xl border overflow-hidden ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-light-surface border-light-border'}`}>
                 <div className={`flex gap-2 p-3 border-b items-center ${isDark ? 'border-slate-700/30' : 'border-light-border'}`}>
                   {filteredHistory.length > 0 && <input type="checkbox" checked={selectedTasks.size === filteredHistory.length} onChange={toggleSelectAll} className={`w-4 h-4 rounded ${isDark ? 'border-slate-600' : 'border-light-border'}`} />}
-                  {selectedTasks.size > 0 && <button onClick={deleteSelected} className="px-3 py-1.5 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg text-xs">Delete ({selectedTasks.size})</button>}
+                  {selectedTasks.size > 0 && <button onClick={deleteSelected} className="px-3 py-1.5 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg text-xs">{t('clearAll')} ({selectedTasks.size})</button>}
                   <div className="flex-1 relative">
-                    <input type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} placeholder="Search..." className={`w-full pl-8 pr-3 py-2 border rounded-lg text-sm placeholder:text-slate-300 ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`} />
+                    <input type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} placeholder={t('searchPlaceholder')} className={`w-full pl-8 pr-3 py-2 border rounded-lg text-sm placeholder:text-slate-300 ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`} />
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
                   </div>
                   <select value={historyFilter} onChange={(e) => setHistoryFilter(e.target.value as 'all' | 'completed' | 'error' | 'favorites')} className={`px-3 py-2 border rounded-lg text-sm ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`}>
-                    <option value="all">All</option>
-                    <option value="completed">Done</option>
-                    <option value="error">Failed</option>
-                    <option value="favorites">Fav</option>
+                    <option value="all">{t('filterAll')}</option>
+                    <option value="completed">{t('filterDone')}</option>
+                    <option value="error">{t('filterFailed')}</option>
+                    <option value="favorites">{t('filterFav')}</option>
                   </select>
                 </div>
                 <div className="max-h-60 overflow-y-auto">
-                  {filteredHistory.length === 0 ? <p className="py-8 text-center text-sm text-slate-500">{historySearch || historyFilter !== 'all' ? 'No results' : 'No history'}</p> : filteredHistory.map(item => (
+                  {filteredHistory.length === 0 ? <p className="py-8 text-center text-sm text-slate-500">{historySearch || historyFilter !== 'all' ? t('noResults') : t('noHistory')}</p> : filteredHistory.map(item => (
                     <div key={item.taskId} className={`flex items-center gap-3 px-4 py-3 border-b border-slate-700/20 last:border-0 hover:bg-slate-900/60 transition ${selectedTasks.has(item.taskId) ? 'bg-orange-500/10' : ''}`}>
                       <input type="checkbox" checked={selectedTasks.has(item.taskId)} onChange={() => { const s = new Set(selectedTasks); selectedTasks.has(item.taskId) ? s.delete(item.taskId) : s.add(item.taskId); setSelectedTasks(s) }} className="w-4 h-4 rounded border-slate-600 shrink-0" />
                       {item.thumbnailUrl ? <button onClick={() => openSavedFile(item)} className="relative shrink-0 group"><img src={`${BASE_URL}${item.thumbnailUrl}`} alt="" className="w-14 h-10 object-cover rounded-lg" /><div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 transition"><Play className="w-4 h-4 text-white" /></div></button> : <div className="w-14 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0"><Video className="w-4 h-4 text-slate-500" /></div>}
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm text-slate-500 font-medium whitespace-nowrap ${(item.title || '').length > 20 ? 'animate-marquee' : 'truncate'}`}>{item.title || 'Untitled'}</p>
+                        <p className={`text-sm text-slate-500 font-medium whitespace-nowrap ${(item.title || '').length > 20 ? 'animate-marquee' : 'truncate'}`}>{item.title || t('untitled')}</p>
                         <div className="flex items-center gap-2 mt-0.5">
                           {item.platform && <span className="text-xs text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded">{platformLabel(item.platform)}</span>}
                           {item.height && <span className={`text-xs px-1.5 py-0.5 rounded ${item.height >= 720 ? 'text-yellow-400 bg-yellow-500/10' : 'text-emerald-400 bg-emerald-500/10'}`}>🎬 {item.height}p {item.height >= 720 ? '⭐' : '✓'}</span>}
-                          <span className="text-xs text-slate-500">{new Date(item.createdAt).toLocaleString('en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                          <span className="text-xs text-slate-500">{new Date(item.createdAt).toLocaleString(i18n.language === 'zh-CN' ? 'zh-CN' : 'en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       </div>
                       {item.status === 'error' && <button onClick={() => retryTask(item)} className="p-1.5 text-orange-500 hover:text-orange-400"><Loader2 className="w-4 h-4" /></button>}
@@ -1793,7 +1797,7 @@ export default function App() {
                           setTask(r.data.data)
                           setDetected('')
                         }).catch((e: any) => {
-                          setError(getErrorMessage(e.response?.data?.message || e.message || 'Download failed'))
+                          setError(getErrorMessage(e.response?.data?.message || e.message || t('errorDefault')))
                         }).finally(() => setLoading(false))
                       }}
                       className={`w-full flex items-center justify-between p-3 rounded-xl transition text-left ${
@@ -1850,7 +1854,7 @@ export default function App() {
 
         {/* Footer */}
         <footer className={`text-center py-8 text-xs ${isDark ? 'text-slate-500' : 'text-light-textMuted'}`}>
-          <p>Orange Downloader v1.0 · For personal use only</p>
+          <p>{t('footerText')}</p>
         </footer>
         <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} onSuccess={handleAuthSuccess} onForgotPassword={() => { setShowAuthModal(false); setShowResetPwd(true); }} />
         {authToken && <ReferralModal token={authToken} isOpen={showReferral} onClose={() => setShowReferral(false)} />}
@@ -1898,27 +1902,27 @@ export default function App() {
               </button>
               <div className="text-center mb-4">
                 <p className="text-4xl mb-3">📱</p>
-                <h3 className="text-lg font-bold text-white mb-2">Save to Photos</h3>
+                <h3 className="text-lg font-bold text-white mb-2">{t('iosGuideTitle')}</h3>
               </div>
               <div className="space-y-3 text-sm text-slate-300">
                 <div className="flex items-start gap-3">
                   <span className="text-orange-400 font-bold">1</span>
-                  <p>The video will open in a new tab</p>
+                  <p>{t('iosGuideStep1')}</p>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="text-orange-400 font-bold">2</span>
-                  <p>Long press the video (or tap the share button <span className="inline-block">⬆️</span>)</p>
+                  <p>{t('iosGuideStep2')}</p>
                 </div>
                 <div className="flex items-start gap-3">
                   <span className="text-orange-400 font-bold">3</span>
-                  <p>Select <strong>"Save Video"</strong> or <strong>"Save to Photos"</strong></p>
+                  <p>{t('iosGuideStep3')}</p>
                 </div>
               </div>
               <button
                 onClick={() => setShowIosGuide(false)}
                 className="w-full mt-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-xl transition"
               >
-                Got it
+                {t('gotIt')}
               </button>
             </div>
           </div>
@@ -1933,13 +1937,13 @@ export default function App() {
                 <button onClick={() => !resetPwdLocked.current && setShowResetPwd(false)} className={`text-slate-300 hover:text-white transition ${resetPwdLocked.current ? 'opacity-30 cursor-not-allowed' : ''}`}>
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                 </button>
-                <h3 className="text-base font-bold text-white">🔑 修改Password</h3>
+                <h3 className="text-base font-bold text-white">🔑 {t('changePassword')}</h3>
               </div>
               {/* Content */}
               <div className="p-4">
                 {!resetPwdStep ? (
                   <>
-                    <p className="text-xs text-slate-300 mb-3">输入RegisterEmail，我们会Send重置Link</p>
+                    <p className="text-xs text-slate-300 mb-3">{t('enterEmailForReset')}</p>
                     <input
                       type="email"
                       value={resetEmail}
@@ -1949,22 +1953,22 @@ export default function App() {
                     />
                     {resetPwdMsg && <p className={`text-xs mb-3 ${resetPwdMsg.includes('Failed') ? 'text-red-400' : 'text-green-400'}`}>{resetPwdMsg}</p>}
                     <button onClick={handleForgotPassword} disabled={resetPwdLoading} className="w-full py-2.5 rounded-lg bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 transition disabled:opacity-50">
-                      {resetPwdLoading ? 'Send中...' : 'Send重置Link'}
+                      {resetPwdLoading ? t('sending') : t('sendResetLinkBtn')}
                     </button>
                   </>
                 ) : (
                   <>
-                    <p className="text-xs text-slate-300 mb-3">Settings新Password</p>
+                    <p className="text-xs text-slate-300 mb-3">{t('setNewPassword')}</p>
                     <input
                       type="password"
                       value={resetPwd}
                       onChange={(e) => setResetPwd(e.target.value)}
-                      placeholder="新Password"
+                      placeholder={t('newPassword')}
                       className="w-full px-3 py-2.5 bg-slate-900/60 border border-slate-600/50 rounded-lg text-white text-sm outline-none focus:border-orange-500/70 mb-3"
                     />
                     {resetPwdMsg && <p className={`text-xs mb-3 ${resetPwdMsg.includes('Failed') || resetPwdMsg.includes('无效') ? 'text-red-400' : 'text-green-400'}`}>{resetPwdMsg}</p>}
                     <button onClick={handleResetPassword} disabled={resetPwdLoading} className="w-full py-2.5 rounded-lg bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 transition disabled:opacity-50">
-                      {resetPwdLoading ? '重置中...' : '确认重置'}
+                      {resetPwdLoading ? t('resetting') : t('confirmReset')}
                     </button>
                   </>
                 )}

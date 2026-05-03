@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { X } from 'lucide-react';
 
 interface LinkInputProps {
@@ -8,15 +9,8 @@ interface LinkInputProps {
 }
 
 export default function LinkInput({ value, onChange, platform, onClear }: LinkInputProps) {
-  const platformNames: Record<string, string> = {
-    douyin: '',
-    tiktok: 'TikTok',
-    youtube: 'YouTube',
-    x: 'X',
-    instagram: 'Instagram',
-    twitter: 'Twitter',
-  };
-
+  const { t } = useTranslation();
+  
   const platformIcons: Record<string, string> = {
     douyin: '🎵',
     tiktok: '🎵',
@@ -26,6 +20,15 @@ export default function LinkInput({ value, onChange, platform, onClear }: LinkIn
     twitter: '🐦',
   };
 
+  const platformKeyMap: Record<string, string> = {
+    douyin: 'platform_douyin',
+    tiktok: 'platform_tiktok',
+    youtube: 'platform_youtube',
+    x: 'platform_x',
+    instagram: 'platform_instagram',
+    twitter: 'platform_x',
+  };
+
   return (
     <div className="bg-dark-surface rounded-xl p-4 mb-4">
       <div className="relative">
@@ -33,7 +36,7 @@ export default function LinkInput({ value, onChange, platform, onClear }: LinkIn
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder="PasteVideoLink..."
+          placeholder={t('linkInputPlaceholder')}
           className="w-full h-12 bg-dark-input rounded-lg px-4 pr-10 text-text-primary placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-orange/50"
         />
         {value && (
@@ -50,7 +53,7 @@ export default function LinkInput({ value, onChange, platform, onClear }: LinkIn
         <div className="mt-3 flex items-center gap-2">
           <span className="text-lg">{platformIcons[platform] || '🔗'}</span>
           <span className="text-sm text-text-secondary">
-            already：{platformNames[platform] || platform}
+            {t('detectedPlatform')}{t(platformKeyMap[platform] as any) || platform}
           </span>
         </div>
       )}
