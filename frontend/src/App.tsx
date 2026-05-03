@@ -151,6 +151,15 @@ function detectPlatform(url: string): string {
 export default function App() {
   const [url, setUrl] = useState('')
   useEffect(() => { initNotifications().catch(console.error); }, []);
+
+  // 锁定竖屏（PWA 安装后生效，浏览器中不会报错）
+  useEffect(() => {
+    try {
+      if (screen.orientation && 'lock' in screen.orientation) {
+        screen.orientation.lock('portrait').catch(() => {})
+      }
+    } catch {}
+  }, []);
   const [detected, setDetected] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set(['video']))
   const [task, setTask] = useState<Task | null>(null)

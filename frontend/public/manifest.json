@@ -8,7 +8,7 @@
   "display_override": ["window-controls-overlay", "standalone", "browser"],
   "background_color": "#0f172a",
   "theme_color": "#0f172a",
-  "orientation": "any",
+  "orientation": "portrait",
   "lang": "zh-CN",
   "dir": "ltr",
   "icons": [
