@@ -18,6 +18,7 @@ const authRouter = require('./routes/auth');
 const subscribeRouter = require('./routes/subscribe');
 const healthRouter = require('./routes/health');
 const { DOWNLOAD_DIR } = require('./services/yt-dlp');
+const store = require('./store');
 
 // 验证环境变量
 validateEnv();
@@ -117,8 +118,27 @@ app.use('/download', (req, res, next) => {
   }
   const filePath = path.join(DOWNLOAD_DIR, normalized);
   if (fs.existsSync(filePath)) {
-    const filename = path.basename(filePath);
-    const ext = path.extname(filename).toLowerCase();
+    const rawFilename = path.basename(filePath);
+    const ext = path.extname(rawFilename).toLowerCase();
+    
+    // 从任务元数据获取视频标题作为下载文件名
+    let downloadFilename = rawFilename;
+    try {
+      const taskId = rawFilename.replace(/_thumb|_cover|_audio|\.mp4|\.mp3|\.jpg|\.jpeg|\.png|\.webp|\.srt|\.vtt/gi, '');
+      const task = store.get(taskId);
+      if (task?.title) {
+        const safeTitle = task.title.replace(/[\\/:*?"<>|]/g, '_').slice(0, 120);
+        if (rawFilename.includes('_thumb') || rawFilename.includes('_cover')) {
+          downloadFilename = safeTitle + '_cover' + ext;
+        } else if (rawFilename.includes('_audio') || ext === '.mp3') {
+          downloadFilename = safeTitle + ext;
+        } else {
+          downloadFilename = safeTitle + ext;
+        }
+      }
+    } catch (e) {
+      // fallback to raw filename
+    }
     
     // 设置正确的 MIME 类型
     const mimeTypes = {
@@ -137,7 +157,7 @@ app.use('/download', (req, res, next) => {
 
     // 视频/音频强制下载（不用 inline，避免浏览器拦截）
     // 图片保持 inline（可以预览）
-    const encodedFilename = encodeURIComponent(filename);
+    const encodedFilename = encodeURIComponent(downloadFilename);
     const isMedia = ['.mp4', '.mp3', '.avi', '.mov', '.mkv', '.flv', '.webm'].includes(ext);
     const disposition = isMedia ? 'attachment' : 'inline';
     res.setHeader('Content-Disposition', `${disposition}; filename*=UTF-8''${encodedFilename}`);

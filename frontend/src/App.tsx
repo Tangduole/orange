@@ -1570,7 +1570,7 @@ export default function App() {
                     clearAutoDownload()
                     autoDownloaded.current = true
                     setDownloading(true)
-                    await shareFile(task.coverUrl, 'cover', 'image')
+                    await shareFile(task.coverUrl, (task.title || 'video') + '_cover', 'image')
                     setDownloading(false)
                   }}
                   disabled={downloading}
@@ -1588,7 +1588,7 @@ export default function App() {
                     clearAutoDownload()
                     autoDownloaded.current = true
                     setDownloading(true)
-                    await shareFile(task.audioUrl!, 'audio.mp3', 'audio')
+                    await shareFile(task.audioUrl!, task.title || 'audio', 'audio')
                     setDownloading(false)
                   }}
                   disabled={downloading}
