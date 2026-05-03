@@ -170,6 +170,7 @@ export default function App() {
   const [qualitiesLoading, setQualitiesLoading] = useState(false)
   const [autoQuality, setAutoQuality] = useState<{label: string, height: number} | null>(null) // 自动选择的画质
   const [showQualityPicker, setShowQualityPicker] = useState(false) // 画质下拉框
+  const [showMoreOptions, setShowMoreOptions] = useState(false) // 更多下载选项
   const [pendingUrl, setPendingUrl] = useState('')
   const [pendingQuality, setPendingQuality] = useState('')
   const [videoInfoForPicker, setVideoInfoForPicker] = useState<{title: string, thumbnail: string}>({title: '', thumbnail: ''})
@@ -1215,11 +1216,27 @@ export default function App() {
               </div>
             </div>
 
-            {/* DownloadOption */}
+            {/* DownloadOption - video/audio always shown, rest toggleable */}
             <div className="mb-5">
               <p className="text-xs text-slate-300 mb-2">{t('downloadContent')}</p>
               <div className="flex flex-wrap gap-1.5">
-                {OPTIONS.map(o => {
+                {OPTIONS.slice(0, 2).map(o => {
+                  const Icon = o.icon; const on = selected.has(o.id)
+                  return (
+                    <button key={o.id} onClick={() => toggle(o.id)}
+                      className={`flex items-center gap-1 px-3 py-2 text-xs rounded-lg transition-all
+                        ${on ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : 'bg-slate-700/30 text-slate-300 border border-transparent hover:text-slate-300'}`}>
+                      <Icon className="w-3.5 h-3.5" />{getOptionLabel(o.labelKey)}
+                    </button>
+                  )
+                })}
+                {/* Collapsible secondary options */}
+                <button onClick={() => setShowMoreOptions(!showMoreOptions)}
+                  className={`flex items-center gap-1 px-2 py-2 text-xs rounded-lg transition-all
+                    ${OPTIONS.slice(2).some(o => selected.has(o.id)) ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : 'bg-slate-700/30 text-slate-300 border border-transparent hover:text-slate-300'}`}>
+                  {showMoreOptions ? <ChevronUp className="w-3.5 h-3.5" /> : <span className="text-slate-400">···</span>}
+                </button>
+                {showMoreOptions && OPTIONS.slice(2).map(o => {
                   const Icon = o.icon; const on = selected.has(o.id)
                   return (
                     <button key={o.id} onClick={() => toggle(o.id)}
@@ -1590,6 +1607,21 @@ export default function App() {
                   {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Mic className="w-3.5 h-3.5" />}
                   {downloading ? t('downloading') : t('saveMp3')}
                 </button>
+              )}
+
+              {/* VIP Upgrade Teaser - show after free user download completes */}
+              {task.status === 'completed' && !isVip && !authToken && (
+                <div className="mt-3 p-3 bg-gradient-to-r from-orange-500/10 to-amber-500/10 border border-orange-500/20 rounded-xl">
+                  <p className="text-xs text-slate-300 text-center">
+                    🎬 {t('memberSubscribe')} · {t('qualityUpTo4K')} · {t('unlimited')} {t('downloads')}
+                  </p>
+                  <button
+                    onClick={() => setShowAuthModal(true)}
+                    className="w-full mt-2 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium transition"
+                  >
+                    {t('upgradeVip')}
+                  </button>
+                </div>
               )}
 
               {/* Copywriting */}
