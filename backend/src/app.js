@@ -117,7 +117,6 @@ app.use('/download', (req, res, next) => {
     return res.status(403).send('Forbidden');
   }
   const filePath = path.join(DOWNLOAD_DIR, normalized);
-  console.log('[download] req.path=' + req.path + ' normalized=' + normalized + ' filePath=' + filePath + ' exists=' + fs.existsSync(filePath));
   if (fs.existsSync(filePath)) {
     const rawFilename = path.basename(filePath);
     const ext = path.extname(rawFilename).toLowerCase();
