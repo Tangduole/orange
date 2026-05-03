@@ -168,8 +168,8 @@ export default function App() {
   const [asrLanguage, setAsrLanguage] = useState('zh')
   const [availableQualities, setAvailableQualities] = useState<Array<{qualityLabel?: string, sizeLabel?: string, quality: string, format: string, width: number, height: number, hasVideo: boolean, hasAudio: boolean, size?: number}>>([])
   const [qualitiesLoading, setQualitiesLoading] = useState(false)
-  const [showQualityPicker, setShowQualityPicker] = useState(false)
-  const [qualityCountdown, setQualityCountdown] = useState(0)
+  const [autoQuality, setAutoQuality] = useState<{label: string, height: number} | null>(null) // 自动选择的画质
+  const [showQualityPicker, setShowQualityPicker] = useState(false) // 画质下拉框
   const [pendingUrl, setPendingUrl] = useState('')
   const [pendingQuality, setPendingQuality] = useState('')
   const [videoInfoForPicker, setVideoInfoForPicker] = useState<{title: string, thumbnail: string}>({title: '', thumbnail: ''})
@@ -522,36 +522,22 @@ export default function App() {
     return () => clearInterval(t)
   }, [task?.taskId])
 
-  // 画质选择器:3秒倒计时超时自动下载最佳画质(VIP=2K, 免费=720p)
+  // 画质自动选择：获取到可用画质后，自动选最佳（VIP→4K/2K，免费→720p）
   useEffect(() => {
-    if (!showQualityPicker) {
-      setQualityCountdown(0)
+    if (availableQualities.length === 0) {
+      setAutoQuality(null)
       return
     }
-    setQualityCountdown(3)
-    const timer = setInterval(() => {
-      setQualityCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(timer)
-          setShowQualityPicker(false)
-          setLoading(true)
-          const autoQuality = isVip ? 'height<=2160' : 'height<=720'
-          axios.post(`${API}/download`, {
-            url: pendingUrl, platform: detected || 'auto',
-            needAsr: selected.has('asr'), options: [...selected], quality: autoQuality, asrLanguage,
-          }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} }).then(r => {
-            setTask(r.data.data)
-            setDetected('')
-          }).catch((e: any) => {
-            setError(getErrorMessage(e.response?.data?.message || e.message || t('errorDefault')))
-          }).finally(() => setLoading(false))
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-    return () => clearInterval(timer)
-  }, [showQualityPicker, isVip, pendingUrl, detected, selected, authToken, asrLanguage])
+    const maxHeight = isVip ? 99999 : 720
+    const best = availableQualities
+      .filter(q => q.height <= maxHeight)
+      .sort((a, b) => b.height - a.height)[0]
+    if (best) {
+      const label = best.qualityLabel || `${best.height}p`
+      setAutoQuality({ label, height: best.height })
+      setPendingQuality(best.quality)
+    }
+  }, [availableQualities, isVip])
 
   // 页面重新可见时恢复任务状态
   useEffect(() => {
@@ -823,11 +809,8 @@ export default function App() {
       return
     }
     
-    // 有画质选项但用户未选择 → 提示先选画质
-    if (availableQualities.length > 0 && !pendingQuality) {
-      setError(t('pleaseSelectQuality'))
-      return
-    }
+    // 如果还没有自动选择画质（API在加载中），继续用默认quality参数
+    doSingleDownload()
     
     // 检查是否已Download
     const dupItem = history.find(h => h.url === url.trim())
@@ -1248,45 +1231,55 @@ export default function App() {
                 })}
               </div>
 
-              {/* Inline Quality Selector - Vertical list */}
-              {availableQualities.length > 0 && !batchMode && (
+              {/* Inline Quality Badge - compact, clickable */}
+              {availableQualities.length > 0 && !batchMode && autoQuality && (
                 <div className="mt-3">
-                  <p className="text-xs text-slate-300 mb-2">{t('selectQuality')}</p>
-                  <div className="space-y-1.5">
-                    {availableQualities.map((q, idx) => {
-                      const isHighQuality = q.height > 1080
-                      const canSelect = isVip || !isHighQuality
-                      const qualityLabel = (q as any).qualityLabel || q.quality || `${q.height}p`
-                      const sizeLabel = (q as any).sizeLabel || ''
-                      const isSelected = pendingQuality === `height<=${q.height}`
-                      return (
-                        <button
-                          key={idx}
-                          onClick={() => {
-                            if (!canSelect) {
-                              setShowUpgradePopup(true)
-                              return
-                            }
-                            setPendingQuality(`height<=${q.height}`)
-                          }}
-                          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-xs transition-all ${
-                            isSelected
-                              ? 'bg-orange-500/20 text-orange-300 border border-orange-500/40'
-                              : canSelect
-                                ? 'bg-slate-700/40 text-slate-300 border border-slate-600/40 hover:border-slate-500/60'
-                                : 'bg-slate-800/40 text-slate-500 border border-slate-700/40 cursor-not-allowed opacity-60'
-                          }`}
-                        >
-                          <span className="font-medium">{qualityLabel}</span>
-                          <span className="flex items-center gap-2">
-                            {sizeLabel && <span className="text-slate-500">{sizeLabel}</span>}
-                            {isHighQuality && !isVip && <span className="text-orange-400">⭐</span>}
-                            {isSelected && <Check className="w-3.5 h-3.5 text-orange-400" />}
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
+                  <button
+                    onClick={() => setShowQualityPicker(!showQualityPicker)}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-700/50 hover:bg-slate-700/80 border border-slate-600/40 rounded-lg text-xs transition"
+                  >
+                    <span className="text-slate-300">🎬</span>
+                    <span className="text-white font-medium">{autoQuality.label}</span>
+                    {isVip && <span className="text-yellow-400 text-[10px]">⭐</span>}
+                    <ChevronDown className={`w-3 h-3 text-slate-400 transition ${showQualityPicker ? 'rotate-180' : ''}`} />
+                  </button>
+                  {/* Quality dropdown */}
+                  {showQualityPicker && (
+                    <div className="mt-2 p-2 bg-slate-800 border border-slate-600/50 rounded-xl max-h-48 overflow-y-auto">
+                      {availableQualities.map((q, idx) => {
+                        const isHighQuality = q.height > 1080
+                        const canSelect = isVip || !isHighQuality
+                        const qualityLabel = (q as any).qualityLabel || q.quality || `${q.height}p`
+                        const sizeLabel = (q as any).sizeLabel || ''
+                        const isSelected = pendingQuality === `height<=${q.height}`
+                        return (
+                          <button
+                            key={idx}
+                            onClick={() => {
+                              if (!canSelect) { setShowQualityPicker(false); setShowUpgradePopup(true); return }
+                              setPendingQuality(`height<=${q.height}`)
+                              setAutoQuality({ label: qualityLabel, height: q.height })
+                              setShowQualityPicker(false)
+                            }}
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition mb-1 last:mb-0 ${
+                              isSelected
+                                ? 'bg-orange-500/20 text-orange-300 border border-orange-500/40'
+                                : canSelect
+                                  ? 'bg-slate-700/40 text-slate-300 border border-slate-600/40 hover:border-slate-500/60'
+                                  : 'bg-slate-800/40 text-slate-500 border border-slate-700/40 cursor-not-allowed opacity-60'
+                            }`}
+                          >
+                            <span className="font-medium">{qualityLabel}</span>
+                            <span className="flex items-center gap-2">
+                              {sizeLabel && <span className="text-slate-500">{sizeLabel}</span>}
+                              {isHighQuality && !isVip && <span className="text-orange-400">⭐</span>}
+                              {isSelected && <Check className="w-3.5 h-3.5 text-orange-400" />}
+                            </span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1757,86 +1750,6 @@ export default function App() {
             )}
           </div>
         </main>
-
-        {/* DuplicateDownload确认弹窗 */}
-        {/* Quality选择弹窗 - VIP会员(3秒超时默认2K) */}
-        {showQualityPicker && (
-          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
-            <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-lg font-bold text-white">{isVip ? t('selectQuality2K') : t('selectQuality')}</h3>
-                <span className="text-xs text-slate-400">{qualityCountdown > 0 ? `${qualityCountdown}s` : ''}</span>
-              </div>
-              {!isVip && (
-                <p className="text-xs text-orange-400 mb-3 bg-orange-500/10 px-3 py-2 rounded-lg">
-                  🔒 {t('vipOnly')} — {t('freeLimit')}
-                </p>
-              )}
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {availableQualities.map((q, idx) => {
-                  const isHighQuality = q.height > 1080
-                  const canSelect = isVip || !isHighQuality
-                  const qualityLabel = (q as any).qualityLabel || q.quality || `${q.height}p`
-                  const sizeLabel = (q as any).sizeLabel || ''
-                  return (
-                    <button
-                      key={idx}
-                      onClick={() => {
-                        if (!canSelect) {
-                          setShowQualityPicker(false)
-                          setShowUpgradePopup(true)
-                          return
-                        }
-                        setShowQualityPicker(false)
-                        let qParam = `height<=${q.height || 99999}`
-                        setLoading(true)
-                        axios.post(`${API}/download`, {
-                          url: pendingUrl, platform: detected || 'auto',
-                          needAsr: selected.has('asr'), options: [...selected], quality: qParam, asrLanguage,
-                        }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} }).then(r => {
-                          setTask(r.data.data)
-                          setDetected('')
-                        }).catch((e: any) => {
-                          setError(getErrorMessage(e.response?.data?.message || e.message || t('errorDefault')))
-                        }).finally(() => setLoading(false))
-                      }}
-                      className={`w-full flex items-center justify-between p-3 rounded-xl transition text-left ${
-                        canSelect ? 'bg-slate-700/50 hover:bg-slate-700 border border-slate-600/50' : 'bg-slate-800/50 opacity-60 cursor-not-allowed border border-slate-700/50'
-                      }`}
-                    >
-                      <div className="flex flex-col flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className={`font-medium ${canSelect ? 'text-white' : 'text-slate-300'}`}>{qualityLabel}</span>
-                          {q.width > 0 && <span className={`text-xs ${canSelect ? 'text-slate-400' : 'text-slate-500'}`}>{q.width}x{q.height}</span>}
-                          {isHighQuality && !isVip && <span className="text-xs text-orange-400">⭐ VIP</span>}
-                          {idx === 0 && isVip && <span className="text-xs text-yellow-400">{t('recommended')}</span>}
-                        </div>
-                        {sizeLabel && <span className="text-xs text-slate-500 mt-0.5">📦 {sizeLabel}{q.hasAudio ? '' : t('noAudio')}</span>}
-                      </div>
-                      {q.hasAudio && q.hasVideo && <span className="text-xs text-slate-500 ml-2">🎬</span>}
-                      {!q.hasVideo && q.hasAudio && <span className="text-xs text-slate-500 ml-2">🎵</span>}
-                    </button>
-                  )
-                })}
-              </div>
-              {!isVip && (
-                <button
-                  onClick={() => { setShowQualityPicker(false); setShowUpgradePopup(true) }}
-                  className="w-full mt-3 py-3 px-4 rounded-xl bg-gradient-to-r from-yellow-500/20 to-orange-500/20 text-orange-400 hover:from-yellow-500/30 hover:to-orange-500/30 transition border border-orange-500/30 flex items-center justify-center gap-2"
-                >
-                  <Crown className="w-4 h-4" />
-                  {t("upgradeVip")}
-                </button>
-              )}
-              <button
-                onClick={() => { setShowQualityPicker(false); setPendingUrl('') }}
-                className="w-full mt-2 py-2 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition"
-              >
-                {t("cancel")}
-              </button>
-            </div>
-          </div>
-        )}
 
         {showDupConfirm && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
