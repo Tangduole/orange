@@ -535,38 +535,24 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
     return (b.height || 0) - (a.height || 0);
   });
 
-  // 选择:高清原始 URL 直接用,否则从候选选最佳
+  // 选择视频源
   let selected = null;
-  if (hqVideoUrl && maxHeight >= 99999) {
-    // 只有用户没有指定画质限制时才用HQ原始URL（VIP默认行为）
-    // 如果用户明确选择了画质（如720p），则走候选列表过滤
+  if (hqVideoUrl) {
+    // VIP: HQ原始 URL 是最佳画质,直接使用
     selected = { url: hqVideoUrl, width: 0, height: 0, codec: 'original', bitrate: 0, hasAudio: false };
-    console.log(`[TikHub] Using HQ original video (no quality limit): ${hqFileSize} MB`);
-  } else if (hqVideoUrl) {
-    // VIP用户选画质限制时，先尝试候选列表，否则用HQ原始URL兜底
-    for (const c of candidates) {
-      if (maxHeight < 99999 && c.height > maxHeight) continue;
-      selected = c;
-      break;
-    }
-    if (!selected && candidates.length > 0) {
-      selected = candidates[candidates.length - 1];
-    }
-    if (!selected) {
-      selected = { url: hqVideoUrl, width: 0, height: 0, codec: 'original', bitrate: 0, hasAudio: false };
-      console.log(`[TikHub] Using HQ original video as fallback: ${hqFileSize} MB`);
-    } else {
-      console.log(`[TikHub] User selected quality ${maxHeight}p, using candidate`);
-    }
+    console.log(`[TikHub] Using HQ original video: ${hqFileSize} MB`);
   } else {
+    // 非VIP 或 HQ API 失败: 从免费API候选列表选择最佳匹配
     for (const c of candidates) {
       if (maxHeight < 99999 && c.height > maxHeight) continue;
-      selected = c;
-      break;
+      if (!selected || c.height > selected.height) {
+        selected = c;
+      }
     }
-    // 如果所有候选都超了限制,选分辨率最低的
+    // 如果所有候选都超了限制,选分辨率最高的
     if (!selected && candidates.length > 0) {
-      selected = candidates[candidates.length - 1];
+      selected = candidates[0];
+      console.log(`[TikHub] All candidates exceed limit, using highest: ${selected.height}p`);
     }
   }
 
