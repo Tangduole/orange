@@ -8,6 +8,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const logger = require('../utils/logger');
 const { spawn } = require('child_process');
 const FormData = require('form-data');
 
@@ -38,7 +39,7 @@ async function transcribeOpenAI(audioPath, language = 'zh') {
   form.append('language', language === 'auto' ? null : language);
   form.append('response_format', 'text');
   
-  console.log(`[ASR] Using OpenAI Whisper API, language: ${language}`);
+  logger.info(`[ASR] Using OpenAI Whisper API, language: ${language}`);
   
   const response = await axios.post('https://api.openai.com/v1/audio/transcriptions', form, {
     headers: {
@@ -66,7 +67,7 @@ async function transcribeCloudflare(audioPath, language = 'zh') {
   const audioBuffer = fs.readFileSync(audioPath);
   const base64Audio = audioBuffer.toString('base64');
   
-  console.log(`[ASR] Using Cloudflare Workers AI (whisper-large-v3-turbo), language: ${language}`);
+  logger.info(`[ASR] Using Cloudflare Workers AI (whisper-large-v3-turbo), language: ${language}`);
   
   const response = await axios.post(
     `https://api.cloudflare.com/client/v4/accounts/${CONFIG.cloudflareAccountId}/ai/run/@cf/openai/whisper-large-v3-turbo`,
@@ -113,7 +114,7 @@ async function translateText(text, sourceLang, targetLang) {
     );
     return response.data.result?.translated_text || text;
   } catch (e) {
-    console.error('[ASR] Translation failed:', e.message);
+    logger.error('[ASR] Translation failed:', e.message);
     return text;
   }
 }
@@ -139,7 +140,7 @@ function transcribeLocal(audioPath, language = 'zh') {
       audioPath
     ];
 
-    console.log(`[ASR] Using local faster-whisper, model: ${CONFIG.modelSize}, language: ${language}`);
+    logger.info(`[ASR] Using local faster-whisper, model: ${CONFIG.modelSize}, language: ${language}`);
 
     const proc = spawn('python3', args, {
       stdio: ['ignore', 'pipe', 'pipe']
@@ -153,7 +154,7 @@ function transcribeLocal(audioPath, language = 'zh') {
 
     proc.on('close', (code) => {
       if (code !== 0) {
-        console.error(`[ASR] Script error: ${stderr}`);
+        logger.error(`[ASR] Script error: ${stderr}`);
         reject(new Error(`ASR script failed: ${stderr}`));
         return;
       }
@@ -189,7 +190,7 @@ function transcribeLocal(audioPath, language = 'zh') {
 async function transcribe(audioPath, language = null, targetLang = null) {
   const lang = language || CONFIG.language;
   
-  console.log(`[ASR] Mode: ${CONFIG.mode}, Language: ${lang}, Target: ${targetLang || 'same'}`);
+  logger.info(`[ASR] Mode: ${CONFIG.mode}, Language: ${lang}, Target: ${targetLang || 'same'}`);
   
   try {
     let text;
@@ -208,7 +209,7 @@ async function transcribe(audioPath, language = null, targetLang = null) {
     
     return text;
   } catch (error) {
-    console.error(`[ASR] Error: ${error.message}`);
+    logger.error(`[ASR] Error: ${error.message}`);
     throw error;
   }
 }

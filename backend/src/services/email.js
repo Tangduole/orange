@@ -7,7 +7,7 @@ const { Resend } = require('resend');
 // Graceful fallback if RESEND_API_KEY is not configured
 let resend = null;
 if (!process.env.RESEND_API_KEY) {
-  console.warn('[email] RESEND_API_KEY not configured, email sending disabled');
+  logger.warn('[email] RESEND_API_KEY not configured, email sending disabled');
 } else {
   resend = new Resend(process.env.RESEND_API_KEY);
 }
@@ -21,7 +21,7 @@ const API_URL = process.env.API_URL || 'https://orange-production-95b9.up.railwa
  */
 async function sendPasswordResetEmail(email, token) {
   if (!resend) {
-    console.warn('[email] Resend not configured, skipping email send');
+    logger.warn('[email] Resend not configured, skipping email send');
     return { success: false, error: 'Email service not configured' };
   }
   
@@ -81,14 +81,14 @@ async function sendPasswordResetEmail(email, token) {
     });
     
     if (error) {
-      console.error('[email] Send failed:', error);
+      logger.error('[email] Send failed:', error);
       throw new Error(error.message);
     }
     
-    console.log('[email] Password reset email sent to:', email);
+    logger.info('[email] Password reset email sent to:', email);
     return { success: true, data };
   } catch (err) {
-    console.error('[email] Error:', err);
+    logger.error('[email] Error:', err);
     throw err;
   }
 }
@@ -98,7 +98,7 @@ async function sendPasswordResetEmail(email, token) {
  */
 async function sendVerificationEmail(email, token) {
   if (!resend) {
-    console.error('[email] Resend not configured, cannot send verification email');
+    logger.error('[email] Resend not configured, cannot send verification email');
     throw new Error('Email service not configured. Please contact administrator.');
   }
   
@@ -157,14 +157,14 @@ async function sendVerificationEmail(email, token) {
     });
     
     if (error) {
-      console.error('[email] Send failed:', error);
+      logger.error('[email] Send failed:', error);
       throw new Error(error.message);
     }
     
-    console.log('[email] Verification email sent to:', email);
+    logger.info('[email] Verification email sent to:', email);
     return { success: true, data };
   } catch (err) {
-    console.error('[email] Error:', err);
+    logger.error('[email] Error:', err);
     throw err;
   }
 }

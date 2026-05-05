@@ -8,6 +8,7 @@ const CONFIG = {
   retryDelayBase: 1000,
   retryDelayMax: 10000,
 }
+const logger = require('./logger');
 
 class ConcurrencyLimiter {
   constructor(maxConcurrent) {
@@ -75,7 +76,7 @@ async function executeWithRetry(fn, context = {}) {
         throw new Error(`Max retries (${maxRetries}) exceeded. Last error: ${error.message}`);
       }
       const delay = Math.min(retryDelayBase * (2 ** attempt), CONFIG.retryDelayMax);
-      console.log(`[retry] Retrying in ${delay}ms...`);
+      logger.info(`[retry] Retrying in ${delay}ms...`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
