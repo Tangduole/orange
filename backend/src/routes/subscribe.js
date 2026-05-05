@@ -156,22 +156,31 @@ router.post('/checkout', auth.required, async (req, res) => {
  * GET /api/subscribe/status
  */
 router.get('/status', auth.required, async (req, res) => {
-  const usage = await userDb.getUsage(req.user.id);
+  const user = req.user;
+  const usage = await userDb.getUsage(user.id);
 
-  // 检查订阅是否过期
-  let subscriptionStatus = req.user.subscription_status;
-  const endsAt = req.user.subscription_ends_at;
-  if (endsAt && endsAt > 0 && endsAt * 1000 < Date.now()) {
-    // 订阅已过期，降级为 free
+  // 使用 isVip 检查真实的 VIP 状态（会验证 ends_at）
+  const vip = userDb.isVip(user);
+  let subscriptionStatus = user.subscription_status;
+  const endsAt = user.subscription_ends_at;
+
+  // 如果 tier 是 pro 但 isVip 返回 false（过期/ends_at缺失），自动降级
+  if (user.tier === 'pro' && !vip) {
     subscriptionStatus = 'expired';
+    try {
+      await userDb.downgradeToFree(user.email);
+      logger.info(`[subscribe] Auto-downgraded expired Pro: ${user.email}`);
+    } catch (e) {
+      logger.warn(`[subscribe] Auto-downgrade failed: ${e.message}`);
+    }
   }
 
   res.json({
     code: 0,
     data: {
-      tier: req.user.tier,
+      tier: vip ? 'pro' : (user.tier === 'pro' ? 'free' : user.tier),
       subscriptionStatus,
-      subscriptionEndsAt: req.user.subscription_ends_at,
+      subscriptionEndsAt: user.subscription_ends_at,
       usage
     }
   });

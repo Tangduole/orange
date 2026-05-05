@@ -46,11 +46,13 @@ function isVip(user) {
   if (user.subscription_status !== 'active' && user.subscription_status !== 'past_due') {
     return false;
   }
-  if (user.subscription_ends_at && Number(user.subscription_ends_at) > 0) {
-    // subscription_ends_at 是秒级时间戳
-    if (Number(user.subscription_ends_at) * 1000 < Date.now()) {
-      return false;
-    }
+  // 必须有有效的到期时间，否则认为是过期/测试账号
+  if (!user.subscription_ends_at || Number(user.subscription_ends_at) <= 0) {
+    return false;
+  }
+  // subscription_ends_at 是秒级时间戳，检查是否过期
+  if (Number(user.subscription_ends_at) * 1000 < Date.now()) {
+    return false;
   }
   return true;
 }

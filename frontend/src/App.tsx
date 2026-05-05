@@ -306,7 +306,8 @@ export default function App() {
   useEffect(() => {
     if (authToken) {
       api.getSubscriptionStatus(authToken).then(status => {
-        const isPro = status?.subscriptionStatus === 'active'
+        // 同时检查 tier 和 subscriptionStatus，防止过期账号仍显示 VIP
+        const isPro = status?.tier === 'pro' && status?.subscriptionStatus === 'active';
         setIsVip(isPro)
         // VIP用户Show无限制（-1），非VIPShowRemainingTimes
         if (isPro) {
