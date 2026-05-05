@@ -38,6 +38,9 @@ const {
 
 const API_KEY_DOUYIN = process.env.TIKHUB_API_KEY_DOUYIN;
 
+// 获取客户端 IP
+const getClientIp = (req) => req.ip || (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
+
 /**
  * 立即保存下载历史到数据库（不依赖 /status 调用）
  */
@@ -182,7 +185,7 @@ async function createDownload(req, res) {
     // 游客每日下载限制
     let guestIp = null;
     if (isGuest) {
-      guestIp = req.ip || req.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
+      guestIp = getClientIp(req);
       const userDb = require('../userDb');
       const guestUsage = await userDb.checkGuestDownload(guestIp);
       if (!guestUsage.allowed) {
@@ -1560,7 +1563,7 @@ async function getHistory(req, res) {
   // 用户身份由 auth.optional 中间件设置
   const isGuest = !req.user;
   const userId = req.user ? req.user.id : null;
-  const guestIp = isGuest ? (req.ip || req.headers['x-forwarded-for']?.split(',')[0] || 'unknown') : null;
+  const guestIp = isGuest ? (getClientIp(req)) : null;
 
   // 过滤任务（游客按 guestIp 过滤）
   const allTasks = store.list().filter(task => {
@@ -1646,7 +1649,7 @@ async function deleteTask(req, res) {
 
   // 检查权限:登录用户只能删自己的任务
   const userId = req.user?.id;
-  const guestIp = req.ip || req.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
+  const guestIp = getClientIp(req);
   const canDelete = (userId && task.userId === userId) || (!task.userId && task.guestIp === guestIp);
 
   if (!canDelete) {
@@ -1733,7 +1736,7 @@ function clearHistory(req, res) {
     res.json({ code: 0, message: `已清除 ${count} 条记录` });
   } else {
     // 游客：清除所有非登录用户的任务
-    const guestIp = req.ip || req.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
+    const guestIp = getClientIp(req);
     const tasks = store.list().filter(t => !t.userId);
     let count = 0;
     for (const t of tasks) {
