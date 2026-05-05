@@ -18,9 +18,9 @@ const {
   getAdminStats,
   deleteTask,
   clearHistory,
-  adminClearAllHistory,
-  getVideoInfo
+  adminClearAllHistory
 } = require('../controllers/download');
+const { getVideoInfo } = require('../controllers/videoInfo');
 
 // 动态读取真实版本号
 const packageJson = JSON.parse(
