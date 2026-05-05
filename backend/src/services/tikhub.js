@@ -6,6 +6,8 @@ const https = require('https');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
+const logger = require('../utils/logger');
+const { heightToLabel } = require('../utils/media');
 
 // 尝试加载 .env 文件(可选, Railway 会用环境变量)
 // 先尝试 backend/.env, 再尝试项目根 .env
@@ -23,11 +25,11 @@ const API_KEY_INSTAGRAM = process.env.TIKHUB_API_KEY_INSTAGRAM;
 const API_KEY_WECHAT = process.env.TIKHUB_API_KEY_WECHAT;
 
 // 记录警告(不抛错,让服务能启动)
-if (!API_KEY_XHS) console.warn('[tikhub] TIKHUB_API_KEY_XHS not set');
-if (!API_KEY_YT) console.warn('[tikhub] TIKHUB_API_KEY_YT not set');
-if (!API_KEY_DOUYIN) console.warn('[tikhub] TIKHUB_API_KEY_DOUYIN not set');
-if (!API_KEY_INSTAGRAM) console.warn('[tikhub] TIKHUB_API_KEY_INSTAGRAM not set');
-if (!API_KEY_WECHAT) console.warn('[tikhub] TIKHUB_API_KEY_WECHAT not set');
+if (!API_KEY_XHS) logger.warn('[tikhub] TIKHUB_API_KEY_XHS not set');
+if (!API_KEY_YT) logger.warn('[tikhub] TIKHUB_API_KEY_YT not set');
+if (!API_KEY_DOUYIN) logger.warn('[tikhub] TIKHUB_API_KEY_DOUYIN not set');
+if (!API_KEY_INSTAGRAM) logger.warn('[tikhub] TIKHUB_API_KEY_INSTAGRAM not set');
+if (!API_KEY_WECHAT) logger.warn('[tikhub] TIKHUB_API_KEY_WECHAT not set');
 
 const API_KEY = API_KEY_XHS; // Default to XHS key
 const API_BASE = 'https://api.tikhub.io';
@@ -124,7 +126,7 @@ async function parseYouTube(url, taskId, onProgress) {
   if (!videoIdMatch) throw new Error('Invalid YouTube URL');
   const videoId = videoIdMatch[1];
 
-  console.log(`[TikHub] Parsing YouTube: ${videoId}`);
+  logger.info(`[TikHub] Parsing YouTube: ${videoId}`);
   if (onProgress) onProgress(10);
 
   const data = await tikhubRequest(`/api/v1/youtube/web/get_video_info?video_id=${videoId}&need_format=true`, API_KEY_YT);
@@ -158,7 +160,7 @@ async function parseYouTube(url, taskId, onProgress) {
     throw new Error('No download URL found from TikHub');
   }
 
-  console.log(`[TikHub] Found YouTube stream: ${title}`);
+  logger.info(`[TikHub] Found YouTube stream: ${title}`);
 
   // 下载视频
   const outputPath = path.join(DOWNLOAD_DIR, `${taskId}.mp4`);
@@ -190,7 +192,7 @@ async function parseYouTube(url, taskId, onProgress) {
  * 解析小红书笔记 (TikHub)
  */
 async function parseXiaohongshu(url, taskId, onProgress) {
-  console.log(`[TikHub] Parsing Xiaohongshu: ${url}`);
+  logger.info(`[TikHub] Parsing Xiaohongshu: ${url}`);
   if (onProgress) onProgress(10);
 
   // 使用 fetch_feed_notes_v3 接口(支持短链)
@@ -215,7 +217,7 @@ async function parseXiaohongshu(url, taskId, onProgress) {
       .sort((a, b) => (b.avgBitrate || 0) - (a.avgBitrate || 0))[0];
 
     if (bestStream?.masterUrl) {
-      console.log(`[TikHub] Found Xiaohongshu video: ${title}`);
+      logger.info(`[TikHub] Found Xiaohongshu video: ${title}`);
 
       const outputPath = path.join(DOWNLOAD_DIR, `${taskId}.mp4`);
       await downloadFile(bestStream.masterUrl, outputPath, onProgress);
@@ -248,7 +250,7 @@ async function parseXiaohongshu(url, taskId, onProgress) {
   // 图文笔记
   const imageList = note.imageList || [];
   if (imageList.length > 0) {
-    console.log(`[TikHub] Found Xiaohongshu images: ${imageList.length}`);
+    logger.info(`[TikHub] Found Xiaohongshu images: ${imageList.length}`);
 
     const imageFiles = [];
     for (let i = 0; i < imageList.length; i++) {
@@ -299,7 +301,7 @@ async function downloadYouTubeViaAPI(url, taskId, onProgress, quality) {
   if (!videoIdMatch) throw new Error('Invalid YouTube URL');
   const videoId = videoIdMatch[1];
 
-  console.log(`[TikHub] Downloading YouTube: ${videoId} with quality: ${quality}`);
+  logger.info(`[TikHub] Downloading YouTube: ${videoId} with quality: ${quality}`);
   if (onProgress) onProgress(5);
 
   // 获取视频信息
@@ -345,14 +347,14 @@ async function downloadYouTubeViaAPI(url, taskId, onProgress, quality) {
     throw new Error('No download URL found');
   }
 
-  console.log(`[TikHub] Selected: ${selectedVideo.width}x${selectedVideo.height}`);
+  logger.info(`[TikHub] Selected: ${selectedVideo.width}x${selectedVideo.height}`);
   if (onProgress) onProgress(25);
 
   // 立即下载(URL 可能很快过期)
   const outputPath = path.join(DOWNLOAD_DIR, `${taskId}.mp4`);
   const downloadUrl = selectedVideo.url;
 
-  console.log(`[TikHub] Downloading from: ${downloadUrl.substring(0, 80)}...`);
+  logger.info(`[TikHub] Downloading from: ${downloadUrl.substring(0, 80)}...`);
 
   // 使用 downloadFile 下载(支持字节进度)
   await downloadFile(downloadUrl, outputPath, (percent, downloaded, total) => {
@@ -374,7 +376,7 @@ async function downloadYouTubeViaAPI(url, taskId, onProgress, quality) {
       });
       thumbnailUrl = `/download/${taskId}_thumb.jpg`;
     } catch (e) {
-      console.log(`[TikHub] Thumbnail failed: ${e.message}`);
+      logger.info(`[TikHub] Thumbnail failed: ${e.message}`);
     }
   }
 
@@ -425,22 +427,22 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
 
   if (!awemeId) throw new Error('无法解析抖音作品 ID');
 
-  console.log(`[TikHub] Parsing Douyin: ${awemeId}`);
+  logger.info(`[TikHub] Parsing Douyin: ${awemeId}`);
   if (onProgress) onProgress(10);
 
   // 优先使用分享链接 API（支持高清画质）
   let data = {};
   try {
     data = await tikhubRequest(`/api/v1/douyin/web/fetch_one_video_by_share_url?share_url=${encodeURIComponent(url)}`, API_KEY_DOUYIN);
-    console.log(`[TikHub] fetch_one_video_by_share_url succeeded`);
+    logger.info(`[TikHub] fetch_one_video_by_share_url succeeded`);
   } catch (e) {
-    console.log(`[TikHub] fetch_one_video_by_share_url failed: ${e.message}, trying aweme_id...`);
+    logger.info(`[TikHub] fetch_one_video_by_share_url failed: ${e.message}, trying aweme_id...`);
     // fallback: 用 aweme_id 方式
     if (awemeId) {
       try {
         data = await tikhubRequest(`/api/v1/douyin/web/fetch_one_video?aweme_id=${awemeId}`, API_KEY_DOUYIN);
       } catch (e2) {
-        console.log(`[TikHub] fetch_one_video also failed: ${e2.message}`);
+        logger.info(`[TikHub] fetch_one_video also failed: ${e2.message}`);
       }
     }
   }
@@ -455,7 +457,7 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
   const playAddr265Url = playAddr265.url_list?.[0] || '';
 
   // 尝试使用高清 API 获取原始视频（可能有 2K/4K）
-  console.log(`[TikHub] Fetching high quality video...`);
+  logger.info(`[TikHub] Fetching high quality video...`);
   if (onProgress) onProgress(15);
 
   let hqVideoUrl = '';
@@ -471,13 +473,13 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
       if (hqData.original_video_url) {
         hqVideoUrl = hqData.original_video_url;
         hqFileSize = hqData.video_data?.file_size_in_mb || 0;
-        console.log(`[TikHub] VIP HQ video found: ${hqFileSize} MB, video_id: ${hqData.video_id}`);
+        logger.info(`[TikHub] VIP HQ video found: ${hqFileSize} MB, video_id: ${hqData.video_id}`);
       }
     } catch (e) {
-      console.log(`[TikHub] fetch_video_high_quality_play_url failed: ${e.message}`);
+      logger.info(`[TikHub] fetch_video_high_quality_play_url failed: ${e.message}`);
     }
   } else {
-    console.log(`[TikHub] Non-VIP user, skipping paid HQ API`);
+    logger.info(`[TikHub] Non-VIP user, skipping paid HQ API`);
   }
 
   // 收集所有可用画质源
@@ -524,9 +526,9 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
     });
   }
 
-  console.log(`[TikHub] Found ${candidates.length} video sources:`);
+  logger.info(`[TikHub] Found ${candidates.length} video sources:`);
   for (const c of candidates) {
-    console.log(`  ${c.codec} ${c.width}x${c.height} ${c.bitrate}bps${c.hasAudio ? ' (hasAudio)' : ''}`);
+    logger.info(`  ${c.codec} ${c.width}x${c.height} ${c.bitrate}bps${c.hasAudio ? ' (hasAudio)' : ''}`);
   }
 
   // 排序:高清原始 URL 优先,然后有音频的,最后按分辨率降序
@@ -540,7 +542,7 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
   if (hqVideoUrl) {
     // VIP: HQ原始 URL 是最佳画质,直接使用
     selected = { url: hqVideoUrl, width: 0, height: 0, codec: 'original', bitrate: 0, hasAudio: false };
-    console.log(`[TikHub] Using HQ original video: ${hqFileSize} MB`);
+    logger.info(`[TikHub] Using HQ original video: ${hqFileSize} MB`);
   } else {
     // 非VIP 或 HQ API 失败: 从免费API候选列表选择最佳匹配
     for (const c of candidates) {
@@ -552,7 +554,7 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
     // 如果所有候选都超了限制,选分辨率最高的
     if (!selected && candidates.length > 0) {
       selected = candidates[0];
-      console.log(`[TikHub] All candidates exceed limit, using highest: ${selected.height}p`);
+      logger.info(`[TikHub] All candidates exceed limit, using highest: ${selected.height}p`);
     }
   }
 
@@ -560,12 +562,12 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
     videoUrl = selected.url;
     selectedWidth = selected.width;
     selectedHeight = selected.height;
-    console.log(`[TikHub] Selected: ${selected.codec} ${selectedWidth}x${selectedHeight} ${selected.bitrate}bps`);
+    logger.info(`[TikHub] Selected: ${selected.codec} ${selectedWidth}x${selectedHeight} ${selected.bitrate}bps`);
   }
 
   if (!videoUrl) throw new Error('No download URL found');
 
-  console.log(`[TikHub] Found Douyin video URL`);
+  logger.info(`[TikHub] Found Douyin video URL`);
   if (onProgress) onProgress(30);
 
   // 下载视频
@@ -591,7 +593,7 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
       });
       thumbnailUrl = `/download/${taskId}_thumb.jpg`;
     } catch (e) {
-      console.log(`[TikHub] Thumbnail failed: ${e.message}`);
+      logger.info(`[TikHub] Thumbnail failed: ${e.message}`);
     }
   }
 
@@ -801,7 +803,7 @@ async function parseYouTubeV2(url, taskId, onProgress, quality = null) {
   if (!videoIdMatch) throw new Error('Invalid YouTube URL');
   const videoId = videoIdMatch[1];
 
-  console.log(`[TikHub v2] Parsing YouTube: ${videoId}, API_KEY present: ${!!API_KEY_YT}`);
+  logger.info(`[TikHub v2] Parsing YouTube: ${videoId}, API_KEY present: ${!!API_KEY_YT}`);
   if (onProgress) onProgress(5);
 
   // 调用 web_v2 接口, need_format=true 获取完整格式列表
@@ -810,14 +812,14 @@ async function parseYouTubeV2(url, taskId, onProgress, quality = null) {
     API_KEY_YT
   );
 
-  console.log(`[TikHub v2] API response: formats=${data.formats?.length || 0}, adaptive=${data.adaptive_formats?.length || 0}`);
+  logger.info(`[TikHub v2] API response: formats=${data.formats?.length || 0}, adaptive=${data.adaptive_formats?.length || 0}`);
 
   const title = data.title || 'YouTube Video';
   const duration = data.length_seconds ? parseInt(data.length_seconds) : 0;
   const thumbnails = Array.isArray(data.thumbnail) ? data.thumbnail : [];
   const thumbnailUrl = thumbnails[0]?.url || '';
 
-  console.log(`[TikHub v2] Title: ${title}, duration: ${duration}s`);
+  logger.info(`[TikHub v2] Title: ${title}, duration: ${duration}s`);
   if (onProgress) onProgress(15);
 
   // 解析画质限制
@@ -834,7 +836,7 @@ async function parseYouTubeV2(url, taskId, onProgress, quality = null) {
   const videoOnly = adaptiveFormats.filter(f => f.type === 'video' || (f.mime_type && f.mime_type.includes('video')));
   const audioOnly = adaptiveFormats.filter(f => f.type === 'audio' || (f.mime_type && f.mime_type.includes('audio')));
 
-  console.log(`[TikHub v2] Combined: ${combinedFormats.length}, Video: ${videoOnly.length}, Audio: ${audioOnly.length}`);
+  logger.info(`[TikHub v2] Combined: ${combinedFormats.length}, Video: ${videoOnly.length}, Audio: ${audioOnly.length}`);
 
   let videoUrl, audioUrl, selectedHeight, qualityLabel;
 
@@ -849,7 +851,7 @@ async function parseYouTubeV2(url, taskId, onProgress, quality = null) {
       videoUrl = best.url;
       selectedHeight = best.height;
       qualityLabel = best.quality_label || best.quality || `${best.height}p`;
-      console.log(`[TikHub v2] Using combined: ${qualityLabel}`);
+      logger.info(`[TikHub v2] Using combined: ${qualityLabel}`);
     }
   }
 
@@ -867,7 +869,7 @@ async function parseYouTubeV2(url, taskId, onProgress, quality = null) {
       audioUrl = bestAudio.url;
       selectedHeight = bestVideo.height;
       qualityLabel = bestVideo.quality_label || bestVideo.quality || `${bestVideo.height}p`;
-      console.log(`[TikHub v2] Using adaptive: video=${qualityLabel}, audio=${bestAudio.bitrate}kbps`);
+      logger.info(`[TikHub v2] Using adaptive: video=${qualityLabel}, audio=${bestAudio.bitrate}kbps`);
     }
   }
 
@@ -879,12 +881,12 @@ async function parseYouTubeV2(url, taskId, onProgress, quality = null) {
       videoUrl = fallback.url;
       selectedHeight = fallback.height;
       qualityLabel = fallback.quality_label || fallback.quality || `${fallback.height}p`;
-      console.log(`[TikHub v2] Fallback to combined: ${qualityLabel}`);
+      logger.info(`[TikHub v2] Fallback to combined: ${qualityLabel}`);
     }
   }
 
   if (!videoUrl) throw new Error('No video stream found');
-  console.log(`[TikHub v2] Selected: ${qualityLabel} (${selectedHeight}p)`);
+  logger.info(`[TikHub v2] Selected: ${qualityLabel} (${selectedHeight}p)`);
   if (onProgress) onProgress(20);
 
   const outputPath = path.join(DOWNLOAD_DIR, `${taskId}.mp4`);
@@ -1045,7 +1047,7 @@ async function getDouyinQualities(url) {
   const qualities = Array.from(qualityMap.values())
     .sort((a, b) => b.height - a.height);
 
-  console.log(`[TikHub] Douyin qualities for ${awemeId} (duration=${duration}s): ${qualities.map(q => `${q.quality} ~${(q.size/1024/1024).toFixed(1)}MB`).join(', ')}`);
+  logger.info(`[TikHub] Douyin qualities for ${awemeId} (duration=${duration}s): ${qualities.map(q => `${q.quality} ~${(q.size/1024/1024).toFixed(1)}MB`).join(', ')}`);
 
   return { title, thumbnail: cover, duration, qualities };
 }

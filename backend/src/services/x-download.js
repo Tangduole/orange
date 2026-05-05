@@ -8,76 +8,12 @@
  * cobalt 部署: 见 docs/COBALT_SETUP.md
  */
 
-const https = require('https');
-const http = require('http');
 const { URL } = require('url');
 const fs = require('fs');
 const path = require('path');
 const logger = require('../utils/logger');
 const { isCobaltConfigured, downloadViaCobalt } = require('./cobalt');
-
-function httpGet(rawUrl, options = {}) {
-  return new Promise((resolve, reject) => {
-    const timeout = options.timeout || 15000;
-    let url;
-    try { url = new URL(rawUrl); } catch { return reject(new Error('Invalid URL')); }
-    const client = url.protocol === 'https:' ? https : http;
-    const req = client.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15',
-        ...(options.headers || {})
-      }
-    }, (res) => {
-      const contentType = res.headers['content-type'] || '';
-      // HTML or JSON typically means link expired/blocked
-      if (contentType.includes('text/html') || contentType.includes('application/json')) {
-        if (options.responseType === 'arraybuffer') {
-          const chunks = [];
-          res.on('data', c => chunks.push(c));
-          res.on('end', () => {
-            const buf = Buffer.concat(chunks);
-            // Check if content is actually HTML
-            const text = buf.slice(0, 1024).toString('utf8').trim();
-            if (text.startsWith('<!DOCTYPE') || text.startsWith('<html')) {
-              reject(new Error('Video link expired or blocked'));
-            } else {
-              resolve(buf);
-            }
-          });
-        } else {
-          const chunks = [];
-          res.on('data', c => chunks.push(c));
-          res.on('end', () => {
-            const body = Buffer.concat(chunks).toString('utf-8');
-            const text = body.slice(0, 1024).trim();
-            if (text.startsWith('<!DOCTYPE') || text.startsWith('<html')) {
-              reject(new Error('Video link expired or blocked'));
-            } else {
-              resolve({ body, finalUrl: url.href });
-            }
-          });
-        }
-        return;
-      }
-
-      if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
-        return httpGet(res.headers.location, options).then(resolve).catch(reject);
-      }
-      if (res.statusCode !== 200) { res.resume(); return reject(new Error(`HTTP ${res.statusCode}`)); }
-      if (options.responseType === 'arraybuffer') {
-        const chunks = [];
-        res.on('data', c => chunks.push(c));
-        res.on('end', () => resolve(Buffer.concat(chunks)));
-      } else {
-        const chunks = [];
-        res.on('data', c => chunks.push(c));
-        res.on('end', () => resolve({ body: Buffer.concat(chunks).toString('utf-8'), finalUrl: url.href }));
-      }
-    });
-    req.on('error', reject);
-    req.setTimeout(timeout, () => { req.destroy(); reject(new Error('timeout')); });
-  });
-}
+const { httpGet } = require('../utils/httpGet');
 
 /**
  * 从 X/Twitter URL 提取 tweet ID
@@ -230,7 +166,7 @@ async function parseTweet(url) {
 
       return result;
     } catch (e) {
-      console.error(`[x-download] fxtwitter API failed:`, e.message);
+      logger.error(`[x-download] fxtwitter API failed:`, e.message);
       throw new Error(`推文解析失败（免费 API 画质受限）: ${e.message}`);
     }
 }
@@ -338,17 +274,17 @@ async function downloadX(url, taskId, onProgress) {
   // 下载封面
   if (info.coverUrl) {
     try {
-      console.log(`[X] Downloading thumbnail: ${info.coverUrl.substring(0, 80)}...`);
+      logger.info(`[X] Downloading thumbnail: ${info.coverUrl.substring(0, 80)}...`);
       const buf = await httpGet(info.coverUrl, { responseType: 'arraybuffer', timeout: 15000 });
       const coverPath = path.join(downloadDir, `${taskId}_thumb.jpg`);
       fs.writeFileSync(coverPath, buf);
       result.thumbnailUrl = `/download/${taskId}_thumb.jpg`;
-      console.log(`[X] Thumbnail saved: ${result.thumbnailUrl}`);
+      logger.info(`[X] Thumbnail saved: ${result.thumbnailUrl}`);
     } catch (e) {
-      console.error(`[X] Thumbnail download failed: ${e.message}`);
+      logger.error(`[X] Thumbnail download failed: ${e.message}`);
     }
   } else {
-    console.log(`[X] No cover URL found for tweet`);
+    logger.info(`[X] No cover URL found for tweet`);
   }
 
   // 下载视频（优先 mp4 直接下载，速度快）
@@ -374,7 +310,7 @@ async function downloadX(url, taskId, onProgress) {
       if (onProgress) onProgress(100);
       return result;
     } catch (downloadErr) {
-      console.error('[X] mp4 download failed, trying m3u8:', downloadErr.message);
+      logger.error('[X] mp4 download failed, trying m3u8:', downloadErr.message);
       // Fallback: m3u8 HLS 下载
       if (m3u8Url && m3u8Url.startsWith('http')) {
         try {
@@ -395,13 +331,13 @@ async function downloadX(url, taskId, onProgress) {
             return result;
           }
         } catch (e) {
-          console.error('[X] m3u8 fallback also failed:', e.message);
+          logger.error('[X] m3u8 fallback also failed:', e.message);
         }
       }
       // 继续尝试图片下载
     }
   } else {
-    console.log(`[X] No valid video URL found`);
+    logger.info(`[X] No valid video URL found`);
   }
 
   // 下载图片
@@ -416,7 +352,7 @@ async function downloadX(url, taskId, onProgress) {
         fs.writeFileSync(filepath, buf);
         result.images.push({ filename, path: filepath, url: `/download/${filename}` });
       } catch (e) {
-        console.error(`[x-download] image ${i + 1} failed:`, e.message);
+        logger.error(`[x-download] image ${i + 1} failed:`, e.message);
       }
       if (onProgress) onProgress(25 + Math.round((i + 1) / info.images.length * 70));
     }

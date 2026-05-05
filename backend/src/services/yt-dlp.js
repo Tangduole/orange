@@ -12,6 +12,7 @@ const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const EventEmitter = require('events');
+const logger = require('../utils/logger');
 
 // 下载目录
 const DOWNLOAD_DIR = path.join(__dirname, '../../downloads');
@@ -81,7 +82,7 @@ function download(url, taskId, onProgress, quality = null) {
       url
     );
 
-    console.log(`[yt-dlp] Starting download: ${url} (taskId: ${taskId})`);
+    logger.info(`[yt-dlp] Starting download: ${url} (taskId: ${taskId})`);
 
     let title = '';
     let duration = 0;
@@ -150,7 +151,7 @@ function download(url, taskId, onProgress, quality = null) {
         // 尝试查找任何生成的文件
         const files = fs.readdirSync(DOWNLOAD_DIR).filter(f => f.startsWith(taskId) && !f.includes('_thumb'));
         if (files.length === 0) {
-          console.error(`[yt-dlp] Error (code ${code}): ${stderr}`);
+          logger.error(`[yt-dlp] Error (code ${code}): ${stderr}`);
           reject(new Error(`yt-dlp download failed: ${stderr.substring(0, 500)}`));
           return;
         }
@@ -185,7 +186,7 @@ function download(url, taskId, onProgress, quality = null) {
         f => f.startsWith(taskId) && (f.endsWith('.srt') || f.endsWith('.vtt'))
       );
 
-      console.log(`[yt-dlp] Download complete: ${filePath}`);
+      logger.info(`[yt-dlp] Download complete: ${filePath}`);
 
       if (onProgress) onProgress(100, '', '');
 
@@ -204,7 +205,7 @@ function download(url, taskId, onProgress, quality = null) {
     });
 
     proc.on('error', (err) => {
-      console.error(`[yt-dlp] Spawn error: ${err.message}`);
+      logger.error(`[yt-dlp] Spawn error: ${err.message}`);
       reject(new Error(`yt-dlp not found or failed to start: ${err.message}`));
     });
   });
@@ -285,9 +286,9 @@ function extractAudio(inputPath, outputPath) {
         if (fs.existsSync(outputPath)) {
           try {
             fs.unlinkSync(outputPath);
-            console.log(`[extractAudio] Cleaned up partial file: ${outputPath}`);
+            logger.info(`[extractAudio] Cleaned up partial file: ${outputPath}`);
           } catch (cleanupErr) {
-            console.error(`[extractAudio] Failed to cleanup: ${cleanupErr.message}`);
+            logger.error(`[extractAudio] Failed to cleanup: ${cleanupErr.message}`);
           }
         }
         reject(new Error(`FFmpeg audio extraction failed: ${err.message}`));
@@ -335,13 +336,13 @@ function downloadAudio(url, taskId, onProgress) {
 
     args.push(url);
 
-    console.log(`[yt-dlp] Starting audio download: ${url} (taskId: ${taskId})`);
+    logger.info(`[yt-dlp] Starting audio download: ${url} (taskId: ${taskId})`);
 
     const proc = spawn('yt-dlp', args);
 
     proc.stdout.on('data', (data) => {
       const line = data.toString().trim();
-      console.log(`[yt-dlp] ${line}`);
+      logger.info(`[yt-dlp] ${line}`);
 
       // 解析进度
       const progressMatch = line.match(/\[download\]\s+([\d.]+)%\s+of\s+~?([\d.]+)(\w+)\s+at\s+([\d.]+\w+\/s).*ETA\s+(\S+)/);
@@ -356,7 +357,7 @@ function downloadAudio(url, taskId, onProgress) {
     proc.stderr.on('data', (data) => {
       const line = data.toString().trim();
       if (line && !line.includes('WARNING')) {
-        console.log(`[yt-dlp] ${line}`);
+        logger.info(`[yt-dlp] ${line}`);
       }
     });
 
@@ -400,11 +401,11 @@ async function downloadViaInvidious(url, taskId, onProgress) {
   if (!videoIdMatch) throw new Error('Invalid YouTube URL');
   const videoId = videoIdMatch[1];
 
-  console.log(`[Invidious] Downloading YouTube video: ${videoId}`);
+  logger.info(`[Invidious] Downloading YouTube video: ${videoId}`);
 
   for (const instance of instances) {
     try {
-      console.log(`[Invidious] Trying: ${instance}`);
+      logger.info(`[Invidious] Trying: ${instance}`);
       const apiUrl = `${instance}/api/v1/videos/${videoId}`;
 
       const info = await new Promise((resolve, reject) => {
@@ -426,7 +427,7 @@ async function downloadViaInvidious(url, taskId, onProgress) {
       if (formats.length === 0) continue;
 
       const downloadUrl = formats[0].url;
-      console.log(`[Invidious] Downloading: ${info.title}`);
+      logger.info(`[Invidious] Downloading: ${info.title}`);
 
       const outputPath = path.join(DOWNLOAD_DIR, `${taskId}.mp4`);
       await new Promise((resolve, reject) => {
@@ -473,7 +474,7 @@ async function downloadViaInvidious(url, taskId, onProgress) {
         }
       }
 
-      console.log(`[Invidious] Complete: ${taskId}.mp4`);
+      logger.info(`[Invidious] Complete: ${taskId}.mp4`);
       return {
         title: info.title || 'unknown',
         filePath: outputPath,
@@ -484,7 +485,7 @@ async function downloadViaInvidious(url, taskId, onProgress) {
       };
 
     } catch (err) {
-      console.error(`[Invidious] Failed: ${err.message}`);
+      logger.error(`[Invidious] Failed: ${err.message}`);
       continue;
     }
   }

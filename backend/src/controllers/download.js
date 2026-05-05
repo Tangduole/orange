@@ -25,6 +25,7 @@ const cacheManager = require('../utils/cacheManager');
 const asyncFs = require('../utils/asyncFs');
 const fileRefManager = require('../utils/fileRefManager');
 const logger = require('../utils/logger');
+const { heightToLabel, formatSize, detectPlatform } = require('../utils/media');
 const { 
   QUALITY, 
   TIMEOUT, 
@@ -1502,50 +1503,6 @@ async function processInstagram(taskId, url, needAsr, options = ['video']) {
     // 释放任务锁
     taskLock.release(taskId);
   }
-}
-
-/**
- * 平台自动识别
- */
-function heightToLabel(h) {
-  if (h >= 4320) return '8K';
-  if (h >= 2160) return '4K';
-  if (h >= 1440) return '2K';
-  if (h >= 1080) return '1080p';
-  if (h >= 720) return '720p';
-  if (h >= 480) return '480p';
-  if (h >= 360) return '360p';
-  return `${h}p`;
-}
-
-function formatSize(bytes) {
-  if (!bytes || bytes <= 0) return '';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1073741824) return `${(bytes / 1048576).toFixed(1)} MB`;
-  return `${(bytes / 1073741824).toFixed(2)} GB`;
-}
-
-function detectPlatform(url) {
-  const patterns = {
-    douyin: /douyin\.com|douyin\.cn|iesdouyin\.com/,
-    tiktok: /tiktok\.com|tiktok\.cn/,
-    x: /twitter\.com|x\.com/,
-    youtube: /youtube\.com|youtu\.be/,
-
-    instagram: /instagram\.com|instagr\.am/,
-    xiaohongshu: /xiaohongshu\.com|xhslink\.com/,
-    bilibili: /bilibili\.com|b23\.tv/,
-    kuaishou: /kuaishou\.com|v\.kuaishou\.com/
-  };
-
-  for (const [platform, pattern] of Object.entries(patterns)) {
-    if (pattern.test(url)) {
-      return platform;
-    }
-  }
-
-  return null;
 }
 
 /**

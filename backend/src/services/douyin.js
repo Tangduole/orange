@@ -13,24 +13,26 @@
  *              aweme.amemv.com 等），按优先级一个个试，任一成功即返回。
  */
 
-function heightToLabel(h) {
-  if (h >= 4320) return '8K';
-  if (h >= 2160) return '4K';
-  if (h >= 1440) return '2K';
-  if (h >= 1080) return '1080p';
-  if (h >= 720) return '720p';
-  if (h >= 480) return '480p';
-  if (h >= 360) return '360p';
-  return "%sp".replace("%s", String(h));
-}
-const https = require('https');
-const http = require('http');
 const { URL } = require('url');
 const fs = require('fs');
 const path = require('path');
+const { httpGet: sharedHttpGet } = require('../utils/httpGet');
+const { heightToLabel } = require('../utils/media');
+const logger = require('../utils/logger');
 
 // 视频下载最大 500MB
 const MAX_SIZE = 500 * 1024 * 1024;
+
+// 抖音请求默认头
+const DOUYIN_HEADERS = { 'Referer': 'https://www.douyin.com/' };
+
+/**
+ * 抖音专用 httpGet（自动附加 Douyin Referer）
+ */
+function httpGet(url, options = {}) {
+  const mergedHeaders = { ...DOUYIN_HEADERS, ...(options.headers || {}) };
+  return sharedHttpGet(url, { ...options, headers: mergedHeaders, maxSize: options.maxSize || MAX_SIZE });
+}
 
 // ============ 候选 URL 构造工具 ============
 
@@ -125,55 +127,6 @@ function buildCandidates(rawUrls, targetRatio) {
   }
 
   return out;
-}
-
-function httpGet(rawUrl, options = {}) {
-  return new Promise((resolve, reject) => {
-    const timeout = options.timeout || 15000;
-    const maxSize = options.maxSize || MAX_SIZE;
-    let url;
-    try { url = new URL(rawUrl); } catch { return reject(new Error('Invalid URL')); }
-    const client = url.protocol === 'https:' ? https : http;
-    const req = client.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15',
-        'Referer': 'https://www.douyin.com/',
-        ...(options.headers || {})
-      }
-    }, (res) => {
-      if ([301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
-        return httpGet(res.headers.location, options).then(resolve).catch(reject);
-      }
-      if (res.statusCode !== 200) { res.resume(); return reject(new Error(`HTTP ${res.statusCode}`)); }
-      if (options.responseType === 'arraybuffer') {
-        let downloaded = 0;
-        const chunks = [];
-        res.on('data', c => {
-          downloaded += c.length;
-          if (downloaded > maxSize) {
-            req.destroy();
-            return reject(new Error(`文件过大 (${Math.round(downloaded/1024/1024)}MB)，超过 ${Math.round(maxSize/1024/1024)}MB 限制`));
-          }
-          chunks.push(c);
-        });
-        res.on('end', () => resolve(Buffer.concat(chunks)));
-      } else {
-        let downloaded = 0;
-        const chunks = [];
-        res.on('data', c => {
-          downloaded += c.length;
-          if (downloaded > maxSize) {
-            req.destroy();
-            return reject(new Error(`响应过大，超过 ${Math.round(maxSize/1024/1024)}MB 限制`));
-          }
-          chunks.push(c);
-        });
-        res.on('end', () => resolve({ body: Buffer.concat(chunks).toString('utf-8'), finalUrl: url.href }));
-      }
-    });
-    req.on('error', reject);
-    req.setTimeout(timeout, () => { req.destroy(); reject(new Error('timeout')); });
-  });
 }
 
 /**
@@ -416,7 +369,7 @@ async function downloadDouyin(url, taskId, onProgress, opts = {}) {
   const info = await parseDouyinPage(url, { targetRatio });
   if (onProgress) onProgress(30, '获取作品信息');
 
-  console.log(`[douyin] Parsed: type=${info.type}, title="${(info.title||'').substring(0, 50)}", images=${info.images.length}, candidates=${info.videoCandidates.length}, target=${targetRatio}, parsedHeight=${info.height}`);
+  logger.info(`[douyin] Parsed: type=${info.type}, title="${(info.title||'').substring(0, 50)}", images=${info.images.length}, candidates=${info.videoCandidates.length}, target=${targetRatio}, parsedHeight=${info.height}`);
 
   const result = {
     title: info.title,
@@ -438,7 +391,7 @@ async function downloadDouyin(url, taskId, onProgress, opts = {}) {
       fs.writeFileSync(coverPath, coverBuf);
       result.thumbnailUrl = `/download/${taskId}_thumb.jpg`;
     } catch (e) {
-      console.log('[douyin] cover download failed:', e.message);
+      logger.info('[douyin] cover download failed:', e.message);
     }
   }
 
@@ -453,7 +406,7 @@ async function downloadDouyin(url, taskId, onProgress, opts = {}) {
         fs.writeFileSync(filepath, buf);
         result.images.push({ filename, path: filepath, url: `/download/${filename}` });
       } catch (e) {
-        console.error(`[douyin] image ${i + 1} failed:`, e.message);
+        logger.error(`[douyin] image ${i + 1} failed:`, e.message);
       }
       if (onProgress) onProgress(30 + Math.round((i + 1) / info.images.length * 60), `下载图片 ${i + 1}/${info.images.length}`);
     }
@@ -487,11 +440,11 @@ async function downloadDouyin(url, taskId, onProgress, opts = {}) {
         videoBuf = buf;
         pickedUrl = candidate;
         const wm = isWatermarked(candidate) ? ' [WATERMARKED!]' : '';
-        console.log(`[douyin] video downloaded via candidate ${attempt}/${totalCandidates}${wm}: ${candidate.substring(0, 120)}`);
+        logger.info(`[douyin] video downloaded via candidate ${attempt}/${totalCandidates}${wm}: ${candidate.substring(0, 120)}`);
         break;
       } catch (e) {
         lastErr = e;
-        console.log(`[douyin] candidate ${attempt}/${totalCandidates} failed: ${e.message} (${candidate.substring(0, 80)}...)`);
+        logger.info(`[douyin] candidate ${attempt}/${totalCandidates} failed: ${e.message} (${candidate.substring(0, 80)}...)`);
       }
       if (onProgress) {
         const pct = 35 + Math.round((attempt / totalCandidates) * 50);
@@ -504,7 +457,7 @@ async function downloadDouyin(url, taskId, onProgress, opts = {}) {
     }
 
     if (isWatermarked(pickedUrl)) {
-      console.warn(`[douyin] WARN: only watermarked source available for taskId=${taskId}; user may see watermark`);
+      logger.warn(`[douyin] WARN: only watermarked source available for taskId=${taskId}; user may see watermark`);
     }
 
     const filename = `${taskId}.mp4`;
