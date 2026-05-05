@@ -31,11 +31,11 @@ const APP_VERSION = packageJson.version || '1.0.0';
 const router = express.Router();
 
 // 创建下载任务（带速率限制）
-router.post('/download', downloadLimiter, createDownload);
+router.post('/download', downloadLimiter, auth.optional, createDownload);
 
 // 获取视频信息（不下载）
 router.get('/info', getInfo);
-router.post('/video-info', getVideoInfo);
+router.post('/video-info', auth.optional, getVideoInfo);
 
 // 查询任务状态
 router.get('/status/:taskId', getStatus);

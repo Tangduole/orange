@@ -154,44 +154,29 @@ async function createDownload(req, res) {
 
     const wantsAsr = needAsr;
 
-    // ========== 用户限额检查 ==========
-    let userId = null;
-    let isVip = false;
-    const authHeader = req.headers.authorization;
-    let isGuest = true;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      try {
-        const token = authHeader.slice(7);
-        const jwt = require('jsonwebtoken');
-        const JWT_SECRET = process.env.JWT_SECRET;
-        const payload = jwt.verify(token, JWT_SECRET);
-        const userDb = require('../userDb');
-        const user = await userDb.getById(payload.sub);
-        if (user) {
-          isGuest = false;
-          userId = user.id;
+    // ========== 用户限额检查（auth.optional 中间件已设置 req.user） ==========
+    const userDb = require('../userDb');
+    const isGuest = !req.user;
+    const userId = req.user ? req.user.id : null;
+    const isVip = req.user ? userDb.isVip(req.user) : false;
 
-          // 检查邮箱是否已验证
-          if (user.email_verified !== 1) {
-            return res.json({
-              code: 403,
-              message: '请先验证邮箱后再下载。查收注册邮箱点击验证链接。'
-            });
-          }
-
-          isVip = userDb.isVip(user);
-          const usage = await userDb.getUsage(userId);
-          if (!usage.isPro && usage.remaining <= 0) {
-            return res.json({
-              code: RESPONSE_CODE.FORBIDDEN,
-              message: `今日下载次数已用完(${usage.dailyLimit}次/天)。升级 Pro 解锁无限制下载`
-            });
-          }
-          // 注意：不在这里增加计数，等下载成功后再增加
-        }
-      } catch (e) {
-        // token 无效,继续作为游客
+    if (!isGuest) {
+      // 检查邮箱是否已验证
+      if (req.user.email_verified !== 1) {
+        return res.json({
+          code: 403,
+          message: '请先验证邮箱后再下载。查收注册邮箱点击验证链接。'
+        });
       }
+
+      const usage = await userDb.getUsage(userId);
+      if (!usage.isPro && usage.remaining <= 0) {
+        return res.json({
+          code: RESPONSE_CODE.FORBIDDEN,
+          message: `今日下载次数已用完(${usage.dailyLimit}次/天)。升级 Pro 解锁无限制下载`
+        });
+      }
+      // 注意：不在这里增加计数，等下载成功后再增加
     }
 
     // 游客每日下载限制
@@ -1572,32 +1557,10 @@ function getStatus(req, res) {
 async function getHistory(req, res) {
   const { limit = 50, offset = 0 } = req.query;
 
-  // 获取用户身份
-  let userId = null;
-  let guestIp = null;
-  let isGuest = true;
-
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    try {
-      const token = authHeader.slice(7);
-      const jwt = require('jsonwebtoken');
-      const JWT_SECRET = process.env.JWT_SECRET;
-      const payload = jwt.verify(token, JWT_SECRET);
-      const userDb = require('../userDb');
-      const user = await userDb.getById(payload.sub);
-      if (user) {
-        isGuest = false;
-        userId = user.id;
-      }
-    } catch (e) {
-      // token 无效,继续作为游客
-    }
-  }
-
-  if (isGuest) {
-    guestIp = req.ip || req.headers['x-forwarded-for']?.split(',')[0] || 'unknown';
-  }
+  // 用户身份由 auth.optional 中间件设置
+  const isGuest = !req.user;
+  const userId = req.user ? req.user.id : null;
+  const guestIp = isGuest ? (req.ip || req.headers['x-forwarded-for']?.split(',')[0] || 'unknown') : null;
 
   // 过滤任务（游客按 guestIp 过滤）
   const allTasks = store.list().filter(task => {
