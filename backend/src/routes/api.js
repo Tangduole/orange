@@ -41,7 +41,7 @@ router.post('/video-info', auth.optional, getVideoInfo);
 router.get('/status/:taskId', getStatus);
 
 // 获取历史记录
-router.get('/history', getHistory);
+router.get('/history', auth.optional, getHistory);
 
 // 删除任务
 router.delete('/tasks/:taskId', auth.required, deleteTask);
