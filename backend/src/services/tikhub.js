@@ -463,20 +463,10 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
   // 优先使用分享链接 API（支持高清画质）
   let data = {};
   try {
-    data = await tikhubRequest(`/api/v1/douyin/web/fetch_one_video_by_share_url?share_url=${encodeURIComponent(url)}`, API_KEY_DOUYIN);
-    logger.info(`[TikHub] fetch_one_video_by_share_url succeeded`);
+    data = await tikhubRequest(`/api/v1/douyin/app/v3/fetch_one_video?aweme_id=${awemeId}`, API_KEY_DOUYIN);
+    logger.info(`[TikHub] fetch_one_video (app/v3) succeeded`);
   } catch (e) {
-    logger.info(`[TikHub] fetch_one_video_by_share_url failed: ${e.message}, trying aweme_id...`);
-    // fallback: 用 aweme_id 方式
-    if (awemeId) {
-      try {
-        data = await tikhubRequest(`/api/v1/douyin/web/fetch_one_video?aweme_id=${awemeId}`, API_KEY_DOUYIN);
-      } catch (e2) {
-        throw new Error(`抖音解析失败：${e2.message}`);
-      }
-    } else {
-      throw new Error(`抖音解析失败：${e.message}`);
-    }
+    throw new Error(`抖音解析失败：${e.message}`);
   }
   if (onProgress) onProgress(20);
 
@@ -499,7 +489,7 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
     // 价格: $0.005/次
     try {
       const hqData = await tikhubRequest(
-        `/api/v1/douyin/web/fetch_video_high_quality_play_url?aweme_id=${awemeId}&share_url=${encodeURIComponent(url)}&region=CN`,
+        `/api/v1/douyin/app/v3/fetch_video_high_quality_play_url?aweme_id=${awemeId}&share_url=${encodeURIComponent(url)}&region=CN`,
         API_KEY_DOUYIN
       );
       if (hqData.original_video_url) {
@@ -1004,15 +994,11 @@ async function getDouyinQualities(url) {
   let data = {};
   try {
     data = await tikhubRequest(
-      `/api/v1/douyin/web/fetch_one_video_by_share_url?share_url=${encodeURIComponent(url)}`,
+      `/api/v1/douyin/app/v3/fetch_one_video?aweme_id=${awemeId}`,
       API_KEY_DOUYIN
     );
   } catch (e) {
-    // fallback: aweme_id 方式
-    data = await tikhubRequest(
-      `/api/v1/douyin/web/fetch_one_video?aweme_id=${awemeId}`,
-      API_KEY_DOUYIN
-    );
+    throw new Error(`抖音画质查询失败：${e.message}`);
   }
 
   const detail = data?.aweme_detail || {};
