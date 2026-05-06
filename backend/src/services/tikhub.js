@@ -60,7 +60,8 @@ function tikhubRequest(endpoint, apiKey = null) {
         try {
           const json = JSON.parse(data);
           if (res.statusCode === 402) {
-            reject(new Error('TikHub 账户余额不足，请充值'));
+            logger.error(`[TikHub] 余额不足！端点: ${endpoint.split('?')[0]}`);
+            reject(new Error('服务暂时不可用，请稍后重试'));
             return;
           }
           if (json.code === 200 || json.data) {
@@ -107,7 +108,8 @@ function tikhubRequestPost(endpoint, body, apiKey = null) {
         try {
           const json = JSON.parse(data);
           if (res.statusCode === 402) {
-            reject(new Error('TikHub 账户余额不足，请充值'));
+            logger.error(`[TikHub POST] 余额不足！端点: ${endpoint.split('?')[0]}`);
+            reject(new Error('服务暂时不可用，请稍后重试'));
             return;
           }
           if (json.code === 200 || json.data) {
