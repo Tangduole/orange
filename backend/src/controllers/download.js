@@ -714,18 +714,38 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
     let result;
     let usedYtdlpFallback = false;
 
+    // 判断是否需要高清直通 TikHub
+    // iesdouyin 只能提供 ≤1080p 的源, VIP 用户选 ≥2K 时直接走 TikHub 付费 API
+    let skipIesdouyin = false;
+    let requestedHeight = 99999;
+    if (quality && typeof quality === 'string') {
+      const m = quality.match(/height\s*<=\s*(\d+)/i);
+      if (m) requestedHeight = parseInt(m[1]);
+    }
+    if (isVip && requestedHeight >= 1440) {
+      skipIesdouyin = true;
+      logger.info(`[task] ${taskId} VIP + ${requestedHeight}p requested, using TikHub as primary`);
+    }
+
     // Step 1: 尝试 iesdouyin.com（主力方案）
-    try {
-      store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
-      result = await downloadDouyin(url, taskId, (percent, msg) => {
-        store.update(taskId, {
-          status: percent < 90 ? TASK_STATUS.DOWNLOADING : TASK_STATUS.PROCESSING,
-          progress: percent,
-        });
-      }, { quality, isVip });
-      logger.info(`[task] ${taskId} iesdouyin.com succeeded (quality=${result.quality}, watermarked=${!!result.watermarked})`);
-    } catch (iesErr) {
-      logger.warn(`[task] ${taskId} iesdouyin.com failed: ${iesErr.message}, trying TikHub...`);
+    let iesdouyinError = skipIesdouyin ? 'VIP高清直通TikHub' : null;
+    if (!skipIesdouyin) {
+      try {
+        store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
+        result = await downloadDouyin(url, taskId, (percent, msg) => {
+          store.update(taskId, {
+            status: percent < 90 ? TASK_STATUS.DOWNLOADING : TASK_STATUS.PROCESSING,
+            progress: percent,
+          });
+        }, { quality, isVip });
+        logger.info(`[task] ${taskId} iesdouyin.com succeeded (quality=${result.quality}, watermarked=${!!result.watermarked})`);
+      } catch (e) {
+        iesdouyinError = e.message;
+        logger.warn(`[task] ${taskId} iesdouyin.com failed: ${e.message}, trying TikHub...`);
+      }
+    }
+
+    if (!result) {
 
       // Step 2: TikHub API fallback
       try {
@@ -769,7 +789,8 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
           logger.info(`[task] ${taskId} yt-dlp fallback succeeded`);
         } catch (ytdlpErr) {
           logger.error(`[task] ${taskId} yt-dlp fallback also failed: ${ytdlpErr.message}`);
-          throw new Error(`抖音解析失败: iesdouyin(${iesErr.message}) → TikHub(${tikhubErr.message}) → yt-dlp(${ytdlpErr.message})`);
+          const iesdouyinMsg = iesdouyinError || 'unknown';
+          throw new Error(`抖音解析失败: iesdouyin(${iesdouyinMsg}) → TikHub(${tikhubErr.message}) → yt-dlp(${ytdlpErr.message})`);
         }
       }
     }
