@@ -537,19 +537,22 @@ export default function App() {
     return () => clearInterval(t)
   }, [task?.taskId])
 
+  // 画质短边(竖屏视频高宽颠倒,1080x1920是1080p不是2K)
+  const qualityShortEdge = (q: {width: number, height: number}) => Math.min(q.width || 0, q.height || 0)
+
   // 画质自动选择：获取到可用画质后，自动选最佳（VIP→4K/2K，免费→720p）
   useEffect(() => {
     if (availableQualities.length === 0) {
       setAutoQuality(null)
       return
     }
-    const maxHeight = isVip ? 99999 : 720
+    const maxShortEdge = isVip ? 99999 : 720
     const best = availableQualities
-      .filter(q => q.height <= maxHeight)
-      .sort((a, b) => b.height - a.height)[0]
+      .filter(q => qualityShortEdge(q) <= maxShortEdge)
+      .sort((a, b) => qualityShortEdge(b) - qualityShortEdge(a))[0]
     if (best) {
-      const label = best.qualityLabel || `${best.height}p`
-      setAutoQuality({ label, height: best.height })
+      const label = best.qualityLabel || `${qualityShortEdge(best)}p`
+      setAutoQuality({ label, height: qualityShortEdge(best) })
       setPendingQuality(best.quality)
     }
   }, [availableQualities, isVip])
@@ -1282,18 +1285,19 @@ export default function App() {
                   {showQualityPicker && (
                     <div className="mt-2 p-2 bg-slate-800 border border-slate-600/50 rounded-xl max-h-48 overflow-y-auto">
                       {availableQualities.map((q, idx) => {
-                        const isHighQuality = q.height > 720
+                        const shortEdge = qualityShortEdge(q)
+                        const isHighQuality = shortEdge > 720
                         const canSelect = isVip || !isHighQuality
-                        const qualityLabel = (q as any).qualityLabel || q.quality || `${q.height}p`
+                        const qualityLabel = (q as any).qualityLabel || q.quality || `${shortEdge}p`
                         const sizeLabel = (q as any).sizeLabel || ''
-                        const isSelected = pendingQuality === `height<=${q.height}`
+                        const isSelected = pendingQuality === `height<=${shortEdge}`
                         return (
                           <button
                             key={idx}
                             onClick={() => {
                               if (!canSelect) { setShowQualityPicker(false); setShowUpgradePopup(true); return }
-                              setPendingQuality(`height<=${q.height}`)
-                              setAutoQuality({ label: qualityLabel, height: q.height })
+                              setPendingQuality(`height<=${shortEdge}`)
+                              setAutoQuality({ label: qualityLabel, height: shortEdge })
                               setShowQualityPicker(false)
                             }}
                             className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition mb-1 last:mb-0 ${

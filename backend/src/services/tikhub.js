@@ -1047,6 +1047,12 @@ async function getDouyinQualities(url) {
   // 从 bit_rate 和 play_addr_265 收集画质
   const qualityMap = new Map();
   
+  // 画质短边计算(竖屏视频用短边,1080x1920是1080p不是2K)
+  const getQuality = (w, h) => {
+    const shortEdge = Math.min(w || 0, h || 0);
+    return heightToLabel(shortEdge);
+  };
+  
   // 用 duration(秒) × bitrate(bps) / 8 估算文件大小(bytes)
   const estimateSize = (bitrateBps) => {
     if (!bitrateBps || !duration) return 0;
@@ -1056,12 +1062,14 @@ async function getDouyinQualities(url) {
   // H.265 源 (可能 1080p/2K)
   const playAddr265 = video.play_addr_265;
   if (playAddr265?.url_list?.[0]) {
+    const w = playAddr265.width || 0;
     const h = playAddr265.height || 0;
-    if (h && !qualityMap.has(h)) {
-      qualityMap.set(h, {
-        quality: heightToLabel(h),
+    const key = `${w}x${h}`;
+    if (w && h && !qualityMap.has(key)) {
+      qualityMap.set(key, {
+        quality: getQuality(w, h),
         format: 'mp4',
-        width: playAddr265.width || 0,
+        width: w,
         height: h,
         hasVideo: true,
         hasAudio: false,
@@ -1075,14 +1083,15 @@ async function getDouyinQualities(url) {
   for (const br of bitrates) {
     const pa = br.play_addr;
     if (!pa?.url_list?.[0]) continue;
+    const w = pa.width || 0;
     const h = pa.height || 0;
-    // bit_rate 里的 bit_rate 字段是视频+音频合计码率
+    const key = `${w}x${h}`;
     const totalBitrate = br.bit_rate || pa.bit_rate || 0;
-    if (h && !qualityMap.has(h)) {
-      qualityMap.set(h, {
-        quality: heightToLabel(h),
+    if (w && h && !qualityMap.has(key)) {
+      qualityMap.set(key, {
+        quality: getQuality(w, h),
         format: 'mp4',
-        width: pa.width || 0,
+        width: w,
         height: h,
         hasVideo: true,
         hasAudio: true,
@@ -1094,12 +1103,14 @@ async function getDouyinQualities(url) {
   // play_addr 兜底 (通常 720p)
   const playAddr = video.play_addr;
   if (playAddr?.url_list?.[0]) {
-    const h = playAddr?.height || 720;
-    if (h && !qualityMap.has(h)) {
-      qualityMap.set(h, {
-        quality: heightToLabel(h),
+    const w = playAddr.width || 0;
+    const h = playAddr.height || 720;
+    const key = `${w}x${h}`;
+    if (w && h && !qualityMap.has(key)) {
+      qualityMap.set(key, {
+        quality: getQuality(w, h),
         format: 'mp4',
-        width: playAddr.width || 0,
+        width: w,
         height: h,
         hasVideo: true,
         hasAudio: true,
@@ -1109,7 +1120,7 @@ async function getDouyinQualities(url) {
   }
 
   const qualities = Array.from(qualityMap.values())
-    .sort((a, b) => b.height - a.height);
+    .sort((a, b) => Math.min(b.width||0,b.height||0) - Math.min(a.width||0,a.height||0));
 
   logger.info(`[TikHub] Douyin qualities for ${awemeId} (duration=${duration}s): ${qualities.map(q => `${q.quality} ~${(q.size/1024/1024).toFixed(1)}MB`).join(', ')}`);
 
