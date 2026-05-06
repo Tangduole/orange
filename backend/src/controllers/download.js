@@ -295,7 +295,7 @@ async function createDownload(req, res) {
         logger.error(`[task] ${taskId} wechat failed:`, err);
         store.update(taskId, { status: TASK_STATUS.ERROR, progress: 0, error: err.message });
       });
-      return res.json({ code: RESPONSE_CODE.SUCCESS, data: { taskId, status: TASK_STATUS.PENDING, platform: 'wechat' } });
+      return res.json({ code: RESPONSE_CODE.SUCCESS, data: { taskId, status: TASK_STATUS.PENDING, platform: 'wechat-v2' } });
     }
 
     // TikTok 链接:走 TikHub API
