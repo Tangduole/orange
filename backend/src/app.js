@@ -36,7 +36,8 @@ const PORT = process.env.PORT || 3000;
 // 安全中间件
 app.use(helmet({
   contentSecurityPolicy: false, // 允许内联脚本（前端需要）
-  crossOriginEmbedderPolicy: false
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' } // 允许前端跨域加载图片/视频
 }));
 
 // 信任代理（用于获取真实IP）
