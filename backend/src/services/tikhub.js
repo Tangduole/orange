@@ -516,7 +516,8 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
       width: playAddr265?.width || 0,
       height: playAddr265?.height || 0,
       codec: 'h265',
-      bitrate: playAddr265?.bit_rate || 0
+      bitrate: playAddr265?.bit_rate || 0,
+      hasAudio: false // H.265 流通常不含音频
     });
   }
 
@@ -544,7 +545,8 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
       width: video.play_addr.width || 0,
       height: video.play_addr.height || 0,
       codec: 'h264',
-      bitrate: video.play_addr.bit_rate || 0
+      bitrate: video.play_addr.bit_rate || 0,
+      hasAudio: false
     });
   }
 
@@ -560,24 +562,30 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
   });
 
   // 选择视频源
+  // 优先级: 1) 匹配用户画质选择的候选 2) HQ原始(仅当用户选最大画质) 3) 最高可用候选
   let selected = null;
-  if (hqVideoUrl) {
-    // VIP: HQ原始 URL 是最佳画质,直接使用
+
+  // 先从候选列表中找匹配用户画质选择的
+  for (const c of candidates) {
+    if (maxHeight < 99999 && c.height > maxHeight) continue;
+    // 优选有音频的,然后选分辨率最高的
+    if (!selected || (c.hasAudio && !selected.hasAudio) || (c.hasAudio === selected.hasAudio && c.height > selected.height)) {
+      selected = c;
+    }
+  }
+
+  if (!selected && hqVideoUrl) {
+    // 候选不满足用户画质选择,但HQ可用 → 使用HQ(通常画质最高)
+    selected = { url: hqVideoUrl, width: 0, height: maxHeight, codec: 'original', bitrate: 0, hasAudio: false };
+    logger.info(`[TikHub] No candidate fits, using HQ original: ${hqFileSize} MB`);
+  } else if (hqVideoUrl && maxHeight >= 99999) {
+    // 用户选最大画质,HQ可用 → 直接用HQ
     selected = { url: hqVideoUrl, width: 0, height: 0, codec: 'original', bitrate: 0, hasAudio: false };
-    logger.info(`[TikHub] Using HQ original video: ${hqFileSize} MB`);
-  } else {
-    // 非VIP 或 HQ API 失败: 从免费API候选列表选择最佳匹配
-    for (const c of candidates) {
-      if (maxHeight < 99999 && c.height > maxHeight) continue;
-      if (!selected || c.height > selected.height) {
-        selected = c;
-      }
-    }
-    // 如果所有候选都超了限制,选分辨率最高的
-    if (!selected && candidates.length > 0) {
-      selected = candidates[0];
-      logger.info(`[TikHub] All candidates exceed limit, using highest: ${selected.height}p`);
-    }
+    logger.info(`[TikHub] Max quality requested, using HQ original: ${hqFileSize} MB`);
+  } else if (!selected && candidates.length > 0) {
+    // 无HQ,所有候选超限 → 选最高分辨率
+    selected = candidates[0];
+    logger.info(`[TikHub] All candidates exceed limit, using highest: ${selected.height}p`);
   }
 
   if (selected) {
