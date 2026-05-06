@@ -789,6 +789,7 @@ export default function App() {
   }
 
   const handleSubmit = async () => {
+    if (loading) return  // 防重复提交
     autoDownloaded.current = false
     
     // 检查GuestDownloadTimes限制

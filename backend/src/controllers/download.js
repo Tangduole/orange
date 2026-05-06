@@ -249,6 +249,17 @@ async function createDownload(req, res) {
     }
 
     const taskId = uuidv4();
+
+    // 去重：同一用户30秒内相同URL不重复创建任务
+    const existingTasks = store.list().filter(t => {
+      const isSame = (isGuest ? t.guestIp === guestIp : t.userId === userId);
+      return isSame && t.url === url.trim() && (Date.now() - (t.createdAt || 0) < 30000);
+    });
+    if (existingTasks.length > 0) {
+      logger.info(`[download] Duplicate request, returning existing task: ${existingTasks[0].taskId}`);
+      return res.json({ code: RESPONSE_CODE.SUCCESS, data: { taskId: existingTasks[0].taskId, status: existingTasks[0].status, platform: finalPlatform } });
+    }
+
     const task = {
       taskId,
       url: url.trim(),
