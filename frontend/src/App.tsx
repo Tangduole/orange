@@ -1510,15 +1510,15 @@ export default function App() {
                     )}
                     <p className="text-sm text-slate-300">{task.title}</p>
                   </div>
-                  {/* Quality调整Prompt - 需求2 */}
+                  {/* Quality调整提示 */}
                   {task.qualityAdjusted === 'downgrade' && (
-                    <div className="text-xs text-orange-400 bg-orange-500/10 px-3 py-2 rounded-xl">
-                      {t('qualityDowngraded', { height: task.height })}
+                    <div className="text-xs text-amber-400 bg-amber-500/10 px-3 py-2 rounded-xl">
+                      {t('qualityDowngraded', { quality: task.quality })}
                     </div>
                   )}
                   {task.qualityAdjusted === 'upgrade' && (
                     <div className="text-xs text-emerald-400 bg-emerald-500/10 px-3 py-2 rounded-xl">
-                      {t('qualityUpgraded', { height: task.height })}
+                      {t('qualityUpgraded', { quality: task.quality })}
                     </div>
                   )}
                   {/* Free User Download limit Prompt */}

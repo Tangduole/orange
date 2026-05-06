@@ -799,15 +799,16 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
     let task = store.get(taskId) || {};
     const reqQ = task.requestedQuality || requestedQuality;
 
-    // 计算画质调整提示
+    // 计算画质调整提示（用短边，竖屏视频高宽颠倒）
     let qualityAdjusted = null;
     if (reqQ && result.height) {
       const reqMatch = reqQ.match(/height<=(\d+)/i);
       if (reqMatch) {
         const reqHeight = parseInt(reqMatch[1]);
-        if (result.height < reqHeight) {
-          qualityAdjusted = 'downgrade'; // 降级
-        } else if (result.height > reqHeight) {
+        const actualShortEdge = Math.min(result.width || 0, result.height || 0);
+        if (actualShortEdge < reqHeight) {
+          qualityAdjusted = 'downgrade'; // 降级(无更高画质源)
+        } else if (actualShortEdge > reqHeight) {
           qualityAdjusted = 'upgrade'; // 升级
         }
       }

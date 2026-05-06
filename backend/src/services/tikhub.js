@@ -619,6 +619,25 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
     'Referer': 'https://www.douyin.com/'
   }, { timeoutMs: downloadTimeoutMs });
 
+  // HQ原始文件: 用 ffprobe 检测实际分辨率(API元数据不可靠)
+  if (hqVideoUrl) {
+    try {
+      const { execSync } = require('child_process');
+      const probe = execSync(
+        `ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "${outputPath}"`,
+        { timeout: 10000, encoding: 'utf8' }
+      ).trim();
+      const parts = probe.split(',');
+      if (parts.length >= 2) {
+        selectedWidth = parseInt(parts[0]) || selectedWidth;
+        selectedHeight = parseInt(parts[1]) || selectedHeight;
+        logger.info(`[TikHub] ffprobe detected actual resolution: ${selectedWidth}x${selectedHeight}`);
+      }
+    } catch (e) {
+      logger.info(`[TikHub] ffprobe failed: ${e.message}, using metadata dimensions`);
+    }
+  }
+
   // 下载封面
   let thumbnailUrl = '';
   const coverUrl = video.cover?.url_list?.[0] || video.origin_cover?.url_list?.[0] || '';
@@ -636,7 +655,9 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
 
   if (onProgress) onProgress(100);
 
-  const qualityLabel = selectedHeight >= 2160 ? '4K' : selectedHeight >= 1440 ? '2K' : selectedHeight >= 1080 ? '1080p' : selectedHeight >= 720 ? '720p' : selectedHeight >= 480 ? '480p' : selectedHeight >= 360 ? '360p' : `${selectedHeight || 0}p`;
+  // 画质标签用短边判断(竖屏视频高宽颠倒,1080x1920是1080p不是2K)
+  const shortEdge = Math.min(selectedWidth || 0, selectedHeight || 0);
+  const qualityLabel = shortEdge >= 2160 ? '4K' : shortEdge >= 1440 ? '2K' : shortEdge >= 1080 ? '1080p' : shortEdge >= 720 ? '720p' : shortEdge >= 480 ? '480p' : shortEdge >= 360 ? '360p' : 'SD';
   return {
     title,
     filePath: outputPath,
