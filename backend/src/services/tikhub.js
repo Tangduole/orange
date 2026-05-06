@@ -1063,10 +1063,12 @@ function parseWechatExportId(url) {
   // 匹配 patterns:
   // https://weixin.qq.com/sph/XXXXX
   // https://channels.weixin.qq.com/media/pages/USER/VIDEOID
+  // https://channels.weixin.qq.com/share/XXXXX  ← 新增分享链接格式
   // https://v.kwaichat.com/VIDEOID
   const patterns = [
     /weixin\.qq\.com\/sph\/([A-Za-z0-9_=-]+)/,
     /channels\.weixin\.qq\.com\/media\/pages\/[^\/]+\/([A-Za-z0-9_=-]+)/,
+    /channels\.weixin\.qq\.com\/share\/([A-Za-z0-9_=-]+)/,
     /v\.kwaichat\.com\/([A-Za-z0-9_=-]+)/,
   ];
   for (const p of patterns) {
@@ -1079,8 +1081,12 @@ function parseWechatExportId(url) {
 /**
  * 获取视频号视频信息
  */
-async function getWechatVideoInfo(exportId) {
-  const endpoint = `/api/v1/wechat_channels/fetch_video_detail?exportId=${encodeURIComponent(exportId)}`;
+async function getWechatVideoInfo(videoId) {
+  // 智能选择参数: 纯数字用id, 否则用exportId
+  const isNumeric = /^\d+$/.test(videoId);
+  const param = isNumeric ? `id=${encodeURIComponent(videoId)}` : `exportId=${encodeURIComponent(videoId)}`;
+  const endpoint = `/api/v1/wechat_channels/fetch_video_detail?${param}`;
+  logger.info(`[WeChat] Fetching video info with ${isNumeric ? 'id' : 'exportId'}: ${videoId}`);
   const data = await tikhubRequest(endpoint, API_KEY_WECHAT);
   return data;
 }
@@ -1089,13 +1095,21 @@ async function getWechatVideoInfo(exportId) {
  * 下载并解密微信视频号
  */
 async function downloadWechat(url, taskId, onProgress) {
-  const exportId = parseWechatExportId(url);
-  if (!exportId) throw new Error('无法解析视频号链接');
+  const videoId = parseWechatExportId(url);
+  if (!videoId) throw new Error('无法解析视频号链接，请确认链接格式正确');
 
   if (onProgress) onProgress(5, 0, 0);
 
   // 获取视频信息
-  const info = await getWechatVideoInfo(exportId);
+  let info;
+  try {
+    info = await getWechatVideoInfo(videoId);
+  } catch (e) {
+    if (e.message.includes('402')) {
+      throw new Error('视频号API余额不足，请联系管理员充值');
+    }
+    throw new Error('视频号链接已过期或无效，请重新获取分享链接');
+  }
   const data = info?.data || info;
   const obj = data?.object_desc || data?.object || {};
   const media = Array.isArray(obj.media) ? obj.media[0] : obj.media || {};

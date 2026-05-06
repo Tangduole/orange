@@ -977,6 +977,8 @@ export default function App() {
   const statusLabel = (s: string) => ({ pending: t('pending'), parsing: t('parsing'), downloading: t('downloading'), asr: t('speechRecognition'), completed: t('completed'), error: t('failed') }[s] || s)
   
   const getErrorMessage = (err: string) => {
+    if (err.includes('视频号链接已过期')) return '⚠️ 视频号链接已过期，请重新获取分享链接'
+    if (err.includes('无法解析视频号')) return '⚠️ 无法识别视频号链接，请确认格式'
     if (err.includes('TikHub API error')) return t('errorApiService')
     if (err.includes('Sign in to confirm')) return t('errorYoutubeVerify')
     if (err.includes('No download URL')) return t('errorNotAvailable')
