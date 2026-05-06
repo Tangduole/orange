@@ -59,10 +59,16 @@ function tikhubRequest(endpoint, apiKey = null) {
       res.on('end', () => {
         try {
           const json = JSON.parse(data);
+          if (res.statusCode === 402) {
+            reject(new Error('TikHub 账户余额不足，请充值'));
+            return;
+          }
           if (json.code === 200 || json.data) {
             resolve(json.data || json);
           } else {
-            reject(new Error(json.message || 'TikHub API error'));
+            // 优先使用中文错误信息
+            const msg = json.message_zh || json.message || 'TikHub API error';
+            reject(new Error(msg));
           }
         } catch (e) {
           reject(new Error(`TikHub response parse error: ${data.substring(0, 200)}`));
@@ -100,10 +106,15 @@ function tikhubRequestPost(endpoint, body, apiKey = null) {
       res.on('end', () => {
         try {
           const json = JSON.parse(data);
+          if (res.statusCode === 402) {
+            reject(new Error('TikHub 账户余额不足，请充值'));
+            return;
+          }
           if (json.code === 200 || json.data) {
             resolve(json.data || json);
           } else {
-            reject(new Error(json.message || 'TikHub API error'));
+            const msg = json.message_zh || json.message || 'TikHub API error';
+            reject(new Error(msg));
           }
         } catch (e) {
           reject(new Error(`TikHub response parse error: ${data.substring(0, 200)}`));
@@ -123,13 +134,18 @@ function tikhubRequestPost(endpoint, body, apiKey = null) {
  */
 async function parseYouTube(url, taskId, onProgress) {
   const videoIdMatch = url.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/);
-  if (!videoIdMatch) throw new Error('Invalid YouTube URL');
+  if (!videoIdMatch) throw new Error('无效的 YouTube 链接');
   const videoId = videoIdMatch[1];
 
   logger.info(`[TikHub] Parsing YouTube: ${videoId}`);
   if (onProgress) onProgress(10);
 
-  const data = await tikhubRequest(`/api/v1/youtube/web/get_video_info?video_id=${videoId}&need_format=true`, API_KEY_YT);
+  let data;
+  try {
+    data = await tikhubRequest(`/api/v1/youtube/web/get_video_info?video_id=${videoId}&need_format=true`, API_KEY_YT);
+  } catch (e) {
+    throw new Error(`YouTube 解析失败：${e.message}`);
+  }
 
   if (onProgress) onProgress(20);
 
@@ -196,7 +212,12 @@ async function parseXiaohongshu(url, taskId, onProgress) {
   if (onProgress) onProgress(10);
 
   // 使用 fetch_feed_notes_v3 接口(支持短链)
-  const data = await tikhubRequest(`/api/v1/xiaohongshu/web_v2/fetch_feed_notes_v3?short_url=${encodeURIComponent(url)}`);
+  let data;
+  try {
+    data = await tikhubRequest(`/api/v1/xiaohongshu/web_v2/fetch_feed_notes_v3?short_url=${encodeURIComponent(url)}`);
+  } catch (e) {
+    throw new Error(`小红书解析失败：${e.message}`);
+  }
 
   if (onProgress) onProgress(20);
 
@@ -305,7 +326,12 @@ async function downloadYouTubeViaAPI(url, taskId, onProgress, quality) {
   if (onProgress) onProgress(5);
 
   // 获取视频信息
-  const data = await tikhubRequest(`/api/v1/youtube/web/get_video_info?video_id=${videoId}&need_format=true`, API_KEY_YT);
+  let data;
+  try {
+    data = await tikhubRequest(`/api/v1/youtube/web/get_video_info?video_id=${videoId}&need_format=true`, API_KEY_YT);
+  } catch (e) {
+    throw new Error(`YouTube 下载失败：${e.message}`);
+  }
   if (onProgress) onProgress(15);
 
   const title = data.title || 'YouTube Video';
@@ -442,8 +468,10 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
       try {
         data = await tikhubRequest(`/api/v1/douyin/web/fetch_one_video?aweme_id=${awemeId}`, API_KEY_DOUYIN);
       } catch (e2) {
-        logger.info(`[TikHub] fetch_one_video also failed: ${e2.message}`);
+        throw new Error(`抖音解析失败：${e2.message}`);
       }
+    } else {
+      throw new Error(`抖音解析失败：${e.message}`);
     }
   }
   if (onProgress) onProgress(20);
@@ -768,12 +796,17 @@ async function downloadFile(url, outputPath, onProgress, headers = {}, opts = {}
 
 
 async function parseInstagram(url) {
-  if (!API_KEY_INSTAGRAM) throw new Error('TikHub Instagram API key not configured');
+  if (!API_KEY_INSTAGRAM) throw new Error('Instagram API 未配置，请联系管理员');
 
-  const response = await tikhubRequest(
-    '/api/v1/instagram/v1/fetch_post_by_url?post_url=' + encodeURIComponent(url),
-    API_KEY_INSTAGRAM
-  );
+  let response;
+  try {
+    response = await tikhubRequest(
+      '/api/v1/instagram/v1/fetch_post_by_url?post_url=' + encodeURIComponent(url),
+      API_KEY_INSTAGRAM
+    );
+  } catch (e) {
+    throw new Error(`Instagram 解析失败：${e.message}`);
+  }
 
   const data = response.data || response;
   const videoUrl = data.video_url;
@@ -800,17 +833,22 @@ async function parseInstagram(url) {
  */
 async function parseYouTubeV2(url, taskId, onProgress, quality = null) {
   const videoIdMatch = url.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/);
-  if (!videoIdMatch) throw new Error('Invalid YouTube URL');
+  if (!videoIdMatch) throw new Error('无效的 YouTube 链接');
   const videoId = videoIdMatch[1];
 
   logger.info(`[TikHub v2] Parsing YouTube: ${videoId}, API_KEY present: ${!!API_KEY_YT}`);
   if (onProgress) onProgress(5);
 
   // 调用 web_v2 接口, need_format=true 获取完整格式列表
-  const data = await tikhubRequest(
-    `/api/v1/youtube/web_v2/get_video_streams_v2?video_id=${videoId}&need_format=true`,
-    API_KEY_YT
-  );
+  let data;
+  try {
+    data = await tikhubRequest(
+      `/api/v1/youtube/web_v2/get_video_streams_v2?video_id=${videoId}&need_format=true`,
+      API_KEY_YT
+    );
+  } catch (e) {
+    throw new Error(`YouTube 解析失败：${e.message}`);
+  }
 
   logger.info(`[TikHub v2] API response: formats=${data.formats?.length || 0}, adaptive=${data.adaptive_formats?.length || 0}`);
 

@@ -1243,10 +1243,15 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
     store.update(taskId, { progress: 15 });
 
     // 调用 TikHub TikTok App V3 API(用抖音 API key)
-    const data = await tikhubRequest(
-      '/api/v1/tiktok/app/v3/fetch_one_video?aweme_id=' + videoId,
-      API_KEY_DOUYIN
-    );
+    let data;
+    try {
+      data = await tikhubRequest(
+        '/api/v1/tiktok/app/v3/fetch_one_video?aweme_id=' + videoId,
+        API_KEY_DOUYIN
+      );
+    } catch (e) {
+      throw new Error(`TikTok 解析失败：${e.message}`);
+    }
 
     const detail = data?.aweme_detail || {};
     const video = detail.video || {};

@@ -979,6 +979,12 @@ export default function App() {
   const getErrorMessage = (err: string) => {
     if (err.includes('视频号链接已过期')) return '⚠️ 视频号链接已过期，请重新获取分享链接'
     if (err.includes('无法解析视频号')) return '⚠️ 无法识别视频号链接，请确认格式'
+    if (err.includes('抖音解析失败')) return `⚠️ ${err}`
+    if (err.includes('TikTok 解析失败')) return `⚠️ ${err}`
+    if (err.includes('YouTube 解析失败') || err.includes('YouTube 下载失败')) return `⚠️ ${err}`
+    if (err.includes('Instagram 解析失败')) return `⚠️ ${err}`
+    if (err.includes('小红书解析失败')) return `⚠️ ${err}`
+    if (err.includes('账户余额不足')) return '⚠️ TikHub API 余额不足，请联系管理员充值'
     if (err.includes('TikHub API error')) return t('errorApiService')
     if (err.includes('Sign in to confirm')) return t('errorYoutubeVerify')
     if (err.includes('No download URL')) return t('errorNotAvailable')
