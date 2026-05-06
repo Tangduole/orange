@@ -1792,7 +1792,8 @@ async function processWechat(taskId, url, needAsr, options = ['video']) {
   try {
     // v99 marker - code version check
     const path = require('path');
-    logger.info('[processWechat v99] CALLED for task:', taskId, 'url:', url);
+    // Force-test: write direct stderr to confirm this code is reached
+    process.stderr.write('[V99_MARKER] processWechat called with v99 code\n');
 
     store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
 
