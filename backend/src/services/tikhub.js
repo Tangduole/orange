@@ -610,12 +610,14 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
 //   const path = require('path');
   const outputPath = path.join(DOWNLOAD_DIR, `${taskId}.mp4`);
 
+  // HQ原始文件可能很大(78MB+),需要更长超时
+  const downloadTimeoutMs = hqVideoUrl ? 300_000 : 120_000; // 5min for HQ, 2min for normal
   await downloadFile(videoUrl, outputPath, (percent, downloaded, total) => {
     if (onProgress) onProgress(30 + Math.floor(percent * 0.65), downloaded, total);
   }, {
     'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)',
     'Referer': 'https://www.douyin.com/'
-  });
+  }, { timeoutMs: downloadTimeoutMs });
 
   // 下载封面
   let thumbnailUrl = '';
