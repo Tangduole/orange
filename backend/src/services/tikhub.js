@@ -59,16 +59,17 @@ function tikhubRequest(endpoint, apiKey = null) {
       res.on('end', () => {
         try {
           const json = JSON.parse(data);
+          // 兼容两种响应：顶层 {code,data} 或嵌套 {detail:{code,message_zh}}
+          const body = json.detail || json;
           if (res.statusCode === 402) {
             logger.error(`[TikHub] 余额不足！端点: ${endpoint.split('?')[0]}`);
             reject(new Error('服务暂时不可用，请稍后重试'));
             return;
           }
-          if (json.code === 200 || json.data) {
-            resolve(json.data || json);
+          if (body.code === 200 || json.data || body.data) {
+            resolve(json.data || body.data || json);
           } else {
-            // 优先使用中文错误信息
-            const msg = json.message_zh || json.message || 'TikHub API error';
+            const msg = body.message_zh || body.message || 'TikHub API error';
             reject(new Error(msg));
           }
         } catch (e) {
@@ -107,15 +108,16 @@ function tikhubRequestPost(endpoint, body, apiKey = null) {
       res.on('end', () => {
         try {
           const json = JSON.parse(data);
+          const body = json.detail || json;
           if (res.statusCode === 402) {
             logger.error(`[TikHub POST] 余额不足！端点: ${endpoint.split('?')[0]}`);
             reject(new Error('服务暂时不可用，请稍后重试'));
             return;
           }
-          if (json.code === 200 || json.data) {
-            resolve(json.data || json);
+          if (body.code === 200 || json.data || body.data) {
+            resolve(json.data || body.data || json);
           } else {
-            const msg = json.message_zh || json.message || 'TikHub API error';
+            const msg = body.message_zh || body.message || 'TikHub API error';
             reject(new Error(msg));
           }
         } catch (e) {
