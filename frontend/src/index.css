@@ -18,3 +18,10 @@ body {
   display: inline-block;
   min-width: 100%;
 }
+
+/* PWA横屏兜底保护 - 防止内容横屏显示 */
+@media screen and (orientation: landscape) and (max-height: 500px) {
+  #rotation-guard {
+    display: flex !important;
+  }
+}

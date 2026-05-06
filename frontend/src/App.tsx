@@ -152,13 +152,19 @@ export default function App() {
   const [url, setUrl] = useState('')
   useEffect(() => { initNotifications().catch(console.error); }, []);
 
-  // 锁定竖屏（PWA 安装后生效，浏览器中不会报错）
+  // 锁定竖屏（PWA 安装后生效）- 多次重试确保锁定
   useEffect(() => {
-    try {
-      if (screen.orientation && 'lock' in screen.orientation) {
-        screen.orientation.lock('portrait').catch(() => {})
-      }
-    } catch {}
+    const lock = () => {
+      try {
+        if (screen.orientation && 'lock' in screen.orientation) {
+          screen.orientation.lock('portrait-primary').catch(() => {})
+        }
+      } catch {}
+    }
+    lock()  // 立即尝试
+    // 用户首次交互时再锁一次（某些Android需要用户手势）
+    const onInteraction = () => { lock(); document.removeEventListener('click', onInteraction) }
+    document.addEventListener('click', onInteraction, { once: true })
   }, []);
   const [detected, setDetected] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set(['video']))
@@ -1003,6 +1009,17 @@ export default function App() {
 
   return (
     <div className={`min-h-screen ${isDark ? 'bg-dark-bg text-white' : 'bg-light-bg text-light-text'}`}>
+      {/* 横屏保护遮罩 - PWA兜底 */}
+      <div id="rotation-guard" className="fixed inset-0 z-[9999] bg-slate-900 hidden flex-col items-center justify-center gap-4">
+        <div className="text-5xl">📱</div>
+        <p className="text-white text-lg font-medium">请旋转回竖屏使用</p>
+        <p className="text-slate-400 text-sm">橙子下载器仅支持竖屏模式</p>
+        <div className="mt-4 animate-bounce">
+          <svg className="w-8 h-8 text-orange-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </div>
+      </div>
       {/* 背景光晕 - 橙色Theme */}
       <div className={`fixed inset-0 pointer-events-none ${isDark ? '' : 'opacity-30'}`}>
         <div className={`absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl ${isDark ? 'bg-orange-500/8' : 'bg-orange-200'}`} />
