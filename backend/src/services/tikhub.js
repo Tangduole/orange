@@ -69,7 +69,7 @@ function tikhubRequest(endpoint, apiKey = null) {
           if (body.code === 200 || json.data || body.data) {
             resolve(json.data || body.data || json);
           } else {
-            const msg = body.message_zh || body.message || '如果看到这个说明代码已更新20260506';
+            const msg = body.message_zh || body.message || 'TikHub API error';
             reject(new Error(msg));
           }
         } catch (e) {
@@ -117,7 +117,7 @@ function tikhubRequestPost(endpoint, body, apiKey = null) {
           if (body.code === 200 || json.data || body.data) {
             resolve(json.data || body.data || json);
           } else {
-            const msg = body.message_zh || body.message || '如果看到这个说明代码已更新20260506';
+            const msg = body.message_zh || body.message || 'TikHub API error';
             reject(new Error(msg));
           }
         } catch (e) {
