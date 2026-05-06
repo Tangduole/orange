@@ -70,7 +70,7 @@ function tikhubRequest(endpoint, apiKey = null) {
             resolve(json.data || body.data || json);
           } else {
             const msg = body.message_zh || body.message || 'TikHub API error';
-            reject(new Error('[NEW_CODE_V2] ' + msg));
+            reject(new Error(msg));
           }
         } catch (e) {
           reject(new Error(`TikHub response parse error: ${data.substring(0, 200)}`));
@@ -118,7 +118,7 @@ function tikhubRequestPost(endpoint, body, apiKey = null) {
             resolve(json.data || body.data || json);
           } else {
             const msg = body.message_zh || body.message || 'TikHub API error';
-            reject(new Error('[NEW_CODE_POST] ' + msg));
+            reject(new Error(msg));
           }
         } catch (e) {
           reject(new Error(`TikHub response parse error: ${data.substring(0, 200)}`));
@@ -1148,9 +1148,9 @@ async function downloadWechat(url, taskId, onProgress) {
     info = await getWechatVideoInfo(videoId);
   } catch (e) {
     if (e.message.includes('402')) {
-      throw new Error('[NEW_DW] 视频号API余额不足，请联系管理员充值');
+      throw new Error('视频号API余额不足，请联系管理员充值');
     }
-    throw new Error('[NEW_DW] 视频号链接已过期或无效，请重新获取分享链接');
+    throw new Error('视频号链接已过期或无效，请重新获取分享链接');
   }
   const data = info?.data || info;
   const obj = data?.object_desc || data?.object || {};

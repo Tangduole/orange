@@ -1790,10 +1790,8 @@ async function processWechat(taskId, url, needAsr, options = ['video']) {
   }
 
   try {
-    // v99 marker - code version check
+    logger.info('[processWechat] CALLED for task:', taskId, 'url:', url);
     const path = require('path');
-    // Force-test: write direct stderr to confirm this code is reached
-    process.stderr.write('[V99_MARKER] processWechat called with v99 code\n');
 
     store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
 
@@ -1823,10 +1821,8 @@ async function processWechat(taskId, url, needAsr, options = ['video']) {
     logger.info(`[task] ${taskId} wechat completed: ${result.width}x${result.height} ${result.quality}`);
 
   } catch (err) {
-    // force-deploy marker v99
-    const finalError = err.message || 'wechat unknown error';
-    logger.error(`[task] ${taskId} wechat error:`, finalError);
-    store.update(taskId, { status: TASK_STATUS.ERROR, progress: 0, error: '[v99] ' + finalError });
+    logger.error(`[task] ${taskId} wechat error:`, err.message);
+    store.update(taskId, { status: TASK_STATUS.ERROR, progress: 0, error: err.message });
   } finally {
     taskLock.release(taskId);
   }
