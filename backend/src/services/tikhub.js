@@ -9,6 +9,9 @@ const path = require('path');
 const logger = require('../utils/logger');
 const { heightToLabel } = require('../utils/media');
 
+// 画质常量
+const QUALITY_2K_HEIGHT = 1440;  // 2K 对应的短边分辨率
+
 // 尝试加载 .env 文件(可选, Railway 会用环境变量)
 // 先尝试 backend/.env, 再尝试项目根 .env
 let envPath = path.join(__dirname, '../../.env');
@@ -562,30 +565,32 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
   });
 
   // 选择视频源
-  // 优先级: 1) 匹配用户画质选择的候选 2) HQ原始(仅当用户选最大画质) 3) 最高可用候选
+  // 关键: fetch_one_video 的 bit_rate 元数据不可靠(标2560x1440实际1080p)
+  // VIP请求≥2K时,唯一直正高清来源是 fetch_video_high_quality_play_url 原始文件
   let selected = null;
 
-  // 先从候选列表中找匹配用户画质选择的
-  for (const c of candidates) {
-    if (maxHeight < 99999 && c.height > maxHeight) continue;
-    // 优选有音频的,然后选分辨率最高的
-    if (!selected || (c.hasAudio && !selected.hasAudio) || (c.hasAudio === selected.hasAudio && c.height > selected.height)) {
-      selected = c;
-    }
-  }
-
-  if (!selected && hqVideoUrl) {
-    // 候选不满足用户画质选择,但HQ可用 → 使用HQ(通常画质最高)
+  if (hqVideoUrl && (maxHeight >= 99999 || maxHeight >= QUALITY_2K_HEIGHT)) {
+    // VIP请求最大画质 或 ≥2K → 直接用HQ原始(可靠真高清)
     selected = { url: hqVideoUrl, width: 0, height: maxHeight, codec: 'original', bitrate: 0, hasAudio: false };
-    logger.info(`[TikHub] No candidate fits, using HQ original: ${hqFileSize} MB`);
-  } else if (hqVideoUrl && maxHeight >= 99999) {
-    // 用户选最大画质,HQ可用 → 直接用HQ
-    selected = { url: hqVideoUrl, width: 0, height: 0, codec: 'original', bitrate: 0, hasAudio: false };
-    logger.info(`[TikHub] Max quality requested, using HQ original: ${hqFileSize} MB`);
-  } else if (!selected && candidates.length > 0) {
-    // 无HQ,所有候选超限 → 选最高分辨率
-    selected = candidates[0];
-    logger.info(`[TikHub] All candidates exceed limit, using highest: ${selected.height}p`);
+    logger.info(`[TikHub] Using HQ original (${maxHeight >= 99999 ? 'max' : maxHeight + 'p'}): ${hqFileSize} MB`);
+  } else {
+    // 从免费API候选列表找最佳匹配
+    for (const c of candidates) {
+      if (maxHeight < 99999 && c.height > maxHeight) continue;
+      if (!selected || (c.hasAudio && !selected.hasAudio) || (c.hasAudio === selected.hasAudio && c.height > selected.height)) {
+        selected = c;
+      }
+    }
+
+    if (!selected && hqVideoUrl) {
+      // 候选全不满足,HQ兜底
+      selected = { url: hqVideoUrl, width: 0, height: maxHeight, codec: 'original', bitrate: 0, hasAudio: false };
+      logger.info(`[TikHub] No candidate fits, using HQ original: ${hqFileSize} MB`);
+    } else if (!selected && candidates.length > 0) {
+      // 无HQ,所有候选超限
+      selected = candidates[0];
+      logger.info(`[TikHub] All candidates exceed limit, using highest: ${selected.height}p`);
+    }
   }
 
   if (selected) {
