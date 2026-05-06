@@ -224,6 +224,10 @@ export default function App() {
     const browserLang = navigator.language || ''
     if (browserLang.toLowerCase().startsWith('zh')) {
       i18n.changeLanguage('zh-CN')
+    } else if (browserLang.toLowerCase().startsWith('ja')) {
+      i18n.changeLanguage('ja')
+    } else if (browserLang.toLowerCase().startsWith('ko')) {
+      i18n.changeLanguage('ko')
     } else {
       i18n.changeLanguage('en')
     }
@@ -1027,13 +1031,13 @@ export default function App() {
                   className={`px-2 py-1 rounded-lg text-xs font-bold transition ${isDark ? 'text-slate-300 hover:text-orange-400' : 'text-light-textSecondary hover:text-orange-500'}`}
                   title={t('language')}
                 >
-                  {i18n.language === 'zh-CN' ? 'CH' : 'EN'}
+                  {i18n.language === 'zh-CN' ? '中' : i18n.language === 'ja' ? '日' : i18n.language === 'ko' ? '한' : 'EN'}
                 </button>
                 {showLangMenu && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={() => setShowLangMenu(false)} />
                     <div className="absolute right-0 top-10 bg-slate-800 rounded-xl py-2 w-40 border border-slate-700 shadow-xl z-50">
-                      {[{ code: 'en', label: 'English' }, { code: 'zh-CN', label: '简体中文' }].map(lang => (
+                      {[{ code: 'zh-CN', label: '简体中文' }, { code: 'en', label: 'English' }, { code: 'ja', label: '日本語' }, { code: 'ko', label: '한국어' }].map(lang => (
                         <button
                           key={lang.code}
                           onClick={() => changeLanguage(lang.code)}
@@ -1780,7 +1784,7 @@ export default function App() {
                         <div className="flex items-center gap-2 mt-0.5">
                           {item.platform && <span className="text-xs text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded">{getPlatformLabel(item.platform)}</span>}
                           {item.height && <span className={`text-xs px-1.5 py-0.5 rounded ${item.height >= 720 ? 'text-yellow-400 bg-yellow-500/10' : 'text-emerald-400 bg-emerald-500/10'}`}>🎬 {item.height}p {item.height >= 720 ? '⭐' : '✓'}</span>}
-                          <span className="text-xs text-slate-500">{new Date(item.createdAt).toLocaleString(i18n.language === 'zh-CN' ? 'zh-CN' : 'en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                          <span className="text-xs text-slate-500">{new Date(item.createdAt).toLocaleString(i18n.language === 'zh-CN' ? 'zh-CN' : i18n.language === 'ja' ? 'ja-JP' : i18n.language === 'ko' ? 'ko-KR' : 'en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       </div>
                       {item.status === 'error' && <button onClick={() => retryTask(item)} className="p-1.5 text-orange-500 hover:text-orange-400"><Loader2 className="w-4 h-4" /></button>}
