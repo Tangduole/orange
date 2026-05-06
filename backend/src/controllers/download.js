@@ -198,6 +198,7 @@ async function createDownload(req, res) {
 
     // ========== 画质VIP限制检查 ==========
     // 如果用户选择了1080p以上画质,检查是否为VIP
+    let hdTrialGranted = false;
     if (quality) {
       const heightMatch = quality.match(/height<=(\d+)/i);
       const selectedHeight = heightMatch ? parseInt(heightMatch[1]) : 99999;
@@ -213,10 +214,34 @@ async function createDownload(req, res) {
           });
         }
         // 试用成功,继续下载(不报错)
+        hdTrialGranted = true;
         logger.info(`[task] HD trial used for user ${userId}`);
       }
     }
     // ========== 画质VIP限制检查结束 ==========
+
+    // ========== 免费用户画质强制限制 720p ==========
+    // 对所有平台生效：非VIP用户下载画质不得超过720p（除非使用了HD试用）
+    const FREE_MAX_HEIGHT = QUALITY.HD_THRESHOLD; // 720
+    let safeQuality = quality;
+    if (!isVip && !hdTrialGranted) {
+      if (!safeQuality) {
+        // 未指定画质：默认限制 720p
+        safeQuality = `bestvideo[height<=${FREE_MAX_HEIGHT}]+bestaudio/best[height<=${FREE_MAX_HEIGHT}]`;
+      } else {
+        const hMatch = safeQuality.match(/height<=(\d+)/i);
+        if (hMatch && parseInt(hMatch[1]) > FREE_MAX_HEIGHT) {
+          // 用户选了1080p+但非VIP: 替换为720p
+          safeQuality = safeQuality.replace(/height<=\d+/gi, `height<=${FREE_MAX_HEIGHT}`);
+          logger.info(`[download] Non-VIP quality capped: ${quality} → ${safeQuality}`);
+        } else if (!hMatch) {
+          // 画质字符串中没有height<=: 添加限制
+          safeQuality = safeQuality.replace(/bestvideo/gi, `bestvideo[height<=${FREE_MAX_HEIGHT}]`);
+          logger.info(`[download] Non-VIP quality constrained: ${quality} → ${safeQuality}`);
+        }
+      }
+    }
+    // ========== 免费用户画质强制限制结束 ==========
 
     const limitStatus = getLimiterStatus();
     if (limitStatus.queued >= LIMITS.MAX_QUEUE) {
@@ -245,7 +270,7 @@ async function createDownload(req, res) {
     // VIP 不限画质（默认 1080p），免费用户最高 720p
     const { isDouyinUrl } = require('../services/douyin');
     if (isDouyinUrl(url)) {
-      const douyinQuality = quality || (isVip ? null : 'bestvideo[height<=720]+bestaudio/best[height<=720]');
+      const douyinQuality = safeQuality || (isVip ? null : `bestvideo[height<=${FREE_MAX_HEIGHT}]+bestaudio/best[height<=${FREE_MAX_HEIGHT}]`);
       processDouyin(taskId, url, wantsAsr, normalizedOptions, douyinQuality, asrLanguage, douyinQuality, isVip).catch(err => {
         logger.error(`[task] ${taskId} douyin failed:`, err);
         store.update(taskId, { status: TASK_STATUS.ERROR, progress: 0, error: err.message });
@@ -275,7 +300,7 @@ async function createDownload(req, res) {
 
     // TikTok 链接:走 TikHub API
     if (/tiktok\.com|tiktok\.cn/i.test(url)) {
-      processTikTok(taskId, url, wantsAsr, normalizedOptions, quality).catch(err => {
+      processTikTok(taskId, url, wantsAsr, normalizedOptions, safeQuality).catch(err => {
         logger.error(`[task] ${taskId} tiktok failed:`, err);
         store.update(taskId, { status: TASK_STATUS.ERROR, progress: 0, error: err.message });
       });
@@ -284,9 +309,8 @@ async function createDownload(req, res) {
 
     // YouTube 链接:走 TikHub API(直接链接)
     if (/youtube\.com|youtu\.be/i.test(url)) {
-      // VIP用户不传quality限制,后端自动使用最高画质
-      const ytQuality = isVip ? null : quality;
-      processYouTube(taskId, url, wantsAsr, normalizedOptions, ytQuality).catch(err => {
+      // VIP用户不传quality限制,后端自动使用最高画质；免费用户使用safeQuality(已限制720p)
+      processYouTube(taskId, url, wantsAsr, normalizedOptions, isVip ? null : safeQuality).catch(err => {
         logger.error(`[task] ${taskId} youtube failed:`, err);
         store.update(taskId, { status: TASK_STATUS.ERROR, progress: 0, error: err.message });
       });
@@ -319,7 +343,7 @@ async function createDownload(req, res) {
 
     // Bilibili 链接:走 yt-dlp(待完善)
     if (/bilibili\.com|b23\.tv/i.test(url)) {
-      processDownload(taskId, url, wantsAsr, normalizedOptions, quality).catch(err => {
+      processDownload(taskId, url, wantsAsr, normalizedOptions, safeQuality).catch(err => {
         logger.error(`[task] ${taskId} bilibili failed:`, err);
         store.update(taskId, { status: TASK_STATUS.ERROR, progress: 0, error: err.message });
       });
@@ -327,7 +351,7 @@ async function createDownload(req, res) {
     }
 
     // 其他平台:走 yt-dlp
-    processDownload(taskId, url, wantsAsr, normalizedOptions, quality).catch(err => {
+    processDownload(taskId, url, wantsAsr, normalizedOptions, safeQuality).catch(err => {
       logger.error(`[task] ${taskId} failed:`, err);
       store.update(taskId, {
         status: TASK_STATUS.ERROR,

@@ -749,8 +749,10 @@ export default function App() {
     try {
       const r = await axios.post(`${API}/video-info`, { url: videoUrl }, { timeout: 30000 })
       if (r.data.code === 0 && r.data.data.qualities && r.data.data.qualities.length > 0) {
+        // 后端返回实际可用画质，前端只过滤掉过低画质（<480p）
+        const minDisplayHeight = 480
         const qualities = r.data.data.qualities
-          .filter((q: any) => q.height >= 360 && q.hasVideo)
+          .filter((q: any) => q.height >= minDisplayHeight && q.hasVideo)
           .map((q: any) => {
             let label = `${q.height}p`
             if (q.height >= 2160) label = '4K'
@@ -1274,7 +1276,7 @@ export default function App() {
                   {showQualityPicker && (
                     <div className="mt-2 p-2 bg-slate-800 border border-slate-600/50 rounded-xl max-h-48 overflow-y-auto">
                       {availableQualities.map((q, idx) => {
-                        const isHighQuality = q.height > 1080
+                        const isHighQuality = q.height > 720
                         const canSelect = isVip || !isHighQuality
                         const qualityLabel = (q as any).qualityLabel || q.quality || `${q.height}p`
                         const sizeLabel = (q as any).sizeLabel || ''
