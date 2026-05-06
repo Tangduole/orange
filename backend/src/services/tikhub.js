@@ -70,6 +70,7 @@ function tikhubRequest(endpoint, apiKey = null) {
             resolve(json.data || body.data || json);
           } else {
             const msg = body.message_zh || body.message || 'TikHub API error';
+            process.stderr.write('[TIKHUB_DEBUG] ' + msg + ' code=' + body.code + '\n');
             reject(new Error(msg));
           }
         } catch (e) {
