@@ -155,6 +155,7 @@ async function getVideoInfo(req, res) {
         let duration = 0;
 
         // 1. Try TikHub API first
+        let tikhubMaxHeight = 0;
         try {
           const { getDouyinQualities } = require('../services/tikhub');
           const tikhubInfo = await getCachedInfo('douyin-tikhub:' + url, async () => {
@@ -165,21 +166,33 @@ async function getVideoInfo(req, res) {
             title = tikhubInfo.title || title;
             thumbnail = tikhubInfo.thumbnail || thumbnail;
             duration = tikhubInfo.duration || duration;
+            tikhubMaxHeight = Math.max(...tikhubInfo.qualities.map(q => q.height || 0));
           }
         } catch (e) {
           logger.warn('[video-info] Douyin TikHub error:', e.message);
         }
 
-        // 2. Fallback: iesdouyin
-        if (qualities.length === 0) {
+        // 2. Fallback: iesdouyin (always if TikHub returned suspiciously low quality)
+        if (qualities.length === 0 || tikhubMaxHeight < 1080) {
           const { getDouyinVideoInfo } = require('../services/douyin');
           const douyinInfo = await getCachedInfo('douyin:' + url, async () => {
             return await getDouyinVideoInfo(url);
           }, 'info');
-          qualities = douyinInfo.qualities || [];
-          title = douyinInfo.title || title;
-          thumbnail = douyinInfo.thumbnail || thumbnail;
-          duration = douyinInfo.duration || duration;
+          const douyinQualities = douyinInfo.qualities || [];
+          const douyinMaxHeight = douyinQualities.length > 0 ? Math.max(...douyinQualities.map(q => q.height || 0)) : 0;
+          // 用画质更高的源
+          if (douyinMaxHeight > tikhubMaxHeight) {
+            qualities = douyinQualities;
+            title = douyinInfo.title || title;
+            thumbnail = douyinInfo.thumbnail || thumbnail;
+            duration = douyinInfo.duration || duration;
+            logger.info(`[video-info] Douyin iesdouyin (${douyinMaxHeight}p) overrides TikHub (${tikhubMaxHeight}p)`);
+          } else if (qualities.length === 0) {
+            qualities = douyinQualities;
+            title = douyinInfo.title || title;
+            thumbnail = douyinInfo.thumbnail || thumbnail;
+            duration = douyinInfo.duration || duration;
+          }
         }
 
         if (qualities.length === 0) {

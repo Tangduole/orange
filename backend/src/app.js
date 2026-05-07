@@ -170,7 +170,15 @@ app.use('/download', (req, res, next) => {
 
     // 视频/音频强制下载（不用 inline，避免浏览器拦截）
     // 图片保持 inline（可以预览）
-    const encodedFilename = encodeURIComponent(downloadFilename);
+    let encodedFilename;
+    try {
+      encodedFilename = encodeURIComponent(downloadFilename);
+    } catch (uriErr) {
+      // downloadFilename 可能含 emoji/特殊字符导致 encodeURIComponent 抛异常
+      // 回退到安全的原始文件名
+      logger.warn(`[download] encodeURIComponent failed for "${downloadFilename.substring(0,50)}": ${uriErr.message}, falling back to raw filename`);
+      encodedFilename = encodeURIComponent(rawFilename);
+    }
     const isMedia = ['.mp4', '.mp3', '.avi', '.mov', '.mkv', '.flv', '.webm'].includes(ext);
     const disposition = isMedia ? 'attachment' : 'inline';
     res.setHeader('Content-Disposition', `${disposition}; filename*=UTF-8''${encodedFilename}`);
