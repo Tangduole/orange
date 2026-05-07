@@ -214,13 +214,23 @@ async function downloadForPlatform(url, taskId, platform, chatId, messageId) {
     }
   };
 
-  // ===== 抖音/TikTok: iesdouyin(免费) → TikHub(兜底) =====
+  // ===== 抖音/TikTok: Cobalt(免费) → iesdouyin(免费) → TikHub(兜底) =====
   if (platform === 'douyin' || platform === 'tiktok') {
+    // Cobalt 第一优先（免费、无水印、不限IP）
+    const { isCobaltConfigured, downloadViaCobalt } = require('../services/cobalt');
+    if (isCobaltConfigured()) {
+      try {
+        return await downloadViaCobalt(url, taskId, onProgress);
+      } catch (e) {
+        logger.warn(`[Bot] douyin cobalt failed: ${e.message}, trying iesdouyin`);
+      }
+    }
+    // iesdouyin 第二优先
     try {
       const { downloadDouyin } = require('../services/douyin');
       return await downloadDouyin(url, taskId, onProgress, { quality: '1080p' });
     } catch (e) {
-      logger.warn(`[Bot] douyin free failed: ${e.message}, trying TikHub`);
+      logger.warn(`[Bot] douyin iesdouyin failed: ${e.message}, trying TikHub`);
       const { parseDouyin } = require('../services/tikhub');
       return await parseDouyin(url, taskId, onProgress, null, false);
     }
@@ -246,8 +256,16 @@ async function downloadForPlatform(url, taskId, platform, chatId, messageId) {
     return parseYouTube(url, taskId, onProgress);
   }
 
-  // ===== Bilibili: 仅 TikHub =====
+  // ===== Bilibili: Cobalt(免费) → TikHub(兜底) =====
   if (platform === 'bilibili') {
+    const { isCobaltConfigured, downloadViaCobalt } = require('../services/cobalt');
+    if (isCobaltConfigured()) {
+      try {
+        return await downloadViaCobalt(url, taskId, onProgress);
+      } catch (e) {
+        logger.warn(`[Bot] bilibili cobalt failed: ${e.message}, trying TikHub`);
+      }
+    }
     const { parseBilibili } = require('../services/tikhub');
     return parseBilibili(url, taskId, onProgress);
   }
