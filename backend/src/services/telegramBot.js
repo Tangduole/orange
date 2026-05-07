@@ -2,7 +2,7 @@
  * Telegram Bot 服务
  *
  * 转发链接 → 自动下载 → 发回视频
- * 复用现有平台下载函数 (parseDouyin, parseXiaohongshu, parseBilibili 等)
+ * 下载策略：免费方法优先，TikHub API 兜底
  */
 
 const axios = require('axios');
@@ -13,7 +13,6 @@ const { detectPlatform } = require('../utils/media');
 
 // Bot 配置
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
-const BOT_WEBHOOK_PATH = '/api/bot/telegram';
 const TELEGRAM_API = 'https://api.telegram.org';
 
 // 下载并发限制 (每个用户同时只能下载1个)
@@ -61,7 +60,6 @@ async function sendVideo(chatId, filePath, caption = '', replyTo = null) {
   const sizeMB = stat.size / 1024 / 1024;
   
   if (sizeMB > 50) {
-    // 超过 50MB 限制，发文件链接
     return sendMessage(chatId, `⚠️ 文件过大 (${sizeMB.toFixed(1)}MB)，无法直接发送。\n请使用网页版下载：https://orangedl.com`, replyTo);
   }
 
@@ -111,13 +109,12 @@ async function handleMessage(msg) {
   
   if (!chatId || !text) return;
   
-  // 检查并发锁
   if (userLocks.get(chatId)) {
     await sendMessage(chatId, '⏳ 上一个任务还在处理中，请稍候...', messageId);
     return;
   }
 
-  // /start 命令 - 欢迎消息
+  // /start 命令
   if (text.startsWith('/start')) {
     const welcome = `👋 欢迎使用 Orange 下载助手！
 
@@ -137,31 +134,25 @@ async function handleMessage(msg) {
   }
 
   const urls = extractUrls(text);
-  if (urls.length === 0) {
-    return;
-  }
+  if (urls.length === 0) return;
 
   userLocks.set(chatId, true);
   
   try {
-    // 发确认消息
     await sendMessage(chatId, '🔍 正在解析链接...', messageId);
 
     for (const url of urls) {
       const platform = detectPlatform(url);
-      if (!platform) {
+      if (!platform || platform === 'auto' || platform === 'unknown') {
         await sendMessage(chatId, `❌ 不支持的链接：${url.substring(0, 60)}...`);
         continue;
       }
 
-      // 生成任务 ID
       const { v4: uuidv4 } = require('uuid');
       const taskId = uuidv4();
-      const DOWNLOAD_DIR = path.join(__dirname, '../../downloads');
 
       logger.info(`[Bot] ${chatId} → ${platform}: ${url.substring(0, 80)}`);
 
-      // 分发到对应下载器
       let result;
       try {
         result = await downloadForPlatform(url, taskId, platform, chatId, messageId);
@@ -176,22 +167,20 @@ async function handleMessage(msg) {
         continue;
       }
 
-      // 发送结果
-      const caption = `${result.title || ''}\n🎬 ${result.quality || ''} | ${(fs.statSync(result.filePath).size / 1024 / 1024).toFixed(1)}MB`;
+      const sizeMB = (fs.statSync(result.filePath).size / 1024 / 1024).toFixed(1);
+      const caption = `${result.title || ''}\n🎬 ${result.quality || ''} | ${sizeMB}MB`;
       
       if (result.isNote && result.imageFiles?.length > 0) {
-        // 图文笔记：发图片
         await sendMessage(chatId, `📸 ${result.title} (${result.imageFiles.length}张)`, messageId);
         for (let i = 0; i < Math.min(result.imageFiles.length, 5); i++) {
           await sendPhoto(chatId, result.imageFiles[i].path, `${i + 1}/${result.imageFiles.length}`, messageId);
           await new Promise(r => setTimeout(r, 500));
         }
       } else {
-        // 视频
         await sendVideo(chatId, result.filePath, caption, messageId);
       }
 
-      // 清理文件
+      // 延迟清理文件
       setTimeout(() => {
         try { if (result.filePath) fs.unlinkSync(result.filePath); } catch {}
         if (result.imageFiles) {
@@ -210,20 +199,10 @@ async function handleMessage(msg) {
 }
 
 /**
- * 按平台分发下载
+ * 按平台分发下载（免费优先，TikHub 兜底）
  */
 async function downloadForPlatform(url, taskId, platform, chatId, messageId) {
-  const { 
-    parseXiaohongshu, 
-    parseYouTube, 
-    parseBilibili, 
-    parseInstagram,
-    parseDouyin,
-    downloadFile 
-  } = require('../services/tikhub');
-
   const onProgress = async (percent, label) => {
-    // 只在关键节点更新（10%, 50%, 90%）
     if (percent === 10 || percent === 50 || percent === 90) {
       try {
         await tgApi('editMessageText', {
@@ -231,30 +210,65 @@ async function downloadForPlatform(url, taskId, platform, chatId, messageId) {
           message_id: messageId,
           text: `⏳ ${label || '下载中'}... ${percent}%`,
         });
-        // messageId 会变，但不影响主流程
       } catch {}
     }
   };
 
+  // ===== 抖音/TikTok: iesdouyin(免费) → TikHub(兜底) =====
   if (platform === 'douyin' || platform === 'tiktok') {
-    // 使用 TikHub API 避免 CDN 403
-    return parseDouyin(url, taskId, onProgress, null, false);
+    try {
+      const { downloadDouyin } = require('../services/douyin');
+      return await downloadDouyin(url, taskId, onProgress, { quality: '1080p' });
+    } catch (e) {
+      logger.warn(`[Bot] douyin free failed: ${e.message}, trying TikHub`);
+      const { parseDouyin } = require('../services/tikhub');
+      return await parseDouyin(url, taskId, onProgress, null, false);
+    }
   }
+
+  // ===== 小红书: 仅 TikHub =====
   if (platform === 'xiaohongshu') {
+    const { parseXiaohongshu } = require('../services/tikhub');
     return parseXiaohongshu(url, taskId, onProgress);
   }
+
+  // ===== YouTube: Cobalt(免费) → TikHub(兜底) =====
   if (platform === 'youtube') {
+    const { isCobaltConfigured, downloadViaCobalt } = require('../services/cobalt');
+    if (isCobaltConfigured()) {
+      try {
+        return await downloadViaCobalt(url, taskId, onProgress);
+      } catch (e) {
+        logger.warn(`[Bot] youtube cobalt failed: ${e.message}, trying TikHub`);
+      }
+    }
+    const { parseYouTube } = require('../services/tikhub');
     return parseYouTube(url, taskId, onProgress);
   }
+
+  // ===== Bilibili: 仅 TikHub =====
   if (platform === 'bilibili') {
+    const { parseBilibili } = require('../services/tikhub');
     return parseBilibili(url, taskId, onProgress);
   }
+
+  // ===== Instagram: Cobalt(免费) → TikHub(兜底) =====
   if (platform === 'instagram') {
+    const { isCobaltConfigured, downloadViaCobalt } = require('../services/cobalt');
+    if (isCobaltConfigured()) {
+      try {
+        return await downloadViaCobalt(url, taskId, onProgress);
+      } catch (e) {
+        logger.warn(`[Bot] instagram cobalt failed: ${e.message}, trying TikHub`);
+      }
+    }
+    const { parseInstagram } = require('../services/tikhub');
     return parseInstagram(url, taskId, onProgress);
   }
-  // Twitter/X
+
+  // ===== X/Twitter: Cobalt(免费) =====
   if (platform === 'x') {
-    const { downloadViaCobalt, isCobaltConfigured } = require('../services/cobalt');
+    const { isCobaltConfigured, downloadViaCobalt } = require('../services/cobalt');
     if (isCobaltConfigured()) {
       return downloadViaCobalt(url, taskId, onProgress);
     }
@@ -272,7 +286,7 @@ async function setupWebhook(baseUrl) {
     return false;
   }
   
-  const webhookUrl = `${baseUrl}${BOT_WEBHOOK_PATH}`;
+  const webhookUrl = `${baseUrl}/api/bot/telegram`;
   try {
     const res = await tgApi('setWebhook', { url: webhookUrl });
     logger.info(`[Bot] Webhook set to ${webhookUrl}: ${JSON.stringify(res)}`);
@@ -292,7 +306,6 @@ async function handleWebhook(body) {
   const message = body?.message || body?.edited_message;
   if (!message) return { ok: true };
 
-  // 异步处理（不阻塞 webhook 响应）
   handleMessage(message).catch(e => logger.error(`[Bot] Async error: ${e.message}`));
   
   return { ok: true };
