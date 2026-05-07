@@ -52,10 +52,14 @@ function tikhubRequest(endpoint, apiKey = null) {
       }
     };
 
+    let settled = false;
+    const once = (fn) => (...args) => { if (!settled) { settled = true; fn(...args); } };
+
     const req = https.get(url, options, (res) => {
+      // 超时处理：放在回调内，因为 req.setTimeout 需要已收到 response
       req.setTimeout(30000, () => {
         req.destroy();
-        reject(new Error('TikHub API timeout'));
+        once(reject)(new Error('TikHub API timeout'));
       });
       let data = '';
       res.on('data', chunk => data += chunk);
@@ -79,7 +83,7 @@ function tikhubRequest(endpoint, apiKey = null) {
           reject(new Error(`TikHub response parse error: ${data.substring(0, 200)}`));
         }
       });
-    }).on('error', reject);
+    }).on('error', once(reject));
   });
 }
 
