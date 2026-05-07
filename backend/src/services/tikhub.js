@@ -214,7 +214,7 @@ async function parseYouTube(url, taskId, onProgress) {
 /**
  * 解析小红书笔记 (TikHub)
  */
-async function parseXiaohongshu(url, taskId, onProgress) {
+async function parseXiaohongshu(url, taskId, onProgress, quality) {
   logger.info(`[TikHub] Parsing Xiaohongshu: ${url}`);
   if (onProgress) onProgress(10);
 
@@ -239,9 +239,17 @@ async function parseXiaohongshu(url, taskId, onProgress) {
     const stream = media.stream || {};
     const h264 = stream.h264 || [];
 
-    // 找最高画质
-    const bestStream = h264
-      .filter(s => s.masterUrl)
+    // 按画质限制筛选 + 取最高码率
+    let filtered = h264.filter(s => s.masterUrl);
+    if (quality) {
+      const hMatch = quality.match(/height<=(\d+)/i);
+      if (hMatch) {
+        const maxHeight = parseInt(hMatch[1]);
+        filtered = filtered.filter(s => (s.height || 0) <= maxHeight);
+        logger.info(`[TikHub] XHS quality filter: height<=${maxHeight}, streams: ${h264.length}→${filtered.length}`);
+      }
+    }
+    const bestStream = filtered
       .sort((a, b) => (b.avgBitrate || 0) - (a.avgBitrate || 0))[0];
 
     if (bestStream?.masterUrl) {
@@ -270,6 +278,9 @@ async function parseXiaohongshu(url, taskId, onProgress) {
         ext: 'mp4',
         thumbnailUrl,
         subtitleFiles: [],
+        width: bestStream.width || null,
+        height: bestStream.height || null,
+        quality: bestStream.height ? `${bestStream.height}p` : null,
         duration: video.capa?.duration || 0
       };
     }

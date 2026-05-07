@@ -330,7 +330,7 @@ async function createDownload(req, res) {
 
     // 小红书链接:走 TikHub API
     if (/xiaohongshu\.com|xhslink\.com/i.test(url)) {
-      processXiaohongshu(taskId, url, wantsAsr, normalizedOptions).catch(err => {
+      processXiaohongshu(taskId, url, wantsAsr, normalizedOptions, safeQuality).catch(err => {
         logger.error(`[task] ${taskId} xiaohongshu failed:`, err);
         store.update(taskId, { status: TASK_STATUS.ERROR, progress: 0, error: err.message });
       });
@@ -1384,7 +1384,7 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
 /**
  * 处理小红书下载 (TikHub API)
  */
-async function processXiaohongshu(taskId, url, needAsr, options = ['video']) {
+async function processXiaohongshu(taskId, url, needAsr, options = ['video'], quality) {
   // 获取任务锁
   if (!taskLock.tryAcquire(taskId)) {
     logger.warn(`[task] ${taskId} is already being processed`);
@@ -1404,7 +1404,7 @@ async function processXiaohongshu(taskId, url, needAsr, options = ['video']) {
         status: percent < 20 ? TASK_STATUS.PARSING : TASK_STATUS.DOWNLOADING,
         progress: percent
       });
-    });
+    }, quality);
 
     const update = {
       status: TASK_STATUS.COMPLETED,
