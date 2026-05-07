@@ -1285,10 +1285,22 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
     // Step 1: Cobalt (免费自托管)
     let usedCobalt = false;
     let usedYtdlp = false;
+    let resolvedTikTokUrl = url;
     const { isCobaltConfigured, downloadViaCobalt } = require('../services/cobalt');
     if (isCobaltConfigured()) {
+      // Cobalt 不支持 TikTok 短链，先展开
+      if (/vm\.tiktok\.com|vt\.tiktok\.com|tiktok\.com\/t\//i.test(url)) {
+        try {
+          const resp = await axios.head(url, { maxRedirects: 5, timeout: 10000 });
+          const redirectUrl = resp.request?.res?.responseUrl || '';
+          if (redirectUrl && /tiktok\.com\/@?\w+\/video\/\d+/i.test(redirectUrl)) {
+            resolvedTikTokUrl = redirectUrl;
+            logger.info(`[task] ${taskId} TikTok short link resolved for Cobalt`);
+          }
+        } catch (e) { /* keep original URL */ }
+      }
       try {
-        const cobaltResult = await downloadViaCobalt(url, taskId, {
+        const cobaltResult = await downloadViaCobalt(resolvedTikTokUrl, taskId, {
           onProgress: (percent, msg) => {
             store.update(taskId, {
               status: percent < 90 ? TASK_STATUS.DOWNLOADING : TASK_STATUS.PROCESSING,
