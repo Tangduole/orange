@@ -118,7 +118,7 @@ async function handleMessage(msg) {
   }
 
   // /start 命令 - 欢迎消息
-  if (/^/start/.test(text)) {
+  if (text.startsWith('/start')) {
     const welcome = `👋 欢迎使用 Orange 下载助手！
 
 📥 使用方法：直接发送视频链接给我，我会自动下载并发回给你。
