@@ -240,13 +240,19 @@ async function parseXiaohongshu(url, taskId, onProgress, quality) {
     const h264 = stream.h264 || [];
 
     // 按画质限制筛选 + 取最高码率
-    let filtered = h264.filter(s => s.masterUrl);
+    const validStreams = h264.filter(s => s.masterUrl);
+    let filtered = validStreams;
     if (quality) {
       const hMatch = quality.match(/height<=(\d+)/i);
       if (hMatch) {
         const maxHeight = parseInt(hMatch[1]);
-        filtered = filtered.filter(s => (s.height || 0) <= maxHeight);
-        logger.info(`[TikHub] XHS quality filter: height<=${maxHeight}, streams: ${h264.length}→${filtered.length}`);
+        filtered = validStreams.filter(s => (s.height || 0) <= maxHeight);
+        logger.info(`[TikHub] XHS quality filter: height<=${maxHeight}, streams: ${validStreams.length}→${filtered.length}`);
+        // 回退：如果全部被筛掉，取最高可用画质
+        if (filtered.length === 0) {
+          filtered = validStreams;
+          logger.warn(`[TikHub] XHS no stream matches quality filter, falling back to best available`);
+        }
       }
     }
     const bestStream = filtered
