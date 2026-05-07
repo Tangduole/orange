@@ -115,36 +115,6 @@ async function extractAudioToMp3(videoPath, taskId, destDir = null) {
 /**
  * 任务完成收尾：增加下载计数 + 保存历史 + 释放锁
  */
-/**
- * 使用 ffmpeg 裁剪视频到指定时长（从开头截取）
- */
-function trimVideo(filePath, taskId, durationSec) {
-  return new Promise((resolve, reject) => {
-    const outputPath = filePath.replace(/\.mp4$/, `_trim_${taskId.substring(0, 8)}.mp4`);
-    logger.info(`[trim] Trimming ${filePath} to ${durationSec}s → ${outputPath}`);
-    const args = ['-y', '-i', filePath, '-t', String(durationSec), '-c', 'copy', '-avoid_negative_ts', 'make_zero', outputPath];
-    const ff = spawn('ffmpeg', args);
-    let stderr = '';
-    ff.stderr.on('data', d => { stderr += d.toString(); });
-    const timer = setTimeout(() => { ff.kill(); reject(new Error('trim timeout')); }, 120000);
-    ff.on('close', code => {
-      clearTimeout(timer);
-      if (code === 0) {
-        // 删除原文件，重命名裁剪后的文件
-        try {
-          const finalPath = filePath;
-          fs.unlinkSync(finalPath);
-          fs.renameSync(outputPath, finalPath);
-          logger.info(`[trim] Trimming completed`);
-          resolve(finalPath);
-        } catch (e) { reject(e); }
-      } else {
-        reject(new Error(`ffmpeg trim exit ${code}: ${stderr.substring(0, 200)}`));
-      }
-    });
-  });
-}
-
 async function finalizeTask(taskId) {
   const task = store.get(taskId);
   if (!task) return;
@@ -154,19 +124,6 @@ async function finalizeTask(taskId) {
       if (task.userId) await userDb.incrementDownloads(task.userId);
       else if (task.guestIp) await userDb.incrementGuestDownload(task.guestIp);
     } catch (e) { logger.error('[finalize] count failed:', e.message); }
-
-    // 视频裁剪（如果请求了 trim 并且不是图文笔记）
-    if (task.trim > 0 && task.filePath && !task.isNote) {
-      try {
-        const trimmedPath = await trimVideo(task.filePath, taskId, task.trim);
-        task.filePath = trimmedPath;
-        task.downloadUrl = `/download/${path.basename(trimmedPath)}`;
-        task.trimmed = true;
-        fileRefManager.addRef(path.basename(trimmedPath));
-      } catch (e) {
-        logger.error(`[finalize] trim failed for ${taskId}: ${e.message}`);
-      }
-    }
   }
   saveHistory(taskId);
   taskLock.release(taskId);
@@ -182,7 +139,7 @@ async function createDownload(req, res) {
       return res.json({ code: 400, message: validation.message });
     }
 
-    let { url, platform, needAsr = false, options = ['video'], saveTarget = 'phone', quality = null, asrLanguage = 'zh', targetLang = null, trim = 0 } = req.body;
+    let { url, platform, needAsr = false, options = ['video'], saveTarget = 'phone', quality = null, asrLanguage = 'zh', targetLang = null } = req.body;
 
     // 从分享文本中提取 URL
     const { extractUrl } = require('../utils/validator');
@@ -316,8 +273,7 @@ async function createDownload(req, res) {
       progress: 0,
       createdAt: Date.now(),
       userId: isGuest ? null : userId,
-      guestIp: isGuest ? guestIp : null,
-      trim: Math.max(0, parseInt(trim) || 0)
+      guestIp: isGuest ? guestIp : null
     };
 
     store.save(task);
