@@ -1463,13 +1463,6 @@ export default function App() {
                     }}><X className={`w-3.5 h-3.5 ${isDark ? 'text-slate-300 hover:text-slate-300' : 'text-light-textMuted hover:text-light-textSecondary'}`} /></button>
                   </div>
 
-              <div className="flex items-center gap-2">
-                {task.status === 'completed' && <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
-                {task.status === 'error' && <XCircle className="w-5 h-5 text-red-400" />}
-                {isWorking(task.status) && <Loader2 className="w-5 h-5 text-orange-400 animate-spin" />}
-                <span className={`text-sm ${isDark ? 'text-slate-500' : 'text-light-textSecondary'}`}>{statusLabel(task.status)}</span>
-              </div>
-
               {/* 精细进度条 */}
               {isWorking(task.status) && (
                 <div className="space-y-2">
