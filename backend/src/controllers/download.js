@@ -1284,6 +1284,7 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
 
     // Step 1: Cobalt (免费自托管)
     let usedCobalt = false;
+    let usedYtdlp = false;
     const { isCobaltConfigured, downloadViaCobalt } = require('../services/cobalt');
     if (isCobaltConfigured()) {
       try {
@@ -1322,6 +1323,7 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
 
     // Step 2: TikHub API (Cobalt 失败时)
     if (!usedCobalt) {
+    try {
 
     // 从 URL 提取视频 ID
     let videoId = null;
@@ -1450,6 +1452,39 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
       }
     }
 
+    } catch (tikhubErr) {
+      logger.warn(`[task] ${taskId} TikTok TikHub failed: ${tikhubErr.message}, trying yt-dlp...`);
+      try {
+        const ytdlp = require('../services/yt-dlp');
+        const ytdlpResult = await ytdlp.download(url, taskId, (percent, speed, eta, downloaded, total) => {
+          store.update(taskId, {
+            status: percent < 90 ? TASK_STATUS.DOWNLOADING : TASK_STATUS.PROCESSING,
+            progress: Math.round(percent * 0.9),
+            downloadedBytes: downloaded || 0,
+            totalBytes: total || 0,
+            speed: speed || '',
+            eta: eta || ''
+          });
+        }, quality);
+        update = {
+          status: TASK_STATUS.COMPLETED,
+          progress: 100,
+          title: ytdlpResult.title || 'TikTok Video',
+          duration: ytdlpResult.duration || 0,
+          thumbnailUrl: ytdlpResult.thumbnailUrl || '',
+          downloadUrl: ytdlpResult.downloadUrl || `/download/${taskId}.${ytdlpResult.ext || 'mp4'}`,
+          filePath: ytdlpResult.filePath,
+          ext: ytdlpResult.ext || 'mp4',
+          copyText: ytdlpResult.title || ''
+        };
+        fileRefManager.addRef(`${taskId}.${ytdlpResult.ext || 'mp4'}`);
+        usedYtdlp = true;
+        logger.info(`[task] ${taskId} TikTok yt-dlp succeeded`);
+      } catch (ytdlpErr) {
+        throw new Error(`TikTok 解析失败: Cobalt → TikHub(${tikhubErr.message}) → yt-dlp(${ytdlpErr.message})`);
+      }
+    }
+
     } // if (!usedCobalt)
 
     store.update(taskId, update);
@@ -1461,7 +1496,7 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
     }
 
     await finalizeTask(taskId);
-    logger.info(`[task] ${taskId} tiktok completed (${usedCobalt ? 'cobalt' : 'tikhub'})`);
+    logger.info(`[task] ${taskId} tiktok completed (${usedCobalt ? 'cobalt' : (usedYtdlp ? 'yt-dlp' : 'tikhub')})`);
   } catch (error) {
     logger.error(`[task] ${taskId} tiktok failed:`, error);
     store.update(taskId, {
