@@ -9,6 +9,7 @@
   "enterUrl": "動画URLを入力...",
   "batchPlaceholder": "URLを入力（1行1つ、最大10件）",
   "supportedPlatforms": "対応プラットフォーム",
+  "quality": "画質",
   "qualitySelector": "画質を選択",
   "vipOnly": "会員限定",
   "upgradeToPro": "Proにアップグレード",

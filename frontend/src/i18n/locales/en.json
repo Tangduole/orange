@@ -9,6 +9,7 @@
   "enterUrl": "Enter video URL...",
   "batchPlaceholder": "Enter URLs (one per line, max 10)",
   "supportedPlatforms": "Supported Platforms",
+  "quality": "Quality",
   "qualitySelector": "Select Quality",
   "vipOnly": "Member exclusive",
   "upgradeToPro": "Upgrade to Pro",

@@ -9,6 +9,7 @@
   "enterUrl": "동영상 URL 입력...",
   "batchPlaceholder": "URL 입력 (한 줄에 하나, 최대 10개)",
   "supportedPlatforms": "지원 플랫폼",
+  "quality": "화질",
   "qualitySelector": "화질 선택",
   "vipOnly": "회원 전용",
   "upgradeToPro": "Pro로 업그레이드",

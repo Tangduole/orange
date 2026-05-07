@@ -9,6 +9,7 @@
   "enterUrl": "输入视频网址...",
   "batchPlaceholder": "输入网址（每行一个，最多10个）",
   "supportedPlatforms": "支持平台",
+  "quality": "画质",
   "qualitySelector": "选择画质",
   "vipOnly": "会员专享",
   "upgradeToPro": "升级Pro",
