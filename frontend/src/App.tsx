@@ -1253,8 +1253,9 @@ export default function App() {
               </div>
             </div>
 
-            {/* DownloadContentOptions - all visible inline */}
+            {/* 下载内容 */}
             <div className="mb-4">
+              <p className="text-xs text-slate-400 mb-2 font-medium">📥 {t('downloadContent')}</p>
               <div className="flex flex-wrap gap-1.5">
                 {OPTIONS.map(o => {
                   const Icon = o.icon; const on = selected.has(o.id)
@@ -1267,11 +1268,13 @@ export default function App() {
                   )
                 })}
               </div>
+            </div>
 
-              {/* Quality Pills - horizontal, always visible */}
-              {availableQualities.length > 0 && !batchMode && (
-                <div className="mt-3">
-                  <div className="flex flex-wrap gap-1.5">
+            {/* 画质选择 */}
+            {availableQualities.length > 0 && !batchMode && (
+              <div className="mb-4">
+                <p className="text-xs text-slate-400 mb-2 font-medium">🎬 {t('quality') || '画质'}</p>
+                <div className="flex flex-wrap gap-1.5">
                     {availableQualities.map((q, idx) => {
                       const shortEdge = qualityShortEdge(q)
                       const isHighQuality = shortEdge > 720
@@ -1303,31 +1306,28 @@ export default function App() {
                       )
                     })}
                   </div>
-                </div>
-              )}
+              </div>
+            )}
 
-              {/* ASR Language Selection */}
-              {selected.has('asr') && (
-                <div className="mt-3 space-y-2">
-                  <div>
-                    <label className="text-xs text-slate-300 mb-1 block">{t('asrLanguageLabel')}</label>
-                    <select
-                      value={asrLanguage}
-                      onChange={(e) => setAsrLanguage(e.target.value)}
-                      className={`w-full px-3 py-2 border-2 rounded-xl text-sm outline-none focus:border-orange-500/70 cursor-pointer appearance-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-light-surface border-light-border text-light-text'}`}
-                    >
-                      {ASR_LANGUAGE_OPTIONS.map(opt => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              )}
-            </div>
+            {/* ASR Language Selection */}
+            {selected.has('asr') && (
+              <div className="mb-4">
+                <label className="text-xs text-slate-400 mb-2 block font-medium">🌐 {t('asrLanguageLabel')}</label>
+                <select
+                  value={asrLanguage}
+                  onChange={(e) => setAsrLanguage(e.target.value)}
+                  className={`w-full px-3 py-2 border-2 rounded-xl text-sm outline-none focus:border-orange-500/70 cursor-pointer appearance-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-light-surface border-light-border text-light-text'}`}
+                >
+                  {ASR_LANGUAGE_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Save Location SaveLocation - 下拉式 */}
             <div className="mb-5">
-              <label className="text-xs text-slate-300 mb-2 flex items-center gap-1.5">
+              <label className="text-xs text-slate-400 mb-2 font-medium flex items-center gap-1.5">
                 <FolderOpen className="w-3.5 h-3.5" />
                 {t('saveLocation')}
               </label>
