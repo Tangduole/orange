@@ -511,6 +511,19 @@ async function getDouyinVideoInfo(url) {
   // Conservative: if no valid candidates, cap at 1080p (iesdouyin often shows fake 4K)
   const trustedMaxHeight = hasValidCandidates ? metaMaxHeight : Math.min(metaMaxHeight, 1080);
   
+  // 根据分辨率估算码率(保守值),用于估算文件大小
+  const duration = info.duration || 0;
+  const estimateSize = (height) => {
+    if (!duration || !height) return 0;
+    let bitrate;
+    if (height >= 2160) bitrate = 20000000;
+    else if (height >= 1440) bitrate = 10000000;
+    else if (height >= 1080) bitrate = 5000000;
+    else if (height >= 720) bitrate = 2500000;
+    else bitrate = 1500000;
+    return Math.round(duration * bitrate / 8);
+  };
+
   // Build preset options from 540p up to trusted max
   const presets = [540, 720, 1080, 1920, 1440, 2160, 4320].filter(h => h <= trustedMaxHeight);
   const qualities = presets
@@ -521,7 +534,7 @@ async function getDouyinVideoInfo(url) {
       height: h,
       hasVideo: true,
       hasAudio: true,
-      size: 0
+      size: estimateSize(h)
     }))
     .sort((a, b) => b.height - a.height);
   

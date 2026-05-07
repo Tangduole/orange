@@ -21,6 +21,25 @@ function getCachedInfo(key, fetcher) {
 }
 
 /**
+ * 对 size===0 的画质条目,根据分辨率和时长估算文件大小
+ */
+function fillQualitySizes(qualities, durationSec) {
+  if (!durationSec || !qualities?.length) return qualities;
+  const estimateBitrate = (h) => {
+    if (h >= 2160) return 20000000;
+    if (h >= 1440) return 10000000;
+    if (h >= 1080) return 5000000;
+    if (h >= 720) return 2500000;
+    return 1500000;
+  };
+  return qualities.map(q => {
+    if (q.size && q.size > 0) return q;
+    const h = q.height || Math.min(q.width || 720, 720);
+    return { ...q, size: Math.round(durationSec * estimateBitrate(h) / 8) };
+  });
+}
+
+/**
  * 获取视频信息和可用画质
  */
 async function getVideoInfo(req, res) {
@@ -123,7 +142,7 @@ async function getVideoInfo(req, res) {
 
       return res.json({
         code: 0,
-        data: { title, thumbnail, duration, platform: 'youtube', qualities }
+        data: { title, thumbnail, duration, platform: 'youtube', qualities: fillQualitySizes(qualities, duration) }
       });
     }
 
@@ -169,7 +188,7 @@ async function getVideoInfo(req, res) {
 
         return res.json({
           code: 0,
-          data: { title, thumbnail, duration, platform: 'douyin', qualities }
+          data: { title, thumbnail, duration, platform: 'douyin', qualities: fillQualitySizes(qualities, duration) }
         });
       } catch (e) {
         logger.warn('[video-info] Douyin error:', e.message);
@@ -218,7 +237,7 @@ async function getVideoInfo(req, res) {
               thumbnail: video.cover?.url_list?.[0] || '',
               duration: video.duration ? Math.floor(video.duration / 1000) : 0,
               platform: 'tiktok',
-              qualities: unique.length > 0 ? unique : [{ quality: '720p', format: 'mp4', width: 1280, height: 720, hasVideo: true, hasAudio: true }]
+              qualities: fillQualitySizes(unique.length > 0 ? unique : [{ quality: '720p', format: 'mp4', width: 1280, height: 720, hasVideo: true, hasAudio: true }], video.duration ? Math.floor(video.duration / 1000) : 0)
             }
           });
         }
@@ -299,7 +318,7 @@ async function getVideoInfo(req, res) {
               thumbnail: xhsVideo.image?.thumbnailFileid ? 'https://ci.xiaohongshu.com/' + xhsVideo.image.thumbnailFileid : '',
               duration: xhsVideo.capa?.duration || 0,
               platform: 'xiaohongshu',
-              qualities
+              qualities: fillQualitySizes(qualities, xhsVideo.capa?.duration || 0)
             }
           });
         }
