@@ -184,9 +184,7 @@ export default function App() {
   const [availableQualities, setAvailableQualities] = useState<Array<{qualityLabel?: string, sizeLabel?: string, quality: string, format: string, width: number, height: number, hasVideo: boolean, hasAudio: boolean, size?: number}>>([])
   const [qualitiesLoading, setQualitiesLoading] = useState(false)
   const [autoQuality, setAutoQuality] = useState<{label: string, height: number} | null>(null) // 自动选择的画质
-  const [showQualityPicker, setShowQualityPicker] = useState(false) // 画质下拉框
-  const [showMoreOptions, setShowMoreOptions] = useState(false) // 更多下载选项
-  const [pendingUrl, setPendingUrl] = useState('')
+    const [pendingUrl, setPendingUrl] = useState('')
   const [pendingQuality, setPendingQuality] = useState('')
   const [videoInfoForPicker, setVideoInfoForPicker] = useState<{title: string, thumbnail: string}>({title: '', thumbnail: ''})
   const [batchUrls, setBatchUrls] = useState('')
@@ -1255,27 +1253,10 @@ export default function App() {
               </div>
             </div>
 
-            {/* DownloadOption - video/audio always shown, rest toggleable */}
-            <div className="mb-5">
-              <p className="text-xs text-slate-300 mb-2">{t('downloadContent')}</p>
+            {/* DownloadContentOptions - all visible inline */}
+            <div className="mb-4">
               <div className="flex flex-wrap gap-1.5">
-                {OPTIONS.slice(0, 2).map(o => {
-                  const Icon = o.icon; const on = selected.has(o.id)
-                  return (
-                    <button key={o.id} onClick={() => toggle(o.id)}
-                      className={`flex items-center gap-1 px-3 py-2 text-xs rounded-lg transition-all
-                        ${on ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : 'bg-slate-700/30 text-slate-300 border border-transparent hover:text-slate-300'}`}>
-                      <Icon className="w-3.5 h-3.5" />{getOptionLabel(o.labelKey)}
-                    </button>
-                  )
-                })}
-                {/* Collapsible secondary options */}
-                <button onClick={() => setShowMoreOptions(!showMoreOptions)}
-                  className={`flex items-center gap-1 px-2 py-2 text-xs rounded-lg transition-all
-                    ${OPTIONS.slice(2).some(o => selected.has(o.id)) ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : 'bg-slate-700/30 text-slate-300 border border-transparent hover:text-slate-300'}`}>
-                  {showMoreOptions ? <ChevronUp className="w-3.5 h-3.5" /> : <span className="text-slate-400">···</span>}
-                </button>
-                {showMoreOptions && OPTIONS.slice(2).map(o => {
+                {OPTIONS.map(o => {
                   const Icon = o.icon; const on = selected.has(o.id)
                   return (
                     <button key={o.id} onClick={() => toggle(o.id)}
@@ -1287,56 +1268,41 @@ export default function App() {
                 })}
               </div>
 
-              {/* Inline Quality Badge - compact, clickable */}
-              {availableQualities.length > 0 && !batchMode && autoQuality && (
+              {/* Quality Pills - horizontal, always visible */}
+              {availableQualities.length > 0 && !batchMode && (
                 <div className="mt-3">
-                  <button
-                    onClick={() => setShowQualityPicker(!showQualityPicker)}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 bg-slate-700/50 hover:bg-slate-700/80 border border-slate-600/40 rounded-lg text-xs transition"
-                  >
-                    <span className="text-slate-300">🎬</span>
-                    <span className="text-white font-medium">{autoQuality.label}</span>
-                    {isVip && <span className="text-yellow-400 text-[10px]">⭐</span>}
-                    <ChevronDown className={`w-3 h-3 text-slate-400 transition ${showQualityPicker ? 'rotate-180' : ''}`} />
-                  </button>
-                  {/* Quality dropdown */}
-                  {showQualityPicker && (
-                    <div className="mt-2 p-2 bg-slate-800 border border-slate-600/50 rounded-xl max-h-48 overflow-y-auto">
-                      {availableQualities.map((q, idx) => {
-                        const shortEdge = qualityShortEdge(q)
-                        const isHighQuality = shortEdge > 720
-                        const canSelect = isVip || !isHighQuality
-                        const qualityLabel = (q as any).qualityLabel || q.quality || `${shortEdge}p`
-                        const sizeLabel = (q as any).sizeLabel || ''
-                        const isSelected = pendingQuality === `height<=${shortEdge}`
-                        return (
-                          <button
-                            key={idx}
-                            onClick={() => {
-                              if (!canSelect) { setShowQualityPicker(false); setShowUpgradePopup(true); return }
-                              setPendingQuality(`height<=${shortEdge}`)
-                              setAutoQuality({ label: qualityLabel, height: shortEdge })
-                              setShowQualityPicker(false)
-                            }}
-                            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs transition mb-1 last:mb-0 ${
-                              isSelected
-                                ? 'bg-orange-500/20 text-orange-300 border border-orange-500/40'
-                                : canSelect
-                                  ? 'bg-slate-700/40 text-slate-300 border border-slate-600/40 hover:border-slate-500/60'
-                                  : 'bg-slate-800/40 text-slate-500 border border-slate-700/40 cursor-not-allowed opacity-60'
-                            }`}
-                          >
-                            <span className="font-medium">{qualityLabel}</span>
-                            <span className="flex items-center gap-2">
-                              {sizeLabel && <span className="text-slate-500">{sizeLabel}</span>}
-                              {isHighQuality && !isVip && <span className="text-orange-400">⭐</span>}
-                              {isSelected && <Check className="w-3.5 h-3.5 text-orange-400" />}
-                            </span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
+                  <div className="flex flex-wrap gap-1.5">
+                    {availableQualities.map((q, idx) => {
+                      const shortEdge = qualityShortEdge(q)
+                      const isHighQuality = shortEdge > 720
+                      const canSelect = isVip || !isHighQuality
+                      const qualityLabel = (q as any).qualityLabel || q.quality || `${shortEdge}p`
+                      const sizeLabel = (q as any).sizeLabel || ''
+                      const isSelected = pendingQuality === `height<=${shortEdge}`
+                      return (
+                        <button
+                          key={idx}
+                          onClick={() => {
+                            if (!canSelect) { setShowUpgradePopup(true); return }
+                            setPendingQuality(`height<=${shortEdge}`)
+                            setAutoQuality({ label: qualityLabel, height: shortEdge })
+                          }}
+                          className={`flex items-center gap-1.5 px-3 py-2 text-xs rounded-lg transition-all ${
+                            isSelected
+                              ? 'bg-orange-500 text-white font-semibold shadow-md'
+                              : canSelect
+                                ? 'bg-slate-700/40 text-slate-300 border border-slate-600/40 hover:border-orange-500/50 hover:text-white'
+                                : 'bg-slate-800/40 text-slate-500 border border-slate-700/40 opacity-50'
+                          }`}
+                        >
+                          <span>🎬</span>
+                          <span>{qualityLabel}</span>
+                          {sizeLabel && sizeLabel !== '0 B' && <span className="text-[10px] opacity-60">{sizeLabel}</span>}
+                          {isHighQuality && !isVip && <span className="text-[10px]">⭐</span>}
+                        </button>
+                      )
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -1461,34 +1427,41 @@ export default function App() {
                 ⭐ {t('unlimited')}
               </div>
             )}
-            <button
-              onClick={handleSubmit}
-              disabled={loading}
-              className="w-full max-w-md mx-auto py-4 rounded-2xl font-bold text-white text-base bg-orange-500 hover:bg-orange-600 active:bg-orange-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-orange-500/25 active:scale-[0.98]"
-            >
-              {loading ? (
-                <><Loader2 className="w-5 h-5 animate-spin" />{batchMode ? `${t('processing')} ${batchIndex + 1}/${batchQueue.length}...` : t('processing')}</>
-              ) : (
-                <><Zap className="w-5 h-5" />{t('startDownload')}</>
+            {/* Unified Action Area: 按钮 + 进度融合 */}
+            <div className="mb-5">
+              {/* Idle: Download Button with quality context */}
+              {!task && (
+                <button
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  className="w-full max-w-md mx-auto py-4 rounded-2xl font-bold text-white text-base bg-orange-500 hover:bg-orange-600 active:bg-orange-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-orange-500/25 active:scale-[0.98]"
+                >
+                  {loading ? (
+                    <><Loader2 className="w-5 h-5 animate-spin" />{batchMode ? `${t('processing')} ${batchIndex + 1}/${batchQueue.length}...` : t('processing')}</>
+                  ) : (
+                    <><Zap className="w-5 h-5" />{autoQuality ? `${t('startDownload')} (${autoQuality.label})` : t('startDownload')}</>
+                  )}
+                </button>
               )}
-            </button>
-          </div>
 
-          {/* 任务状态 */}
-          {task && (
-            <div className={`mt-5 backdrop-blur-sm rounded-2xl p-5 border shadow-xl space-y-3 ${isDark ? 'bg-slate-800/60 border-slate-700/60' : 'bg-light-surface border-light-border'}`}>
-              <div className="flex items-center justify-between">
-                <h3 className={`text-sm font-semibold flex items-center gap-2 ${isDark ? 'text-slate-500' : 'text-light-text'}`}>
-                  <Download className="w-4 h-4 text-orange-400" /> {t('downloadProgress')}
-                </h3>
-                <button onClick={async () => {
-                  // 关闭弹窗时:如果任务还在跑,调用API取消
-                  if (task?.taskId && isWorking(task.status)) {
-                    try { await axios.delete(`${API}/tasks/${task.taskId}`) } catch {}
-                  }
-                  setTask(null)
-                }}><X className={`w-4 h-4 ${isDark ? 'text-slate-300 hover:text-slate-300' : 'text-light-textMuted hover:text-light-textSecondary'}`} /></button>
-              </div>
+              {/* Task Progress / Completion - replaces button area */}
+              {task && (
+                <div className={`rounded-2xl p-4 border shadow-xl space-y-3 ${isDark ? 'bg-slate-800/60 border-slate-700/60' : 'bg-light-surface border-light-border'}`}>
+                  {/* Header: status + close */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {task.status === 'completed' && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+                      {task.status === 'error' && <XCircle className="w-4 h-4 text-red-400" />}
+                      {isWorking(task.status) && <Loader2 className="w-4 h-4 text-orange-400 animate-spin" />}
+                      <span className={`text-xs font-medium ${isDark ? 'text-slate-300' : 'text-light-textSecondary'}`}>{statusLabel(task.status)}</span>
+                    </div>
+                    <button onClick={async () => {
+                      if (task?.taskId && isWorking(task.status)) {
+                        try { await axios.delete(`${API}/tasks/${task.taskId}`) } catch {}
+                      }
+                      setTask(null)
+                    }}><X className={`w-3.5 h-3.5 ${isDark ? 'text-slate-300 hover:text-slate-300' : 'text-light-textMuted hover:text-light-textSecondary'}`} /></button>
+                  </div>
 
               <div className="flex items-center gap-2">
                 {task.status === 'completed' && <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
@@ -1755,6 +1728,8 @@ export default function App() {
               {task.status === 'error' && task.error && <p className="text-sm text-red-400">{getErrorMessage(task.error)}</p>}
             </div>
           )}
+            </div>
+          </div>
 
           {/* How to Use - 精简版 */}
           <div className={`mt-5 rounded-2xl px-5 py-3 border ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-light-input border-light-border'}`}>
