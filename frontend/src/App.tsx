@@ -1254,11 +1254,14 @@ export default function App() {
               <div className="flex flex-wrap gap-1.5">
                 {OPTIONS.map(o => {
                   const Icon = o.icon; const on = selected.has(o.id)
+                  const isAsr = o.id === 'asr'
                   return (
                     <button key={o.id} onClick={() => toggle(o.id)}
                       className={`flex items-center gap-1 px-3 py-2 text-xs rounded-lg transition-all
                         ${on ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : 'bg-slate-700/30 text-slate-300 border border-transparent hover:text-slate-300'}`}>
-                      <Icon className="w-3.5 h-3.5" />{getOptionLabel(o.labelKey)}
+                      <Icon className="w-3.5 h-3.5" />
+                      {getOptionLabel(o.labelKey)}
+                      {isAsr && on && <span className="text-orange-400"> + 🤖</span>}
                     </button>
                   )
                 })}
