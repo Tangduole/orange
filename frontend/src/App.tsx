@@ -175,6 +175,7 @@ export default function App() {
   const [batchMode, setBatchMode] = useState(false)
   const [quality, setQuality] = useState('')
   const [asrLanguage, setAsrLanguage] = useState('zh')
+  const [trimDuration, setTrimDuration] = useState(0)
   const [availableQualities, setAvailableQualities] = useState<Array<{qualityLabel?: string, sizeLabel?: string, quality: string, format: string, width: number, height: number, hasVideo: boolean, hasAudio: boolean, size?: number}>>([])
   const [qualitiesLoading, setQualitiesLoading] = useState(false)
   const [autoQuality, setAutoQuality] = useState<{label: string, height: number} | null>(null) // 自动选择的画质
@@ -855,7 +856,7 @@ export default function App() {
       const detectedFirst = detectPlatform(urls[0])
       const r = await axios.post(`${API}/download`, {
         url: urls[0], platform: detectedFirst || 'auto',
-        needAsr: selected.has('asr'), options: [...selected], quality, asrLanguage,
+        needAsr: selected.has('asr'), options: [...selected], quality, asrLanguage, trim: trimDuration
       }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} })
       setTask(r.data.data)
     } catch (e: any) {
@@ -879,7 +880,7 @@ export default function App() {
     try {
       const r = await axios.post(`${API}/download`, {
         url: url.trim(), platform: detected || 'auto',
-        needAsr: selected.has('asr'), options: [...selected], quality: downloadQuality, asrLanguage,
+        needAsr: selected.has('asr'), options: [...selected], quality: downloadQuality, asrLanguage, trim: trimDuration
       }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} })
       setTask(r.data.data); setDetected('')
       setPendingQuality('')  // 清空选择的画质
@@ -1299,6 +1300,33 @@ export default function App() {
                       )
                     })}
                   </div>
+              </div>
+            )}
+
+            {/* 视频裁剪 - 仅视频模式显示 */}
+            {selected.has('video') && (
+              <div className="mb-4">
+                <label className="text-xs text-slate-400 mb-2 block font-medium">✂️ {t('trimVideo')}</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { label: t('trimFull'), value: 0 },
+                    { label: '15s', value: 15 },
+                    { label: '30s', value: 30 },
+                    { label: '60s', value: 60 },
+                  ].map(opt => (
+                    <button
+                      key={opt.value}
+                      onClick={() => setTrimDuration(opt.value)}
+                      className={`px-3 py-1.5 text-xs rounded-lg transition-all ${
+                        trimDuration === opt.value
+                          ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30'
+                          : 'bg-slate-700/30 text-slate-300 border border-transparent hover:text-slate-300'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
 

@@ -242,6 +242,8 @@
   "todayDownload": "今日下载",
   "totalImages": "共 {{count}} 张图片",
   "translationLabel": "翻译",
+  "trimFull": "完整",
+  "trimVideo": "视频裁剪",
   "unknownEmail": "未知邮箱",
   "unlimited": "无限制",
   "unlockUnlimitedDownload": "解锁无限下载和高级功能",
