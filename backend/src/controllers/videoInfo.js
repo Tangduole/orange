@@ -246,6 +246,28 @@ async function getVideoInfo(req, res) {
       }
     }
 
+    // For Bilibili
+    if (platform === 'bilibili' || /bilibili\.com|b23\.tv/i.test(url)) {
+      try {
+        const { getBilibiliQualities } = require('../services/tikhub');
+        const info = await getCachedInfo('bili:' + url, async () => {
+          return await getBilibiliQualities(url);
+        }, 'info');
+        return res.json({
+          code: 0,
+          data: {
+            title: info.title || 'Bilibili Video',
+            thumbnail: '',
+            duration: info.duration || 0,
+            platform: 'bilibili',
+            qualities: fillQualitySizes(info.qualities || [], info.duration || 0)
+          }
+        });
+      } catch (e) {
+        logger.warn('[video-info] Bilibili error:', e.message);
+      }
+    }
+
     // For Xiaohongshu
     if (platform === 'xiaohongshu' || /xiaohongshu\.com|xhslink\.com/i.test(url)) {
       try {

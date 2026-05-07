@@ -373,6 +373,15 @@ async function createDownload(req, res) {
       return res.json({ code: RESPONSE_CODE.SUCCESS, data: { taskId, status: TASK_STATUS.PENDING, platform: PLATFORM.YOUTUBE } });
     }
 
+    // Bilibili 链接:走 TikHub API
+    if (/bilibili\.com|b23\.tv/i.test(url)) {
+      processBilibili(taskId, url, wantsAsr, normalizedOptions, safeQuality).catch(err => {
+        logger.error(`[task] ${taskId} bilibili failed:`, err);
+        store.update(taskId, { status: TASK_STATUS.ERROR, progress: 0, error: err.message });
+      });
+      return res.json({ code: RESPONSE_CODE.SUCCESS, data: { taskId, status: TASK_STATUS.PENDING, platform: PLATFORM.BILIBILI } });
+    }
+
     // 小红书链接:走 TikHub API
     if (/xiaohongshu\.com|xhslink\.com/i.test(url)) {
       processXiaohongshu(taskId, url, wantsAsr, normalizedOptions, safeQuality).catch(err => {
@@ -1441,6 +1450,62 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
 /**
  * 处理小红书下载 (TikHub API)
  */
+/**
+ * 处理 Bilibili 下载 (TikHub API)
+ */
+async function processBilibili(taskId, url, needAsr, options = ['video'], quality) {
+  if (!taskLock.tryAcquire(taskId)) {
+    logger.warn(`[task] ${taskId} is already being processed`);
+    store.update(taskId, { status: TASK_STATUS.ERROR, error: 'Task is already in progress' });
+    return;
+  }
+
+  try {
+    const { parseBilibili } = require('../services/tikhub');
+    store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
+
+    const result = await parseBilibili(url, taskId, (percent) => {
+      store.update(taskId, {
+        status: percent < 20 ? TASK_STATUS.PARSING : TASK_STATUS.DOWNLOADING,
+        progress: percent
+      });
+    }, quality);
+
+    const update = {
+      status: TASK_STATUS.COMPLETED,
+      width: result.width,
+      height: result.height,
+      quality: result.quality,
+      progress: 100,
+      title: result.title,
+      thumbnailUrl: result.thumbnailUrl,
+    };
+
+    if (result.filePath) {
+      update.filePath = result.filePath;
+      update.ext = result.ext;
+      update.downloadUrl = `/download/${path.basename(result.filePath)}`;
+      fileRefManager.addRef(path.basename(result.filePath));
+    }
+
+    store.update(taskId, update);
+
+    // ASR
+    if (needAsr && update.filePath) {
+      const asrResult = await handleAsr(taskId, update.filePath, 'zh');
+      if (asrResult?.text) { const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl }; if (asrResult.summary) upd.summaryText = asrResult.summary; if (asrResult.translatedText) { upd.translatedText = asrResult.translatedText; upd.translatedTxtUrl = asrResult.translatedTxtUrl; } store.update(taskId, upd); }
+    }
+
+    await finalizeTask(taskId);
+    logger.info(`[task] ${taskId} bilibili completed`);
+  } catch (error) {
+    logger.error(`[task] ${taskId} bilibili failed:`, error);
+    store.update(taskId, { status: TASK_STATUS.ERROR, error: error.message });
+  } finally {
+    taskLock.release(taskId);
+  }
+}
+
 async function processXiaohongshu(taskId, url, needAsr, options = ['video'], quality) {
   // 获取任务锁
   if (!taskLock.tryAcquire(taskId)) {

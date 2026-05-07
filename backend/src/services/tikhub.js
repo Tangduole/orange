@@ -1174,7 +1174,116 @@ async function getDouyinQualities(url) {
   return { title, thumbnail: cover, duration, qualities };
 }
 
-module.exports = { parseYouTube, parseYouTubeV2, parseXiaohongshu, parseDouyin, parseInstagram, getDouyinQualities, tikhubRequest, tikhubRequestPost, downloadFile, parseWechatExportId, getWechatVideoInfo, downloadWechat };
+/**
+ * Bilibili 下载 (TikHub API)
+ * Bilibili API key 复用抖音 key（需在TikHub后台添加Bilibili Web API权限）
+ */
+async function parseBilibili(url, taskId, onProgress, quality) {
+  const bvidMatch = url.match(/BV[a-zA-Z0-9]{10}/);
+  if (!bvidMatch) throw new Error('无法解析 Bilibili BV 号');
+  const bvid = bvidMatch[0];
+  
+  logger.info(`[TikHub] Parsing Bilibili: ${bvid}`);
+  if (onProgress) onProgress(5);
+
+  const key = process.env.TIKHUB_API_KEY_BILIBILI || API_KEY_DOUYIN;
+  if (!key) throw new Error('Bilibili API key 未配置，请前往 TikHub 后台添加 Bilibili Web API 权限');
+
+  let data;
+  try {
+    data = await tikhubRequest(`/api/v1/bilibili/web/fetch_one_video?bv_id=${bvid}`, key);
+  } catch (e) {
+    if (e.message?.includes('403') || e.message?.includes('permissions')) {
+      throw new Error('Bilibili API 权限不足。请前往 https://user.tikhub.io/dashboard/api 给 API key 添加 Bilibili Web API 权限');
+    }
+    throw new Error(`Bilibili 解析失败：${e.message}`);
+  }
+
+  if (onProgress) onProgress(15);
+
+  const title = data.title || data.data?.title || 'Bilibili Video';
+  const videos = data.videos || data.data?.videos || [];
+
+  // 按画质筛选 + 取最高
+  let filtered = videos.filter(v => v.url);
+  if (quality) {
+    const hMatch = quality.match(/height<=(\d+)/i);
+    if (hMatch) {
+      const maxHeight = parseInt(hMatch[1]);
+      filtered = filtered.filter(v => (v.height || 0) <= maxHeight);
+      if (filtered.length === 0) filtered = videos.filter(v => v.url);
+    }
+  }
+  const best = filtered.sort((a, b) => (b.height || 0) - (a.height || 0))[0];
+
+  if (!best?.url) throw new Error('Bilibili 未找到可下载的视频流');
+
+  logger.info(`[TikHub] Found Bilibili video: ${title}, ${best.quality || best.height + 'p'}`);
+
+  const outputPath = path.join(DOWNLOAD_DIR, `${taskId}.mp4`);
+  await downloadFile(best.url, outputPath, onProgress);
+
+  if (onProgress) onProgress(100);
+
+  return {
+    title,
+    filePath: outputPath,
+    ext: 'mp4',
+    thumbnailUrl: '',
+    subtitleFiles: [],
+    width: best.width || null,
+    height: best.height || null,
+    quality: best.height ? `${best.height}p` : best.quality || null,
+    duration: data.duration || data.data?.duration || 0
+  };
+}
+
+/**
+ * Bilibili 画质列表（用于 /video-info）
+ */
+async function getBilibiliQualities(url) {
+  const bvidMatch = url.match(/BV[a-zA-Z0-9]{10}/);
+  if (!bvidMatch) throw new Error('无法解析 Bilibili BV 号');
+  const bvid = bvidMatch[0];
+
+  const key = process.env.TIKHUB_API_KEY_BILIBILI || API_KEY_DOUYIN;
+  if (!key) throw new Error('Bilibili API key 未配置');
+
+  let data;
+  try {
+    data = await tikhubRequest(`/api/v1/bilibili/web/fetch_one_video?bv_id=${bvid}`, key);
+  } catch (e) {
+    if (e.message?.includes('403') || e.message?.includes('permissions')) {
+      throw new Error('Bilibili API 权限不足。请前往 TikHub 后台添加 Bilibili Web API 权限');
+    }
+    throw e;
+  }
+
+  const title = data.title || data.data?.title || 'Bilibili';
+  const duration = data.duration || data.data?.duration || 0;
+  const videos = data.videos || data.data?.videos || [];
+  
+  const seen = new Set();
+  const qualities = videos
+    .filter(v => v.url && v.height)
+    .map(v => ({
+      quality: heightToLabel(v.height),
+      format: v.format || 'mp4',
+      width: v.width || 0,
+      height: v.height || 0,
+      hasVideo: true,
+      hasAudio: true,
+      size: v.size || 0
+    }))
+    .filter(q => q.height > 0 && !seen.has(q.height) && seen.add(q.height))
+    .sort((a, b) => b.height - a.height);
+
+  logger.info(`[TikHub] Bilibili qualities for ${bvid}: ${qualities.map(q => `${q.quality}`).join(', ')}`);
+
+  return { title, duration, qualities };
+}
+
+module.exports = { parseYouTube, parseYouTubeV2, parseXiaohongshu, parseDouyin, parseInstagram, getDouyinQualities, parseBilibili, getBilibiliQualities, tikhubRequest, tikhubRequestPost, downloadFile, parseWechatExportId, getWechatVideoInfo, downloadWechat };
 
 // ============ WeChat Channels (视频号) ============
 
