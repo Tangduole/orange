@@ -78,7 +78,7 @@ const shareFile = async (
 interface Task {
   taskId: string; status: string; progress: number
   title?: string; platform?: string; thumbnailUrl?: string
-  downloadUrl?: string; audioUrl?: string; asrText?: string; copyText?: string
+  downloadUrl?: string; audioUrl?: string; asrText?: string; summaryText?: string; copyText?: string
   coverUrl?: string; isNote?: boolean
   imageFiles?: Array<{ filename: string; url: string }>
   subtitleFiles?: Array<{ filename: string; url: string }>
@@ -1730,6 +1730,17 @@ export default function App() {
                       <Languages className="w-3 h-3" />{s.filename}
                     </a>
                   ))}
+                </div>
+              )}
+
+              {/* AI 摘要 */}
+              {task.summaryText && (
+                <div className="p-3 bg-gradient-to-r from-orange-500/10 to-amber-500/10 rounded-xl border border-orange-500/20">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs text-orange-400">🤖</span>
+                    <span className="text-xs text-orange-300 font-medium">{t('aiSummary')}</span>
+                  </div>
+                  <p className="text-sm text-slate-300 leading-relaxed">{task.summaryText}</p>
                 </div>
               )}
 

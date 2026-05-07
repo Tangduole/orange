@@ -479,6 +479,17 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
     // ASR 转文字
     const text = await asr.transcribe(audioPath, asrLanguage);
 
+    // AI 摘要（自动生成，失败不影响 ASR）
+    let summary = null;
+    if (text && text.length >= 50) {
+      try {
+        const { summarizeText } = require('../services/summarize');
+        summary = await summarizeText(text, asrLanguage);
+      } catch (e) {
+        logger.warn(`[summarize] ${taskId} failed: ${e.message}`);
+      }
+    }
+
     // 翻译(如果指定了目标语言)
     const task = store.get(taskId);
     const tLang = targetLang || task?.targetLang;
@@ -500,7 +511,7 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
     // 清理临时音频
     await asyncFs.safeUnlink(audioPath);
 
-    return { text, txtUrl, translatedText, translatedTxtUrl };
+    return { text, txtUrl, translatedText, translatedTxtUrl, summary };
   } catch (e) {
     logger.error(`[ASR] ${taskId} failed:`, e.message);
     return null;
@@ -726,6 +737,7 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
         if (asrResult?.text) {
           update.asrText = asrResult.text;
           update.asrTxtUrl = asrResult.txtUrl;
+          if (asrResult.summary) update.summaryText = asrResult.summary;
           if (asrResult.translatedText) { update.translatedText = asrResult.translatedText; update.translatedTxtUrl = asrResult.translatedTxtUrl; }
         }
         store.update(taskId, update);
@@ -1055,7 +1067,7 @@ async function processX(taskId, url, needAsr, options = ['video']) {
     // ASR 语音转文字
     if (needAsr && update.filePath) {
       const asrResult = await handleAsr(taskId, update.filePath, 'zh');
-      if (asrResult?.text) { const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl }; if (asrResult.translatedText) { upd.translatedText = asrResult.translatedText; upd.translatedTxtUrl = asrResult.translatedTxtUrl; } store.update(taskId, upd); }
+      if (asrResult?.text) { const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl }; if (asrResult.summary) upd.summaryText = asrResult.summary; if (asrResult.translatedText) { upd.translatedText = asrResult.translatedText; upd.translatedTxtUrl = asrResult.translatedTxtUrl; } store.update(taskId, upd); }
     }
 
     await finalizeTask(taskId);
@@ -1409,7 +1421,7 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
     // ASR 语音转文字
     if (needAsr && update.filePath) {
       const asrResult = await handleAsr(taskId, update.filePath, 'zh');
-      if (asrResult?.text) { const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl }; if (asrResult.translatedText) { upd.translatedText = asrResult.translatedText; upd.translatedTxtUrl = asrResult.translatedTxtUrl; } store.update(taskId, upd); }
+      if (asrResult?.text) { const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl }; if (asrResult.summary) upd.summaryText = asrResult.summary; if (asrResult.translatedText) { upd.translatedText = asrResult.translatedText; upd.translatedTxtUrl = asrResult.translatedTxtUrl; } store.update(taskId, upd); }
     }
 
     await finalizeTask(taskId);
