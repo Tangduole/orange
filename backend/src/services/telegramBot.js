@@ -213,12 +213,12 @@ async function handleMessage(msg) {
  * 按平台分发下载
  */
 async function downloadForPlatform(url, taskId, platform, chatId, messageId) {
-  const { downloadDouyin } = require('../services/douyin');
   const { 
     parseXiaohongshu, 
     parseYouTube, 
     parseBilibili, 
     parseInstagram,
+    parseDouyin,
     downloadFile 
   } = require('../services/tikhub');
 
@@ -237,7 +237,8 @@ async function downloadForPlatform(url, taskId, platform, chatId, messageId) {
   };
 
   if (platform === 'douyin' || platform === 'tiktok') {
-    return downloadDouyin(url, taskId, onProgress, { quality: '1080p' });
+    // 使用 TikHub API 避免 CDN 403
+    return parseDouyin(url, taskId, onProgress, null, false);
   }
   if (platform === 'xiaohongshu') {
     return parseXiaohongshu(url, taskId, onProgress);
