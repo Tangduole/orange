@@ -12,7 +12,7 @@ import {
   Video, FileText, Image as ImageIcon, Mic, Languages,
   Trash2, ChevronDown, ChevronUp, Clock, Copy, Check,
   X, Zap, AlertCircle, Eraser, FolderOpen, HardDrive, Smartphone,
-  Play, Search, Clipboard, Crown, Sun, Moon, Keyboard, User,
+  Play, Search, Clipboard, Sun, Moon, Keyboard, User,
 } from 'lucide-react'
 
 const BASE_URL = API_BASE
@@ -120,12 +120,6 @@ const ASR_LANGUAGE_OPTIONS = [
   { value: 'auto', label: 'Auto' },
 ]
 
-const QUALITY_OPTIONS = [
-  { value: 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best', labelKey: 'qualityBest', vipOnly: true },
-  { value: 'bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=1080]', labelKey: 'quality1080p', vipOnly: true },
-  { value: 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]', labelKey: 'quality720p', vipOnly: false },
-]
-
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
   const k = 1024;
@@ -186,7 +180,6 @@ export default function App() {
   const [autoQuality, setAutoQuality] = useState<{label: string, height: number} | null>(null) // 自动选择的画质
     const [pendingUrl, setPendingUrl] = useState('')
   const [pendingQuality, setPendingQuality] = useState('')
-  const [videoInfoForPicker, setVideoInfoForPicker] = useState<{title: string, thumbnail: string}>({title: '', thumbnail: ''})
   const [batchUrls, setBatchUrls] = useState('')
 
   // Auth state
