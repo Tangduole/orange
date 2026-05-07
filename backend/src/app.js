@@ -245,7 +245,7 @@ app.listen(PORT, '0.0.0.0', () => {
   logger.info(`   下载目录: ${DOWNLOAD_DIR}`);
 
   // 注册 Telegram Bot Webhook
-  const baseUrl = process.env.APP_URL || `http://localhost:${PORT}`;
+  const baseUrl = process.env.API_URL || process.env.APP_URL || `http://localhost:${PORT}`;
   const { setupWebhook } = require('./services/telegramBot');
   setupWebhook(baseUrl).catch(e => logger.error('[Bot] Webhook setup error:', e.message));
 });

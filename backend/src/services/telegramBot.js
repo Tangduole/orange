@@ -117,9 +117,27 @@ async function handleMessage(msg) {
     return;
   }
 
+  // /start 命令 - 欢迎消息
+  if (/^/start/.test(text)) {
+    const welcome = `👋 欢迎使用 Orange 下载助手！
+
+📥 使用方法：直接发送视频链接给我，我会自动下载并发回给你。
+
+🎬 支持的平台：
+• 抖音 / TikTok
+• 小红书
+• YouTube
+• Bilibili (B站)
+• Instagram
+• X / Twitter
+
+💡 访问网页版：https://orangedl.com`;
+    await sendMessage(chatId, welcome, messageId);
+    return;
+  }
+
   const urls = extractUrls(text);
   if (urls.length === 0) {
-    // 不是链接消息，静默忽略
     return;
   }
 
