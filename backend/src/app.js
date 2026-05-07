@@ -95,6 +95,18 @@ app.use(cors({
 // 因此对 /api/subscribe/webhook 单独使用 express.raw，不参与全局 JSON 解析。
 app.use('/api/subscribe/webhook', express.raw({ type: '*/*', limit: '1mb' }));
 
+// Telegram Bot Webhook (在全局JSON解析之前处理)
+app.post('/api/bot/telegram', express.json({ limit: '5mb' }), async (req, res) => {
+  try {
+    const { handleWebhook } = require('./services/telegramBot');
+    const result = await handleWebhook(req.body);
+    res.json(result);
+  } catch (e) {
+    logger.error('[Bot] Webhook error:', e.message);
+    res.json({ ok: false });
+  }
+});
+
 // 其它请求统一走 JSON
 app.use((req, res, next) => {
   if (req.originalUrl === '/api/subscribe/webhook') return next();
@@ -231,6 +243,11 @@ app.listen(PORT, '0.0.0.0', () => {
   logger.info(`   地址: http://0.0.0.0:${PORT}`);
   logger.info(`   API: http://0.0.0.0:${PORT}/api`);
   logger.info(`   下载目录: ${DOWNLOAD_DIR}`);
+
+  // 注册 Telegram Bot Webhook
+  const baseUrl = process.env.APP_URL || `http://localhost:${PORT}`;
+  const { setupWebhook } = require('./services/telegramBot');
+  setupWebhook(baseUrl).catch(e => logger.error('[Bot] Webhook setup error:', e.message));
 });
 
 module.exports = app;
