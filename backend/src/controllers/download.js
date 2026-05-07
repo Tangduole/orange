@@ -1280,6 +1280,49 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
   try {
     store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
 
+    let update; // shared: Cobalt or TikHub will fill this
+
+    // Step 1: Cobalt (免费自托管)
+    let usedCobalt = false;
+    const { isCobaltConfigured, downloadViaCobalt } = require('../services/cobalt');
+    if (isCobaltConfigured()) {
+      try {
+        const cobaltResult = await downloadViaCobalt(url, taskId, {
+          onProgress: (percent, msg) => {
+            store.update(taskId, {
+              status: percent < 90 ? TASK_STATUS.DOWNLOADING : TASK_STATUS.PROCESSING,
+              progress: percent
+            });
+          },
+          options: { videoQuality: 'max', filenameStyle: 'basic', downloadMode: 'auto' }
+        });
+        if (cobaltResult && !cobaltResult.isPicker) {
+          update = {
+            status: TASK_STATUS.COMPLETED,
+            progress: 100,
+            title: cobaltResult.title || 'TikTok Video',
+            duration: cobaltResult.duration || 0,
+            thumbnailUrl: cobaltResult.thumbnailUrl || '',
+            downloadUrl: cobaltResult.downloadUrl,
+            filePath: cobaltResult.filePath,
+            ext: cobaltResult.ext || 'mp4',
+            width: cobaltResult.width || 0,
+            height: cobaltResult.height || 0,
+            quality: cobaltResult.quality || 'hd',
+            copyText: cobaltResult.title || ''
+          };
+          fileRefManager.addRef(`${taskId}.${cobaltResult.ext || 'mp4'}`);
+          usedCobalt = true;
+          logger.info(`[task] ${taskId} TikTok Cobalt succeeded`);
+        }
+      } catch (e) {
+        logger.warn(`[task] ${taskId} TikTok Cobalt failed: ${e.message}`);
+      }
+    }
+
+    // Step 2: TikHub API (Cobalt 失败时)
+    if (!usedCobalt) {
+
     // 从 URL 提取视频 ID
     let videoId = null;
 
@@ -1369,7 +1412,7 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
     // 获取封面
     const coverUrl = video.cover?.url_list?.[0] || video.origin_cover?.url_list?.[0] || '';
 
-    const update = {
+    update = {
       status: TASK_STATUS.COMPLETED,
       progress: 100,
       title: title,
@@ -1407,6 +1450,8 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
       }
     }
 
+    } // if (!usedCobalt)
+
     store.update(taskId, update);
 
     // ASR 语音转文字
@@ -1416,7 +1461,7 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
     }
 
     await finalizeTask(taskId);
-    logger.info(`[task] ${taskId} tiktok completed`);
+    logger.info(`[task] ${taskId} tiktok completed (${usedCobalt ? 'cobalt' : 'tikhub'})`);
   } catch (error) {
     logger.error(`[task] ${taskId} tiktok failed:`, error);
     store.update(taskId, {
