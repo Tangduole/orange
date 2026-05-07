@@ -1512,14 +1512,59 @@ export default function App() {
                 </div>
               )}
 
-              {/* 图文 */}
+              {/* 图文笔记 - 图片网格 + 批量下载 */}
               {task.isNote && task.imageFiles?.length > 0 && (
-                <div>
-                  <p className="text-xs text-slate-300 mb-2">{t('totalImages', { count: task.imageFiles.length })}</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {task.imageFiles.map(img => (
-                      <a key={img.filename} href={`${BASE_URL}${img.url}`} download><img src={`${BASE_URL}${img.url}`} alt="" className="w-full aspect-square object-cover rounded-xl bg-slate-700/30" loading="lazy" /></a>
-                    ))}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-slate-300">
+                      🖼️ {t('totalImages', { count: task.imageFiles.length })}
+                    </p>
+                    <button
+                      onClick={async () => {
+                        for (const img of task.imageFiles!) {
+                          const fullUrl = (img.url.startsWith('http') ? img.url : `${BASE_URL}${img.url}`);
+                          const a = document.createElement('a');
+                          a.href = fullUrl;
+                          a.download = img.filename;
+                          a.click();
+                          await new Promise(r => setTimeout(r, 300));
+                        }
+                      }}
+                      className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg bg-orange-500/15 text-orange-300 border border-orange-500/30 hover:bg-orange-500/25 transition"
+                    >
+                      <Download className="w-3 h-3" />
+                      {t('saveAllImages')}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {task.imageFiles.map(img => {
+                      const fullUrl = img.url.startsWith('http') ? img.url : `${BASE_URL}${img.url}`;
+                      const dimLabel = (img as any).width ? `${(img as any).width}×${(img as any).height}` : '';
+                      return (
+                        <div key={img.filename} className="group relative rounded-xl overflow-hidden bg-slate-700/30">
+                          <img
+                            src={fullUrl}
+                            alt=""
+                            className="w-full object-cover"
+                            style={{ aspectRatio: (img as any).width && (img as any).height ? `${(img as any).width}/${(img as any).height}` : '3/4' }}
+                            loading="lazy"
+                          />
+                          {/* 单张下载按钮 */}
+                          <a
+                            href={fullUrl}
+                            download={img.filename}
+                            className="absolute bottom-2 right-2 flex items-center gap-1 px-2 py-1 text-[10px] rounded-lg bg-black/60 text-white opacity-0 group-hover:opacity-100 hover:bg-orange-500 transition-all"
+                          >
+                            <Download className="w-3 h-3" />
+                          </a>
+                          {dimLabel && (
+                            <span className="absolute top-2 left-2 px-1.5 py-0.5 text-[10px] rounded bg-black/50 text-slate-300">
+                              {dimLabel}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}

@@ -297,22 +297,52 @@ async function parseXiaohongshu(url, taskId, onProgress, quality) {
   if (imageList.length > 0) {
     logger.info(`[TikHub] Found Xiaohongshu images: ${imageList.length}`);
 
+    // 去XHS水印后缀取原图（!nd_dft_wlteh_jpg_3 → 去掉!及之后内容）
+    const stripWatermark = (u) => u.replace(/![^!]+$/, '');
+
     const imageFiles = [];
     for (let i = 0; i < imageList.length; i++) {
       const img = imageList[i];
-      const imgUrl = img.urlDefault || img.url || '';
+      // 优先用infoList找最高质量原图URL
+      let imgUrl = img.urlDefault || img.url || '';
+      const infoList = img.infoList || [];
+      for (const info of infoList) {
+        if (info.url && info.imageScene !== 'WB_PRV') {
+          imgUrl = info.url; // 优先非预览场景
+        }
+      }
+      // 尝试无水印原图（去掉suffix），失败则fallback到带水印URL
+      const rawUrl = stripWatermark(imgUrl);
+
       if (imgUrl) {
         const imgPath = path.join(DOWNLOAD_DIR, `${taskId}_img_${i}.jpg`);
+        let downloaded = false;
         try {
-          await downloadFile(imgUrl, imgPath, (p) => {
+          await downloadFile(rawUrl, imgPath, (p) => {
             if (onProgress) onProgress(Math.round(20 + (i / imageList.length) * 70 + p * 0.1));
           });
+          downloaded = true;
+          logger.info(`[TikHub] XHS image ${i+1} downloaded (raw quality): ${rawUrl.substring(0,60)}...`);
+        } catch (e) {
+          logger.warn(`[TikHub] XHS image ${i+1} raw failed, trying default: ${e.message}`);
+        }
+        if (!downloaded && rawUrl !== imgUrl) {
+          try {
+            await downloadFile(imgUrl, imgPath, (p) => {
+              if (onProgress) onProgress(Math.round(20 + (i / imageList.length) * 70 + p * 0.1));
+            });
+            downloaded = true;
+          } catch {}
+        }
+        if (downloaded) {
           imageFiles.push({
             filename: `${taskId}_img_${i}.jpg`,
             path: imgPath,
-            url: `/download/${taskId}_img_${i}.jpg`
+            url: `/download/${taskId}_img_${i}.jpg`,
+            width: img.width || 0,
+            height: img.height || 0
           });
-        } catch {}
+        }
       }
     }
 
