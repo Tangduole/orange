@@ -8,7 +8,7 @@
  *   1. 去水印: 抖音 bit_rate[].play_addr.url_list 数组里第 0 个常常是 playwm（带水印），
  *              要主动挑无水印（含 /play/ 不含 /playwm/）；只有 playwm 时把 playwm 改写为 play。
  *   2. 高画质: iesdouyin 默认对游客返回最高 720p，但 aweme/v1/play/ 接口加 ratio=1080p
- *              通常能拿到原画 1080p（甚至 4K）。VIP 主动注入 ratio=1080p。
+ *              通常能拿到原画 1080p。ratio 参数只支持 540p/720p/1080p，2K/4K 需走 TikHub 付费 API。
  *   3. 多候选 URL 兜底: 抖音 CDN 域名经常切换（aweme.snssdk.com / api.amemv.com /
  *              aweme.amemv.com 等），按优先级一个个试，任一成功即返回。
  */
@@ -328,25 +328,28 @@ async function parseDouyinPage(url, opts = {}) {
 
 /**
  * 把上层传下来的 quality 字符串（如 'bestvideo[height<=1080]+...'）转换为目标 ratio
+ *
+ * 注意: iesdouyin aweme/v1/play/ 接口只认 540p/720p/1080p 这三个 ratio 值。
+ * 传入 2k/4k 等无效值会被服务端忽略并回退到默认低画质，所以统一封顶 1080p。
+ * VIP 真 4K 需求走 TikHub fetch_video_high_quality_play_url 付费 API。
  */
 function deriveTargetRatio(quality, isVip) {
-  // VIP 默认拉满（除非用户明确指定低画质）
+  // iesdouyin 最大支持 1080p，ratio 参数不支持 2k/4k
+  const IESDOUYIN_MAX = '1080p';
   if (quality && typeof quality === 'string') {
     const m = quality.match(/height\s*<=\s*(\d+)/i);
     if (m) {
       const h = parseInt(m[1], 10);
-      if (h >= 2160) return '4k';
-      if (h >= 1440) return '2k';
-      if (h >= 1080) return '1080p';
+      // >=1080 统一返回 1080p（4k/2k 对 iesdouyin 无效）
+      if (h >= 1080) return IESDOUYIN_MAX;
       if (h >= 720) return '720p';
       return '540p';
     }
-    if (/4k|2160/i.test(quality)) return '4k';
-    if (/2k|1440/i.test(quality)) return '2k';
-    if (/1080/i.test(quality)) return '1080p';
+    // 模糊匹配也一样封顶
+    if (/4k|2160|2k|1440|1080/i.test(quality)) return IESDOUYIN_MAX;
     if (/720/i.test(quality)) return '720p';
   }
-  return isVip ? '1080p' : '720p';
+  return isVip ? IESDOUYIN_MAX : '720p';
 }
 
 /**
@@ -503,13 +506,11 @@ async function getDouyinVideoInfo(url) {
   const info = await parseDouyinPage(url, { targetRatio: '1080p' });
   const allQualities = info.allQualities || [];
   
-  // Check if we have valid downloadable candidates
-  const hasValidCandidates = info.videoCandidates && info.videoCandidates.length > 0;
-  
-  // Max showable quality: only trust metadata if we have valid download URLs
-  const metaMaxHeight = allQualities.length > 0 ? allQualities[0].height : 1080;
-  // Conservative: if no valid candidates, cap at 1080p (iesdouyin often shows fake 4K)
-  const trustedMaxHeight = hasValidCandidates ? metaMaxHeight : Math.min(metaMaxHeight, 1080);
+  // iesdouyin aweme/v1/play/ ratio 参数只认 540p/720p/1080p
+  // 元数据可能显示 2K/4K 但实际拉不到，统一封顶 1080p 避免 UI 虚报
+  const IESDOUYIN_REAL_MAX = 1080;
+  const metaMaxHeight = allQualities.length > 0 ? allQualities[0].height : IESDOUYIN_REAL_MAX;
+  const trustedMaxHeight = Math.min(metaMaxHeight, IESDOUYIN_REAL_MAX);
   
   // 根据分辨率估算码率(保守值),用于估算文件大小
   const duration = info.duration || 0;
