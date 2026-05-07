@@ -800,7 +800,28 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
       } catch (tikhubErr) {
         logger.warn(`[task] ${taskId} TikHub failed: ${tikhubErr.message}, trying yt-dlp...`);
 
-        // Step 3: yt-dlp 最后的兜底
+        // VIP 4K 直通 TikHub 失败 → 回退 iesdouyin 拿 1080p（比完全失败强）
+        if (skipIesdouyin) {
+          logger.info(`[task] ${taskId} VIP HQ path failed, falling back to iesdouyin (1080p)...`);
+          try {
+            store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
+            result = await downloadDouyin(url, taskId, (percent, msg) => {
+              store.update(taskId, {
+                status: percent < 90 ? TASK_STATUS.DOWNLOADING : TASK_STATUS.PROCESSING,
+                progress: percent,
+              });
+            }, { quality, isVip });
+            logger.info(`[task] ${taskId} iesdouyin fallback succeeded (quality=${result.quality})`);
+            // 标记降级，前端可以提示
+            result.qualityDowngraded = true;
+          } catch (iesdouyinFallbackErr) {
+            iesdouyinError = iesdouyinFallbackErr.message;
+            logger.warn(`[task] ${taskId} iesdouyin fallback also failed: ${iesdouyinFallbackErr.message}`);
+          }
+        }
+
+        // Step 3: yt-dlp 最后的兜底（仅当 iesdouyin fallback 也没拿到时）
+        if (!result) {
         try {
           store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
           const ytdlpResult = await ytdlp.download(url, taskId, (percent, speed, eta, downloaded, total) => {
@@ -829,6 +850,7 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
           const iesdouyinMsg = iesdouyinError || 'unknown';
           throw new Error(`抖音解析失败: iesdouyin(${iesdouyinMsg}) → TikHub(${tikhubErr.message}) → yt-dlp(${ytdlpErr.message})`);
         }
+        } // if (!result) yt-dlp guard
       }
     }
 
