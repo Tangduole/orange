@@ -1175,8 +1175,10 @@ async function getDouyinQualities(url) {
 }
 
 /**
- * Bilibili 下载 (TikHub API)
- * Bilibili API key 复用抖音 key（需在TikHub后台添加Bilibili Web API权限）
+ * Bilibili 下载 (TikHub API - 两步流)
+ * Step 1: fetch_one_video → 获取 bvid/cid/元数据
+ * Step 2: fetch_video_playurl → 获取 DASH 音视频流
+ * Step 3: ffmpeg 合并音视频
  */
 async function parseBilibili(url, taskId, onProgress, quality) {
   const bvidMatch = url.match(/BV[a-zA-Z0-9]{10}/);
@@ -1187,11 +1189,12 @@ async function parseBilibili(url, taskId, onProgress, quality) {
   if (onProgress) onProgress(5);
 
   const key = process.env.TIKHUB_API_KEY_BILIBILI || API_KEY_DOUYIN;
-  if (!key) throw new Error('Bilibili API key 未配置，请前往 TikHub 后台添加 Bilibili Web API 权限');
+  if (!key) throw new Error('Bilibili API key 未配置');
 
-  let data;
+  // Step 1: 获取元数据
+  let meta;
   try {
-    data = await tikhubRequest(`/api/v1/bilibili/web/fetch_one_video?bv_id=${bvid}`, key);
+    meta = await tikhubRequest(`/api/v1/bilibili/web/fetch_one_video?bv_id=${bvid}`, key);
   } catch (e) {
     if (e.message?.includes('403') || e.message?.includes('permissions')) {
       throw new Error('Bilibili API 权限不足。请前往 https://user.tikhub.io/dashboard/api 给 API key 添加 Bilibili Web API 权限');
@@ -1199,29 +1202,65 @@ async function parseBilibili(url, taskId, onProgress, quality) {
     throw new Error(`Bilibili 解析失败：${e.message}`);
   }
 
+  const info = (meta.data?.data) || meta.data || meta;
+  const title = info.title || 'Bilibili Video';
+  const duration = info.duration || 0;
+  const cid = info.cid || info.pages?.[0]?.cid || 0;
+  if (!cid) throw new Error('无法获取 Bilibili 视频 cid');
+
+  logger.info(`[TikHub] Bilibili metadata: ${title}, cid=${cid}, duration=${duration}s`);
   if (onProgress) onProgress(15);
 
-  const title = data.title || data.data?.title || 'Bilibili Video';
-  const videos = data.videos || data.data?.videos || [];
+  // Step 2: 获取播放地址 (DASH 流)
+  let playData;
+  try {
+    playData = await tikhubRequest(`/api/v1/bilibili/web/fetch_video_playurl?bv_id=${bvid}&cid=${cid}`, key);
+  } catch (e) {
+    throw new Error(`Bilibili 播放地址获取失败：${e.message}`);
+  }
 
-  // 按画质筛选 + 取最高
-  let filtered = videos.filter(v => v.url);
+  const playInfo = (playData.data?.data) || playData.data || playData;
+  const dash = playInfo.dash || {};
+  const dashVideos = dash.video || [];
+  const dashAudios = dash.audio || [];
+
+  if (dashVideos.length === 0) throw new Error('Bilibili 未找到视频流');
+
+  let filtered = dashVideos;
   if (quality) {
     const hMatch = quality.match(/height<=(\d+)/i);
     if (hMatch) {
       const maxHeight = parseInt(hMatch[1]);
-      filtered = filtered.filter(v => (v.height || 0) <= maxHeight);
-      if (filtered.length === 0) filtered = videos.filter(v => v.url);
+      filtered = dashVideos.filter(v => (v.height || 0) <= maxHeight);
+      if (filtered.length === 0) filtered = dashVideos;
     }
   }
-  const best = filtered.sort((a, b) => (b.height || 0) - (a.height || 0))[0];
+  const bestVideo = filtered.sort((a, b) => (b.height || 0) - (a.height || 0))[0];
+  const bestAudio = (dashAudios || []).sort((a, b) => (b.bandwidth || 0) - (a.bandwidth || 0))[0];
 
-  if (!best?.url) throw new Error('Bilibili 未找到可下载的视频流');
+  const videoH = bestVideo.height || 0;
+  logger.info(`[TikHub] Bilibili stream: ${videoH}p, audio=${bestAudio ? Math.round(bestAudio.bandwidth / 1000) + 'kbps' : 'none'}`);
 
-  logger.info(`[TikHub] Found Bilibili video: ${title}, ${best.quality || best.height + 'p'}`);
+  if (onProgress) onProgress(25);
 
+  // Step 3: 下载视频流 + 音频流
+  const videoPath = path.join(DOWNLOAD_DIR, `${taskId}_video.m4s`);
+  const audioPath = path.join(DOWNLOAD_DIR, `${taskId}_audio.m4s`);
   const outputPath = path.join(DOWNLOAD_DIR, `${taskId}.mp4`);
-  await downloadFile(best.url, outputPath, onProgress);
+
+  await downloadFile(bestVideo.baseUrl || bestVideo.base_url || bestVideo.url, videoPath, (p) => {
+    if (onProgress) onProgress(25 + Math.round(p * 0.5));
+  });
+
+  if (bestAudio?.baseUrl || bestAudio?.base_url || bestAudio?.url) {
+    await downloadFile(bestAudio.baseUrl || bestAudio.base_url || bestAudio.url, audioPath, (p) => {
+      if (onProgress) onProgress(75 + Math.round(p * 0.15));
+    });
+  }
+
+  // Step 4: ffmpeg 合并音视频
+  if (onProgress) onProgress(92);
+  await mergeBilibiliStreams(videoPath, audioPath, outputPath, taskId);
 
   if (onProgress) onProgress(100);
 
@@ -1229,13 +1268,38 @@ async function parseBilibili(url, taskId, onProgress, quality) {
     title,
     filePath: outputPath,
     ext: 'mp4',
-    thumbnailUrl: '',
+    thumbnailUrl: (info.pic || '').replace('http://', 'https://'),
     subtitleFiles: [],
-    width: best.width || null,
-    height: best.height || null,
-    quality: best.height ? `${best.height}p` : best.quality || null,
-    duration: data.duration || data.data?.duration || 0
+    width: bestVideo.width || null,
+    height: videoH || null,
+    quality: videoH ? `${videoH}p` : null,
+    duration
   };
+}
+
+/**
+ * ffmpeg 合并 Bilibili DASH 音视频流
+ */
+function mergeBilibiliStreams(videoPath, audioPath, outputPath, taskId) {
+  const { spawn } = require('child_process');
+  return new Promise((resolve, reject) => {
+    const args = ['-y', '-i', videoPath, '-i', audioPath, '-c:v', 'copy', '-c:a', 'aac', '-shortest', outputPath];
+    logger.info(`[Bilibili] Merging DASH streams for ${taskId}`);
+    const ff = spawn('ffmpeg', args);
+    let stderr = '';
+    ff.stderr.on('data', d => { stderr += d.toString(); });
+    const timer = setTimeout(() => { ff.kill(); reject(new Error('merge timeout')); }, 120000);
+    ff.on('close', code => {
+      clearTimeout(timer);
+      if (code === 0) {
+        try { fs.unlinkSync(videoPath); } catch {}
+        try { fs.unlinkSync(audioPath); } catch {}
+        resolve();
+      } else {
+        reject(new Error(`ffmpeg merge exit ${code}`));
+      }
+    });
+  });
 }
 
 /**
@@ -1249,36 +1313,60 @@ async function getBilibiliQualities(url) {
   const key = process.env.TIKHUB_API_KEY_BILIBILI || API_KEY_DOUYIN;
   if (!key) throw new Error('Bilibili API key 未配置');
 
-  let data;
+  let meta;
   try {
-    data = await tikhubRequest(`/api/v1/bilibili/web/fetch_one_video?bv_id=${bvid}`, key);
+    meta = await tikhubRequest(`/api/v1/bilibili/web/fetch_one_video?bv_id=${bvid}`, key);
   } catch (e) {
     if (e.message?.includes('403') || e.message?.includes('permissions')) {
-      throw new Error('Bilibili API 权限不足。请前往 TikHub 后台添加 Bilibili Web API 权限');
+      throw new Error('Bilibili API 权限不足');
     }
     throw e;
   }
+  const info = (meta.data?.data) || meta.data || meta;
+  const title = info.title || 'Bilibili';
+  const duration = info.duration || 0;
+  const cid = info.cid || info.pages?.[0]?.cid || 0;
 
-  const title = data.title || data.data?.title || 'Bilibili';
-  const duration = data.duration || data.data?.duration || 0;
-  const videos = data.videos || data.data?.videos || [];
-  
+  let playData;
+  try {
+    playData = await tikhubRequest(`/api/v1/bilibili/web/fetch_video_playurl?bv_id=${bvid}&cid=${cid}`, key);
+  } catch (e) {
+    throw e;
+  }
+  const playInfo = (playData.data?.data) || playData.data || playData;
+  const dashVideos = playInfo.dash?.video || [];
+  const supportFormats = playInfo.support_formats || [];
+
   const seen = new Set();
-  const qualities = videos
-    .filter(v => v.url && v.height)
-    .map(v => ({
-      quality: heightToLabel(v.height),
-      format: v.format || 'mp4',
-      width: v.width || 0,
-      height: v.height || 0,
-      hasVideo: true,
-      hasAudio: true,
-      size: v.size || 0
-    }))
+  let qualities = supportFormats
+    .filter(f => f.quality && f.new_description)
+    .map(f => {
+      const h = parseInt(f.new_description) || 0;
+      return {
+        quality: heightToLabel(h),
+        format: 'mp4',
+        width: Math.round(h * 16 / 9),
+        height: h,
+        hasVideo: true,
+        hasAudio: true,
+        size: 0
+      };
+    })
     .filter(q => q.height > 0 && !seen.has(q.height) && seen.add(q.height))
     .sort((a, b) => b.height - a.height);
 
-  logger.info(`[TikHub] Bilibili qualities for ${bvid}: ${qualities.map(q => `${q.quality}`).join(', ')}`);
+  if (qualities.length === 0 && dashVideos.length > 0) {
+    for (const v of dashVideos) {
+      const h = v.height || 0;
+      if (h > 0 && !seen.has(h)) {
+        seen.add(h);
+        qualities.push({ quality: heightToLabel(h), format: 'mp4', width: v.width || 0, height: h, hasVideo: true, hasAudio: true, size: 0 });
+      }
+    }
+    qualities.sort((a, b) => b.height - a.height);
+  }
+
+  logger.info(`[TikHub] Bilibili qualities for ${bvid}: ${qualities.map(q => q.quality).join(', ')}`);
 
   return { title, duration, qualities };
 }
