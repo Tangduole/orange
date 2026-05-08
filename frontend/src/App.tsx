@@ -847,6 +847,10 @@ export default function App() {
           setBatchId(null)
           setLoading(false)
           fetchHistory()
+          // PWA notification
+          const doneCount = batchTasks.filter((t: any) => t.status === 'completed').length
+          const totalCount = batchTasks.length
+          showDownloadComplete(bid, `批量下载完成 ${doneCount}/${totalCount}`, false)
         }
       } catch { /* ignore */ }
     }, 2000)
@@ -1561,6 +1565,7 @@ export default function App() {
                       {task.eta && <span className={isDark ? 'text-slate-300' : 'text-light-textMuted'}>{t('remaining')} {task.eta}</span>}
                     </div>
                   </div>
+                  <p className="text-[10px] text-emerald-400/70">✅ 可关闭页面，后台处理中</p>
                 </div>
               )}
 

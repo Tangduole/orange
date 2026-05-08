@@ -172,12 +172,19 @@ app.use('/download', (req, res, next) => {
     // 图片保持 inline（可以预览）
     let encodedFilename;
     try {
-      encodedFilename = encodeURIComponent(downloadFilename);
+      // 安全的 URI 编码：先替换可能导致 malformed 的高位代理对字符
+      const safeTitle = downloadFilename.replace(/[\uD800-\uDFFF]/g, '_');
+      encodedFilename = encodeURIComponent(safeTitle);
     } catch (uriErr) {
       // downloadFilename 可能含 emoji/特殊字符导致 encodeURIComponent 抛异常
       // 回退到安全的原始文件名
-      logger.warn(`[download] encodeURIComponent failed for "${downloadFilename.substring(0,50)}": ${uriErr.message}, falling back to raw filename`);
-      encodedFilename = encodeURIComponent(rawFilename);
+      logger.warn(`[download] encodeURIComponent failed for "${String(downloadFilename).substring(0,50)}": ${uriErr.message}, falling back to raw filename`);
+      try {
+        encodedFilename = encodeURIComponent(rawFilename);
+      } catch {
+        // 终极兜底：只用 taskId
+        encodedFilename = 'download_' + rawFilename.replace(/[^a-zA-Z0-9._-]/g, '_');
+      }
     }
     const isMedia = ['.mp4', '.mp3', '.avi', '.mov', '.mkv', '.flv', '.webm'].includes(ext);
     const disposition = isMedia ? 'attachment' : 'inline';
