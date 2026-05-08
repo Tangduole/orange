@@ -121,6 +121,13 @@ const ASR_LANGUAGE_OPTIONS = [
   { value: 'auto', label: 'Auto' },
 ]
 
+const BATCH_QUALITY_OPTIONS = [
+  { value: '',         label: '自动最佳', icon: '🔄', height: 0 },
+  { value: 'height<=1080', label: '1080p', icon: '📺', height: 1080 },
+  { value: 'height<=1440', label: '2K',    icon: '🎬', height: 1440 },
+  { value: 'height<=2160', label: '4K',    icon: '🎥', height: 2160 },
+]
+
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
   const k = 1024;
@@ -183,6 +190,7 @@ export default function App() {
     const [pendingUrl, setPendingUrl] = useState('')
   const [pendingQuality, setPendingQuality] = useState('')
   const [batchUrls, setBatchUrls] = useState('')
+  const [batchQuality, setBatchQuality] = useState('') // 批量画质偏好
 
   // Auth state
   const [showAuthModal, setShowAuthModal] = useState(false)
@@ -857,7 +865,7 @@ export default function App() {
       const detectedFirst = detectPlatform(urls[0])
       const r = await axios.post(`${API}/download`, {
         url: urls[0], platform: detectedFirst || 'auto',
-        needAsr: selected.has('asr'), options: [...selected], quality, asrLanguage
+        needAsr: selected.has('asr'), options: [...selected], quality: batchQuality || quality, asrLanguage
       }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} })
       setTask(r.data.data)
     } catch (e: any) {
@@ -1125,7 +1133,7 @@ export default function App() {
             {/* 单G/批量 Tab */}
             <div className="flex gap-2 mb-5">
               <button
-                onClick={() => setBatchMode(false)}
+                onClick={() => { setBatchMode(false); setBatchQuality('') }}
                 className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${!batchMode ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : isDark ? 'bg-slate-700/30 text-slate-300 border border-transparent' : 'bg-light-input text-light-textSecondary border border-transparent'}`}
               >
                 {t('singleDownload')}
@@ -1218,7 +1226,7 @@ export default function App() {
                   {/* 一键清除按钮 */}
                   {batchUrls.trim() && (
                     <button
-                      onClick={() => setBatchUrls('')}
+                      onClick={() => { setBatchUrls(''); setBatchQuality('') }}
                       className="absolute right-3 top-3 p-2 text-slate-300 hover:text-red-400 transition-colors"
                       title="一键清除"
                     >
@@ -1275,6 +1283,41 @@ export default function App() {
                 <p className="text-xs text-slate-300 mt-2">
                   💡 {t('batchTip')} {batchUrls.split('\n').filter(u => u.trim()).length}/10
                 </p>
+
+                {/* 批量画质偏好 */}
+                <div className="mt-3">
+                  <p className="text-xs text-slate-400 mb-2 font-medium">🎬 {t('quality')}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {BATCH_QUALITY_OPTIONS.map(opt => {
+                      const isHigh = opt.height > 720
+                      const canSelect = isVip || !isHigh
+                      const isSelected = batchQuality === opt.value
+                      return (
+                        <button
+                          key={opt.value}
+                          onClick={() => {
+                            if (!canSelect) { setShowUpgradePopup(true); return }
+                            setBatchQuality(isSelected ? '' : opt.value)
+                          }}
+                          className={`flex items-center gap-1.5 px-3 py-2 text-xs rounded-lg transition-all ${
+                            isSelected
+                              ? 'bg-orange-500 text-white font-semibold shadow-md'
+                              : canSelect
+                                ? 'bg-slate-700/40 text-slate-300 border border-slate-600/40 hover:border-orange-500/50 hover:text-white'
+                                : 'bg-slate-800/40 text-slate-500 border border-slate-700/40 opacity-50'
+                          }`}
+                        >
+                          <span>{opt.icon}</span>
+                          <span>{opt.label}</span>
+                          {isHigh && !isVip && <span className="text-[10px]">⭐</span>}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    💡 所有链接统一画质，单个视频不支持时自动降级
+                  </p>
+                </div>
               </div>
             )}
 
