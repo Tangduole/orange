@@ -41,6 +41,8 @@ function download(url, taskId, onProgress, quality = null) {
       '--no-warnings',
       '--newline',              // 每行输出用于解析进度
       '--progress',             // 启用进度输出
+      '--print', '%(title)s',   // 提取标题（TikTok/Douyin 等不输出 [info] Title）
+      '--print', '%(duration)s',// 提取时长（秒）
       '--ignore-errors',
       '--retries', '5',
       '--fragment-retries', '5',
@@ -92,14 +94,23 @@ function download(url, taskId, onProgress, quality = null) {
 
     const proc = spawn('yt-dlp', args, { stdio: ['pipe', 'pipe', 'pipe'] });
 
+    let printLineCount = 0;
     proc.stdout.on('data', (data) => {
       const lines = data.toString().split('\n');
       for (const line of lines) {
-        // 解析标题
+        if (!line.trim()) continue;
+        // --print 输出：第1行是标题，第2行是时长(秒)
+        printLineCount++;
+        if (printLineCount === 1 && !title) {
+          title = line.trim();
+        } else if (printLineCount === 2 && duration === 0) {
+          const durNum = parseFloat(line.trim());
+          if (!isNaN(durNum)) duration = Math.round(durNum);
+        }
+        // 兜底：解析旧格式 [info] Title: ...
         const titleMatch = line.match(/^\[info\] Title: (.+)$/);
         if (titleMatch) title = titleMatch[1];
-
-        // 解析时长
+        // 兜底：解析旧格式时长 [info] Duration: hh:mm:ss
         const durationMatch = line.match(/^\[info\] Duration: (\d+):(\d+):(\d+)/);
         if (durationMatch) {
           duration = parseInt(durationMatch[1]) * 3600 + parseInt(durationMatch[2]) * 60 + parseInt(durationMatch[3]);
