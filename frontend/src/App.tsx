@@ -191,6 +191,7 @@ export default function App() {
   const [pendingQuality, setPendingQuality] = useState('')
   const [batchUrls, setBatchUrls] = useState('')
   const [batchQuality, setBatchQuality] = useState('') // 批量画质偏好
+  const [batchId, setBatchId] = useState<string | null>(null) // 当前批量任务 ID
 
   // Auth state
   const [showAuthModal, setShowAuthModal] = useState(false)
@@ -468,58 +469,6 @@ export default function App() {
     desktop: { label: t('saveToDesktop'), icon: HardDrive, desc: '' },
     documents: { label: 'Documents', icon: FolderOpen, desc: 'Save到DocumentsFile夹' },
   }
-
-  // 批量Download：AutoProcess下一个（Completed或Failed都继续）
-  useEffect(() => {
-    if ((task?.status === 'completed' || task?.status === 'error') && batchMode && batchQueue.length > 0) {
-      // Update当前任务状态
-      setBatchQueue(prev => prev.map((item, idx) => 
-        idx === batchIndex ? { ...item, status: task.status } : item
-      ))
-      
-      // Completed后从Link框删除已Process的Link
-      if (task?.status === 'completed') {
-        setBatchUrls(prev => {
-          const lines = prev.split('\n').filter(u => u.trim())
-          lines.shift()
-          return lines.join('\n')
-        })
-      }
-      
-      const currentIdx = batchIndex
-      const nextIdx = currentIdx + 1
-      if (nextIdx < batchQueue.length) {
-        const nextUrl = batchQueue[nextIdx].url
-        
-        setTimeout(() => {
-          setBatchIndex(nextIdx)
-          setLoading(true)
-          setUrl(nextUrl)
-          autoDownloaded.current = false  // 重置AutoDownloadMark
-          showDownloadComplete(`start-${Date.now()}`, nextUrl, false).catch(console.error)
-          axios.post(`${API}/download`, {
-            url: nextUrl, platform: detectPlatform(nextUrl) || 'auto',
-            needAsr: selected.has('asr'), options: [...selected], quality, asrLanguage,
-          }, { timeout: 180000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} }).then(r => {
-            setTask(r.data.data)
-          }).catch((e) => {
-            console.error('[batch] DownloadFailed:', e.message)
-            showDownloadComplete(`error-${Date.now()}`, 'Download Failed', true).catch(console.error)
-            setTask({ 
-              taskId: `error-${Date.now()}`, 
-              status: 'error', 
-              progress: 0, 
-              error: e.response?.data?.message || e.message || t('errorDefault'),
-              createdAt: Date.now()
-            })
-          }).finally(() => setLoading(false))
-        }, 3000)
-      } else {
-        // 所有任务Completed - Keep队列Show结果
-        setLoading(false)
-      }
-    }
-  }, [task?.status, batchMode])
 
   // Poll task status
   useEffect(() => {
@@ -852,26 +801,55 @@ export default function App() {
   }
 
   const doBatchDownload = async (urls: string[]) => {
-    // 检查GuestDownloadTimes限制
-    if (!isVip && remainingDownloads === 0) {
-      setShowUpgradePopup(true)
-      return
-    }
-    setBatchQueue(urls.map(u => ({ url: u, status: 'pending', progress: 0 })))
-    setBatchIndex(0)
+    if (!isVip) { setShowUpgradePopup(true); return }
+
+    const cleanUrls = urls.map(u => u.replace(/^\d+\.\s*/, '').trim()).filter(u => u)
+    setBatchQueue(cleanUrls.map(u => ({ url: u, status: 'pending', progress: 0 })))
     setLoading(true); setError('')
-    autoDownloaded.current = false  // 重置AutoDownloadMark
+
     try {
-      const detectedFirst = detectPlatform(urls[0])
-      const r = await axios.post(`${API}/download`, {
-        url: urls[0], platform: detectedFirst || 'auto',
-        needAsr: selected.has('asr'), options: [...selected], quality: batchQuality || quality, asrLanguage
-      }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} })
-      setTask(r.data.data)
+      const r = await axios.post(`${API}/download/batch`, {
+        urls: cleanUrls,
+        quality: batchQuality || quality,
+        options: [...selected],
+        needAsr: selected.has('asr'),
+        asrLanguage,
+      }, { timeout: 30000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} })
+
+      const { batchId: bid, tasks } = r.data.data
+      setBatchId(bid)
+      setBatchQueue(tasks.map((t: any) => ({ url: t.url, status: t.status, progress: 0 })))
+
+      // 后台轮询批量状态
+      pollBatchStatus(bid)
     } catch (e: any) {
-      setError(getErrorMessage(e.code === 'ECONNABORTED' ? 'timeout' : (e.response?.data?.message || e.message || t('errorDefault'))))
+      setError(getErrorMessage(e.response?.data?.message || e.message || t('errorDefault')))
       setLoading(false)
     }
+  }
+
+  const pollBatchStatus = (bid: string) => {
+    const timer = setInterval(async () => {
+      try {
+        const r = await axios.get(`${API}/download/batch/${bid}`, {
+          headers: authToken ? { Authorization: `Bearer ${authToken}` } : {}
+        })
+        const { status, tasks: batchTasks } = r.data.data
+        setBatchQueue(batchTasks.map((t: any) => ({
+          url: t.url,
+          status: t.status,
+          progress: 0,
+          title: t.title || '',
+          downloadUrl: t.downloadUrl || '',
+        })))
+        if (status === 'completed') {
+          clearInterval(timer)
+          setBatchId(null)
+          setLoading(false)
+          fetchHistory()
+        }
+      } catch { /* ignore */ }
+    }, 2000)
   }
 
   const doSingleDownload = async () => {
@@ -1464,43 +1442,37 @@ export default function App() {
               </div>
             )}
 
-            {/* 批量进度Prompt */}
-            {/* Batch progress indicator */}
-            {/* {t('batchProgress')} */}
+            {/* 批量进度 */}
             {batchMode && batchQueue.length > 0 && (
               <div className={`mb-3 rounded-xl border overflow-hidden ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-light-surface border-light-border'}`}>
                 <div className={`px-4 py-2 border-b flex justify-between items-center ${isDark ? 'border-slate-700/60' : 'border-light-border'}`}>
                   <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-light-textSecondary'}`}>
-                    {t('batchQueue')}: {batchQueue.length} {t('items')}
+                    📋 批量下载 · {batchQueue.filter(i => i.status !== 'pending').length}/{batchQueue.length}
                   </p>
-                  {loading && <span className="text-xs text-orange-400">{t('batchProcessing')} {batchIndex + 1}/{batchQueue.length}</span>}
+                  {batchId && <span className="text-[10px] text-emerald-400">✅ 可关闭页面，后台处理中</span>}
                 </div>
-                <div className="max-h-40 overflow-y-auto">
+                <div className="max-h-52 overflow-y-auto">
                   {batchQueue.map((item, idx) => {
-                    let statusIcon = <span className="text-xs text-slate-500">⏳</span>
-                    let statusClass = ''
-                    
-                    if (item.status === 'completed') {
-                      statusIcon = <span className="text-xs text-emerald-400">✓</span>
-                      statusClass = 'opacity-50'
+                    let statusIcon: any = <span className="text-xs text-slate-500">⏳</span>
+                    let rowClass = ''
+                    if (item.status === 'completed' || item.status === 'completed') {
+                      statusIcon = <span className="text-xs text-emerald-400">✅</span>
+                      rowClass = 'opacity-60'
                     } else if (item.status === 'error') {
-                      statusIcon = <span className="text-xs text-red-400">✗</span>
-                      statusClass = 'opacity-50'
-                    } else if (idx === batchIndex && loading) {
+                      statusIcon = <span className="text-xs text-red-400">❌</span>
+                      rowClass = 'opacity-60'
+                    } else if (item.status === 'processing') {
                       statusIcon = <Loader2 className="w-3 h-3 text-orange-400 animate-spin" />
-                      statusClass = 'bg-orange-500/10'
+                      rowClass = 'bg-orange-500/10'
                     }
-                    
                     const platform = detectPlatform(item.url)
                     const icon = PLATFORMS.find(p => p.id === platform)?.icon || '🔗'
-                    
+                    const label = item.title || item.url.replace(/^https?:\/\//, '').substring(0, 30)
                     return (
-                      <div key={idx} className={`flex items-center gap-2 px-4 py-2 border-b border-slate-700/20 last:border-0 ${statusClass}`}>
+                      <div key={idx} className={`flex items-center gap-2 px-4 py-2 border-b border-slate-700/20 last:border-0 ${rowClass}`}>
                         <span className="text-xs text-slate-300 w-5">{idx + 1}.</span>
                         <span className="text-sm">{icon}</span>
-                        <span className="text-xs text-slate-300 truncate flex-1" title={item.url}>
-                          {item.url.replace(/^https?:\/\//, '').substring(0, 35)}...
-                        </span>
+                        <span className="text-xs text-slate-300 truncate flex-1" title={label}>{label}</span>
                         {statusIcon}
                       </div>
                     )

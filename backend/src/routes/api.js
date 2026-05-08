@@ -11,6 +11,8 @@ const { downloadLimiter } = require('../middleware/rateLimiter');
 const { USER_TIER, SUBSCRIPTION_STATUS } = require('../config/constants');
 const {
   createDownload,
+  createBatchDownload,
+  getBatchStatus,
   getInfo,
   getStatus,
   getHistory,
@@ -32,6 +34,12 @@ const router = express.Router();
 
 // 创建下载任务（带速率限制）
 router.post('/download', downloadLimiter, auth.optional, createDownload);
+
+// 批量下载（VIP only）
+router.post('/download/batch', auth.required, createBatchDownload);
+
+// 查询批量任务状态
+router.get('/download/batch/:batchId', auth.optional, getBatchStatus);
 
 // 获取视频信息（不下载）
 router.get('/info', getInfo);

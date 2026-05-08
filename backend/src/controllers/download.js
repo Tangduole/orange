@@ -2071,8 +2071,159 @@ async function processWechat(taskId, url, needAsr, options = ['video']) {
   }
 }
 
+// ========== 批量下载 ==========
+
+const batchStore = new Map();
+
+/**
+ * POST /api/download/batch
+ * 一次提交多个链接，后端顺序处理，前端可关闭页面
+ */
+async function createBatchDownload(req, res) {
+  const { urls, quality = '', options = ['video'], needAsr = false, asrLanguage = 'zh' } = req.body || {};
+
+  if (!Array.isArray(urls) || urls.length === 0) {
+    return res.json({ code: 400, message: '请提供至少一个链接' });
+  }
+  if (urls.length > 10) {
+    return res.json({ code: 400, message: '单次最多 10 个链接' });
+  }
+
+  const userDb = require('../userDb');
+  const isVip = req.user ? userDb.isVip(req.user) : false;
+  if (!isVip) {
+    return res.json({ code: 403, message: '批量下载仅限 Pro 会员使用' });
+  }
+  if (req.user && req.user.email_verified !== 1) {
+    return res.json({ code: 403, message: '请先验证邮箱' });
+  }
+
+  const { v4: uuidv4 } = require('uuid');
+  const batchId = uuidv4();
+  const userId = req.user?.id || null;
+  const guestIp = req.user ? null : getClientIp(req);
+  const normalizedOptions = (Array.isArray(options) ? options : [options]).map(o => o === 'asr' || o === 'audio_only' ? 'audio' : o);
+  const { extractUrl } = require('../utils/validator');
+  const { isDouyinUrl } = require('../services/douyin');
+  const { isXUrl } = require('../services/x-download');
+  const { parseWechatExportId } = require('../services/tikhub');
+
+  const tasks = urls.map(rawUrl => {
+    const extracted = extractUrl(rawUrl) || rawUrl.trim();
+    const taskId = uuidv4();
+    const detectedPlatform = detectPlatform(extracted);
+
+    const task = {
+      taskId,
+      url: extracted,
+      platform: detectedPlatform || 'auto',
+      needAsr,
+      targetLang: null,
+      options: normalizedOptions,
+      saveTarget: 'phone',
+      status: 'pending',
+      progress: 0,
+      createdAt: Date.now(),
+      userId,
+      guestIp,
+    };
+    store.save(task);
+    return { taskId, url: extracted, status: 'pending', platform: detectedPlatform };
+  });
+
+  batchStore.set(batchId, { tasks, status: 'processing', progress: 0, userId });
+
+  // 后台顺序处理
+  processBatchQueue(batchId, tasks, { quality, options: normalizedOptions, needAsr, asrLanguage, userId, guestIp, isDouyinUrl, isXUrl, parseWechatExportId });
+
+  res.json({
+    code: 0,
+    data: { batchId, tasks: tasks.map(t => ({ taskId: t.taskId, url: t.url, status: t.status })) }
+  });
+}
+
+async function processBatchQueue(batchId, tasks, opts) {
+  const { quality, options, needAsr, asrLanguage, userId, guestIp, isDouyinUrl, isXUrl, parseWechatExportId } = opts;
+
+  for (let i = 0; i < tasks.length; i++) {
+    const t = tasks[i];
+    t.status = 'processing';
+    batchStore.set(batchId, { ...batchStore.get(batchId), progress: Math.round((i / tasks.length) * 100) });
+
+    await new Promise((resolve) => {
+      const done = () => resolve();
+
+      if (isDouyinUrl(t.url)) {
+        processDouyin(t.taskId, t.url, needAsr, options, quality, asrLanguage, quality, true).catch(err => {
+          store.update(t.taskId, { status: 'error', error: err.message });
+        }).finally(done);
+      } else if (/tiktok\.com|tiktok\.cn/i.test(t.url)) {
+        processTikTok(t.taskId, t.url, needAsr, options, quality).catch(err => {
+          store.update(t.taskId, { status: 'error', error: err.message });
+        }).finally(done);
+      } else if (/youtube\.com|youtu\.be/i.test(t.url)) {
+        processYouTube(t.taskId, t.url, needAsr, options, quality).catch(err => {
+          store.update(t.taskId, { status: 'error', error: err.message });
+        }).finally(done);
+      } else if (/instagram\.com|instagr\.am/i.test(t.url)) {
+        processInstagram(t.taskId, t.url, needAsr, options).catch(err => {
+          store.update(t.taskId, { status: 'error', error: err.message });
+        }).finally(done);
+      } else if (isXUrl(t.url)) {
+        processX(t.taskId, t.url, needAsr, options).catch(err => {
+          store.update(t.taskId, { status: 'error', error: err.message });
+        }).finally(done);
+      } else if (/xiaohongshu\.com|xhslink\.com/i.test(t.url)) {
+        processXiaohongshu(t.taskId, t.url, needAsr, options, quality).catch(err => {
+          store.update(t.taskId, { status: 'error', error: err.message });
+        }).finally(done);
+      } else if (parseWechatExportId(t.url)) {
+        processWechat(t.taskId, t.url, needAsr, options).catch(err => {
+          store.update(t.taskId, { status: 'error', error: err.message });
+        }).finally(done);
+      } else if (/bilibili\.com|b23\.tv/i.test(t.url)) {
+        processDownload(t.taskId, t.url, needAsr, options, quality).catch(err => {
+          store.update(t.taskId, { status: 'error', error: err.message });
+        }).finally(done);
+      } else {
+        processDownload(t.taskId, t.url, needAsr, options, quality).catch(err => {
+          store.update(t.taskId, { status: 'error', error: err.message });
+        }).finally(done);
+      }
+    });
+
+    t.status = 'completed';
+    logger.info(`[batch] ${batchId.substring(0,8)} task ${i+1}/${tasks.length} done: ${t.taskId}`);
+  }
+
+  batchStore.set(batchId, { ...batchStore.get(batchId), status: 'completed', progress: 100 });
+  logger.info(`[batch] ${batchId.substring(0,8)} all tasks completed`);
+}
+
+async function getBatchStatus(req, res) {
+  const { batchId } = req.params;
+  const batch = batchStore.get(batchId);
+  if (!batch) return res.json({ code: 404, message: '批量任务不存在' });
+
+  const taskDetails = batch.tasks.map(t => {
+    const detail = store.get(t.taskId);
+    return {
+      taskId: t.taskId,
+      url: t.url,
+      status: detail?.status || t.status,
+      title: detail?.title || '',
+      downloadUrl: detail?.downloadUrl || '',
+      error: detail?.error || '',
+    };
+  });
+
+  res.json({ code: 0, data: { batchId, status: batch.status, progress: batch.progress, tasks: taskDetails } });
+}
+
 module.exports = {
   createDownload,
+  createBatchDownload,
+  getBatchStatus,
   getInfo,
   getStatus,
   getHistory,
