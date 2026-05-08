@@ -81,7 +81,7 @@ ${transcript.substring(0, 4000)}`;
     const res = await axios.post(`${AI_API_URL}/chat/completions`, {
       model: AI_MODEL,
       messages: [{ role: 'user', content: prompt }],
-      temperature: 0.3,
+      temperature: 0.1,
       max_tokens: 2000,
     }, {
       headers: {
