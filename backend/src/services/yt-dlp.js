@@ -157,13 +157,25 @@ function download(url, taskId, onProgress, quality = null) {
         }
       }
 
-      // 查找实际下载的视频文件
+      // 查找实际下载的视频文件（排除字幕、封面、元数据文件）
       let filePath;
+      const NON_VIDEO_EXT = new Set(['.srt', '.vtt', '.jpg', '.jpeg', '.png', '.webp', '.gif', '.image', '.info.json', '.description']);
       const videoFiles = fs.readdirSync(DOWNLOAD_DIR).filter(
-        f => f.startsWith(taskId) && !f.includes('_thumb') && !f.endsWith('.srt') && !f.endsWith('.vtt')
+        f => f.startsWith(taskId) && !f.includes('_thumb') && !NON_VIDEO_EXT.has(path.extname(f).toLowerCase())
       );
 
       if (videoFiles.length > 0) {
+        // 优先选择视频格式（.mp4 > .mkv > .webm > 其他），然后选最大的文件
+        const VIDEO_PRIORITY = { '.mp4': 1, '.mkv': 2, '.webm': 3, '.mov': 4 };
+        videoFiles.sort((a, b) => {
+          const pa = VIDEO_PRIORITY[path.extname(a).toLowerCase()] || 99;
+          const pb = VIDEO_PRIORITY[path.extname(b).toLowerCase()] || 99;
+          if (pa !== pb) return pa - pb;
+          // 同优先级选大文件
+          try {
+            return fs.statSync(path.join(DOWNLOAD_DIR, b)).size - fs.statSync(path.join(DOWNLOAD_DIR, a)).size;
+          } catch { return 0; }
+        });
         const actualFile = videoFiles[0];
         ext = path.extname(actualFile).slice(1);
         filePath = path.join(DOWNLOAD_DIR, actualFile);
@@ -172,9 +184,10 @@ function download(url, taskId, onProgress, quality = null) {
         return;
       }
 
-      // 查找封面（yt-dlp 可能保存为不同格式）
+      // 查找封面（yt-dlp 可能保存为不同格式，含 .image）
+      const THUMB_EXT = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.image']);
       const thumbnailFiles = fs.readdirSync(DOWNLOAD_DIR).filter(
-        f => f.startsWith(taskId) && (f.endsWith('.jpg') || f.endsWith('.webp') || f.endsWith('.png'))
+        f => f.startsWith(taskId) && THUMB_EXT.has(path.extname(f).toLowerCase())
       );
       if (thumbnailFiles.length > 0) {
         const thumbFile = thumbnailFiles[0];
