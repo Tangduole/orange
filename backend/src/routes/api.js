@@ -7,6 +7,7 @@ const fs = require('fs');
 const path = require('path');
 const auth = require('../auth');
 const logger = require('../utils/logger');
+const store = require('../store');
 const { downloadLimiter } = require('../middleware/rateLimiter');
 const { USER_TIER, SUBSCRIPTION_STATUS } = require('../config/constants');
 const {
@@ -59,6 +60,27 @@ router.delete('/history/all', auth.requireAdminKey, adminClearAllHistory);
 // 系统状态
 router.get('/system/status', auth.requireAdminKey, getSystemStatus);
 router.get('/admin/stats', auth.requireAdminKey, getAdminStats);
+
+// AI 文案提取
+router.post('/copywrite', auth.required, async (req, res) => {
+  try {
+    const { taskId } = req.body;
+    if (!taskId) return res.json({ code: 400, message: '缺少 taskId' });
+
+    const { extractCopywrite } = require('../services/ai-copywrite');
+    const task = store.get(taskId);
+    if (!task) return res.json({ code: 404, message: '任务不存在' });
+
+    const sourceFiles = fs.readdirSync(path.join(__dirname, '../../downloads')).filter(f => f.startsWith(taskId) && (f.endsWith('.mp4') || f.endsWith('.mkv')));
+    if (sourceFiles.length === 0) return res.json({ code: 400, message: '视频文件已过期或不存在' });
+
+    const result = await extractCopywrite(taskId, task.platform || '');
+    res.json({ code: 0, data: result });
+  } catch (e) {
+    logger.error('[copywrite]', e.message);
+    res.json({ code: 500, message: e.message });
+  }
+});
 
 // 健康检查
 router.get('/health', (req, res) => {

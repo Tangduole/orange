@@ -192,6 +192,8 @@ export default function App() {
   const [batchUrls, setBatchUrls] = useState('')
   const [batchQuality, setBatchQuality] = useState('') // 批量画质偏好
   const [batchId, setBatchId] = useState<string | null>(null) // 当前批量任务 ID
+  const [copywritingLoading, setCopywritingLoading] = useState(false)
+  const [copywritingResult, setCopywritingResult] = useState<any>(null)
 
   // Auth state
   const [showAuthModal, setShowAuthModal] = useState(false)
@@ -1753,6 +1755,80 @@ export default function App() {
                   >
                     {t('upgradeVip')}
                   </button>
+                </div>
+              )}
+
+              {/* AI 文案分析 */}
+              {task.status === 'completed' && task.taskId && !task.directLink && (
+                <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl">
+                  {!copywritingResult || copywritingResult.taskId !== task.taskId ? (
+                    <button
+                      onClick={async () => {
+                        setCopywritingLoading(true);
+                        try {
+                          const r = await axios.post(`${API}/copywrite`, { taskId: task.taskId }, {
+                            headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+                            timeout: 120000,
+                          });
+                          if (r.data.code === 0) {
+                            setCopywritingResult({ taskId: task.taskId, ...r.data.data });
+                          } else {
+                            setError(r.data.message);
+                          }
+                        } catch (e: any) {
+                          setError(e.response?.data?.message || e.message);
+                        } finally {
+                          setCopywritingLoading(false);
+                        }
+                      }}
+                      disabled={copywritingLoading}
+                      className="w-full flex items-center justify-center gap-2 py-2 text-sm text-purple-300 hover:text-purple-200 transition-colors"
+                    >
+                      {copywritingLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>🤖</span>}
+                      {copywritingLoading ? 'AI 分析中...' : '🤖 AI 文案提取'}
+                    </button>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs text-purple-300 font-medium">🤖 AI 电商文案</span>
+                        <button onClick={() => setCopywritingResult(null)} className="text-xs text-slate-300 hover:text-red-400"><X className="w-3 h-3" /></button>
+                      </div>
+                      {copywritingResult.analysis?.productName && (
+                        <p className="text-xs text-slate-300">📦 <span className="text-white">{copywritingResult.analysis.productName}</span></p>
+                      )}
+                      {copywritingResult.analysis?.sellingPoints?.length > 0 && (
+                        <div>
+                          <p className="text-[10px] text-slate-400 mb-1">💡 卖点</p>
+                          <ul className="text-xs text-slate-300 space-y-0.5">
+                            {copywritingResult.analysis.sellingPoints.map((sp: string, i: number) => (
+                              <li key={i} className="flex gap-1"><span className="text-purple-400">•</span> {sp}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {copywritingResult.analysis?.copyScript && (
+                        <div>
+                          <p className="text-[10px] text-slate-400 mb-1">📝 带货脚本</p>
+                          <p className="text-xs text-slate-300 bg-slate-900/80 p-2 rounded-lg whitespace-pre-wrap max-h-32 overflow-y-auto">
+                            {copywritingResult.analysis.copyScript}
+                          </p>
+                          <button
+                            onClick={() => clip(copywritingResult.analysis.copyScript, 'copywrite')}
+                            className="mt-1 text-[10px] text-purple-400 hover:text-purple-300"
+                          >
+                            {copied === 'copywrite' ? '✓ 已复制' : '📋 复制脚本'}
+                          </button>
+                        </div>
+                      )}
+                      {copywritingResult.analysis?.tags?.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {copywritingResult.analysis.tags.map((t: string, i: number) => (
+                            <span key={i} className="text-[10px] px-1.5 py-0.5 bg-purple-500/20 text-purple-300 rounded-full">#{t}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
 
