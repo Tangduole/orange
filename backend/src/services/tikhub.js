@@ -902,9 +902,13 @@ async function parseInstagram(url) {
   if (!videoUrl) throw new Error('No video URL found');
 
   // 提取封面
-  let thumbnailUrl = '';
-  const images = post.image_versions2?.candidates || post.carousel_media?.[0]?.image_versions2?.candidates || [];
-  if (images.length > 0) thumbnailUrl = images[0].url;
+  let thumbnailUrl = post.thumbnail_url || '';
+  if (!thumbnailUrl) {
+    const images = post.image_versions2?.candidates || post.image_versions?.additional_items?.first_frame
+      || post.carousel_media?.[0]?.image_versions2?.candidates || [];
+    if (images.length > 0) thumbnailUrl = images[0].url;
+    else if (images.url) thumbnailUrl = images.url;
+  }
 
   return {
     title: (post.caption?.text || post.code || 'Instagram Video').substring(0, 200),
