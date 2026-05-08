@@ -881,25 +881,38 @@ async function parseInstagram(url) {
 
   let response;
   try {
+    // 使用 v2 fetch_post_info（支持 shortcode 和完整 URL）
     response = await tikhubRequest(
-      '/api/v1/instagram/v1/fetch_post_by_url?post_url=' + encodeURIComponent(url),
+      '/api/v1/instagram/v2/fetch_post_info?code_or_url=' + encodeURIComponent(url),
       API_KEY_INSTAGRAM
     );
   } catch (e) {
     throw new Error(`Instagram 解析失败：${e.message}`);
   }
 
-  const data = response.data || response;
-  const videoUrl = data.video_url;
+  // v2 响应结构: { data: { data: { ... } } }
+  const post = response?.data?.data || response?.data || response;
+  if (!post) throw new Error('Instagram 解析失败：无数据返回');
+
+  // 提取视频 URL（优先 video_versions，其次 video_url）
+  const videoVersions = post.video_versions || [];
+  const videoUrl = videoVersions.length > 0
+    ? videoVersions[0].url
+    : post.video_url;
   if (!videoUrl) throw new Error('No video URL found');
 
+  // 提取封面
+  let thumbnailUrl = '';
+  const images = post.image_versions2?.candidates || post.carousel_media?.[0]?.image_versions2?.candidates || [];
+  if (images.length > 0) thumbnailUrl = images[0].url;
+
   return {
-    title: (data.caption?.text || data.shortcode || 'Instagram Video').substring(0, 200),
+    title: (post.caption?.text || post.code || 'Instagram Video').substring(0, 200),
     videoUrl,
-    width: data.dimensions?.width || 0,
-    height: data.dimensions?.height || 0,
-    duration: data.video_duration || 0,
-    thumbnailUrl: data.display_url || data.thumbnail_src || ''
+    width: videoVersions[0]?.width || post.dimensions?.width || 0,
+    height: videoVersions[0]?.height || post.dimensions?.height || 0,
+    duration: post.video_duration || 0,
+    thumbnailUrl: thumbnailUrl || post.display_url || post.thumbnail_src || ''
   };
 }
 
