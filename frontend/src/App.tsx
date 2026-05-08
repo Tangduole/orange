@@ -1318,6 +1318,19 @@ export default function App() {
                     💡 所有链接统一画质，单个视频不支持时自动降级
                   </p>
                 </div>
+
+                {/* ASR 耗时提示 */}
+                {selected.has('asr') && (
+                  <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-2">
+                    <span className="text-sm mt-0.5">⏳</span>
+                    <div>
+                      <p className="text-xs text-amber-300 font-medium">语音转文字耗时提醒</p>
+                      <p className="text-[11px] text-amber-200/70 mt-0.5">
+                        每个视频约 15-30 秒，请耐心等待不要关闭页面
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
