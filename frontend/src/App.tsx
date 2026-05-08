@@ -1131,10 +1131,10 @@ export default function App() {
                 {t('singleDownload')}
               </button>
               <button
-                onClick={() => setBatchMode(true)}
+                onClick={() => !isVip ? setShowUpgradePopup(true) : setBatchMode(true)}
                 className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${batchMode ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : isDark ? 'bg-slate-700/30 text-slate-300 border border-transparent' : 'bg-light-input text-light-textSecondary border border-transparent'}`}
               >
-                {t('batchDownload')}
+                {t('batchDownload')}{!isVip && <span className="ml-1 text-orange-400">🔒</span>}
               </button>
             </div>
 
@@ -1183,15 +1183,65 @@ export default function App() {
             )}
 
             {/* Batch Download模式 */}
-            {batchMode && (
+            {batchMode && !isVip && (
+              <div className="mb-5 p-4 bg-orange-500/10 border border-orange-500/30 rounded-2xl text-center">
+                <p className="text-sm text-orange-300 mb-2">🔒 {t('batchDownload')} {t('vipOnly')}</p>
+                <p className="text-xs text-slate-300 mb-3">{t('batchVipHint')}</p>
+                <button
+                  onClick={() => setShowUpgradePopup(true)}
+                  className="px-4 py-2 bg-orange-500 text-white text-sm font-medium rounded-xl hover:bg-orange-600 transition"
+                >
+                  {t('upgradeToPro')}
+                </button>
+              </div>
+            )}
+            {batchMode && isVip && (
               <div className="mb-5">
-                {/* Paste区域 */}
-                <textarea
-                  value={batchUrls}
-                  onChange={(e) => handleBatchChange(e.target.value)}
-                  placeholder={t('pasteLinksHint') + '\nhttps://v.douyin.com/xxx\nhttps://x.com/yyy'}
-                  className={`w-full h-28 px-4 py-3 border-2 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 text-sm transition-all resize-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white placeholder:text-slate-300' : 'bg-light-surface border-light-border text-light-text placeholder:text-light-textMuted'}`}
-                />
+                <div className="relative">
+                  {/* 一键粘贴按钮 */}
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.readText().then(text => {
+                        const urls = text.match(/https?:\/\/[^\s\n,，、；;）)】"'<>]+/g) || []
+                        if (urls.length > 0) {
+                          const existing = batchUrls.split('\n').filter(u => u.trim()).map(u => u.replace(/^\d+\.\s*/, '').trim())
+                          const merged = [...new Set([...existing, ...urls])].slice(0, 10)
+                          setBatchUrls(merged.map((url, idx) => `${idx + 1}. ${url}`).join('\n'))
+                        }
+                      }).catch(() => {})
+                    }}
+                    className="absolute left-3 top-3 p-2 text-slate-300 hover:text-orange-400 transition-colors"
+                    title="一键粘贴"
+                  >
+                    <Clipboard className="w-5 h-5" />
+                  </button>
+                  {/* 一键清除按钮 */}
+                  {batchUrls.trim() && (
+                    <button
+                      onClick={() => setBatchUrls('')}
+                      className="absolute right-3 top-3 p-2 text-slate-300 hover:text-red-400 transition-colors"
+                      title="一键清除"
+                    >
+                      <Eraser className="w-4 h-4" />
+                    </button>
+                  )}
+                  <textarea
+                    value={batchUrls}
+                    onChange={(e) => handleBatchChange(e.target.value)}
+                    onPaste={(e) => {
+                      const text = e.clipboardData.getData('text')
+                      const urls = text.match(/https?:\/\/[^\s\n,，、；;）)】"'<>]+/g) || []
+                      if (urls.length > 0) {
+                        e.preventDefault()
+                        const existing = batchUrls.split('\n').filter(u => u.trim()).map(u => u.replace(/^\d+\.\s*/, '').trim())
+                        const merged = [...new Set([...existing, ...urls])].slice(0, 10)
+                        setBatchUrls(merged.map((url, idx) => `${idx + 1}. ${url}`).join('\n'))
+                      }
+                    }}
+                    placeholder={t('pasteLinksHint') + '\nhttps://v.douyin.com/xxx\nhttps://x.com/yyy'}
+                    className={`w-full h-28 pl-12 pr-10 py-3 border-2 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 text-sm transition-all resize-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white placeholder:text-slate-300' : 'bg-light-surface border-light-border text-light-text placeholder:text-light-textMuted'}`}
+                  />
+                </div>
                 {/* Link预览列表 - 带数字排序 */}
                 {batchUrls.split('\n').filter(u => u.trim()).length > 0 && (
                   <div className="mt-2 max-h-48 overflow-y-auto space-y-1.5">
