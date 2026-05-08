@@ -29,7 +29,40 @@ if (!fs.existsSync(DOWNLOAD_DIR)) {
  * @param {function} onProgress 进度回调 (percent: number, speed: string, eta: string, downloaded: number, total: number) => void
  * @returns {Promise<{title: string, filePath: string, ext: string, thumbnailUrl: string, duration: number}>}
  */
-function download(url, taskId, onProgress, quality = null) {
+/**
+ * 通过 --dump-json 预获取元数据（标题、时长、封面）
+ * 解决 TikTok/Douyin 等平台不输出 [info] Title 的问题
+ */
+function fetchMetadata(url) {
+  return new Promise((resolve) => {
+    const meta = { title: '', duration: 0, thumbnailUrl: '' };
+    const proc = spawn('yt-dlp', [
+      '--no-warnings', '--dump-json', '--skip-download',
+      '--ignore-errors', '--no-check-certificates',
+      '--socket-timeout', '30',
+      url
+    ], { stdio: ['pipe', 'pipe', 'pipe'] });
+
+    let stdout = '';
+    proc.stdout.on('data', (d) => { stdout += d.toString(); });
+    proc.on('close', () => {
+      try {
+        const info = JSON.parse(stdout.trim().split('\n').pop() || '{}');
+        meta.title = info.title || info.fulltitle || '';
+        meta.duration = Math.round(info.duration || 0);
+        // 优先 origin_cover，其次 thumbnail
+        if (info.thumbnail) meta.thumbnailUrl = info.thumbnail;
+      } catch { /* metadata fetch is best-effort */ }
+      resolve(meta);
+    });
+    proc.on('error', () => resolve(meta));
+  });
+}
+
+async function download(url, taskId, onProgress, quality = null) {
+  // 预获取元数据（TikTok/Douyin 等平台不输出 [info] Title）
+  const meta = await fetchMetadata(url);
+  
   return new Promise((resolve, reject) => {
     const outputTemplate = path.join(DOWNLOAD_DIR, `${taskId}.%(ext)s`);
     const thumbnailPath = path.join(DOWNLOAD_DIR, `${taskId}_thumb.jpg`);
@@ -41,8 +74,6 @@ function download(url, taskId, onProgress, quality = null) {
       '--no-warnings',
       '--newline',              // 每行输出用于解析进度
       '--progress',             // 启用进度输出
-      '--print', '%(title)s',   // 提取标题（TikTok/Douyin 等不输出 [info] Title）
-      '--print', '%(duration)s',// 提取时长（秒）
       '--ignore-errors',
       '--retries', '5',
       '--fragment-retries', '5',
@@ -86,28 +117,18 @@ function download(url, taskId, onProgress, quality = null) {
 
     logger.info(`[yt-dlp] Starting download: ${url} (taskId: ${taskId})`);
 
-    let title = '';
-    let duration = 0;
+    let title = meta.title || '';
+    let duration = meta.duration || 0;
     let ext = 'mp4';
-    let thumbnailUrl = '';
+    let thumbnailUrl = meta.thumbnailUrl || '';
     let stderr = '';
 
     const proc = spawn('yt-dlp', args, { stdio: ['pipe', 'pipe', 'pipe'] });
 
-    let printLineCount = 0;
     proc.stdout.on('data', (data) => {
       const lines = data.toString().split('\n');
       for (const line of lines) {
-        if (!line.trim()) continue;
-        // --print 输出：第1行是标题，第2行是时长(秒)
-        printLineCount++;
-        if (printLineCount === 1 && !title) {
-          title = line.trim();
-        } else if (printLineCount === 2 && duration === 0) {
-          const durNum = parseFloat(line.trim());
-          if (!isNaN(durNum)) duration = Math.round(durNum);
-        }
-        // 兜底：解析旧格式 [info] Title: ...
+        // 兜底：解析 [info] Title: ...（YouTube 等平台输出在 stdout）
         const titleMatch = line.match(/^\[info\] Title: (.+)$/);
         if (titleMatch) title = titleMatch[1];
         // 兜底：解析旧格式时长 [info] Duration: hh:mm:ss
