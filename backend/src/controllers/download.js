@@ -1310,12 +1310,26 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
           options: { videoQuality: 'max', filenameStyle: 'basic', downloadMode: 'auto' }
         });
         if (cobaltResult && !cobaltResult.isPicker) {
+          // Cobalt 不返回标题/时长，通过 yt-dlp --dump-json 补全
+          let metaTitle = 'TikTok Video';
+          let metaDuration = 0;
+          let metaThumb = '';
+          try {
+            const ytdlp = require('../services/yt-dlp');
+            const info = await ytdlp.getInfo(url);
+            if (info?.title) metaTitle = info.title;
+            if (info?.duration) metaDuration = Math.round(info.duration);
+            if (info?.thumbnail) metaThumb = info.thumbnail;
+            logger.info(`[task] ${taskId} TikTok metadata from yt-dlp: title="${metaTitle.substring(0,40)}...", dur=${metaDuration}s`);
+          } catch (e) {
+            logger.warn(`[task] ${taskId} TikTok metadata fetch failed: ${e.message}`);
+          }
           update = {
             status: TASK_STATUS.COMPLETED,
             progress: 100,
-            title: cobaltResult.title || 'TikTok Video',
-            duration: cobaltResult.duration || 0,
-            thumbnailUrl: cobaltResult.thumbnailUrl || '',
+            title: cobaltResult.title || metaTitle,
+            duration: cobaltResult.duration || metaDuration,
+            thumbnailUrl: cobaltResult.thumbnailUrl || metaThumb,
             downloadUrl: cobaltResult.downloadUrl,
             filePath: cobaltResult.filePath,
             ext: cobaltResult.ext || 'mp4',
