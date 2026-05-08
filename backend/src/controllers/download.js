@@ -1336,7 +1336,7 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
             width: cobaltResult.width || 0,
             height: cobaltResult.height || 0,
             quality: cobaltResult.quality || 'hd',
-            copyText: cobaltResult.title || ''
+            copyText: cobaltResult.title || metaTitle || ''
           };
           fileRefManager.addRef(`${taskId}.${cobaltResult.ext || 'mp4'}`);
           usedCobalt = true;
