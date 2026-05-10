@@ -442,21 +442,7 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
     });
 
     // ASR 转文字
-    let text = await asr.transcribe(audioPath, asrLanguage);
-
-    // AI 同音纠错（自动，失败不影响 ASR）
-    if (text && text.length >= 10) {
-      try {
-        const { correctAsrText } = require('../services/summarize');
-        const corrected = await correctAsrText(text, asrLanguage);
-        if (corrected && corrected !== text) {
-          text = corrected;
-          logger.info('[ASR] Text corrected (homophone fix)');
-        }
-      } catch (e) {
-        logger.warn('[ASR] Correction failed:', e.message);
-      }
-    }
+    const text = await asr.transcribe(audioPath, asrLanguage);
 
     // AI 摘要（自动生成，失败不影响 ASR）
     let summary = null;
