@@ -24,6 +24,9 @@ function getCachedInfo(key, fetcher) {
  * 对 size===0 的画质条目,根据分辨率和时长估算文件大小
  */
 function fillQualitySizes(qualities, durationSec) {
+  // 统一估算：不再混用 API 实际大小和估算大小
+  // 避免 720p H.264 实际体积 > 2K H.265 实际体积 导致的混乱
+  // 始终基于分辨率估算，确保高画质 → 大容量，用户体验一致
   if (!durationSec || !qualities?.length) return qualities;
   const estimateBitrate = (h) => {
     if (h >= 2160) return 20000000;
@@ -33,9 +36,8 @@ function fillQualitySizes(qualities, durationSec) {
     return 1500000;
   };
   return qualities.map(q => {
-    if (q.size && q.size > 0) return q;
     const h = q.height || Math.min(q.width || 720, 720);
-    return { ...q, size: Math.round(durationSec * estimateBitrate(h) / 8) };
+    return { ...q, size: Math.round(durationSec * estimateBitrate(h) / 8), sizeEstimated: true };
   });
 }
 

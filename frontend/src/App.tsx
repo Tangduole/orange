@@ -184,7 +184,7 @@ export default function App() {
   const [batchMode, setBatchMode] = useState(false)
   const [quality, setQuality] = useState('')
   const [asrLanguage, setAsrLanguage] = useState('zh')
-  const [availableQualities, setAvailableQualities] = useState<Array<{qualityLabel?: string, sizeLabel?: string, quality: string, format: string, width: number, height: number, hasVideo: boolean, hasAudio: boolean, size?: number}>>([])
+  const [availableQualities, setAvailableQualities] = useState<Array<{qualityLabel?: string, quality: string, format: string, width: number, height: number, hasVideo: boolean, hasAudio: boolean, size?: number}>>([])
   const [qualitiesLoading, setQualitiesLoading] = useState(false)
   const [autoQuality, setAutoQuality] = useState<{label: string, height: number} | null>(null) // 自动选择的画质
     const [pendingUrl, setPendingUrl] = useState('')
@@ -724,7 +724,7 @@ export default function App() {
             else if (q.height >= 1440) label = '2K'
             else if (q.height >= 1080) label = '1080p'
             else if (q.height >= 720) label = '720p'
-            return { ...q, qualityLabel: label, sizeLabel: formatFileSize(q.size) }
+            return { ...q, qualityLabel: label }
           })
           .sort((a: any, b: any) => b.height - a.height);
         setAvailableQualities(qualities)
@@ -1368,7 +1368,6 @@ export default function App() {
                       const isHighQuality = shortEdge > 720
                       const canSelect = isVip || !isHighQuality
                       const qualityLabel = (q as any).qualityLabel || q.quality || `${shortEdge}p`
-                      const sizeLabel = (q as any).sizeLabel || ''
                       const isSelected = pendingQuality === `height<=${shortEdge}`
                       return (
                         <button
@@ -1388,7 +1387,6 @@ export default function App() {
                         >
                           <span>🎬</span>
                           <span>{qualityLabel}</span>
-                          {sizeLabel && sizeLabel !== '0 B' && <span className="text-[10px] opacity-60">{sizeLabel}</span>}
                           {isHighQuality && !isVip && <span className="text-[10px]">⭐</span>}
                         </button>
                       )
