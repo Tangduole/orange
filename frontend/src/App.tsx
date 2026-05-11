@@ -987,7 +987,7 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen ${isDark ? 'bg-dark-bg text-white' : 'bg-light-bg text-light-text'}`}>
+    <div className={`min-h-screen ${isDark ? 'bg-gradient-to-b from-orange-950/20 via-slate-950 to-slate-950 text-white' : 'bg-light-bg text-light-text'}`}>
       {/* 横屏保护遮罩 - PWA兜底 */}
       <div id="rotation-guard" className="fixed inset-0 z-[9999] bg-slate-900 hidden flex-col items-center justify-center gap-4">
         <div className="text-5xl">📱</div>
@@ -1014,7 +1014,8 @@ export default function App() {
             </div>
             <div className="text-left">
               <h1 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-light-text'}`}>{t('appName')}</h1>
-              <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-light-textSecondary'}`}>{t('appDesc')}</p>
+              <p className={`text-xs font-medium tracking-wide ${isDark ? 'text-orange-400/80' : 'text-orange-600'}`}>全平台视频 · 去水印 · 高清下载</p>
+              <p className={`text-[11px] mt-0.5 ${isDark ? 'text-orange-400/60' : 'text-orange-500'}`}>已处理 100,000+ 视频</p>
             </div>
             <div className="ml-auto flex items-center gap-2">
               {/* Theme切换 */}
@@ -1504,17 +1505,28 @@ export default function App() {
             <div className="mb-5">
               {/* Idle: Download Button with quality context */}
               {!task && (
-                <button
-                  onClick={handleSubmit}
-                  disabled={loading}
-                  className="w-full max-w-md mx-auto py-4 rounded-2xl font-bold text-white text-base bg-orange-500 hover:bg-orange-600 active:bg-orange-700 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-orange-500/25 active:scale-[0.98]"
-                >
-                  {loading ? (
-                    <><Loader2 className="w-5 h-5 animate-spin" />{batchMode ? `${t('processing')} ${batchIndex + 1}/${batchQueue.length}...` : t('processing')}</>
-                  ) : (
-                    <><Zap className="w-5 h-5" />{autoQuality ? `${t('startDownload')} (${autoQuality.label})` : t('startDownload')}</>
-                  )}
-                </button>
+                <div className="space-y-2">
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleSubmit}
+                      disabled={loading}
+                      className="flex-1 py-3.5 rounded-2xl font-bold text-white text-sm bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-orange-500/25 active:scale-[0.98]"
+                    >
+                      {loading ? (
+                        <><Loader2 className="w-4 h-4 animate-spin" />{batchMode ? `${t('processing')} ${batchIndex + 1}/${batchQueue.length}...` : t('processing')}</>
+                      ) : (
+                        <><Zap className="w-4 h-4" />{autoQuality ? `${t('startDownload')} (${autoQuality.label})` : t('startDownload')}</>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setShowUpgradePopup(true)}
+                      className="flex-1 py-3.5 rounded-2xl font-bold text-sm bg-slate-700/50 border border-slate-600/50 hover:bg-slate-700 hover:border-orange-500/40 transition-all flex items-center justify-center gap-1.5 text-slate-300"
+                    >
+                      <span className="text-xs">🔒</span> Pro 无限下载
+                    </button>
+                  </div>
+                  <p className="text-center text-[11px] text-slate-500">免费用户每天 3 次下载</p>
+                </div>
               )}
 
               {/* Task Progress / Completion - replaces button area */}
@@ -1938,6 +1950,43 @@ export default function App() {
               <span className="flex items-center gap-1"><span className="text-orange-400 font-bold">3</span> {t('step3Download')}</span>
             </div>
           </div>
+
+          {/* Pricing Card - 免费用户可见 */}
+          {!isVip && (
+            <div className="mt-5 bg-slate-800/40 backdrop-blur-sm rounded-2xl p-4 border border-slate-700/50">
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="bg-slate-700/30 rounded-xl p-3 text-center">
+                  <p className="text-sm font-bold text-slate-300 mb-2">🆓 免费版</p>
+                  <div className="space-y-1 text-[11px] text-slate-400">
+                    <p>3 次/天</p>
+                    <p>720p 画质</p>
+                    <p>单链接下载</p>
+                    <p className="text-slate-500">❌ AI 文案</p>
+                  </div>
+                </div>
+                <div className="bg-gradient-to-br from-amber-500/10 to-orange-500/10 rounded-xl p-3 text-center border border-amber-500/20">
+                  <p className="text-sm font-bold text-amber-400 mb-2">⭐ Pro 会员</p>
+                  <div className="space-y-1 text-[11px] text-amber-300/80">
+                    <p>无限下载</p>
+                    <p>4K 超清</p>
+                    <p>批量下载</p>
+                    <p>🤖 AI 文案</p>
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button className="flex-1 py-2 rounded-xl text-xs font-medium bg-slate-700/50 text-slate-400 border border-slate-600/30 cursor-default">
+                  当前方案
+                </button>
+                <button
+                  onClick={() => setShowUpgradePopup(true)}
+                  className="flex-1 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 transition-all"
+                >
+                  升级 ¥9.9/月
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* // Download History - Enhanced */}
           <div className="mt-5">
