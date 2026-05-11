@@ -204,20 +204,15 @@ export default function App() {
   const [showUpgradePopup, setShowUpgradePopup] = useState(false)
   const [showIosGuide, setShowIosGuide] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
-  const [showResetPwd, setShowResetPwd] = useState(() => {
-    const p = new URLSearchParams(window.location.search)
-    return !!(p.get('token') || p.get('reset'))
-  })
-  const resetPwdLocked = useRef(false) // 防止弹窗被意外关闭
+  // 在 useState 前同步读取 URL 参数，避免首次渲染闪现/闪退
+  const _urlResetToken = typeof window !== 'undefined'
+    ? (new URLSearchParams(window.location.search).get('token') || new URLSearchParams(window.location.search).get('reset') || '')
+    : ''
+  const [showResetPwd, setShowResetPwd] = useState(!!_urlResetToken)
+  const resetPwdLocked = useRef(!!_urlResetToken) // 初始化即锁定，防止弹窗被意外关闭
   const [resetEmail, setResetEmail] = useState('')
-  const [resetPwdStep, setResetPwdStep] = useState(() => {
-    const p = new URLSearchParams(window.location.search)
-    return !!(p.get('token') || p.get('reset'))
-  }) // false=Send邮件, true=Settings新Password
-  const [resetPwdToken, setResetPwdToken] = useState(() => {
-    const p = new URLSearchParams(window.location.search)
-    return p.get('token') || p.get('reset') || ''
-  })
+  const [resetPwdStep, setResetPwdStep] = useState(!!_urlResetToken) // false=Send邮件, true=Settings新Password
+  const [resetPwdToken, setResetPwdToken] = useState(_urlResetToken)
   const [resetPwd, setResetPwd] = useState('')
   const [resetPwdMsg, setResetPwdMsg] = useState('')
   const [resetPwdLoading, setResetPwdLoading] = useState(false)
@@ -252,16 +247,12 @@ export default function App() {
     }
   }, [])
 
-  // 检查 URL 是否有重置Password token（初始化状态已在 useState 设好，这里只清理 URL）
+  // 清除 URL 中的重置 token（初始状态已正确，这里只清理 URL 参数）
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const resetToken = params.get('token') || params.get('reset')
     if (resetToken) {
-      // 清除 URL 参数避免刷新循环
       window.history.replaceState({}, '', window.location.pathname)
-      resetPwdLocked.current = true
-    } else {
-      resetPwdLocked.current = false
     }
   }, [])
 
