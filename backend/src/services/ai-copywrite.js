@@ -135,7 +135,21 @@ async function extractCopywrite(taskId, platform = '') {
 
   // 3. ASR 转文字
   logger.info(`[AI] Transcribing audio...`);
-  const transcript = await transcribeAudio(audioPath, 'zh');
+  let transcript = await transcribeAudio(audioPath, 'zh');
+
+  // AI 同音纠错（自动，失败不影响主流程）
+  if (transcript && transcript.length >= 10) {
+    try {
+      const { correctAsrText } = require('./summarize');
+      const corrected = await correctAsrText(transcript, 'zh');
+      if (corrected && corrected !== transcript) {
+        transcript = corrected;
+        logger.info('[AI] Transcript corrected (homophone fix)');
+      }
+    } catch (e) {
+      logger.warn('[AI] Transcription correction failed:', e.message);
+    }
+  }
 
   // 清理音频文件
   try { fs.unlinkSync(audioPath); } catch {}
