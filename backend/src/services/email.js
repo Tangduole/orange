@@ -3,6 +3,7 @@
  */
 
 const { Resend } = require('resend');
+const logger = require('../utils/logger');
 
 // Graceful fallback if RESEND_API_KEY is not configured
 let resend = null;
