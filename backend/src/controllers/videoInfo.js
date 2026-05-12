@@ -38,6 +38,8 @@ function fillQualitySizes(qualities, durationSec) {
     return 2500000;
   };
   return qualities.map(q => {
+    // 如果 API 已返回实际比特率算出的 size，不覆盖
+    if (q.size && q.size > 0) return q;
     const h = (q.width && q.height) ? Math.min(q.width, q.height) : (q.height || Math.min(q.width || 720, 720));
     return { ...q, size: Math.round(durationSec * estimateBitrate(h) / 8), sizeEstimated: true };
   });
