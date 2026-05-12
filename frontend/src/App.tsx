@@ -1514,6 +1514,7 @@ export default function App() {
                       ) : (
                         <><Zap className="w-5 h-5" />{autoQuality ? `${t('startDownload')} (${autoQuality.label})` : t('startDownload')}</>
                       )}
+                  <p className="text-center text-[11px] text-slate-500 mt-1">免费用户每天 3 次下载</p>
                     </button>
               )}
 
