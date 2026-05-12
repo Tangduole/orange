@@ -1313,9 +1313,9 @@ export default function App() {
 
             {/* Social Proof */}
             <div className="mb-5 flex items-center justify-center gap-6 text-xs text-slate-400">
-              <span>🌍 50+ {t('countries')}</span>
-              <span>🎬 100K+ {t('videosDownloaded')}</span>
-              <span>⭐ 4.8/5 {t('rating')}</span>
+              <span>🌍 50+ 个国家</span>
+              <span>🎬 100K+ 视频已下载</span>
+              <span>⭐ 4.8/5 评分</span>
             </div>
 
             {/* Supported Platforms */}
