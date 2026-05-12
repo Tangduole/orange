@@ -987,7 +987,7 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen ${isDark ? 'bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950 text-white' : 'bg-light-bg text-light-text'}`}>
+    <div className={`min-h-screen ${isDark ? 'bg-dark-bg text-white' : 'bg-light-bg text-light-text'}`}>
       {/* 横屏保护遮罩 - PWA兜底 */}
       <div id="rotation-guard" className="fixed inset-0 z-[9999] bg-slate-900 hidden flex-col items-center justify-center gap-4">
         <div className="text-5xl">📱</div>
