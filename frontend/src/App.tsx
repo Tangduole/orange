@@ -1102,7 +1102,7 @@ export default function App() {
           </div>
           <div className="flex items-center justify-center gap-6 text-xs text-slate-400 mt-2">
             <span>🌍 50+ 个国家</span>
-            <span>🎬 100K+ 视频已下载</span>
+            <span>🎬 100K+ 视频</span>
             <span>⭐ 4.8/5 评分</span>
           </div>
         </header>
