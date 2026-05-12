@@ -987,7 +987,7 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen ${isDark ? 'bg-gradient-to-b from-orange-950/5 via-slate-950 to-slate-950 text-white' : 'bg-light-bg text-light-text'}`}>
+    <div className={`min-h-screen ${isDark ? 'bg-dark-bg text-white' : 'bg-light-bg text-light-text'}`}>
       {/* 横屏保护遮罩 - PWA兜底 */}
       <div id="rotation-guard" className="fixed inset-0 z-[9999] bg-slate-900 hidden flex-col items-center justify-center gap-4">
         <div className="text-5xl">📱</div>
@@ -1014,7 +1014,7 @@ export default function App() {
             </div>
             <div className="text-left">
               <h1 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-light-text'}`}>{t('appName')}</h1>
-              <p className={`text-xs font-medium tracking-wide ${isDark ? 'text-orange/80' : 'text-orange-600'}`}>全平台视频 · 去水印 · 高清下载</p>
+              <p className={`text-xs font-medium tracking-wide ${isDark ? 'text-orange/80' : 'text-orange-600'}`}>去水印 · 高清下载 · AI 文案</p>
               <p className={`text-[11px] mt-0.5 ${isDark ? 'text-orange/60' : 'text-orange-500'}`}>已处理 100,000+ 视频</p>
             </div>
             <div className="ml-auto flex items-center gap-2">
