@@ -1007,9 +1007,9 @@ export default function App() {
 
       <div className="relative">
         {/* Header */}
-        <header className="max-w-2xl mx-auto px-6 pt-20 pb-10 text-center">
+        <header className="max-w-2xl mx-auto px-6 pt-12 sm:pt-20 pb-6 sm:pb-10 text-center">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-500 to-orange-400 flex items-center justify-center shadow-lg shadow-orange/25 flex-shrink-0 overflow-hidden">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-orange-500 to-orange-400 flex items-center justify-center shadow-lg shadow-orange/25 flex-shrink-0 overflow-hidden">
               <span className="text-3xl leading-none">🍊</span>
             </div>
             <div className="text-left">
@@ -1100,7 +1100,7 @@ export default function App() {
               )}
             </div>
           </div>
-          <div className="flex items-center justify-center gap-6 text-xs text-slate-400 mt-2">
+          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-6 text-[11px] sm:text-xs text-slate-400 mt-2">
             <span>🌍 50+ 个国家</span>
             <span>🎬 100K+ 视频</span>
             <span>⭐ 4.8/5 评分</span>
@@ -1108,8 +1108,8 @@ export default function App() {
         </header>
 
         {/* Main Card */}
-        <main className="max-w-xl mx-auto px-6 pb-10">
-          <div className={`rounded-3xl p-6 shadow-xl ${isDark ? 'bg-dark-surface' : 'bg-light-surface'}`}>
+        <main className="max-w-xl mx-auto px-4 sm:px-6 pb-10">
+          <div className={`rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl ${isDark ? 'bg-dark-surface' : 'bg-light-surface'}`}>
 
             {/* 单G/批量 Tab */}
             <div className="flex gap-2 mb-5">
@@ -1148,7 +1148,7 @@ export default function App() {
                     onChange={(e) => handleUrlChange(e.target.value)}
                     onPaste={handleSinglePaste}
                     placeholder={t('pasteUrlPlaceholder')}
-                    className={`w-full pl-16 pr-12 py-5 border-2 rounded-3xl focus:ring-4 focus:ring-orange/10 focus:border-orange/70 outline-none text-base transition-all placeholder:text-slate-300 ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-light-surface border-light-border text-light-text'}`}
+                    className={`w-full pl-14 sm:pl-16 pr-10 sm:pr-12 py-4 sm:py-5 border-2 rounded-2xl sm:rounded-3xl focus:ring-4 focus:ring-orange/10 focus:border-orange/70 outline-none text-base transition-all placeholder:text-slate-300 ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-light-surface border-light-border text-light-text'}`}
                   />
                   {/* Clear按钮 - 最右边 */}
                   {url && !loading && (
@@ -1508,7 +1508,7 @@ export default function App() {
                   <button
                     onClick={handleSubmit}
                     disabled={loading}
-                    className="w-full py-4 rounded-2xl font-bold text-white text-base bg-gradient-to-r from-orange to-orange-light hover:from-orange-600 hover:to-amber-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-orange/25 active:scale-[0.98]"
+                    className="w-full py-3.5 sm:py-4 rounded-2xl font-bold text-white text-sm sm:text-base bg-gradient-to-r from-orange to-orange-light hover:from-orange-600 hover:to-amber-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-orange/25 active:scale-[0.98]"
                   >
                     {loading ? (
                       <><Loader2 className="w-5 h-5 animate-spin" />{batchMode ? `${t('processing')} ${batchIndex + 1}/${batchQueue.length}...` : t('processing')}</>
