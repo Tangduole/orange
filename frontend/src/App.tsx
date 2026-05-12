@@ -1007,7 +1007,7 @@ export default function App() {
 
       <div className="relative">
         {/* Header */}
-        <header className="max-w-2xl sm:max-w-3xl lg:max-w-4xl mx-auto px-6 pt-12 sm:pt-14 pb-6 sm:pb-8 text-center">
+        <header className="max-w-2xl mx-auto px-6 pt-20 pb-10 text-center">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-500 to-orange-400 flex items-center justify-center shadow-lg shadow-orange/25 flex-shrink-0 overflow-hidden">
               <span className="text-3xl leading-none">🍊</span>
@@ -1105,7 +1105,7 @@ export default function App() {
         </header>
 
         {/* Main Card */}
-        <main className="max-w-2xl sm:max-w-3xl lg:max-w-4xl mx-auto px-6 pb-10">
+        <main className="max-w-xl mx-auto px-6 pb-10">
           <div className={`rounded-3xl p-6 shadow-xl ${isDark ? 'bg-dark-surface' : 'bg-light-surface'}`}>
 
             {/* 单G/批量 Tab */}
