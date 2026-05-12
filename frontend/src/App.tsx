@@ -2016,7 +2016,7 @@ export default function App() {
                       <input type="checkbox" checked={selectedTasks.has(item.taskId)} onChange={() => { const s = new Set(selectedTasks); selectedTasks.has(item.taskId) ? s.delete(item.taskId) : s.add(item.taskId); setSelectedTasks(s) }} className="w-5 h-5 rounded border-slate-600 shrink-0" />
                       {item.thumbnailUrl ? <button onClick={() => openSavedFile(item)} className="relative shrink-0 group"><img src={`${BASE_URL}${item.thumbnailUrl}`} alt="" className="w-14 h-10 object-cover rounded-lg" /><div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 transition"><Play className="w-5 h-5 text-white" /></div></button> : <div className="w-14 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0"><Video className="w-5 h-5 text-slate-500" /></div>}
                       <div className="flex-1 min-w-0">
-<p className={`text-sm text-slate-500 font-medium truncate`}>{item.title || t('untitled')}</p>
+<p className={`text-sm text-slate-500 font-medium whitespace-nowrap overflow-hidden ${(item.title || '').length > 20 ? 'animate-marquee' : 'truncate'}`}>{item.title || t('untitled')}</p>
                         <div className="flex items-center gap-2 mt-0.5">
                           {item.platform && <span className="text-xs text-orange bg-orange/10 px-1.5 py-0.5 rounded">{getPlatformLabel(item.platform)}</span>}
                           {item.height && <span className={`text-xs px-1.5 py-0.5 rounded ${item.height >= 720 ? 'text-yellow-400 bg-yellow-500/10' : 'text-emerald-400 bg-emerald-500/10'}`}>🎬 {item.height}p {item.height >= 720 ? '⭐' : '✓'}</span>}
