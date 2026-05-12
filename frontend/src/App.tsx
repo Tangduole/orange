@@ -1014,8 +1014,8 @@ export default function App() {
             </div>
             <div className="text-left">
               <h1 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-light-text'}`}>{t('appName')}</h1>
-              <p className={`text-xs font-medium tracking-wide ${isDark ? 'text-orange-400/80' : 'text-orange-600'}`}>去水印 · 高清下载 · AI 文案</p>
-              <p className={`text-[11px] mt-0.5 ${isDark ? 'text-orange-400/60' : 'text-orange-500'}`}>50+ 国家 · 100K+ 视频 · 4.8 评分</p>
+              <p className={`text-xs font-medium tracking-wide ${isDark ? 'text-orange-400/80' : 'text-orange-600'}`}>全平台视频 · 去水印 · 高清下载</p>
+              <p className={`text-[11px] mt-0.5 ${isDark ? 'text-orange-400/60' : 'text-orange-500'}`}>已处理 100,000+ 视频</p>
             </div>
             <div className="ml-auto flex items-center gap-2">
               {/* Theme切换 */}
@@ -1311,6 +1311,13 @@ export default function App() {
                 )}
               </div>
             )}
+
+            {/* Social Proof */}
+            <div className="mb-5 flex items-center justify-center gap-6 text-xs text-slate-400">
+              <span>🌍 50+ {t('countries')}</span>
+              <span>🎬 100K+ {t('videosDownloaded')}</span>
+              <span>⭐ 4.8/5 {t('rating')}</span>
+            </div>
 
             {/* Supported Platforms */}
             <div className="mb-5">
