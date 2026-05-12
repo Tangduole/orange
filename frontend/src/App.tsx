@@ -1101,6 +1101,11 @@ export default function App() {
             </div>
           </div>
           <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-light-textSecondary'}`}>{t('tagline')}</p>
+          <div className="flex items-center justify-center gap-6 text-[11px] text-slate-400 mt-1">
+            <span>🌍 50+ 个国家</span>
+            <span>🎬 100K+ 视频已下载</span>
+            <span>⭐ 4.8/5 评分</span>
+          </div>
         </header>
 
         {/* Main Card */}
@@ -1495,11 +1500,7 @@ export default function App() {
                 ⭐ {t('unlimited')}
               </div>
             )}
-{/* Social Proof */}
-            <div className="mb-3 flex items-center justify-center gap-6 text-xs text-slate-400">              <span>🌍 50+ 个国家</span>
-              <span>🎬 100K+ 视频已下载</span>
-              <span>⭐ 4.8/5 评分</span>
-            </div>
+
             {/* Unified Action Area: 按钮 + 进度融合 */}
             <div className="mb-5">
               {/* Idle: Download Button with quality context */}
