@@ -10,16 +10,18 @@
 /**
  * 画质高度 → 人类可读标签
  */
-function heightToLabel(h) {
-  if (!h || h <= 0) return 'Unknown';
-  if (h >= 4320) return '8K';
-  if (h >= 2160) return '4K';
-  if (h >= 1440) return '2K';
-  if (h >= 1080) return '1080p';
-  if (h >= 720) return '720p';
-  if (h >= 480) return '480p';
-  if (h >= 360) return '360p';
-  return `${h}p`;
+function heightToLabel(w, h) {
+  // 用短边判断分辨率,避免竖屏视频(1080x1920)被误判为2K
+  const res = (w && h) ? Math.min(w, h) : ((typeof h === number && h > 0) ? h : (w || h || 0));
+  if (!res || res <= 0) return 'Unknown';
+  if (res >= 4320) return '8K';
+  if (res >= 2160) return '4K';
+  if (res >= 1440) return '2K';
+  if (res >= 1080) return '1080p';
+  if (res >= 720) return '720p';
+  if (res >= 480) return '480p';
+  if (res >= 360) return '360p';
+  return `${res}p`;
 }
 
 /**
