@@ -12,7 +12,7 @@
  */
 function heightToLabel(w, h) {
   // 用短边判断分辨率,避免竖屏视频(1080x1920)被误判为2K
-  const res = (w && h) ? Math.min(w, h) : ((typeof h === number && h > 0) ? h : (w || h || 0));
+  const res = (w && h) ? Math.min(w, h) : ((typeof h === 'number' && h > 0) ? h : (w || h || 0));
   if (!res || res <= 0) return 'Unknown';
   if (res >= 4320) return '8K';
   if (res >= 2160) return '4K';
