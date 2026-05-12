@@ -1379,6 +1379,7 @@ export default function App() {
                         >
                           <span>🎬</span>
                           <span>{qualityLabel}</span>
+                          {q.size && q.size > 0 && <span className="text-[10px] opacity-60 ml-0.5">~{(q.size / 1048576).toFixed(1)}MB</span>}
                           {isHighQuality && !isVip && <span className="text-[10px]">⭐</span>}
                         </button>
                       )
