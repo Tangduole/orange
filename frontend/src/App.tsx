@@ -1997,7 +1997,7 @@ export default function App() {
             {showHistory && (
               <div className={`mt-2 rounded-2xl border overflow-hidden ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-light-surface border-light-border'}`}>
                 <div className={`flex gap-2 p-3 border-b items-center ${isDark ? 'border-slate-700/30' : 'border-light-border'}`}>
-                  {filteredHistory.length > 0 && <input type="checkbox" checked={selectedTasks.size === filteredHistory.length} onChange={toggleSelectAll} className={`w-5 h-5 rounded ${isDark ? 'border-slate-600' : 'border-light-border'}`} />}
+                  {filteredHistory.length > 0 && <input type="checkbox" checked={selectedTasks.size === filteredHistory.length} onChange={toggleSelectAll} className={`w-3.5 h-3.5 rounded-full ${isDark ? 'border-slate-600' : 'border-light-border'}`} />}
                   {selectedTasks.size > 0 && <button onClick={deleteSelected} className="px-3 py-1.5 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg text-xs">{t('clearAll')} ({selectedTasks.size})</button>}
                   <div className="flex-1 relative">
                     <input type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} placeholder={t('searchPlaceholder')} className={`w-full pl-8 pr-3 py-2 border rounded-lg text-sm placeholder:text-slate-300 ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`} />
@@ -2013,7 +2013,7 @@ export default function App() {
                 <div className="max-h-60 overflow-y-auto">
                   {filteredHistory.length === 0 ? <p className="py-8 text-center text-sm text-slate-500">{historySearch || historyFilter !== 'all' ? t('noResults') : t('noHistory')}</p> : filteredHistory.map(item => (
                     <div key={item.taskId} className={`flex items-center gap-3 px-4 py-3 border-b border-slate-700/20 last:border-0 hover:bg-slate-900/60 transition ${selectedTasks.has(item.taskId) ? 'bg-orange/10' : ''}`}>
-                      <input type="checkbox" checked={selectedTasks.has(item.taskId)} onChange={() => { const s = new Set(selectedTasks); selectedTasks.has(item.taskId) ? s.delete(item.taskId) : s.add(item.taskId); setSelectedTasks(s) }} className="w-5 h-5 rounded border-slate-600 shrink-0" />
+                      <input type="checkbox" checked={selectedTasks.has(item.taskId)} onChange={() => { const s = new Set(selectedTasks); selectedTasks.has(item.taskId) ? s.delete(item.taskId) : s.add(item.taskId); setSelectedTasks(s) }} className="w-3.5 h-3.5 rounded-full border-slate-600 shrink-0" />
                       {item.thumbnailUrl ? <button onClick={() => openSavedFile(item)} className="relative shrink-0 group"><img src={`${BASE_URL}${item.thumbnailUrl}`} alt="" className="w-14 h-10 object-cover rounded-lg" /><div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 transition"><Play className="w-5 h-5 text-white" /></div></button> : <div className="w-14 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0"><Video className="w-5 h-5 text-slate-500" /></div>}
                       <div className="flex-1 min-w-0 overflow-hidden">
 <p className={`text-sm text-slate-500 font-medium whitespace-nowrap ${(item.title || '').length > 20 ? 'animate-marquee' : 'truncate'}`}>{item.title || t('untitled')}</p>
