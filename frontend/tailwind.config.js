@@ -1,34 +1,32 @@
 /** @type {import('tailwindcss').Config} */
 export default {
-  content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+  ],
   darkMode: 'class',
   theme: {
     extend: {
       colors: {
         orange: {
-          DEFAULT: '#F97316',
-          light: '#FB923C',
-          dark: '#EA580C',
-        },
-        cyan: {
-          DEFAULT: '#22D3EE',
-          light: '#67E8F9',
-          dark: '#06B6D4',
+          DEFAULT: '#FF7D00',
+          light: '#FFA347',
+          dark: '#E56E00',
         },
         dark: {
-          bg: '#0f172a',
-          surface: '#1e293b',
-          input: '#334155',
-          border: '#475569',
+          bg: '#121212',
+          surface: '#1E1E1E',
+          input: '#2C2C2C',
+          border: '#3A3A3A',
         },
         light: {
-          bg: '#f8fafc',
-          surface: '#ffffff',
-          input: '#f1f5f9',
-          border: '#e2e8f0',
-          text: '#1e293b',
-          textSecondary: '#475569',
-          textMuted: '#94a3b8',
+          bg: '#FAFAF8',
+          surface: '#FFFFFF',
+          input: '#F0EDE8',
+          border: '#D4D0C8',
+          text: '#1A1A1A',
+          textSecondary: '#4A4A4A',
+          textMuted: '#6B6B6B',
         },
       },
       borderRadius: {
