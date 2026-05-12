@@ -529,7 +529,7 @@ async function getDouyinVideoInfo(url) {
   const presets = [540, 720, 1080, 1920, 1440, 2160, 4320].filter(h => h <= trustedMaxHeight);
   const qualities = presets
     .map(h => ({
-      quality: heightToLabel(h),
+      quality: heightToLabel(Math.round(h*9/16), h),
       format: 'mp4',
       width: Math.round(h * 9 / 16),
       height: h,

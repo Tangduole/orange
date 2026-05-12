@@ -89,7 +89,7 @@ async function getVideoInfo(req, res) {
             .map(v => {
               const h = v.height || 0;
               return {
-                quality: heightToLabel(h),
+                quality: heightToLabel(v.width, h),
                 format: v.extension || 'mp4',
                 width: v.width || 0,
                 height: h,
@@ -123,7 +123,7 @@ async function getVideoInfo(req, res) {
             qualities = ytInfo.formats
               .filter(f => f.vcodec !== 'none' && f.height)
               .map(f => ({
-                quality: heightToLabel(f.height),
+                quality: heightToLabel(f.width, f.height),
                 format: f.ext || 'mp4',
                 width: f.width || 0,
                 height: f.height,

@@ -1381,7 +1381,7 @@ async function getBilibiliQualities(url) {
       const h = v.height || 0;
       if (h > 0 && !seen.has(h)) {
         seen.add(h);
-        qualities.push({ quality: heightToLabel(h), format: 'mp4', width: v.width || 0, height: h, hasVideo: true, hasAudio: true, size: 0 });
+        qualities.push({ quality: heightToLabel(v.width, h), format: 'mp4', width: v.width || 0, height: h, hasVideo: true, hasAudio: true, size: 0 });
       }
     }
     qualities.sort((a, b) => b.height - a.height);
