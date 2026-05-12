@@ -1023,7 +1023,7 @@ export default function App() {
                 className={`p-2 rounded-lg transition ${isDark ? 'text-slate-300 hover:text-yellow-400' : 'text-light-textSecondary hover:text-orange-500'}`}
                 title={isDark ? t('switchToLight') : t('switchToDark')}
               >
-                {isDark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
               </button>
               {/* Language切换 */}
               <div className="relative">
@@ -1095,7 +1095,7 @@ export default function App() {
                 </>
               ) : (
                 <button onClick={() => setShowAuthModal(true)} className={`p-2 rounded-lg transition ${isDark ? 'text-slate-300 hover:text-orange' : 'text-light-textSecondary hover:text-orange-500'}`} title="Login">
-                  <User className="w-4 h-4" />
+                  <User className="w-5 h-5" />
                 </button>
               )}
             </div>
@@ -1157,7 +1157,7 @@ export default function App() {
                       className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-300 hover:text-slate-300 transition"
                       title={t('clearLink')}
                     >
-                      <Eraser className="w-4 h-4" />
+                      <Eraser className="w-5 h-5" />
                     </button>
                   )}
                   {/* Parsing状态指示 */}
@@ -1211,7 +1211,7 @@ export default function App() {
                       className="absolute right-3 top-3 p-2 text-slate-300 hover:text-red-400 transition-colors"
                       title="一键清除"
                     >
-                      <Eraser className="w-4 h-4" />
+                      <Eraser className="w-5 h-5" />
                     </button>
                   )}
                   <textarea
@@ -1419,7 +1419,7 @@ export default function App() {
                   <option value="download">💻 {t('saveToDownloads')}</option>
                   <option value="desktop">🖥️ {t('saveToDesktop')}</option>
                 </select>
-                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 pointer-events-none" />
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 pointer-events-none" />
               </div>
               {saveLocation === 'download' && (
                 <div className="mt-2 p-2.5 bg-slate-700/30 rounded-xl border border-slate-700/60">
@@ -1433,7 +1433,7 @@ export default function App() {
             {/* ErrorPrompt */}
             {error && (
               <div className="mb-4 p-3 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-2">
-                <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
                 <p className="text-red-300 text-sm">{error}</p>
               </div>
             )}
@@ -1504,28 +1504,17 @@ export default function App() {
             <div className="mb-5">
               {/* Idle: Download Button with quality context */}
               {!task && (
-                <div className="space-y-2">
-                  <div className="flex gap-3">
                     <button
                       onClick={handleSubmit}
                       disabled={loading}
-                      className="flex-1 py-3.5 rounded-2xl font-bold text-white text-sm bg-gradient-to-r from-orange to-orange-light hover:from-orange-600 hover:to-amber-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-orange/25 active:scale-[0.98]"
+                      className="w-full py-4 rounded-2xl font-bold text-white text-base bg-gradient-to-r from-orange to-orange-light hover:from-orange-600 hover:to-amber-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-orange/25 active:scale-[0.98]"
                     >
                       {loading ? (
-                        <><Loader2 className="w-4 h-4 animate-spin" />{batchMode ? `${t('processing')} ${batchIndex + 1}/${batchQueue.length}...` : t('processing')}</>
+                        <><Loader2 className="w-5 h-5 animate-spin" />{batchMode ? `${t('processing')} ${batchIndex + 1}/${batchQueue.length}...` : t('processing')}</>
                       ) : (
-                        <><Zap className="w-4 h-4" />{autoQuality ? `${t('startDownload')} (${autoQuality.label})` : t('startDownload')}</>
+                        <><Zap className="w-5 h-5" />{autoQuality ? `${t('startDownload')} (${autoQuality.label})` : t('startDownload')}</>
                       )}
                     </button>
-                    <button
-                      onClick={() => setShowUpgradePopup(true)}
-                      className="flex-1 py-3.5 rounded-2xl font-bold text-sm bg-slate-700/50 border border-slate-600/50 hover:bg-slate-700 hover:border-orange/40 transition-all flex items-center justify-center gap-1.5 text-slate-300"
-                    >
-                      <span className="text-xs">🔒</span> Pro 无限下载
-                    </button>
-                  </div>
-                  <p className="text-center text-[11px] text-slate-500">免费用户每天 3 次下载</p>
-                </div>
               )}
 
               {/* Task Progress / Completion - replaces button area */}
@@ -1534,9 +1523,9 @@ export default function App() {
                   {/* Header: status + close */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      {task.status === 'completed' && <CheckCircle2 className="w-4 h-4 text-emerald-400" />}
-                      {task.status === 'error' && <XCircle className="w-4 h-4 text-red-400" />}
-                      {isWorking(task.status) && <Loader2 className="w-4 h-4 text-orange animate-spin" />}
+                      {task.status === 'completed' && <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
+                      {task.status === 'error' && <XCircle className="w-5 h-5 text-red-400" />}
+                      {isWorking(task.status) && <Loader2 className="w-5 h-5 text-orange animate-spin" />}
                       <span className={`text-xs font-medium ${isDark ? 'text-slate-300' : 'text-light-textSecondary'}`}>{statusLabel(task.status)}</span>
                     </div>
                     <button onClick={async () => {
@@ -1687,7 +1676,7 @@ export default function App() {
                     disabled={downloading}
                     className="w-full mt-2 py-3 rounded-xl text-sm font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                   >
-                    {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                    {downloading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
                     {downloading ? t('downloading') : t('saveToPhotos')}
                   </button>
                 </div>
@@ -1704,7 +1693,7 @@ export default function App() {
                   }}
                   className="w-full py-3.5 rounded-2xl text-sm font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-2"
                 >
-                  <Download className="w-4 h-4" />
+                  <Download className="w-5 h-5" />
                   {t('openVideo')}
                 </button>
               )}
@@ -1786,7 +1775,7 @@ export default function App() {
                       disabled={copywritingLoading}
                       className="w-full flex items-center justify-center gap-2 py-2 text-sm text-purple-300 hover:text-purple-200 transition-colors"
                     >
-                      {copywritingLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>🤖</span>}
+                      {copywritingLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <span>🤖</span>}
                       {copywritingLoading ? 'AI 分析中...' : '🤖 AI 文案提取'}
                     </button>
                   ) : (
@@ -1992,24 +1981,24 @@ export default function App() {
             <button onClick={() => setShowHistory(!showHistory)}
               className={`w-full flex items-center justify-between px-5 py-3 rounded-2xl border text-sm transition ${isDark ? 'bg-slate-900/60 border-slate-700/60 text-slate-300 hover:text-slate-300' : 'bg-light-surface border-light-border text-light-textSecondary hover:text-light-text'}`}>
               <span className="flex items-center gap-2">
-                <Clock className="w-4 h-4" /> {t('downloadHistory')}
+                <Clock className="w-5 h-5" /> {t('downloadHistory')}
                 {history.length > 0 && <span className="bg-orange/20 text-orange px-2 py-0.5 rounded text-xs">{history.length}</span>}
               </span>
               <span className="flex items-center gap-2">
                 {history.length > 0 && showHistory && (
                   <button onClick={(e) => { e.stopPropagation(); clearAllHistory() }} className="text-xs text-red-400 hover:text-red-300 transition">{t('clearAllHistory')}</button>
                 )}
-                {showHistory ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+                {showHistory ? <ChevronDown className="w-5 h-5" /> : <ChevronUp className="w-5 h-5" />}
               </span>
             </button>
             {showHistory && (
               <div className={`mt-2 rounded-2xl border overflow-hidden ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-light-surface border-light-border'}`}>
                 <div className={`flex gap-2 p-3 border-b items-center ${isDark ? 'border-slate-700/30' : 'border-light-border'}`}>
-                  {filteredHistory.length > 0 && <input type="checkbox" checked={selectedTasks.size === filteredHistory.length} onChange={toggleSelectAll} className={`w-4 h-4 rounded ${isDark ? 'border-slate-600' : 'border-light-border'}`} />}
+                  {filteredHistory.length > 0 && <input type="checkbox" checked={selectedTasks.size === filteredHistory.length} onChange={toggleSelectAll} className={`w-5 h-5 rounded ${isDark ? 'border-slate-600' : 'border-light-border'}`} />}
                   {selectedTasks.size > 0 && <button onClick={deleteSelected} className="px-3 py-1.5 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg text-xs">{t('clearAll')} ({selectedTasks.size})</button>}
                   <div className="flex-1 relative">
                     <input type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} placeholder={t('searchPlaceholder')} className={`w-full pl-8 pr-3 py-2 border rounded-lg text-sm placeholder:text-slate-300 ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`} />
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
                   </div>
                   <select value={historyFilter} onChange={(e) => setHistoryFilter(e.target.value as 'all' | 'completed' | 'error' | 'favorites')} className={`px-3 py-2 border rounded-lg text-sm ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`}>
                     <option value="all">{t('filterAll')}</option>
@@ -2021,8 +2010,8 @@ export default function App() {
                 <div className="max-h-60 overflow-y-auto">
                   {filteredHistory.length === 0 ? <p className="py-8 text-center text-sm text-slate-500">{historySearch || historyFilter !== 'all' ? t('noResults') : t('noHistory')}</p> : filteredHistory.map(item => (
                     <div key={item.taskId} className={`flex items-center gap-3 px-4 py-3 border-b border-slate-700/20 last:border-0 hover:bg-slate-900/60 transition ${selectedTasks.has(item.taskId) ? 'bg-orange/10' : ''}`}>
-                      <input type="checkbox" checked={selectedTasks.has(item.taskId)} onChange={() => { const s = new Set(selectedTasks); selectedTasks.has(item.taskId) ? s.delete(item.taskId) : s.add(item.taskId); setSelectedTasks(s) }} className="w-4 h-4 rounded border-slate-600 shrink-0" />
-                      {item.thumbnailUrl ? <button onClick={() => openSavedFile(item)} className="relative shrink-0 group"><img src={`${BASE_URL}${item.thumbnailUrl}`} alt="" className="w-14 h-10 object-cover rounded-lg" /><div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 transition"><Play className="w-4 h-4 text-white" /></div></button> : <div className="w-14 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0"><Video className="w-4 h-4 text-slate-500" /></div>}
+                      <input type="checkbox" checked={selectedTasks.has(item.taskId)} onChange={() => { const s = new Set(selectedTasks); selectedTasks.has(item.taskId) ? s.delete(item.taskId) : s.add(item.taskId); setSelectedTasks(s) }} className="w-5 h-5 rounded border-slate-600 shrink-0" />
+                      {item.thumbnailUrl ? <button onClick={() => openSavedFile(item)} className="relative shrink-0 group"><img src={`${BASE_URL}${item.thumbnailUrl}`} alt="" className="w-14 h-10 object-cover rounded-lg" /><div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 transition"><Play className="w-5 h-5 text-white" /></div></button> : <div className="w-14 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0"><Video className="w-5 h-5 text-slate-500" /></div>}
                       <div className="flex-1 min-w-0">
                         <p className={`text-sm text-slate-500 font-medium whitespace-nowrap ${(item.title || '').length > 20 ? 'animate-marquee' : 'truncate'}`}>{item.title || t('untitled')}</p>
                         <div className="flex items-center gap-2 mt-0.5">
@@ -2031,10 +2020,10 @@ export default function App() {
                           <span className="text-xs text-slate-500">{new Date(item.createdAt).toLocaleString(i18n.language === 'zh-CN' ? 'zh-CN' : i18n.language === 'ja' ? 'ja-JP' : i18n.language === 'ko' ? 'ko-KR' : 'en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       </div>
-                      {item.status === 'error' && <button onClick={() => retryTask(item)} className="p-1.5 text-orange-500 hover:text-orange"><Loader2 className="w-4 h-4" /></button>}
-                      {item.status === 'completed' && <button onClick={() => retryTask(item)} title="Re-download" className="p-1.5 text-slate-500 hover:text-green-400"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg></button>}
-                      <button onClick={() => toggleFavorite(item.taskId)} className={`p-1.5 ${favorites.has(item.taskId) ? 'text-yellow-400' : 'text-slate-500 hover:text-yellow-400'}`}><svg className="w-4 h-4" fill={favorites.has(item.taskId) ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg></button>
-                      <button onClick={() => del(item.taskId)} className="p-1.5 text-slate-500 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
+                      {item.status === 'error' && <button onClick={() => retryTask(item)} className="p-1.5 text-orange-500 hover:text-orange"><Loader2 className="w-5 h-5" /></button>}
+                      {item.status === 'completed' && <button onClick={() => retryTask(item)} title="Re-download" className="p-1.5 text-slate-500 hover:text-green-400"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg></button>}
+                      <button onClick={() => toggleFavorite(item.taskId)} className={`p-1.5 ${favorites.has(item.taskId) ? 'text-yellow-400' : 'text-slate-500 hover:text-yellow-400'}`}><svg className="w-5 h-5" fill={favorites.has(item.taskId) ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg></button>
+                      <button onClick={() => del(item.taskId)} className="p-1.5 text-slate-500 hover:text-red-400"><Trash2 className="w-5 h-5" /></button>
                     </div>
                   ))}
                 </div>
