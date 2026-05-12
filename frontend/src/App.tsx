@@ -1001,8 +1001,8 @@ export default function App() {
       </div>
       {/* 背景光晕 - 橙色Theme */}
       <div className={`fixed inset-0 pointer-events-none ${isDark ? '' : 'opacity-30'}`}>
-        <div className={`absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl ${isDark ? 'bg-cyan/6' : 'bg-orange-200'}`} />
-        <div className={`absolute bottom-0 left-0 w-72 h-72 rounded-full blur-3xl ${isDark ? 'bg-cyan/6' : 'bg-cyan-100'}`} />
+        <div className={`absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl ${isDark ? 'bg-blue-500/10' : 'bg-orange-200'}`} />
+        <div className={`absolute bottom-0 left-0 w-72 h-72 rounded-full blur-3xl ${isDark ? 'bg-blue-500/10' : 'bg-cyan-100'}`} />
       </div>
 
       <div className="relative">
