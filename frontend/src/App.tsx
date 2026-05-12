@@ -1139,7 +1139,7 @@ export default function App() {
                   >
                     <Clipboard className="w-5 h-5" />
                   </button>
-                  <div className="absolute left-12 top-1/2 -translate-y-1/2 text-slate-300">
+                  <div className="absolute left-10 top-1/2 -translate-y-1/2 text-slate-300">
                     <Link2 className="w-5 h-5" />
                   </div>
                   <input
@@ -1148,7 +1148,7 @@ export default function App() {
                     onChange={(e) => handleUrlChange(e.target.value)}
                     onPaste={handleSinglePaste}
                     placeholder={t('pasteUrlPlaceholder')}
-                    className={`w-full pl-12 pr-12 py-5 border-2 rounded-3xl focus:ring-4 focus:ring-orange/10 focus:border-orange/70 outline-none text-base transition-all placeholder:text-slate-300 ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-light-surface border-light-border text-light-text'}`}
+                    className={`w-full pl-16 pr-12 py-5 border-2 rounded-3xl focus:ring-4 focus:ring-orange/10 focus:border-orange/70 outline-none text-base transition-all placeholder:text-slate-300 ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-light-surface border-light-border text-light-text'}`}
                   />
                   {/* Clear按钮 - 最右边 */}
                   {url && !loading && (
