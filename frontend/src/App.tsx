@@ -1311,12 +1311,7 @@ export default function App() {
               </div>
             )}
 
-            {/* Social Proof */}
-            <div className="mb-5 flex items-center justify-center gap-6 text-xs text-slate-400">
-              <span>🌍 50+ 个国家</span>
-              <span>🎬 100K+ 视频已下载</span>
-              <span>⭐ 4.8/5 评分</span>
-            </div>
+            
 
             {/* Supported Platforms */}
             <div className="mb-5">
