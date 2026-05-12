@@ -25,6 +25,8 @@ function getCachedInfo(key, fetcher) {
  */
 function fillQualitySizes(qualities, durationSec) {
   // 统一估算：不再混用 API 实际大小和估算大小
+  // 归一化：毫秒转秒（douyin/tikhub等接口返回毫秒）
+  if (durationSec > 1000) durationSec = Math.round(durationSec / 1000);
   // 避免 720p H.264 实际体积 > 2K H.265 实际体积 导致的混乱
   // 始终基于分辨率估算，确保高画质 → 大容量，用户体验一致
   if (!durationSec || !qualities?.length) return qualities;
