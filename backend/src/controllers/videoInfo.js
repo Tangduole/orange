@@ -31,14 +31,14 @@ function fillQualitySizes(qualities, durationSec) {
   // 始终基于分辨率估算，确保高画质 → 大容量，用户体验一致
   if (!durationSec || !qualities?.length) return qualities;
   const estimateBitrate = (h) => {
-    if (h >= 2160) return 20000000;
-    if (h >= 1440) return 10000000;
-    if (h >= 1080) return 5000000;
-    if (h >= 720) return 2500000;
-    return 1500000;
+    if (h >= 2160) return 40000000;
+    if (h >= 1440) return 20000000;
+    if (h >= 1080) return 8000000;
+    if (h >= 720) return 4000000;
+    return 2500000;
   };
   return qualities.map(q => {
-    const h = q.height || Math.min(q.width || 720, 720);
+    const h = (q.width && q.height) ? Math.min(q.width, q.height) : (q.height || Math.min(q.width || 720, 720));
     return { ...q, size: Math.round(durationSec * estimateBitrate(h) / 8), sizeEstimated: true };
   });
 }
