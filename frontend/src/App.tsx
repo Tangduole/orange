@@ -1502,23 +1502,25 @@ export default function App() {
 
             {/* Unified Action Area: 按钮 + 进度融合 */}
             <div className="mb-5">
-              {/* Idle: Download Button with quality context */}
+              {/* Idle: Download Button */}
               {!task && (
-                    <button
-                      onClick={handleSubmit}
-                      disabled={loading}
-                      className="w-full py-4 rounded-2xl font-bold text-white text-base bg-gradient-to-r from-orange to-orange-light hover:from-orange-600 hover:to-amber-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-orange/25 active:scale-[0.98]"
-                    >
-                      {loading ? (
-                        <><Loader2 className="w-5 h-5 animate-spin" />{batchMode ? `${t('processing')} ${batchIndex + 1}/${batchQueue.length}...` : t('processing')}</>
-                      ) : (
-                        <><Zap className="w-5 h-5" />{autoQuality ? `${t('startDownload')} (${autoQuality.label})` : t('startDownload')}</>
-                      )}
-                  <p className="text-center text-[11px] text-slate-500 mt-1">免费用户每天 3 次下载</p>
-                    </button>
+                <div className="space-y-2">
+                  <button
+                    onClick={handleSubmit}
+                    disabled={loading}
+                    className="w-full py-4 rounded-2xl font-bold text-white text-base bg-gradient-to-r from-orange to-orange-light hover:from-orange-600 hover:to-amber-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-orange/25 active:scale-[0.98]"
+                  >
+                    {loading ? (
+                      <><Loader2 className="w-5 h-5 animate-spin" />{batchMode ? `${t('processing')} ${batchIndex + 1}/${batchQueue.length}...` : t('processing')}</>
+                    ) : (
+                      <><Zap className="w-5 h-5" />{autoQuality ? `${t('startDownload')} (${autoQuality.label})` : t('startDownload')}</>
+                    )}
+                  </button>
+                  <p className="text-center text-[11px] text-slate-500">免费用户每天 3 次下载</p>
+                </div>
               )}
 
-              {/* Task Progress / Completion - replaces button area */}
+{/* Task Progress / Completion - replaces button area */}
               {task && (
                 <div className={`rounded-2xl p-4 border shadow-xl space-y-3 ${isDark ? 'bg-slate-800/60 border-slate-700/60' : 'bg-light-surface border-light-border'}`}>
                   {/* Header: status + close */}
