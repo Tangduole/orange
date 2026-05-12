@@ -987,7 +987,7 @@ export default function App() {
   }
 
   return (
-    <div className={`min-h-screen ${isDark ? 'bg-gradient-to-b from-slate-900 to-slate-800 text-white' : 'bg-light-bg text-light-text'}`}>
+    <div className={`min-h-screen ${isDark ? 'bg-gradient-to-b from-orange-950/5 via-slate-950 to-slate-950 text-white' : 'bg-light-bg text-light-text'}`}>
       {/* 横屏保护遮罩 - PWA兜底 */}
       <div id="rotation-guard" className="fixed inset-0 z-[9999] bg-slate-900 hidden flex-col items-center justify-center gap-4">
         <div className="text-5xl">📱</div>
@@ -1001,15 +1001,15 @@ export default function App() {
       </div>
       {/* 背景光晕 - 橙色Theme */}
       <div className={`fixed inset-0 pointer-events-none ${isDark ? '' : 'opacity-30'}`}>
-        <div className={`absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl ${isDark ? 'bg-cyan/8' : 'bg-orange-200'}`} />
-        <div className={`absolute bottom-0 left-0 w-72 h-72 rounded-full blur-3xl ${isDark ? 'bg-cyan/8' : 'bg-cyan-100'}`} />
+        <div className={`absolute top-0 right-0 w-96 h-96 rounded-full blur-3xl ${isDark ? 'bg-cyan/6' : 'bg-orange-200'}`} />
+        <div className={`absolute bottom-0 left-0 w-72 h-72 rounded-full blur-3xl ${isDark ? 'bg-cyan/6' : 'bg-cyan-100'}`} />
       </div>
 
       <div className="relative">
         {/* Header */}
         <header className="max-w-2xl sm:max-w-3xl lg:max-w-4xl mx-auto px-6 pt-12 sm:pt-14 pb-6 sm:pb-8 text-center">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange to-orange-light flex items-center justify-center shadow-lg shadow-orange/25 flex-shrink-0 overflow-hidden">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange-500 to-orange-400 flex items-center justify-center shadow-lg shadow-orange/25 flex-shrink-0 overflow-hidden">
               <span className="text-3xl leading-none">🍊</span>
             </div>
             <div className="text-left">
