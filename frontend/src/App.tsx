@@ -6,9 +6,6 @@ import SubscriptionPage from './components/SubscriptionPage'
 import ReferralModal from './components/ReferralModal'
 import PWAInstallPrompt from './components/PWAInstallPrompt'
 import { initNotifications, showDownloadComplete } from './utils/notify'
-import QualitySelector from './components/QualitySelector'
-import UpgradeModal from './components/UpgradeModal'
-import HistoryPanel from './components/HistoryPanel'
 import api, { API_BASE } from './api/auth'
 import {
   Download, Link2, CheckCircle2, XCircle, Loader2,
@@ -187,7 +184,7 @@ export default function App() {
   const [batchMode, setBatchMode] = useState(false)
   const [quality, setQuality] = useState('')
   const [asrLanguage, setAsrLanguage] = useState('zh')
-  const [availableQualities, setAvailableQualities] = useState<Array<{qualityLabel?: string, sizeLabel?: string, quality: string, format: string, width: number, height: number, hasVideo: boolean, hasAudio: boolean, size?: number}>>([])
+  const [availableQualities, setAvailableQualities] = useState<Array<{qualityLabel?: string, quality: string, format: string, width: number, height: number, hasVideo: boolean, hasAudio: boolean, size?: number}>>([])
   const [qualitiesLoading, setQualitiesLoading] = useState(false)
   const [autoQuality, setAutoQuality] = useState<{label: string, height: number} | null>(null) // 自动选择的画质
     const [pendingUrl, setPendingUrl] = useState('')
@@ -207,11 +204,15 @@ export default function App() {
   const [showUpgradePopup, setShowUpgradePopup] = useState(false)
   const [showIosGuide, setShowIosGuide] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
-  const [showResetPwd, setShowResetPwd] = useState(false)
-  const resetPwdLocked = useRef(false) // 防止弹窗被意外关闭
+  // 在 useState 前同步读取 URL 参数，避免首次渲染闪现/闪退
+  const _urlResetToken = typeof window !== 'undefined'
+    ? (new URLSearchParams(window.location.search).get('token') || new URLSearchParams(window.location.search).get('reset') || '')
+    : ''
+  const [showResetPwd, setShowResetPwd] = useState(!!_urlResetToken)
+  const resetPwdLocked = useRef(!!_urlResetToken) // 初始化即锁定，防止弹窗被意外关闭
   const [resetEmail, setResetEmail] = useState('')
-  const [resetPwdStep, setResetPwdStep] = useState(false) // false=Send邮件, true=Settings新Password
-  const [resetPwdToken, setResetPwdToken] = useState('')
+  const [resetPwdStep, setResetPwdStep] = useState(!!_urlResetToken) // false=Send邮件, true=Settings新Password
+  const [resetPwdToken, setResetPwdToken] = useState(_urlResetToken)
   const [resetPwd, setResetPwd] = useState('')
   const [resetPwdMsg, setResetPwdMsg] = useState('')
   const [resetPwdLoading, setResetPwdLoading] = useState(false)
@@ -246,23 +247,12 @@ export default function App() {
     }
   }, [])
 
-  // 检查 URL 是否有重置Password token
+  // 清除 URL 中的重置 token（初始状态已正确，这里只清理 URL 参数）
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const resetToken = params.get('token') || params.get('reset')
     if (resetToken) {
-      // 清除 URL 参数（先清掉避免刷新循环）
       window.history.replaceState({}, '', window.location.pathname)
-      // 用 setTimeout 确保状态更新不被批量合并
-      setTimeout(() => {
-        resetPwdLocked.current = true
-        setResetPwdToken(resetToken)
-        setResetPwdStep(true)
-        setShowResetPwd(true)
-      }, 100)
-    } else {
-      // 无 token 时解锁，允许关闭
-      resetPwdLocked.current = false
     }
   }, [])
 
@@ -727,7 +717,7 @@ export default function App() {
             else if (q.height >= 1440) label = '2K'
             else if (q.height >= 1080) label = '1080p'
             else if (q.height >= 720) label = '720p'
-            return { ...q, qualityLabel: label, sizeLabel: formatFileSize(q.size) }
+            return { ...q, qualityLabel: label }
           })
           .sort((a: any, b: any) => b.height - a.height);
         setAvailableQualities(qualities)
@@ -1016,19 +1006,16 @@ export default function App() {
       </div>
 
       <div className="relative">
-        {/* Hero Section */}
-        <div className={`relative ${isDark ? 'bg-gradient-to-b from-orange-950/30 via-slate-950 to-slate-950' : 'bg-gradient-to-b from-orange-50 via-white to-white'}`}>
-          <div className="absolute top-0 right-0 w-64 h-64 bg-orange-500/10 rounded-full blur-3xl" />
-          <div className="absolute bottom-0 left-1/4 w-48 h-48 bg-amber-500/8 rounded-full blur-3xl" />
-          <header className="max-w-2xl mx-auto px-6 pt-20 pb-10 text-center">
-            {/* 顶部栏：Logo + 控件 */}
-            <div className="flex items-center gap-3 mb-5">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center shadow-lg shadow-orange-500/30 flex-shrink-0">
-                <span className="text-2xl">🍊</span>
-              </div>
+        {/* Header */}
+        <header className="max-w-2xl sm:max-w-3xl lg:max-w-4xl mx-auto px-6 pt-12 sm:pt-14 pb-6 sm:pb-8 text-center">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-orange to-orange-light flex items-center justify-center shadow-lg shadow-orange-500/25 flex-shrink-0 overflow-hidden">
+              <span className="text-3xl leading-none">🍊</span>
+            </div>
             <div className="text-left">
               <h1 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-light-text'}`}>{t('appName')}</h1>
-              <p className={`text-xs ${isDark ? 'text-orange-300/80' : 'text-orange-600'}`}>去水印 · 高清下载 · AI 文案</p>
+              <p className={`text-xs font-medium tracking-wide ${isDark ? 'text-orange-400/80' : 'text-orange-600'}`}>全平台视频 · 去水印 · 高清下载</p>
+              <p className={`text-[11px] mt-0.5 ${isDark ? 'text-orange-400/60' : 'text-orange-500'}`}>已处理 100,000+ 视频</p>
             </div>
             <div className="ml-auto flex items-center gap-2">
               {/* Theme切换 */}
@@ -1114,41 +1101,24 @@ export default function App() {
               )}
             </div>
           </div>
-          <div className="flex items-center justify-center gap-6 mb-1">
-            <span className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-stone-600'}`}>🌍 50+ 国家</span>
-            <span className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-stone-600'}`}>🎬 100K+ 视频</span>
-            <span className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-stone-600'}`}>⭐ 4.8 评分</span>
-          </div>
+          <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-light-textSecondary'}`}>{t('tagline')}</p>
         </header>
-        </div>
 
         {/* Main Card */}
-        <main className="max-w-xl mx-auto px-6 pb-10">
-          <div className={`rounded-3xl p-6 shadow-xl ${isDark ? 'bg-slate-800/40 backdrop-blur-sm border border-slate-700/50' : 'bg-light-surface'}`}>
+        <main className="max-w-2xl sm:max-w-3xl lg:max-w-4xl mx-auto px-6 pb-10">
+          <div className={`rounded-2xl p-5 shadow-lg ${isDark ? 'bg-dark-surface' : 'bg-light-surface'}`}>
 
             {/* 单G/批量 Tab */}
             <div className="flex gap-2 mb-5">
               <button
                 onClick={() => { setBatchMode(false); setBatchQuality('') }}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                  !batchMode
-                    ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20'
-                    : isDark
-                      ? 'bg-slate-700/40 text-slate-400 border border-transparent'
-                      : 'bg-stone-100 text-stone-500 border border-transparent'
-                }`}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${!batchMode ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : isDark ? 'bg-slate-700/30 text-slate-300 border border-transparent' : 'bg-light-input text-light-textSecondary border border-transparent'}`}
               >
                 {t('singleDownload')}
               </button>
               <button
                 onClick={() => !isVip ? setShowUpgradePopup(true) : setBatchMode(true)}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                  batchMode
-                    ? 'bg-orange-500 text-white shadow-md shadow-orange-500/20'
-                    : isDark
-                      ? 'bg-slate-700/40 text-slate-400 border border-transparent'
-                      : 'bg-stone-100 text-stone-500 border border-transparent'
-                }`}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${batchMode ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : isDark ? 'bg-slate-700/30 text-slate-300 border border-transparent' : 'bg-light-input text-light-textSecondary border border-transparent'}`}
               >
                 {t('batchDownload')}{!isVip && <span className="ml-1 text-orange-400">🔒</span>}
               </button>
@@ -1175,7 +1145,7 @@ export default function App() {
                     onChange={(e) => handleUrlChange(e.target.value)}
                     onPaste={handleSinglePaste}
                     placeholder={t('pasteUrlPlaceholder')}
-                    className={`w-full pl-12 pr-12 py-5 border-2 rounded-3xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 outline-none text-lg transition-all ${isDark ? 'bg-slate-900/60 border-slate-600/40 text-white placeholder:text-slate-500' : 'bg-light-surface border-light-border text-light-text placeholder:text-stone-400'}`}
+                    className={`w-full pl-24 pr-10 py-3 sm:py-4 border-2 rounded-2xl focus:ring-4 focus:ring-orange-500/15 focus:border-orange-500/70 outline-none text-base transition-all placeholder:text-slate-300 ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-light-surface border-light-border text-light-text'}`}
                   />
                   {/* Clear按钮 - 最右边 */}
                   {url && !loading && (
@@ -1294,7 +1264,7 @@ export default function App() {
 
                 {/* 批量画质偏好 */}
                 <div className="mt-3">
-                  <p className={`text-xs mb-2 font-medium ${isDark ? 'text-slate-400' : 'text-stone-600'}`}>🎬 {t('quality')}</p>
+                  <p className="text-xs text-slate-400 mb-2 font-medium">🎬 {t('quality')}</p>
                   <div className="flex flex-wrap gap-1.5">
                     {BATCH_QUALITY_OPTIONS.map(opt => {
                       const isHigh = opt.height > 720
@@ -1307,16 +1277,12 @@ export default function App() {
                             if (!canSelect) { setShowUpgradePopup(true); return }
                             setBatchQuality(isSelected ? '' : opt.value)
                           }}
-                          className={`flex items-center gap-1.5 px-3 py-2 text-xs rounded-lg transition-all font-medium ${
+                          className={`flex items-center gap-1.5 px-3 py-2 text-xs rounded-lg transition-all ${
                             isSelected
-                              ? 'bg-orange-500 text-white shadow-md'
+                              ? 'bg-orange-500 text-white font-semibold shadow-md'
                               : canSelect
-                                ? isDark
-                                  ? 'bg-slate-700/40 text-slate-300 border border-slate-600/40 hover:border-orange-500/50 hover:text-white'
-                                  : 'bg-white text-stone-600 border border-stone-200 hover:border-orange-400 hover:text-orange-600'
-                                : isDark
-                                  ? 'bg-slate-800/40 text-slate-600 border border-slate-700/40 opacity-40'
-                                  : 'bg-stone-100 text-stone-400 border border-stone-200 opacity-40'
+                                ? 'bg-slate-700/40 text-slate-300 border border-slate-600/40 hover:border-orange-500/50 hover:text-white'
+                                : 'bg-slate-800/40 text-slate-500 border border-slate-700/40 opacity-50'
                           }`}
                         >
                           <span>{opt.icon}</span>
@@ -1346,12 +1312,19 @@ export default function App() {
               </div>
             )}
 
+            {/* Social Proof */}
+            <div className="mb-5 flex items-center justify-center gap-6 text-xs text-slate-400">
+              <span>🌍 50+ {t('countries')}</span>
+              <span>🎬 100K+ {t('videosDownloaded')}</span>
+              <span>⭐ 4.8/5 {t('rating')}</span>
+            </div>
+
             {/* Supported Platforms */}
             <div className="mb-5">
-              <p className={`text-xs mb-2 font-medium ${isDark ? 'text-slate-400' : 'text-stone-600'}`}>{t('supportedPlatforms')}</p>
+              <p className="text-xs text-slate-300 mb-2">{t('supportedPlatforms')}</p>
               <div className="flex flex-wrap gap-1.5">
                 {PLATFORMS.map((p) => (
-                  <span key={p.id} className={`flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg border ${isDark ? 'bg-slate-700/40 text-slate-200 border-slate-600/30' : 'bg-stone-100 text-stone-700 border-stone-200'}`}>
+                  <span key={p.id} className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-700/30 text-slate-300 text-xs rounded-lg">
                     <span>{p.icon}</span>
                     <span>{t(p.labelKey as any) || p.labelFallback}</span>
                   </span>
@@ -1361,20 +1334,15 @@ export default function App() {
 
             {/* 下载内容 */}
             <div className="mb-4">
-              <p className={`text-xs mb-2 font-medium ${isDark ? 'text-slate-400' : 'text-stone-600'}`}>📥 {t('downloadContent')}</p>
+              <p className="text-xs text-slate-400 mb-2 font-medium">📥 {t('downloadContent')}</p>
               <div className="flex flex-wrap gap-1.5">
                 {OPTIONS.map(o => {
                   const Icon = o.icon; const on = selected.has(o.id)
                   const isAsr = o.id === 'asr'
                   return (
                     <button key={o.id} onClick={() => toggle(o.id)}
-                      className={`flex items-center gap-1 px-3 py-2 text-xs rounded-lg border transition-all ${
-                        on
-                          ? 'bg-orange-500/20 text-orange-600 dark:text-orange-300 border-orange-500/40 font-medium'
-                          : isDark
-                            ? 'bg-slate-700/40 text-slate-300 border-slate-600/30 hover:border-slate-500/40'
-                            : 'bg-white text-stone-600 border-stone-200 hover:border-orange-300 hover:text-orange-600'
-                      }`}>
+                      className={`flex items-center gap-1 px-3 py-2 text-xs rounded-lg transition-all
+                        ${on ? 'bg-orange-500/15 text-orange-300 border border-orange-500/30' : 'bg-slate-700/30 text-slate-300 border border-transparent hover:text-slate-300'}`}>
                       <Icon className="w-3.5 h-3.5" />
                       {getOptionLabel(o.labelKey)}
                       {isAsr && on && <span className="text-orange-400"> + 🤖</span>}
@@ -1387,14 +1355,13 @@ export default function App() {
             {/* 画质选择 */}
             {availableQualities.length > 0 && !batchMode && (
               <div className="mb-4">
-                <p className={`text-xs mb-2 font-medium ${isDark ? 'text-slate-400' : 'text-stone-600'}`}>🎬 {t('quality')}</p>
+                <p className="text-xs text-slate-400 mb-2 font-medium">🎬 {t('quality')}</p>
                 <div className="flex flex-wrap gap-1.5">
                     {availableQualities.map((q, idx) => {
                       const shortEdge = qualityShortEdge(q)
                       const isHighQuality = shortEdge > 720
                       const canSelect = isVip || !isHighQuality
                       const qualityLabel = (q as any).qualityLabel || q.quality || `${shortEdge}p`
-                      const sizeLabel = (q as any).sizeLabel || ''
                       const isSelected = pendingQuality === `height<=${shortEdge}`
                       return (
                         <button
@@ -1404,19 +1371,16 @@ export default function App() {
                             setPendingQuality(`height<=${shortEdge}`)
                             setAutoQuality({ label: qualityLabel, height: shortEdge })
                           }}
-                          className={`flex items-center gap-1.5 px-3 py-2 text-xs rounded-lg transition-all font-medium ${
+                          className={`flex items-center gap-1.5 px-3 py-2 text-xs rounded-lg transition-all ${
                             isSelected
-                              ? 'bg-orange-500 text-white shadow-md'
+                              ? 'bg-orange-500 text-white font-semibold shadow-md'
                               : canSelect
-                                ? isDark
-                                  ? 'bg-slate-700/40 text-slate-300 border border-slate-600/40 hover:border-orange-500/50 hover:text-white'
-                                  : 'bg-white text-stone-600 border border-stone-200 hover:border-orange-400 hover:text-orange-600'
-                                : 'bg-slate-800/40 text-slate-600 border border-slate-700/40 opacity-40'
+                                ? 'bg-slate-700/40 text-slate-300 border border-slate-600/40 hover:border-orange-500/50 hover:text-white'
+                                : 'bg-slate-800/40 text-slate-500 border border-slate-700/40 opacity-50'
                           }`}
                         >
                           <span>🎬</span>
                           <span>{qualityLabel}</span>
-                          {sizeLabel && sizeLabel !== '0 B' && <span className="text-[10px] opacity-60">{sizeLabel}</span>}
                           {isHighQuality && !isVip && <span className="text-[10px]">⭐</span>}
                         </button>
                       )
@@ -1541,30 +1505,31 @@ export default function App() {
             <div className="mb-5">
               {/* Idle: Download Button with quality context */}
               {!task && (
-                <button
-                  onClick={handleSubmit}
-                  disabled={loading}
-                  className="w-full py-4 rounded-2xl font-bold text-white text-base bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-orange-500/25 active:scale-[0.98]"
-                >
-                  {loading ? (
-                    <><Loader2 className="w-5 h-5 animate-spin" />{batchMode ? `${t('processing')} ${batchIndex + 1}/${batchQueue.length}...` : t('processing')}</>
-                  ) : (
-                    <><Zap className="w-5 h-5" />{autoQuality ? `${t('startDownload')} (${autoQuality.label})` : t('startDownload')}</>
-                  )}
-                </button>
+                <div className="space-y-2">
+                  <div className="flex gap-3">
+                    <button
+                      onClick={handleSubmit}
+                      disabled={loading}
+                      className="flex-1 py-3.5 rounded-2xl font-bold text-white text-sm bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-orange-500/25 active:scale-[0.98]"
+                    >
+                      {loading ? (
+                        <><Loader2 className="w-4 h-4 animate-spin" />{batchMode ? `${t('processing')} ${batchIndex + 1}/${batchQueue.length}...` : t('processing')}</>
+                      ) : (
+                        <><Zap className="w-4 h-4" />{autoQuality ? `${t('startDownload')} (${autoQuality.label})` : t('startDownload')}</>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => setShowUpgradePopup(true)}
+                      className="flex-1 py-3.5 rounded-2xl font-bold text-sm bg-slate-700/50 border border-slate-600/50 hover:bg-slate-700 hover:border-orange-500/40 transition-all flex items-center justify-center gap-1.5 text-slate-300"
+                    >
+                      <span className="text-xs">🔒</span> Pro 无限下载
+                    </button>
+                  </div>
+                  <p className="text-center text-[11px] text-slate-500">免费用户每天 3 次下载</p>
+                </div>
               )}
 
               {/* Task Progress / Completion - replaces button area */}
-              {/* Free vs Pro CTA */}
-              {!task && !isVip && (
-                <p className={`text-center text-[11px] mt-2 ${isDark ? 'text-slate-500' : 'text-stone-500'}`}>
-                  免费用户每天 {remainingDownloads} 次 ·{' '}
-                  <button onClick={() => setShowSubscription(true)} className="text-orange-500 hover:underline font-semibold">
-                    升级 Pro 无限下载 🚀
-                  </button>
-                </p>
-              )}
-
               {task && (
                 <div className={`rounded-2xl p-4 border shadow-xl space-y-3 ${isDark ? 'bg-slate-800/60 border-slate-700/60' : 'bg-light-surface border-light-border'}`}>
                   {/* Header: status + close */}
@@ -1986,58 +1951,237 @@ export default function App() {
             </div>
           </div>
 
-          {/* Pricing Card — 仅免费用户可见 */}
+          {/* Pricing Card - 免费用户可见 */}
           {!isVip && (
-            <div className={`mt-5 rounded-2xl p-4 border ${isDark ? 'bg-gradient-to-br from-orange-950/30 to-slate-900 border-orange-500/20' : 'bg-gradient-to-br from-orange-50 to-white border-orange-200'}`}>
-              <div className="grid grid-cols-2 gap-4 text-center">
-                <div>
-                  <p className="text-xs text-slate-400 mb-1">🆓 免费版</p>
-                  <div className="space-y-1 text-[10px] text-slate-400">
-                    <p>3次/天</p>
+            <div className="mt-5 bg-slate-800/40 backdrop-blur-sm rounded-2xl p-4 border border-slate-700/50">
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="bg-slate-700/30 rounded-xl p-3 text-center">
+                  <p className="text-sm font-bold text-slate-300 mb-2">🆓 免费版</p>
+                  <div className="space-y-1 text-[11px] text-slate-400">
+                    <p>3 次/天</p>
                     <p>720p 画质</p>
                     <p>单链接下载</p>
-                    <p className="text-slate-600">-</p>
+                    <p className="text-slate-500">❌ AI 文案</p>
                   </div>
                 </div>
-                <div>
-                  <p className="text-xs text-orange-400 mb-1">⭐ Pro 会员</p>
-                  <div className="space-y-1 text-[10px] text-slate-300">
+                <div className="bg-gradient-to-br from-amber-500/10 to-orange-500/10 rounded-xl p-3 text-center border border-amber-500/20">
+                  <p className="text-sm font-bold text-amber-400 mb-2">⭐ Pro 会员</p>
+                  <div className="space-y-1 text-[11px] text-amber-300/80">
                     <p>无限下载</p>
-                    <p>4K 超清画质</p>
-                    <p>批量下载 + 后台</p>
-                    <p>🤖 AI 文案提取</p>
+                    <p>4K 超清</p>
+                    <p>批量下载</p>
+                    <p>🤖 AI 文案</p>
                   </div>
-                  <button onClick={() => setShowSubscription(true)} className="mt-2 w-full py-2 rounded-xl text-xs font-semibold bg-orange-500 text-white hover:bg-orange-600 transition">
-                    升级 Pro  🚀
-                  </button>
                 </div>
+              </div>
+              <div className="flex gap-3">
+                <button className="flex-1 py-2 rounded-xl text-xs font-medium bg-slate-700/50 text-slate-400 border border-slate-600/30 cursor-default">
+                  当前方案
+                </button>
+                <button
+                  onClick={() => setShowUpgradePopup(true)}
+                  className="flex-1 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 transition-all"
+                >
+                  升级 ¥9.9/月
+                </button>
               </div>
             </div>
           )}
 
+          {/* // Download History - Enhanced */}
+          <div className="mt-5">
+            <button onClick={() => setShowHistory(!showHistory)}
+              className={`w-full flex items-center justify-between px-5 py-3 rounded-2xl border text-sm transition ${isDark ? 'bg-slate-900/60 border-slate-700/60 text-slate-300 hover:text-slate-300' : 'bg-light-surface border-light-border text-light-textSecondary hover:text-light-text'}`}>
+              <span className="flex items-center gap-2">
+                <Clock className="w-4 h-4" /> {t('downloadHistory')}
+                {history.length > 0 && <span className="bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded text-xs">{history.length}</span>}
+              </span>
+              <span className="flex items-center gap-2">
+                {history.length > 0 && showHistory && (
+                  <button onClick={(e) => { e.stopPropagation(); clearAllHistory() }} className="text-xs text-red-400 hover:text-red-300 transition">{t('clearAllHistory')}</button>
+                )}
+                {showHistory ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+              </span>
+            </button>
+            {showHistory && (
+              <div className={`mt-2 rounded-2xl border overflow-hidden ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-light-surface border-light-border'}`}>
+                <div className={`flex gap-2 p-3 border-b items-center ${isDark ? 'border-slate-700/30' : 'border-light-border'}`}>
+                  {filteredHistory.length > 0 && <input type="checkbox" checked={selectedTasks.size === filteredHistory.length} onChange={toggleSelectAll} className={`w-4 h-4 rounded ${isDark ? 'border-slate-600' : 'border-light-border'}`} />}
+                  {selectedTasks.size > 0 && <button onClick={deleteSelected} className="px-3 py-1.5 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg text-xs">{t('clearAll')} ({selectedTasks.size})</button>}
+                  <div className="flex-1 relative">
+                    <input type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} placeholder={t('searchPlaceholder')} className={`w-full pl-8 pr-3 py-2 border rounded-lg text-sm placeholder:text-slate-300 ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`} />
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                  </div>
+                  <select value={historyFilter} onChange={(e) => setHistoryFilter(e.target.value as 'all' | 'completed' | 'error' | 'favorites')} className={`px-3 py-2 border rounded-lg text-sm ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`}>
+                    <option value="all">{t('filterAll')}</option>
+                    <option value="completed">{t('filterDone')}</option>
+                    <option value="error">{t('filterFailed')}</option>
+                    <option value="favorites">{t('filterFav')}</option>
+                  </select>
+                </div>
+                <div className="max-h-60 overflow-y-auto">
+                  {filteredHistory.length === 0 ? <p className="py-8 text-center text-sm text-slate-500">{historySearch || historyFilter !== 'all' ? t('noResults') : t('noHistory')}</p> : filteredHistory.map(item => (
+                    <div key={item.taskId} className={`flex items-center gap-3 px-4 py-3 border-b border-slate-700/20 last:border-0 hover:bg-slate-900/60 transition ${selectedTasks.has(item.taskId) ? 'bg-orange-500/10' : ''}`}>
+                      <input type="checkbox" checked={selectedTasks.has(item.taskId)} onChange={() => { const s = new Set(selectedTasks); selectedTasks.has(item.taskId) ? s.delete(item.taskId) : s.add(item.taskId); setSelectedTasks(s) }} className="w-4 h-4 rounded border-slate-600 shrink-0" />
+                      {item.thumbnailUrl ? <button onClick={() => openSavedFile(item)} className="relative shrink-0 group"><img src={`${BASE_URL}${item.thumbnailUrl}`} alt="" className="w-14 h-10 object-cover rounded-lg" /><div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 transition"><Play className="w-4 h-4 text-white" /></div></button> : <div className="w-14 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0"><Video className="w-4 h-4 text-slate-500" /></div>}
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm text-slate-500 font-medium whitespace-nowrap ${(item.title || '').length > 20 ? 'animate-marquee' : 'truncate'}`}>{item.title || t('untitled')}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          {item.platform && <span className="text-xs text-orange-400 bg-orange-500/10 px-1.5 py-0.5 rounded">{getPlatformLabel(item.platform)}</span>}
+                          {item.height && <span className={`text-xs px-1.5 py-0.5 rounded ${item.height >= 720 ? 'text-yellow-400 bg-yellow-500/10' : 'text-emerald-400 bg-emerald-500/10'}`}>🎬 {item.height}p {item.height >= 720 ? '⭐' : '✓'}</span>}
+                          <span className="text-xs text-slate-500">{new Date(item.createdAt).toLocaleString(i18n.language === 'zh-CN' ? 'zh-CN' : i18n.language === 'ja' ? 'ja-JP' : i18n.language === 'ko' ? 'ko-KR' : 'en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                      </div>
+                      {item.status === 'error' && <button onClick={() => retryTask(item)} className="p-1.5 text-orange-500 hover:text-orange-400"><Loader2 className="w-4 h-4" /></button>}
+                      {item.status === 'completed' && <button onClick={() => retryTask(item)} title="Re-download" className="p-1.5 text-slate-500 hover:text-green-400"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg></button>}
+                      <button onClick={() => toggleFavorite(item.taskId)} className={`p-1.5 ${favorites.has(item.taskId) ? 'text-yellow-400' : 'text-slate-500 hover:text-yellow-400'}`}><svg className="w-4 h-4" fill={favorites.has(item.taskId) ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg></button>
+                      <button onClick={() => del(item.taskId)} className="p-1.5 text-slate-500 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </main>
 
-          </main>
-          <HistoryPanel
-          showHistory={showHistory}
-          onToggle={() => setShowHistory(!showHistory)}
-          history={history}
-          onClearAll={clearAllHistory}
-          onDelete={(id) => del(id)}
-          onRetry={retryTask}
-          onDownloadTask={openSavedFile}
-          isDark={isDark}
-          t={t}
-          getApiBase={() => API.replace('/api', '')}
-        />
+        {showDupConfirm && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-slate-700">
+              <h3 className="text-lg font-bold text-white mb-2">{t("alreadyInHistory")}</h3>
+              <p className="text-sm text-slate-300 mb-4">{t("downloadAgain")}</p>
+              <p className="text-xs text-slate-300 mb-4 truncate">{dupUrl}</p>
+              <div className="flex gap-3">
+                <button onClick={() => { setShowDupConfirm(false); setPendingDownload(null) }} className="flex-1 py-2 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition">{t("cancel")}</button>
+                <button onClick={() => { setShowDupConfirm(false); if (pendingDownload) pendingDownload() }} className="flex-1 py-2 px-4 rounded-xl bg-orange-500 text-white hover:bg-orange-600 transition">{t("downloadAgain")}</button>
+              </div>
+            </div>
+          </div>
+        )}
 
-          {/* Upgrade Popup */}
-        <UpgradeModal
-          isOpen={showUpgradePopup}
-          onClose={() => setShowUpgradePopup(false)}
-          onUpgrade={() => { setShowUpgradePopup(false); setShowSubscription(true); }}
-          isDark={isDark}
-          t={t}
-        />
+        {/* Footer */}
+        <footer className={`text-center py-8 text-xs ${isDark ? 'text-slate-500' : 'text-light-textMuted'}`}>
+          <p>{t('footerText')}</p>
+        </footer>
+        <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} onSuccess={handleAuthSuccess} onForgotPassword={() => { setShowAuthModal(false); setShowResetPwd(true); }} />
+        {authToken && <ReferralModal token={authToken} isOpen={showReferral} onClose={() => setShowReferral(false)} />}
+
+        {/* Upgrade Popup */}
+        {showUpgradePopup && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-800 rounded-2xl w-full max-w-sm p-6 border border-orange-500/30 shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-500 to-amber-500" />
+              <button onClick={() => setShowUpgradePopup(false)} className="absolute top-3 right-3 text-slate-400 hover:text-white">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+              <div className="text-center mb-5">
+                <p className="text-4xl mb-2">⚡</p>
+                <h3 className="text-xl font-bold text-white">{t('dailyLimitReached')}</h3>
+                <p className="text-slate-400 text-sm mt-2">{t('upgradeForUnlimited')}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 mb-5">
+                <div className="p-3 bg-slate-700/30 rounded-xl text-center">
+                  <p className="text-slate-400 text-xs">{t('free')}</p>
+                  <p className="text-lg font-bold text-white">3/{t('dailyShort')}</p>
+                </div>
+                <div className="p-3 bg-orange-500/10 border border-orange-500/30 rounded-xl text-center">
+                  <p className="text-orange-400 text-xs">⭐ Pro</p>
+                  <p className="text-lg font-bold text-orange-400">{t('unlimited')}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => { setShowUpgradePopup(false); setShowSubscription(true) }}
+                className="w-full py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-orange-500/25"
+              >
+                {t('upgradeToPro')} →
+              </button>
+              <p className="text-center text-xs text-slate-500 mt-3">{t('startFrom')} $2.99/{t('monthly')}</p>
+            </div>
+          </div>
+        )}
+
+        {/* iOS Save to Photos Guide */}
+        {showIosGuide && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-800 rounded-2xl w-full max-w-xs p-6 border border-slate-700 shadow-2xl">
+              <button onClick={() => setShowIosGuide(false)} className="absolute top-3 right-3 text-slate-400 hover:text-white">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+              <div className="text-center mb-4">
+                <p className="text-4xl mb-3">📱</p>
+                <h3 className="text-lg font-bold text-white mb-2">{t('iosGuideTitle')}</h3>
+              </div>
+              <div className="space-y-3 text-sm text-slate-300">
+                <div className="flex items-start gap-3">
+                  <span className="text-orange-400 font-bold">1</span>
+                  <p>{t('iosGuideStep1')}</p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="text-orange-400 font-bold">2</span>
+                  <p>{t('iosGuideStep2')}</p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="text-orange-400 font-bold">3</span>
+                  <p>{t('iosGuideStep3')}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowIosGuide(false)}
+                className="w-full mt-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-xl transition"
+              >
+                {t('gotIt')}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 忘记Password弹窗 */}
+        {showResetPwd && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-800 rounded-2xl w-full max-w-xs border border-slate-700 shadow-2xl">
+              {/* Header */}
+              <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-700">
+                <button onClick={() => !resetPwdLocked.current && setShowResetPwd(false)} className={`text-slate-300 hover:text-white transition ${resetPwdLocked.current ? 'opacity-30 cursor-not-allowed' : ''}`}>
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
+                </button>
+                <h3 className="text-base font-bold text-white">🔑 {t('changePassword')}</h3>
+              </div>
+              {/* Content */}
+              <div className="p-4">
+                {!resetPwdStep ? (
+                  <>
+                    <p className="text-xs text-slate-300 mb-3">{t('enterEmailForReset')}</p>
+                    <input
+                      type="email"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      placeholder="your@email.com"
+                      className="w-full px-3 py-2.5 bg-slate-900/60 border border-slate-600/50 rounded-lg text-white text-sm outline-none focus:border-orange-500/70 mb-3"
+                    />
+                    {resetPwdMsg && <p className={`text-xs mb-3 ${resetPwdMsg.includes('Failed') ? 'text-red-400' : 'text-green-400'}`}>{resetPwdMsg}</p>}
+                    <button onClick={handleForgotPassword} disabled={resetPwdLoading} className="w-full py-2.5 rounded-lg bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 transition disabled:opacity-50">
+                      {resetPwdLoading ? t('sending') : t('sendResetLinkBtn')}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs text-slate-300 mb-3">{t('setNewPassword')}</p>
+                    <input
+                      type="password"
+                      value={resetPwd}
+                      onChange={(e) => setResetPwd(e.target.value)}
+                      placeholder={t('newPassword')}
+                      className="w-full px-3 py-2.5 bg-slate-900/60 border border-slate-600/50 rounded-lg text-white text-sm outline-none focus:border-orange-500/70 mb-3"
+                    />
+                    {resetPwdMsg && <p className={`text-xs mb-3 ${resetPwdMsg.includes('Failed') || resetPwdMsg.includes('无效') ? 'text-red-400' : 'text-green-400'}`}>{resetPwdMsg}</p>}
+                    <button onClick={handleResetPassword} disabled={resetPwdLoading} className="w-full py-2.5 rounded-lg bg-orange-500 text-white text-sm font-medium hover:bg-orange-600 transition disabled:opacity-50">
+                      {resetPwdLoading ? t('resetting') : t('confirmReset')}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
         <PWAInstallPrompt />
       </div>
     </div>
