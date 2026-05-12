@@ -1141,7 +1141,7 @@ async function getDouyinQualities(url) {
         height: h,
         hasVideo: true,
         hasAudio: false,
-        size: estimateSize(playAddr265.bit_rate || 0)
+        size: estimateSize((playAddr265.bit_rate || 0) * 2)
       });
     }
   }
