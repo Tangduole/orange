@@ -148,7 +148,23 @@ async function getVideoInfo(req, res) {
 
       return res.json({
         code: 0,
+        // HEAD请求获取真实文件大小
+        for (const q of qualities) {
+          if (q._playUrl) {
+            try {
+              const { downloadFile } = require("../services/tikhub");
+              const realSize = await downloadFile(q._playUrl, null, null, {}, { headOnly: true });
+              if (realSize && realSize > 0) {
+                q.size = realSize;
+                q.sizeEstimated = false;
+                delete q._playUrl;
+              }
+            } catch (e) {}
+          }
+        }
         data: { title, thumbnail, duration, platform: 'youtube', qualities: fillQualitySizes(qualities, duration) }
+        // 清理内部字段
+        for (const q of qualities) delete q._playUrl;
       });
     }
 
@@ -207,7 +223,23 @@ async function getVideoInfo(req, res) {
 
         return res.json({
           code: 0,
+        // HEAD请求获取真实文件大小
+        for (const q of qualities) {
+          if (q._playUrl) {
+            try {
+              const { downloadFile } = require("../services/tikhub");
+              const realSize = await downloadFile(q._playUrl, null, null, {}, { headOnly: true });
+              if (realSize && realSize > 0) {
+                q.size = realSize;
+                q.sizeEstimated = false;
+                delete q._playUrl;
+              }
+            } catch (e) {}
+          }
+        }
           data: { title, thumbnail, duration, platform: 'douyin', qualities: fillQualitySizes(qualities, duration) }
+        // 清理内部字段
+        for (const q of qualities) delete q._playUrl;
         });
       } catch (e) {
         logger.warn('[video-info] Douyin error:', e.message);
