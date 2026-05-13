@@ -732,6 +732,21 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
  *  - 严格关闭 file stream，避免半写文件残留
  */
 async function downloadFile(url, outputPath, onProgress, headers = {}, opts = {}) {
+  // HEAD-only 模式：只获取文件大小，不下载
+  if (opts.headOnly) {
+    const protocol = (new URL(url)).protocol === "https:" ? require("https") : require("http");
+    return new Promise((resolve, reject) => {
+      const req = protocol.request(url, { method: "HEAD", headers: { "User-Agent": "Mozilla/5.0" }, ...headers }, (res) => {
+        const size = parseInt(res.headers["content-length"], 10) || 0;
+        res.resume();
+        resolve(size);
+      });
+      req.on("error", reject);
+      req.setTimeout(5000, () => { req.destroy(); resolve(0); });
+      req.end();
+    });
+  }
+
   const https = require('https');
   const http = require('http');
   const fs = require('fs');
