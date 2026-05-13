@@ -1156,8 +1156,7 @@ async function getDouyinQualities(url) {
         height: h,
         hasVideo: true,
         hasAudio: false,
-        size: estimateSize((playAddr265.bit_rate || 0) * 2),
-        _playUrl: playAddr265.url_list?.[0] || null
+        size: estimateSize((playAddr265.bit_rate || 0) * 2)
       });
     }
   }
@@ -1179,8 +1178,7 @@ async function getDouyinQualities(url) {
         height: h,
         hasVideo: true,
         hasAudio: true,
-        size: estimateSize(totalBitrate),
-        _playUrl: pa.url_list?.[0] || null
+        size: estimateSize(totalBitrate)
       });
     }
   }
@@ -1199,8 +1197,7 @@ async function getDouyinQualities(url) {
         height: h,
         hasVideo: true,
         hasAudio: true,
-        size: estimateSize(playAddr.bit_rate || 0),
-        _playUrl: playAddr.url_list?.[0] || null
+        size: estimateSize(playAddr.bit_rate || 0)
       });
     }
   }
