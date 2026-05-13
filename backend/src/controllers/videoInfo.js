@@ -152,7 +152,7 @@ async function getVideoInfo(req, res) {
       });
     }
 
-    // For Douyin: TikHub for 1080p+, iesdouyin fallback
+    // For Douyin: iesdouyin first (free), TikHub fallback (paid)
     if (platform === 'douyin') {
       try {
         let qualities = [];
@@ -160,44 +160,40 @@ async function getVideoInfo(req, res) {
         let thumbnail = '';
         let duration = 0;
 
-        // 1. Try TikHub API first
-        let tikhubMaxHeight = 0;
+        // 1. Try iesdouyin first (free, ≤1080p)
+        let douyinMaxHeight = 0;
         try {
-          const { getDouyinQualities } = require('../services/tikhub');
-          const tikhubInfo = await getCachedInfo('douyin-tikhub:' + url, async () => {
-            return await getDouyinQualities(url);
-          }, 'info');
-          if (tikhubInfo.qualities?.length > 0) {
-            qualities = tikhubInfo.qualities;
-            title = tikhubInfo.title || title;
-            thumbnail = tikhubInfo.thumbnail || thumbnail;
-            duration = tikhubInfo.duration || duration;
-            tikhubMaxHeight = Math.max(...tikhubInfo.qualities.map(q => q.height || 0));
-          }
-        } catch (e) {
-          logger.warn('[video-info] Douyin TikHub error:', e.message);
-        }
-
-        // 2. Fallback: iesdouyin (always if TikHub returned suspiciously low quality)
-        if (qualities.length === 0 || tikhubMaxHeight < 1080) {
           const { getDouyinVideoInfo } = require('../services/douyin');
           const douyinInfo = await getCachedInfo('douyin:' + url, async () => {
             return await getDouyinVideoInfo(url);
           }, 'info');
-          const douyinQualities = douyinInfo.qualities || [];
-          const douyinMaxHeight = douyinQualities.length > 0 ? Math.max(...douyinQualities.map(q => q.height || 0)) : 0;
-          // 用画质更高的源
-          if (douyinMaxHeight > tikhubMaxHeight) {
-            qualities = douyinQualities;
+          if (douyinInfo.qualities?.length > 0) {
+            qualities = douyinInfo.qualities;
             title = douyinInfo.title || title;
             thumbnail = douyinInfo.thumbnail || thumbnail;
             duration = douyinInfo.duration || duration;
-            logger.info(`[video-info] Douyin iesdouyin (${douyinMaxHeight}p) overrides TikHub (${tikhubMaxHeight}p)`);
-          } else if (qualities.length === 0) {
-            qualities = douyinQualities;
-            title = douyinInfo.title || title;
-            thumbnail = douyinInfo.thumbnail || thumbnail;
-            duration = douyinInfo.duration || duration;
+            douyinMaxHeight = Math.max(...douyinInfo.qualities.map(q => q.height || 0));
+          }
+        } catch (e) {
+          logger.warn('[video-info] Douyin iesdouyin error:', e.message);
+        }
+
+        // 2. Fallback: TikHub (paid, 2K/4K capable, only if iesdouyin failed)
+        if (qualities.length === 0) {
+          try {
+            const { getDouyinQualities } = require('../services/tikhub');
+            const tikhubInfo = await getCachedInfo('douyin-tikhub:' + url, async () => {
+              return await getDouyinQualities(url);
+            }, 'info');
+            if (tikhubInfo.qualities?.length > 0) {
+              qualities = tikhubInfo.qualities;
+              title = tikhubInfo.title || title;
+              thumbnail = tikhubInfo.thumbnail || thumbnail;
+              duration = tikhubInfo.duration || duration;
+              logger.info(`[video-info] Douyin TikHub fallback used`);
+            }
+          } catch (e) {
+            logger.warn('[video-info] Douyin TikHub fallback error:', e.message);
           }
         }
 

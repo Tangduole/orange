@@ -513,7 +513,10 @@ async function getDouyinVideoInfo(url) {
   const trustedMaxHeight = Math.min(metaMaxHeight, IESDOUYIN_REAL_MAX);
   
   // 根据分辨率估算码率(保守值),用于估算文件大小
-  const duration = info.duration || 0;
+  // iesdouyin 返回的 duration 可能是毫秒，归一化为秒
+  let duration = info.duration || 0;
+  if (duration > 1000) duration = Math.round(duration / 1000);
+  
   const estimateSize = (height) => {
     if (!duration || !height) return 0;
     let bitrate;
@@ -525,11 +528,14 @@ async function getDouyinVideoInfo(url) {
     return Math.round(duration * bitrate / 8);
   };
 
-  // Build preset options from 540p up to trusted max
-  const presets = [540, 720, 1080, 1920, 1440, 2160, 4320].filter(h => h <= trustedMaxHeight);
+  // 画质标签映射
+  const labelMap = { 540: '540p', 720: '720p', 1080: '1080p' };
+
+  // Build preset options up to trusted max
+  const presets = [540, 720, 1080].filter(h => h <= trustedMaxHeight);
   const qualities = presets
     .map(h => ({
-      quality: heightToLabel(Math.round(h*9/16), h),
+      quality: labelMap[h] || `${h}p`,
       format: 'mp4',
       width: Math.round(h * 9 / 16),
       height: h,
