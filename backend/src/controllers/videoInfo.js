@@ -178,7 +178,29 @@ async function getVideoInfo(req, res) {
           logger.warn('[video-info] Douyin iesdouyin error:', e.message);
         }
 
-        // 2. Fallback: TikHub (paid, 2K/4K capable, only if iesdouyin failed)
+        // Supplement: TikHub for 2K/4K (paid, only if user is VIP)
+        if (qualities.length > 0) {
+          try {
+            const isVip = req.user ? require('../userDb').isVip(req.user) : false;
+            if (isVip) {
+              const { getDouyinQualities } = require('../services/tikhub');
+              const tikhubInfo = await getCachedInfo('douyin-tikhub:' + url, async () => {
+                return await getDouyinQualities(url);
+              }, 'api');
+              if (tikhubInfo.qualities?.length > 0) {
+                const maxH = Math.max(...qualities.map(q => q.height || 0));
+                const higher = tikhubInfo.qualities
+                  .filter(q => Math.min(q.width||0, q.height||0) > maxH)
+                  .map(q => ({ ...q, _fromTikHub: true }));
+                if (higher.length > 0) {
+                  qualities = [...higher, ...qualities].sort((a,b)=>(b.height||0)-(a.height||0));
+                }
+              }
+            }
+          } catch (e) { /* 失败不影响 */ }
+        }
+
+        // 2. Fallback: TikHub (paid, only if iesdouyin failed)
         if (qualities.length === 0) {
           try {
             const { getDouyinQualities } = require('../services/tikhub');
