@@ -1192,6 +1192,19 @@ async function getDouyinQualities(url) {
 
   logger.info(`[TikHub] Douyin qualities for ${awemeId} (duration=${duration}s): ${qualities.map(q => `${q.quality} ~${(q.size/1024/1024).toFixed(1)}MB`).join(', ')}`);
 
+  // 检查缓存（之前下载过的真实大小）
+  const { getSizes } = require('./sizeCache');
+  const cached = getSizes(awemeId);
+  if (cached) {
+    for (const q of qualities) {
+      const key = q.quality;
+      if (cached[key]) {
+        q.size = cached[key];
+        q.sizeEstimated = false;
+      }
+    }
+  }
+
   return { title, thumbnail: cover, duration, qualities };
 }
 
