@@ -124,6 +124,24 @@ async function finalizeTask(taskId) {
       if (task.userId) await userDb.incrementDownloads(task.userId);
       else if (task.guestIp) await userDb.incrementGuestDownload(task.guestIp);
     } catch (e) { logger.error('[finalize] count failed:', e.message); }
+
+    // 记录实际文件大小到缓存
+    try {
+      const { recordSizes } = require('../services/sizeCache');
+      const fs = require('fs');
+      const path = require('path');
+      const DOWNLOAD_DIR = path.join(__dirname, '../../downloads');
+      const files = fs.readdirSync(DOWNLOAD_DIR).filter(f => 
+        f.startsWith(taskId) && (f.endsWith('.mp4') || f.endsWith('.mkv') || f.endsWith('.webm'))
+      );
+      if (files.length > 0) {
+        const filePath = path.join(DOWNLOAD_DIR, files[0]);
+        const realSize = fs.statSync(filePath).size;
+        recordSizes(task.url, { _default: realSize });
+      }
+    } catch (e) {
+      // 缓存记录失败不影响主流程
+    }
   }
   saveHistory(taskId);
   taskLock.release(taskId);

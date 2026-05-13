@@ -1192,16 +1192,21 @@ async function getDouyinQualities(url) {
 
   logger.info(`[TikHub] Douyin qualities for ${awemeId} (duration=${duration}s): ${qualities.map(q => `${q.quality} ~${(q.size/1024/1024).toFixed(1)}MB`).join(', ')}`);
 
-  // 检查缓存（之前下载过的真实大小）
+  // 检查缓存（之前下载过的真实大小，按比例推算各画质）
   const { getSizes } = require('./sizeCache');
-  const cached = getSizes(awemeId);
-  if (cached) {
-    for (const q of qualities) {
-      const key = q.quality;
-      if (cached[key]) {
-        q.size = cached[key];
-        q.sizeEstimated = false;
+  const cached = getSizes(url);
+  if (cached && cached._default) {
+    const realTotal = cached._default;
+    // 用顶层画质(当前最高)作为基准，按比特率比例推算
+    if (qualities.length > 0) {
+      const topQ = qualities[0];
+      const topEstimate = topQ.size || 1;
+      const ratio = realTotal / topEstimate;
+      for (const q of qualities) {
+        q.size = Math.round((q.size || 1) * ratio);
       }
+      qualities[0].size = realTotal;  // 顶层用精确值
+      qualities[0].sizeEstimated = false;
     }
   }
 
