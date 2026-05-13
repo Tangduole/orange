@@ -299,6 +299,15 @@ async function parseDouyinPage(url, opts = {}) {
     }
     result.videoCandidates = buildCandidates(aggregated, targetRatio);
 
+    // 保留每级画质的原始URL(不经过bumpRatio), 用于精确下载
+    result.videoUrlsByHeight = {};
+    for (const c of videoChoices) {
+      if (c.urlList.length > 0) {
+        const h = c.height || 0;
+        if (h > 0) result.videoUrlsByHeight[h] = c.urlList[0];
+      }
+    }
+
     // 如果有 video_id 且最高画质 < 1080p 但用户要 1080p，主动构造一条直链试试
     if (result.videoId && targetRatio && /1080p|2k|4k/i.test(targetRatio) && (best.height || 0) < 1080) {
       const synth = `https://aweme.snssdk.com/aweme/v1/play/?video_id=${encodeURIComponent(result.videoId)}&ratio=${targetRatio}&line=0`;
@@ -369,6 +378,7 @@ async function downloadDouyin(url, taskId, onProgress, opts = {}) {
   if (onProgress) onProgress(5, '解析链接');
 
   const targetRatio = deriveTargetRatio(opts.quality, opts.isVip);
+  logger.info("[douyin] targetRatio=" + targetRatio + " firstUrl=" + (info.videoCandidates[0]||"").substring(0,120));
   const info = await parseDouyinPage(url, { targetRatio });
   if (onProgress) onProgress(30, '获取作品信息');
 
@@ -418,17 +428,34 @@ async function downloadDouyin(url, taskId, onProgress, opts = {}) {
     return result;
   }
 
-  // 3. 视频作品 → 按候选 URL 顺序尝试，第一个成功 + 通过 sanity 检查的就用
+  // 3. 视频作品 → 优先用原始分辨率URL，兜底用候选列表
   if (info.videoCandidates.length > 0) {
     if (onProgress) onProgress(35, '下载视频');
+
+    // 精确画质匹配: 用parse阶段保存的原始URL(不经bumpRatio)
+    let candidates = [...info.videoCandidates];
+    if (targetRatio && info.videoUrlsByHeight) {
+      const targetHeight = parseInt(targetRatio) || 0;
+      // 找最接近的画质(向下匹配)
+      const heights = Object.keys(info.videoUrlsByHeight).map(Number).sort((a,b) => b-a);
+      for (const h of heights) {
+        if (h <= targetHeight) {
+          const exactUrl = info.videoUrlsByHeight[h];
+          if (exactUrl && !candidates.includes(exactUrl)) {
+            candidates.unshift(exactUrl);
+          }
+          break;
+        }
+      }
+    }
 
     let videoBuf;
     let pickedUrl = '';
     let lastErr;
     let attempt = 0;
-    const totalCandidates = info.videoCandidates.length;
+    const totalCandidates = candidates.length;
 
-    for (const candidate of info.videoCandidates) {
+    for (const candidate of candidates) {
       attempt++;
       try {
         const buf = await httpGet(candidate, { responseType: 'arraybuffer', timeout: 120000 });
@@ -537,8 +564,7 @@ async function getDouyinVideoInfo(url) {
     .map(h => ({
       quality: labelMap[h] || `${h}p`,
       format: 'mp4',
-      width: h,     // 短边=分辨率，确保前端VIP限制正确(shortEdge>720)
-      height: Math.round(h * 16 / 9),  // 竖屏高度
+      width: h, height: h,  // 宽高都用分辨率，避免前端误判竖屏为2K
       hasVideo: true,
       hasAudio: true,
       size: estimateSize(h)
