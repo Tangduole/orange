@@ -205,6 +205,23 @@ async function getVideoInfo(req, res) {
           qualities = [{ quality: 'Best Available', format: 'mp4', width: 1280, height: 720, hasVideo: true, hasAudio: true }];
         }
 
+        // HEAD请求获取真实文件大小(并行,不阻塞)
+        const { getFileSizeFromHead } = require('../services/tikhub');
+        await Promise.all(qualities.map(async (q) => {
+          if (q._playUrl) {
+            try {
+              const realSize = await getFileSizeFromHead(q._playUrl);
+              if (realSize > 0) {
+                q.size = realSize;
+                q.sizeEstimated = false;
+                delete q._playUrl;
+              }
+            } catch (e) { /* HEAD失败,保持估算值 */ }
+          }
+        }));
+        // 清理未消费的 _playUrl
+        for (const q of qualities) delete q._playUrl;
+
         return res.json({
           code: 0,
           data: { title, thumbnail, duration, platform: 'douyin', qualities: fillQualitySizes(qualities, duration) }

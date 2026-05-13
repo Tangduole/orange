@@ -1141,7 +1141,8 @@ async function getDouyinQualities(url) {
         height: h,
         hasVideo: true,
         hasAudio: false,
-        size: estimateSize((playAddr265.bit_rate || 0) * 2)
+        size: estimateSize((playAddr265.bit_rate || 0) * 2),
+        _playUrl: playAddr265.url_list?.[0] || null
       });
     }
   }
@@ -1163,7 +1164,8 @@ async function getDouyinQualities(url) {
         height: h,
         hasVideo: true,
         hasAudio: true,
-        size: estimateSize(totalBitrate)
+        size: estimateSize(totalBitrate),
+        _playUrl: pa.url_list?.[0] || null
       });
     }
   }
@@ -1182,7 +1184,8 @@ async function getDouyinQualities(url) {
         height: h,
         hasVideo: true,
         hasAudio: true,
-        size: estimateSize(playAddr.bit_rate || 0)
+        size: estimateSize(playAddr.bit_rate || 0),
+        _playUrl: playAddr.url_list?.[0] || null
       });
     }
   }
@@ -1392,7 +1395,37 @@ async function getBilibiliQualities(url) {
   return { title, duration, qualities };
 }
 
-module.exports = { parseYouTube, parseYouTubeV2, parseXiaohongshu, parseDouyin, parseInstagram, getDouyinQualities, parseBilibili, getBilibiliQualities, tikhubRequest, tikhubRequestPost, downloadFile, parseWechatExportId, getWechatVideoInfo, downloadWechat };
+/**
+ * HEAD 请求获取文件真实大小
+ * 用 HTTP HEAD 方法取 Content-Length，不下载文件体
+ * @returns {Promise<number>} 文件大小(bytes)，失败返回 0
+ */
+async function getFileSizeFromHead(url, timeoutMs = 5000) {
+  const https = require('https');
+  const http = require('http');
+  const { URL } = require('url');
+  
+  let parsed;
+  try { parsed = new URL(url); } catch { return 0; }
+  const protocol = parsed.protocol === 'https:' ? https : http;
+
+  return new Promise((resolve) => {
+    const req = protocol.request(url, {
+      method: 'HEAD',
+      headers: { 'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X)' },
+      timeout: timeoutMs
+    }, (res) => {
+      const size = parseInt(res.headers['content-length'], 10) || 0;
+      res.resume();
+      resolve(size);
+    });
+    req.on('error', () => resolve(0));
+    req.on('timeout', () => { req.destroy(); resolve(0); });
+    req.end();
+  });
+}
+
+module.exports = { parseYouTube, parseYouTubeV2, parseXiaohongshu, parseDouyin, parseInstagram, getDouyinQualities, parseBilibili, getBilibiliQualities, tikhubRequest, tikhubRequestPost, downloadFile, getFileSizeFromHead, parseWechatExportId, getWechatVideoInfo, downloadWechat };
 
 // ============ WeChat Channels (视频号) ============
 
