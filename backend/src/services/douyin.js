@@ -537,8 +537,8 @@ async function getDouyinVideoInfo(url) {
     .map(h => ({
       quality: labelMap[h] || `${h}p`,
       format: 'mp4',
-      width: Math.round(h * 9 / 16),
-      height: h,
+      width: h,     // 短边=分辨率，确保前端VIP限制正确(shortEdge>720)
+      height: Math.round(h * 16 / 9),  // 竖屏高度
       hasVideo: true,
       hasAudio: true,
       size: estimateSize(h)
