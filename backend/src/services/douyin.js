@@ -95,7 +95,12 @@ function buildCandidates(rawUrls, targetRatio) {
     seen.add(u); out.push(u);
   };
 
-  // —— 第 1 优先级：原本就无水印 + bumped 到 targetRatio —— //
+  // —— 第 1 优先级：原本无水印的原始 URL（不 bump，防止 ratio 导致低码率重编码） —— //
+  for (const raw of rawUrls) {
+    if (!isWatermarked(raw)) push(raw);
+  }
+
+  // —— 第 2 优先级：原本无水印 + bumped 到 targetRatio —— //
   for (const raw of rawUrls) {
     if (!isWatermarked(raw)) {
       const bumped = targetRatio ? bumpRatio(raw, targetRatio) : raw;
@@ -103,11 +108,6 @@ function buildCandidates(rawUrls, targetRatio) {
       // 同时给该 URL 的所有 alt host 也加入
       for (const h of ALT_HOSTS) push(withAltHost(bumped, h));
     }
-  }
-
-  // —— 第 2 优先级：原本无水印的原始 URL（不 bump，防止 ratio 被服务端不认） —— //
-  for (const raw of rawUrls) {
-    if (!isWatermarked(raw)) push(raw);
   }
 
   // —— 第 3 优先级：playwm → play 改写 + bumped —— //
