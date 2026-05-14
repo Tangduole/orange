@@ -791,8 +791,8 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
     let usedYtdlpFallback = false;
 
     // 判断是否需要高清直通 TikHub
-    // iesdouyin 只能提供 ≤1080p 的源(CDN 低码率), VIP 用户选 ≥1080p 时直接走 TikHub 高清 API
-    // 但如果 TikHub Key 未配置，不要跳过 iesdouyin（至少能拿到基础画质）
+    // iesdouyin 只能提供 ≤1080p 的源，VIP 选 ≥2K 时 iesdouyin 拿不到，直接走 TikHub 付费
+    // 1080p 以下优先走 iesdouyin 免费方案，失败才调 TikHub（省成本）
     let skipIesdouyin = false;
     let requestedHeight = 99999;
     if (quality && typeof quality === 'string') {
@@ -800,11 +800,11 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
       if (m) requestedHeight = parseInt(m[1]);
     }
     const hasTikHubKey = API_KEY_DOUYIN && API_KEY_DOUYIN.length > 10;
-    if (isVip && requestedHeight >= 1080 && hasTikHubKey) {
+    if (isVip && requestedHeight >= 1440 && hasTikHubKey) {
       skipIesdouyin = true;
-      logger.info(`[task] ${taskId} VIP + ${requestedHeight}p requested, using TikHub as primary (original quality)`);
-    } else if (isVip && requestedHeight >= 1080 && !hasTikHubKey) {
-      logger.warn(`[task] ${taskId} VIP + ${requestedHeight}p but no TikHub key, falling back to iesdouyin (CDN quality)`);
+      logger.info(`[task] ${taskId} VIP + ${requestedHeight}p, iesdouyin can't handle, using TikHub`);
+    } else if (isVip && requestedHeight >= 1440 && !hasTikHubKey) {
+      logger.warn(`[task] ${taskId} VIP + ${requestedHeight}p but no TikHub key, falling back to iesdouyin`);
     }
 
     // Step 1: 尝试 iesdouyin.com（免费方案）

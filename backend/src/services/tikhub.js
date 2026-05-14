@@ -620,8 +620,8 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
   // VIP请求≥2K时,唯一直正高清来源是 fetch_video_high_quality_play_url 原始文件
   let selected = null;
 
-  if (hqVideoUrl && (maxHeight >= 99999 || maxHeight >= QUALITY_2K_HEIGHT || maxHeight >= 1080)) {
-    // VIP 请求 ≥1080p → 直接用 HQ 原始文件（最高码率）
+  if (hqVideoUrl && (maxHeight >= 99999 || maxHeight >= QUALITY_2K_HEIGHT)) {
+    // VIP请求最大画质 或 ≥2K → 直接用HQ原始(可靠真高清)
     selected = { url: hqVideoUrl, width: 0, height: maxHeight, codec: 'original', bitrate: 0, hasAudio: false };
     logger.info(`[TikHub] Using HQ original (${maxHeight >= 99999 ? 'max' : maxHeight + 'p'}): ${hqFileSize} MB`);
   } else {
