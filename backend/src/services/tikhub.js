@@ -540,19 +540,27 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
   let hqFileSize = 0;
   if (isVip) {
     // VIP用户:调用单视频付费高清API获取最高画质原始素材(支持2K/4K)
-    // 价格: $0.005/次
-    try {
-      const hqData = await tikhubRequest(
-        `/api/v1/douyin/app/v3/fetch_video_high_quality_play_url?aweme_id=${awemeId}&share_url=${encodeURIComponent(url)}&region=CN`,
-        API_KEY_DOUYIN
-      );
-      if (hqData.original_video_url) {
-        hqVideoUrl = hqData.original_video_url;
-        hqFileSize = hqData.video_data?.file_size_in_mb || 0;
-        logger.info(`[TikHub] VIP HQ video found: ${hqFileSize} MB, video_id: ${hqData.video_id}`);
+    // 价格: $0.005/次，接口偶发失败，重试 3 次
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const hqData = await tikhubRequest(
+          `/api/v1/douyin/app/v3/fetch_video_high_quality_play_url?aweme_id=${awemeId}&share_url=${encodeURIComponent(url)}&region=CN`,
+          API_KEY_DOUYIN
+        );
+        if (hqData.original_video_url) {
+          hqVideoUrl = hqData.original_video_url;
+          hqFileSize = hqData.video_data?.file_size_in_mb || 0;
+          logger.info(`[TikHub] VIP HQ video found: ${hqFileSize} MB, video_id: ${hqData.video_id}`);
+          break;
+        }
+      } catch (e) {
+        if (attempt < 2) {
+          logger.info(`[TikHub] HQ attempt ${attempt+1} failed, retrying...`);
+          await new Promise(r => setTimeout(r, 2000));
+        } else {
+          logger.info(`[TikHub] fetch_video_high_quality_play_url failed after 3 attempts: ${e.message}`);
+        }
       }
-    } catch (e) {
-      logger.info(`[TikHub] fetch_video_high_quality_play_url failed: ${e.message}`);
     }
   } else {
     logger.info(`[TikHub] Non-VIP user, skipping paid HQ API`);
