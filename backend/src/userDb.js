@@ -18,6 +18,22 @@
 const { createClient } = require('@libsql/client');
 const bcrypt = require('bcryptjs');
 
+// 加载 .env 文件（必须在 createClient 之前）
+(function loadEnv() {
+  const fs = require('fs');
+  const path = require('path');
+  // 优先 backend/.env，其次项目根 .env
+  const envPaths = [
+    path.join(__dirname, '../.env'),
+    path.join(__dirname, '../../.env'),
+  ];
+  for (const p of envPaths) {
+    if (fs.existsSync(p)) {
+      try { require('dotenv').config({ path: p }); break; } catch {}
+    }
+  }
+})();
+
 // 数据库连接 URL 解析
 // 优先 TURSO_DATABASE_URL（云端），否则用本地 SQLite
 // 本地路径可通过 LOCAL_DB_PATH 覆盖（建议指向代码目录之外，避免数据被打包/泄露）
