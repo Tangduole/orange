@@ -37,14 +37,14 @@ const isIOS = () => {
 }
 
 /**
- * 触发文件下载（PWA + 浏览器通用）
+ * 触发文件保存（PWA + 浏览器通用）
  *
  * 策略:
- *   1. 优先：<a download> 同源直链触发浏览器原生「另存为」
- *   2. 兜底：隐藏 iframe（适用于跨源/旧浏览器）
+ *   1. 优先：navigator.share() → 弹出系统分享菜单（Android 可一键保存到相册）
+ *   2. 兜底：<a download> 同源直链触发浏览器原生下载
+ *   3. 最后：隐藏 iframe（兼容旧浏览器）
  *
- * 注：原生 App 走 Capacitor 的逻辑已下线，PWA 已经能覆盖 99% 场景。
- *     iOS Safari 不支持自动 download，会原地播放/打开，需要用户长按选择「下载」。
+ * 注：navigator.share() 需要用户手势，不能在自动下载定时器里用
  */
 const shareFile = async (
   url: string,
@@ -54,6 +54,25 @@ const shareFile = async (
   const fullUrl = url.startsWith('http') ? url : `${BASE_URL}${url}`
   const filename = (title || 'orange-download').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 120)
 
+  // 策略1: navigator.share() → 系统分享菜单，可保存到相册
+  if (navigator.share && navigator.canShare) {
+    try {
+      const mimeMap: Record<string, string> = { video: 'video/mp4', audio: 'audio/mpeg', image: 'image/jpeg' }
+      const response = await fetch(fullUrl)
+      const blob = await response.blob()
+      const file = new File([blob], filename, { type: mimeMap[_fileType] || 'video/mp4' })
+      const shareData: ShareData = { files: [file] }
+      if (navigator.canShare(shareData)) {
+        await navigator.share(shareData)
+        return { success: true }
+      }
+    } catch (e: any) {
+      // 用户取消 或 无用户手势 → 继续走兜底
+      if (e?.name === 'AbortError') return { success: true } // 用户取消不算失败
+    }
+  }
+
+  // 策略2: <a download> 浏览器原生下载
   try {
     const a = document.createElement('a')
     a.href = fullUrl
@@ -65,7 +84,7 @@ const shareFile = async (
     document.body.removeChild(a)
     return { success: true }
   } catch (_) {
-    // Fallback：iframe（兼容某些不识别 download 属性的环境）
+    // 策略3: iframe 兜底
     const iframe = document.createElement('iframe')
     iframe.style.display = 'none'
     iframe.src = fullUrl
@@ -595,26 +614,37 @@ export default function App() {
         localStorage.setItem('orange_guest_downloads', JSON.stringify({ date: today, count: newCount }))
         setRemainingDownloads(Math.max(0, GUEST_DAILY_LIMIT - newCount))
       }
-      // 延迟 500ms 后AutoDownload
+      // 延迟 500ms 后AutoSave
       autoDownloadTimer.current = setTimeout(() => {
         setDownloading(true)
-        // iOS Safari: 不触发自动下载，让用户通过 inline video 长按保存
-        if (isIOS() && !task.directLink) {
-          setShowIosGuide(true)
-          setDownloading(false)
-          return
+        const fullUrl = (task.downloadUrl || '').startsWith('http') ? task.downloadUrl : `${BASE_URL}${task.downloadUrl || ''}`
+        const fname = `${task.title || 'video'}.mp4`
+        // 自动保存：直接用 <a download>，navigator.share() 需要用户手势无法在定时器里用
+        try {
+          const a = document.createElement('a')
+          a.href = fullUrl
+          a.download = fname
+          a.style.display = 'none'
+          document.body.appendChild(a)
+          a.click()
+          document.body.removeChild(a)
+        } catch (_) {
+          // iframe fallback
+          const iframe = document.createElement('iframe')
+          iframe.style.display = 'none'
+          iframe.src = fullUrl
+          document.body.appendChild(iframe)
+          setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe) }, 5000)
         }
-        shareFile(task.downloadUrl, task.title || 'video').finally(() => {
-          setDownloading(false)
-          // DownloadCompleted后重新获取Use量
-          if (authToken) {
-            api.getUsage(authToken).then(u => {
-              if (u) {
-                setRemainingDownloads(u.isPro ? -1 : u.remaining)
-              }
-            }).catch(() => {})
-          }
-        })
+        setDownloading(false)
+        // DownloadCompleted后重新获取Use量
+        if (authToken) {
+          api.getUsage(authToken).then(u => {
+            if (u) {
+              setRemainingDownloads(u.isPro ? -1 : u.remaining)
+            }
+          }).catch(() => {})
+        }
       }, 500)
     }
     return clearAutoDownload
