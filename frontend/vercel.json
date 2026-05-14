@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/download/:path*", "destination": "https://api.orangedl.com/download/:path*" },
     { "source": "/(.*)", "destination": "/" }
   ]
 }
