@@ -154,6 +154,12 @@ async function initDb() {
         sql: `ALTER TABLE users ADD COLUMN hd_trials_used INTEGER DEFAULT 0`
       });
     } catch (e) {}
+    // JWT token 版本（密码重置后递增，使旧 token 失效）
+    try {
+      await db.execute({
+        sql: `ALTER TABLE users ADD COLUMN token_version INTEGER DEFAULT 0`
+      });
+    } catch (e) {}
     
     // 推荐记录表
     await db.execute({
@@ -355,6 +361,16 @@ const userDb = {
     await db.execute({
       sql: 'UPDATE users SET password_hash = ? WHERE email = ?',
       args: [passwordHash, email.toLowerCase()]
+    });
+  },
+
+  /**
+   * 递增 token_version（密码重置后调用，使所有旧 JWT 失效）
+   */
+  async incrementTokenVersion(userId) {
+    await db.execute({
+      sql: 'UPDATE users SET token_version = token_version + 1 WHERE id = ?',
+      args: [userId]
     });
   },
 

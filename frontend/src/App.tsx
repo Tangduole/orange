@@ -397,6 +397,9 @@ export default function App() {
       await api.resetPassword(resetPwdToken, resetPwd)
       // 重置成功后清除本地token，强制重新登录
       localStorage.removeItem('orange_token')
+      localStorage.removeItem('orange_user')
+      setAuthToken(null)
+      setAuthUser(null)
       setResetPwdMsg(t('passwordResetSuccess'))
       setTimeout(() => {
         setShowResetPwd(false)
@@ -405,6 +408,8 @@ export default function App() {
         setResetPwd('')
         setResetPwdToken('')
         setResetPwdMsg('')
+        // 自动弹出登录框
+        setShowAuthModal(true)
       }, 2000)
     } catch (err: any) {
       setResetPwdMsg(err.message || t('operationFailed'))

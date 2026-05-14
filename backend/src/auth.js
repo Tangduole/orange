@@ -39,6 +39,12 @@ const auth = {
             .status(401)
             .json({ code: 401, message: '用户不存在，请重新登录' });
         }
+        // 检查 token_version：密码重置后旧 token 失效
+        if (payload.tv !== undefined && user.token_version !== undefined && payload.tv !== user.token_version) {
+          return res
+            .status(401)
+            .json({ code: 401, message: '密码已变更，请重新登录' });
+        }
         req.user = user;
         next();
       })
@@ -69,6 +75,10 @@ const auth = {
       .then(user => {
         if (!user) {
           return res.json({ code: 401, message: '用户不存在，请重新登录' });
+        }
+        // 检查 token_version：密码重置后旧 token 失效
+        if (payload.tv !== undefined && user.token_version !== undefined && payload.tv !== user.token_version) {
+          return res.json({ code: 401, message: '密码已变更，请重新登录' });
         }
         req.user = user;
         next();
@@ -102,7 +112,7 @@ const auth = {
    */
   generateToken(user) {
     return jwt.sign(
-      { sub: user.id, email: user.email },
+      { sub: user.id, email: user.email, tv: user.token_version || 0 },
       JWT_SECRET,
       { expiresIn: '30d' }
     );

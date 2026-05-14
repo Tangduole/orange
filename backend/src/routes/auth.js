@@ -218,10 +218,15 @@ router.post('/forgot-password', strictLimiter, async (req, res) => {
 });
 
 // 重置密码
-router.post('/reset-password', async (req, res) => {
+router.post('/reset-password', strictLimiter, async (req, res) => {
   try {
     const { token, password } = req.body;
     if (!token || !password) return res.status(400).json({ code: 400, message: '缺少参数' });
+    
+    // 密码强度校验（与注册保持一致）
+    if (password.length < 6) {
+      return res.status(400).json({ code: 400, message: '密码至少6位' });
+    }
     
     // 验证令牌
     const resetData = await userDb.getResetToken(token);
@@ -229,23 +234,23 @@ router.post('/reset-password', async (req, res) => {
       return res.status(400).json({ code: 400, message: '令牌已过期' });
     }
     
+    // 先删除令牌（防止重放攻击），再更新密码
+    await userDb.deleteResetToken(token);
+    
     // 更新密码
     const user = await userDb.getByEmail(resetData.email);
     if (!user) {
       return res.status(400).json({ code: 400, message: '用户不存在' });
     }
     
-    // 直接更新密码（bcrypt hash）
     const bcrypt = require('bcryptjs');
     const passwordHash = bcrypt.hashSync(password, 10);
     
-    // 使用 userDb.updatePassword 更新密码
     await userDb.updatePassword(resetData.email, passwordHash);
+    // 递增 token_version 使所有旧 JWT 失效
+    await userDb.incrementTokenVersion(user.id);
     
-    // 删除令牌
-    await userDb.deleteResetToken(token);
-    
-    res.json({ code: 0, message: '密码重置成功' });
+    res.json({ code: 0, message: '密码重置成功，请重新登录' });
   } catch (err) {
     console.error('[auth] Reset password error:', err);
     res.status(500).json({ code: 500, message: '重置失败' });
