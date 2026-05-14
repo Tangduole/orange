@@ -308,12 +308,13 @@ async function parseDouyinPage(url, opts = {}) {
       }
     }
 
-    // 如果有 video_id 且最高画质 < 1080p 但用户要 1080p，主动构造一条直链试试
+    // 如果有 video_id 且最高画质 < 1080p 但用户要 1080p，构造一条直链作为兜底
+    // 注意：ratio=1080p 参数会导致服务端低码率重编码，所以放在候选列表末尾作为最后备选
     if (result.videoId && targetRatio && /1080p|2k|4k/i.test(targetRatio) && (best.height || 0) < 1080) {
       const synth = `https://aweme.snssdk.com/aweme/v1/play/?video_id=${encodeURIComponent(result.videoId)}&ratio=${targetRatio}&line=0`;
-      // 放在候选列表最前
+      // 放在候选列表末尾（低优先级，原始 URL 优先）
       if (!result.videoCandidates.includes(synth)) {
-        result.videoCandidates.unshift(synth);
+        result.videoCandidates.push(synth);
         for (const h of ALT_HOSTS) {
           const alt = withAltHost(synth, h);
           if (!result.videoCandidates.includes(alt)) result.videoCandidates.push(alt);
