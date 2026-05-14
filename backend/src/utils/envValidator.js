@@ -4,15 +4,16 @@
 
 const logger = require('./logger');
 
-// 必需的环境变量
+// 生产环境必需的变量（缺一不可启动）
 const REQUIRED_ENV_VARS = [
   'JWT_SECRET',
-  'NODE_ENV'
+  'NODE_ENV',
+  'TURSO_DATABASE_URL',
+  'TURSO_AUTH_TOKEN',
 ];
 
-// 推荐的环境变量（警告但不退出）
+// 推荐变量（警告但不退出）
 const RECOMMENDED_ENV_VARS = [
-  'TURSO_DATABASE_URL',
   'TIKHUB_API_KEY_YT',
   'TIKHUB_API_KEY_DOUYIN',
   'RESEND_API_KEY',
@@ -74,8 +75,50 @@ function isProduction() {
   return process.env.NODE_ENV === 'production';
 }
 
+/**
+ * 数据库健康检查（必须在 userDb 初始化后调用）
+ */
+async function validateDatabase(userDb) {
+  try {
+    const r = await userDb.db.execute('SELECT COUNT(*) as c FROM users');
+    const count = r.rows[0].c;
+    
+    if (count === 0) {
+      logger.error('⚠️  数据库健康检查: 用户表为空！');
+      if (process.env.TURSO_DATABASE_URL) {
+        logger.error(`   已连接 Turso: ${process.env.TURSO_DATABASE_URL.substring(0, 50)}...`);
+        logger.error('   但用户数为 0，可能数据库被清空或指向了新库。');
+      } else {
+        logger.error('   TURSO_DATABASE_URL 未设置，可能连接了本地空库！');
+      }
+      logger.error('   服务将继续运行，但用户认证和 VIP 功能将不可用。');
+    } else {
+      logger.info(`✅ 数据库健康: ${count} 个用户`);
+    }
+    
+    // 检查 VIP 用户
+    const vipR = await userDb.db.execute("SELECT COUNT(*) as c FROM users WHERE tier = 'pro'");
+    if (vipR.rows[0].c > 0) {
+      logger.info(`✅ VIP 用户: ${vipR.rows[0].c} 个`);
+    }
+    
+    // 连接类型标识
+    if (process.env.TURSO_DATABASE_URL) {
+      logger.info('✅ 数据库类型: Turso Cloud');
+    } else {
+      logger.warn('⚠️  数据库类型: 本地 SQLite（生产环境不推荐）');
+    }
+    
+    return true;
+  } catch (e) {
+    logger.error('❌ 数据库健康检查失败:', e.message);
+    return false;
+  }
+}
+
 module.exports = {
   validateEnv,
+  validateDatabase,
   getEnv,
   isProduction
 };

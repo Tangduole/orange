@@ -10,14 +10,26 @@ const logger = require('../utils/logger');
 
 /**
  * GET /health
- * 基础健康检查
+ * 基础健康检查（含数据库状态）
  */
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
+  let db = 'unknown';
+  let users = 0;
+  try {
+    const userDb = require('../userDb');
+    const r = await userDb.db.execute('SELECT COUNT(*) as c FROM users');
+    users = r.rows[0].c;
+    db = 'ok';
+  } catch (e) {
+    db = 'error: ' + e.message;
+  }
+  
   res.json({
     status: 'ok',
+    db,
+    users,
     timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development'
+    uptime: process.uptime()
   });
 });
 

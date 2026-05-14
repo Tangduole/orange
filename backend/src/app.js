@@ -10,7 +10,7 @@ const helmet = require('helmet');
 const path = require('path');
 const fs = require('fs');
 const logger = require('./utils/logger');
-const { validateEnv, isProduction } = require('./utils/envValidator');
+const { validateEnv, validateDatabase, isProduction } = require('./utils/envValidator');
 const { startCleanupSchedule } = require('./utils/fileCleanup');
 const { apiLimiter } = require('./middleware/rateLimiter');
 const apiRouter = require('./routes/api');
@@ -252,12 +252,16 @@ process.on('unhandledRejection', (reason, promise) => {
 startCleanupSchedule();
 
 // 启动
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', async () => {
   logger.info(`🚀 Orange后端启动成功`);
   logger.info(`   环境: ${process.env.NODE_ENV || 'development'}`);
   logger.info(`   地址: http://0.0.0.0:${PORT}`);
   logger.info(`   API: http://0.0.0.0:${PORT}/api`);
   logger.info(`   下载目录: ${DOWNLOAD_DIR}`);
+
+  // 数据库健康检查（商业化运维）
+  const userDb = require('./userDb');
+  await validateDatabase(userDb);
 
   // 注册 Telegram Bot Webhook
   const baseUrl = process.env.API_URL || process.env.APP_URL || `http://localhost:${PORT}`;
