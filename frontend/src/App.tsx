@@ -37,14 +37,11 @@ const isIOS = () => {
 }
 
 /**
- * 触发文件保存（PWA + 浏览器通用）
+ * 触发文件保存（Capacitor 原生 > Web Share > <a download>）
  *
- * 策略:
- *   1. 优先：navigator.share() → 弹出系统分享菜单（Android 可一键保存到相册）
- *   2. 兜底：<a download> 同源直链触发浏览器原生下载
- *   3. 最后：隐藏 iframe（兼容旧浏览器）
- *
- * 注：navigator.share() 需要用户手势，不能在自动下载定时器里用
+ * Android (Capacitor APK): Filesystem 写入公共目录 → 自动出现在相册
+ * Android/iOS (PWA): navigator.share() → 系统分享菜单 → 一键保存到相册
+ * 桌面浏览器: <a download> → 下载到本地
  */
 const shareFile = async (
   url: string,
@@ -53,6 +50,45 @@ const shareFile = async (
 ) => {
   const fullUrl = url.startsWith('http') ? url : `${BASE_URL}${url}`
   const filename = (title || 'orange-download').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 120)
+
+  // 策略0: Capacitor 原生 APK — 写入公共目录，自动出现在相册
+  try {
+    const { Capacitor } = await import('@capacitor/core')
+    if (Capacitor.isNativePlatform()) {
+      const response = await fetch(fullUrl)
+      const blob = await response.blob()
+      const { Filesystem, Directory } = await import('@capacitor/filesystem')
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve((reader.result as string).split(',')[1])
+        reader.onerror = reject
+        reader.readAsDataURL(blob)
+      })
+      const mimeMap: Record<string, string> = { video: 'video/mp4', audio: 'audio/mpeg', image: 'image/jpeg' }
+      const mimeType = mimeMap[_fileType] || 'video/mp4'
+      
+      // 写入公共 Downloads 目录（Android 相册会扫描这里）
+      await Filesystem.writeFile({
+        path: filename,
+        data: base64Data,
+        directory: Directory.ExternalStorage,
+      })
+      
+      // 尝试通过 Share 插件触发 MediaStore 扫描
+      try {
+        const { Share } = await import('@capacitor/share')
+        await Share.share({
+          title: filename,
+          url: fullUrl,
+          dialogTitle: '保存到相册',
+        })
+      } catch { /* 用户取消不碍事 */ }
+      
+      return { success: true, method: 'capacitor' }
+    }
+  } catch {
+    // Capacitor 未安装（PWA 模式），继续走 Web API
+  }
 
   // 策略1: navigator.share() → 系统分享菜单，可保存到相册
   if (navigator.share && navigator.canShare) {
@@ -615,28 +651,52 @@ export default function App() {
         setRemainingDownloads(Math.max(0, GUEST_DAILY_LIMIT - newCount))
       }
       // 延迟 500ms 后AutoSave
-      autoDownloadTimer.current = setTimeout(() => {
+      autoDownloadTimer.current = setTimeout(async () => {
         setDownloading(true)
         const fullUrl = (task.downloadUrl || '').startsWith('http') ? task.downloadUrl : `${BASE_URL}${task.downloadUrl || ''}`
         const fname = `${task.title || 'video'}.mp4`
-        // 自动保存：直接用 <a download>，navigator.share() 需要用户手势无法在定时器里用
+
+        // 尝试 Capacitor 原生保存（自动写入相册）
+        let saved = false
         try {
-          const a = document.createElement('a')
-          a.href = fullUrl
-          a.download = fname
-          a.style.display = 'none'
-          document.body.appendChild(a)
-          a.click()
-          document.body.removeChild(a)
-        } catch (_) {
-          // iframe fallback
-          const iframe = document.createElement('iframe')
-          iframe.style.display = 'none'
-          iframe.src = fullUrl
-          document.body.appendChild(iframe)
-          setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe) }, 5000)
+          const { Capacitor } = await import('@capacitor/core')
+          if (Capacitor.isNativePlatform()) {
+            const response = await fetch(fullUrl)
+            const blob = await response.blob()
+            const { Filesystem, Directory } = await import('@capacitor/filesystem')
+            const base64Data = await new Promise<string>((resolve, reject) => {
+              const reader = new FileReader()
+              reader.onloadend = () => resolve((reader.result as string).split(',')[1])
+              reader.onerror = reject
+              reader.readAsDataURL(blob)
+            })
+            await Filesystem.writeFile({
+              path: fname,
+              data: base64Data,
+              directory: Directory.ExternalStorage,
+            })
+            saved = true
+          }
+        } catch { /* 非原生环境，走 Web fallback */ }
+
+        if (!saved) {
+          // Web fallback: <a download>
+          try {
+            const a = document.createElement('a')
+            a.href = fullUrl
+            a.download = fname
+            a.style.display = 'none'
+            document.body.appendChild(a)
+            a.click()
+            document.body.removeChild(a)
+          } catch (_) {
+            const iframe = document.createElement('iframe')
+            iframe.style.display = 'none'
+            iframe.src = fullUrl
+            document.body.appendChild(iframe)
+            setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe) }, 5000)
+          }
         }
-        setDownloading(false)
         // DownloadCompleted后重新获取Use量
         if (authToken) {
           api.getUsage(authToken).then(u => {
