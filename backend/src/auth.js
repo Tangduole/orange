@@ -32,8 +32,8 @@ const auth = {
     const token = authHeader.slice(7);
     Promise.resolve()
       .then(() => jwt.verify(token, JWT_SECRET))
-      .then(payload => userDb.getById(payload.sub))
-      .then(user => {
+      .then(payload => userDb.getById(payload.sub).then(user => ({ user, payload })))
+      .then(({ user, payload }) => {
         if (!user) {
           return res
             .status(401)
@@ -71,8 +71,8 @@ const auth = {
     // 用 Promise 包裹确保所有异常都捕获
     Promise.resolve()
       .then(() => jwt.verify(token, JWT_SECRET))
-      .then(payload => userDb.getById(payload.sub))
-      .then(user => {
+      .then(payload => userDb.getById(payload.sub).then(user => ({ user, payload })))
+      .then(({ user, payload }) => {
         if (!user) {
           return res.json({ code: 401, message: '用户不存在，请重新登录' });
         }
