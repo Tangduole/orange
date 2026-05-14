@@ -125,6 +125,15 @@ async function finalizeTask(taskId) {
       else if (task.guestIp) await userDb.incrementGuestDownload(task.guestIp);
     } catch (e) { logger.error('[finalize] count failed:', e.message); }
 
+    // 下载成功后扣除 HD 试用次数（避免失败时浪费试用）
+    if (task.hdTrialPending && task.userId) {
+      try {
+        const userDb = require('../userDb');
+        await userDb.useHdTrial(task.userId);
+        logger.info(`[finalize] HD trial deducted for user ${task.userId}`);
+      } catch (e) { logger.error('[finalize] HD trial deduct failed:', e.message); }
+    }
+
     // 记录实际文件大小到缓存
     try {
       const { recordSizes } = require('../services/sizeCache');
@@ -217,7 +226,7 @@ async function createDownload(req, res) {
 
     // ========== 画质VIP限制检查 ==========
     // 如果用户选择了1080p以上画质,检查是否为VIP
-    let hdTrialGranted = false;
+    let hdTrialPending = false;
     if (quality) {
       const heightMatch = quality.match(/height<=(\d+)/i);
       const selectedHeight = heightMatch ? parseInt(heightMatch[1]) : 99999;
@@ -225,16 +234,16 @@ async function createDownload(req, res) {
       if (selectedHeight > QUALITY.HD_THRESHOLD && !isVip) {
         // 免费用户允许试用1次高清画质
         const userDb = require('../userDb');
-        const trialUsed = await userDb.useHdTrial(userId);
-        if (!trialUsed) {
+        const trialAvailable = await userDb.checkHdTrial(userId);
+        if (!trialAvailable) {
           return res.json({
             code: RESPONSE_CODE.FORBIDDEN,
             message: `${QUALITY.HD_THRESHOLD}p以上画质为会员专享。试用次数已用完,请升级Pro解锁高清下载。`
           });
         }
-        // 试用成功,继续下载(不报错)
-        hdTrialGranted = true;
-        logger.info(`[task] HD trial used for user ${userId}`);
+        // 仅标记待扣除，实际扣除在 finalizeTask（下载成功后）
+        hdTrialPending = true;
+        logger.info(`[task] HD trial pending for user ${userId}`);
       }
     }
     // ========== 画质VIP限制检查结束 ==========
@@ -243,7 +252,7 @@ async function createDownload(req, res) {
     // 对所有平台生效：非VIP用户下载画质不得超过720p（除非使用了HD试用）
     const FREE_MAX_HEIGHT = QUALITY.HD_THRESHOLD; // 720
     let safeQuality = quality;
-    if (!isVip && !hdTrialGranted) {
+    if (!isVip && !hdTrialPending) {
       if (!safeQuality) {
         // 未指定画质：默认限制 720p
         safeQuality = `bestvideo[height<=${FREE_MAX_HEIGHT}]+bestaudio/best[height<=${FREE_MAX_HEIGHT}]`;
@@ -285,13 +294,16 @@ async function createDownload(req, res) {
       platform: finalPlatform,
       needAsr: wantsAsr,
       targetLang,
+      asrLanguage,
       options: normalizedOptions,
       saveTarget,
       status: 'pending',
       progress: 0,
       createdAt: Date.now(),
       userId: isGuest ? null : userId,
-      guestIp: isGuest ? guestIp : null
+      guestIp: isGuest ? guestIp : null,
+      hdTrialPending: hdTrialPending || false,
+      quality: safeQuality
     };
 
     store.save(task);
@@ -373,21 +385,14 @@ async function createDownload(req, res) {
 
     // Instagram 链接:走 TikHub API
     if (/instagram\.com|instagr\.am/i.test(url)) {
-      processInstagram(taskId, url, wantsAsr, normalizedOptions).catch(err => {
+      processInstagram(taskId, url, wantsAsr, normalizedOptions, safeQuality).catch(err => {
         logger.error(`[task] ${taskId} instagram failed:`, err);
         store.update(taskId, { status: TASK_STATUS.ERROR, progress: 0, error: err.message });
       });
       return res.json({ code: RESPONSE_CODE.SUCCESS, data: { taskId, status: TASK_STATUS.PENDING, platform: PLATFORM.INSTAGRAM } });
     }
 
-    // Bilibili 链接:走 yt-dlp(待完善)
-    if (/bilibili\.com|b23\.tv/i.test(url)) {
-      processDownload(taskId, url, wantsAsr, normalizedOptions, safeQuality).catch(err => {
-        logger.error(`[task] ${taskId} bilibili failed:`, err);
-        store.update(taskId, { status: TASK_STATUS.ERROR, progress: 0, error: err.message });
-      });
-      return res.json({ code: RESPONSE_CODE.SUCCESS, data: { taskId, status: TASK_STATUS.PENDING, platform: PLATFORM.BILIBILI } });
-    }
+    // Bilibili 已在上面 TikHub 分支处理，此处不再重复
 
     // 其他平台:走 yt-dlp
     processDownload(taskId, url, wantsAsr, normalizedOptions, safeQuality).catch(err => {
@@ -558,7 +563,13 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
       const { isCobaltConfigured, downloadViaCobalt } = require('../services/cobalt');
       if (isCobaltConfigured() && wantsVideo && !wantsOnlyAudio) {
         try {
-          logger.info(`[task] ${taskId} trying cobalt first (generic platform)...`);
+          // 解析画质参数
+          let videoQuality = 'max';
+          if (quality && quality.includes('height<=')) {
+            const m = quality.match(/height<=(\d+)/);
+            if (m) videoQuality = m[1] + 'p';
+          }
+          logger.info(`[task] ${taskId} trying cobalt first (generic platform, quality: ${videoQuality})...`);
           store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
           const cobaltResult = await downloadViaCobalt(url, taskId, {
             onProgress: (percent) => store.update(taskId, {
@@ -566,7 +577,7 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
               progress: percent
             }),
             options: {
-              videoQuality: 'max',
+              videoQuality,
               filenameStyle: 'basic'
             }
           });
@@ -1157,15 +1168,32 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
     if (cobaltResult) {
       const cobaltUpdate = {
         status: TASK_STATUS.COMPLETED,
-        height: 1080,
+        width: cobaltResult.width || 0,
+        height: cobaltResult.height || 1080,
         quality: cobaltResult.cobaltFilename || '1080p',
         progress: 100,
+        title: cobaltResult.title || 'YouTube Video',
         downloadUrl: cobaltResult.downloadUrl,
         filePath: cobaltResult.filePath,
         ext: cobaltResult.ext
       };
-      fileRefManager.addRef(cobaltResult.filePath.split('/').pop());
+      const refName = cobaltResult.filePath.split('/').pop();
+      fileRefManager.addRef(refName);
       store.update(taskId, cobaltUpdate);
+
+      // 处理 ASR（Cobalt 成功后）
+      if (needAsr && cobaltResult.filePath) {
+        const asrResult = await handleAsr(taskId, cobaltResult.filePath, 'zh');
+        if (asrResult?.text) {
+          const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl };
+          if (asrResult.summary) upd.summaryText = asrResult.summary;
+          if (asrResult.translatedText) {
+            upd.translatedText = asrResult.translatedText;
+            upd.translatedTxtUrl = asrResult.translatedTxtUrl;
+          }
+          store.update(taskId, upd);
+        }
+      }
 
       await finalizeTask(taskId);
       logger.info(`[task] ${taskId} youtube completed via cobalt`);
@@ -1215,11 +1243,12 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
       try {
         logger.info(`[task] ${taskId} youtube trying yout.com API...`);
         
-        // 先获取视频信息（标题）
+        // 先获取视频标题（通过 yt-dlp）
         let videoTitle = 'YouTube Video';
         try {
-          const infoRes = await axios.post(`${API_BASE}/video-info`, { url }, { timeout: 15000 });
-          videoTitle = infoRes.data.data?.title || videoTitle;
+          const ytdlp = require('../services/yt-dlp');
+          const info = await ytdlp.getInfo(url);
+          videoTitle = info?.title || videoTitle;
         } catch (e) {
           logger.warn(`[task] ${taskId} failed to get video title: ${e.message}`);
         }
@@ -1332,6 +1361,12 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
         } catch (e) { /* keep original URL */ }
       }
       try {
+        // 解析画质参数
+        let videoQuality = 'max';
+        if (quality && quality.includes('height<=')) {
+          const m = quality.match(/height<=(\d+)/);
+          if (m) videoQuality = m[1] + 'p';
+        }
         const cobaltResult = await downloadViaCobalt(resolvedTikTokUrl, taskId, {
           onProgress: (percent, msg) => {
             store.update(taskId, {
@@ -1339,7 +1374,7 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
               progress: percent
             });
           },
-          options: { videoQuality: 'max', filenameStyle: 'basic', downloadMode: 'auto' }
+          options: { videoQuality, filenameStyle: 'basic', downloadMode: 'auto' }
         });
         if (cobaltResult && !cobaltResult.isPicker) {
           // Cobalt 不返回标题/时长，通过 yt-dlp --dump-json 补全
@@ -1372,6 +1407,30 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
           };
           fileRefManager.addRef(`${taskId}.${cobaltResult.ext || 'mp4'}`);
           usedCobalt = true;
+
+          // 处理纯音频提取（Cobalt 路径）
+          const wantsAudioOnly = options.includes('audio') && !options.includes('video');
+          if (wantsAudioOnly && update.filePath) {
+            try {
+              const audioPath = path.join(__dirname, '../../downloads', taskId + '.mp3');
+              const { spawn } = require('child_process');
+              await new Promise((resolve, reject) => {
+                const ff = spawn('ffmpeg', ['-i', update.filePath, '-vn', '-acodec', 'libmp3lame', '-b:a', '128k', '-y', audioPath]);
+                const timer = setTimeout(() => { ff.kill('SIGKILL'); reject(new Error('timeout')); }, TIMEOUT.FFMPEG);
+                ff.on('close', code => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error('ffmpeg exit ' + code)); });
+                ff.on('error', err => { clearTimeout(timer); reject(err); });
+              });
+              update.downloadUrl = '/download/' + taskId + '.mp3';
+              update.filePath = audioPath;
+              update.ext = 'mp3';
+              update.audioUrl = '/download/' + taskId + '.mp3';
+              fileRefManager.addRef(taskId + '.mp3');
+              await asyncFs.safeUnlink(cobaltResult.filePath);
+            } catch (e) {
+              logger.error('[tiktok cobalt audio] extract failed:', e.message);
+            }
+          }
+
           logger.info(`[task] ${taskId} TikTok Cobalt succeeded`);
         }
       } catch (e) {
@@ -1672,6 +1731,20 @@ async function processXiaohongshu(taskId, url, needAsr, options = ['video'], qua
 
     store.update(taskId, update);
 
+    // ASR 语音转文字
+    if (needAsr && update.filePath) {
+      const asrResult = await handleAsr(taskId, update.filePath, 'zh');
+      if (asrResult?.text) {
+        const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl };
+        if (asrResult.summary) upd.summaryText = asrResult.summary;
+        if (asrResult.translatedText) {
+          upd.translatedText = asrResult.translatedText;
+          upd.translatedTxtUrl = asrResult.translatedTxtUrl;
+        }
+        store.update(taskId, upd);
+      }
+    }
+
     await finalizeTask(taskId);
     logger.info(`[task] ${taskId} xiaohongshu completed`);
   } catch (error) {
@@ -1685,7 +1758,7 @@ async function processXiaohongshu(taskId, url, needAsr, options = ['video'], qua
 /**
  * 处理 Instagram 下载（TikHub API）
  */
-async function processInstagram(taskId, url, needAsr, options = ['video']) {
+async function processInstagram(taskId, url, needAsr, options = ['video'], quality = null) {
   // 获取任务锁
   if (!taskLock.tryAcquire(taskId)) {
     logger.warn(`[task] ${taskId} is already being processed`);
@@ -1705,14 +1778,20 @@ async function processInstagram(taskId, url, needAsr, options = ['video']) {
 
     if (isCobaltConfigured()) {
       try {
-        logger.info(`[task] ${taskId} instagram trying cobalt first...`);
+        // 解析画质参数
+        let videoQuality = 'max';
+        if (quality && quality.includes('height<=')) {
+          const m = quality.match(/height<=(\d+)/);
+          if (m) videoQuality = m[1] + 'p';
+        }
+        logger.info(`[task] ${taskId} instagram trying cobalt first... (quality: ${videoQuality})`);
         cobaltResult = await downloadViaCobalt(url, taskId, {
           onProgress: (percent) => store.update(taskId, {
             status: percent < 90 ? TASK_STATUS.DOWNLOADING : TASK_STATUS.PROCESSING,
             progress: percent
           }),
           options: {
-            videoQuality: 'max',
+            videoQuality,
             filenameStyle: 'basic'
           }
         });
@@ -1741,6 +1820,7 @@ async function processInstagram(taskId, url, needAsr, options = ['video']) {
       } else {
         const update = {
           status: TASK_STATUS.COMPLETED,
+          title: cobaltResult.title || 'Instagram Video',
           quality: cobaltResult.cobaltFilename || 'max',
           progress: 100,
           downloadUrl: cobaltResult.downloadUrl,
@@ -1749,6 +1829,20 @@ async function processInstagram(taskId, url, needAsr, options = ['video']) {
         };
         fileRefManager.addRef(`${taskId}.${cobaltResult.ext}`);
         store.update(taskId, update);
+
+        // 处理 ASR（Cobalt 成功后）
+        if (needAsr && cobaltResult.filePath) {
+          const asrResult = await handleAsr(taskId, cobaltResult.filePath, 'zh');
+          if (asrResult?.text) {
+            const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl };
+            if (asrResult.summary) upd.summaryText = asrResult.summary;
+            if (asrResult.translatedText) {
+              upd.translatedText = asrResult.translatedText;
+              upd.translatedTxtUrl = asrResult.translatedTxtUrl;
+            }
+            store.update(taskId, upd);
+          }
+        }
       }
 
       await finalizeTask(taskId);
@@ -2091,8 +2185,10 @@ async function processWechat(taskId, url, needAsr, options = ['video']) {
       title: result.description
     };
 
+    fileRefManager.addRef(path.basename(result.filePath));
     store.update(taskId, update);
 
+    await finalizeTask(taskId);
     logger.info(`[task] ${taskId} wechat completed: ${result.width}x${result.height} ${result.quality}`);
 
   } catch (err) {
@@ -2224,8 +2320,10 @@ async function processBatchQueue(batchId, tasks, opts) {
       }
     });
 
-    t.status = 'completed';
-    logger.info(`[batch] ${batchId.substring(0,8)} task ${i+1}/${tasks.length} done: ${t.taskId}`);
+    // 从 store 读取真实状态，避免失败任务被标为 completed
+    const actualTask = store.get(t.taskId);
+    t.status = actualTask?.status === 'completed' ? 'completed' : (actualTask?.status || 'error');
+    logger.info(`[batch] ${batchId.substring(0,8)} task ${i+1}/${tasks.length} done: ${t.taskId} (status=${t.status})`);
   }
 
   batchStore.set(batchId, { ...batchStore.get(batchId), status: 'completed', progress: 100 });

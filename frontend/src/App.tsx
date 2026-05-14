@@ -192,6 +192,7 @@ export default function App() {
   const [batchUrls, setBatchUrls] = useState('')
   const [batchQuality, setBatchQuality] = useState('') // 批量画质偏好
   const [batchId, setBatchId] = useState<string | null>(null) // 当前批量任务 ID
+  const qualityManuallySet = useRef(false) // 防止 useEffect 自动选择覆盖用户手动选择
   const [copywritingLoading, setCopywritingLoading] = useState(false)
   const [copywritingResult, setCopywritingResult] = useState<any>(null)
 
@@ -497,6 +498,8 @@ export default function App() {
       setAutoQuality(null)
       return
     }
+    // 如果用户已手动选择画质，不覆盖
+    if (qualityManuallySet.current) return
     const maxShortEdge = isVip ? 99999 : 720
     const best = availableQualities
       .filter(q => qualityShortEdge(q) <= maxShortEdge)
@@ -504,7 +507,9 @@ export default function App() {
     if (best) {
       const label = best.qualityLabel || `${qualityShortEdge(best)}p`
       setAutoQuality({ label, height: qualityShortEdge(best) })
-      setPendingQuality(best.quality)
+      // 使用统一格式 height<=N，与手动选择保持一致
+      const shortEdge = qualityShortEdge(best)
+      setPendingQuality(`height<=${shortEdge}`)
     }
   }, [availableQualities, isVip])
 
@@ -628,6 +633,7 @@ export default function App() {
     setUrl(finalUrl)
     setDetected(platform)
     setPendingQuality('')
+    qualityManuallySet.current = false
     
     // Fetch video qualities in background for inline quality selector
     if (finalUrl && !batchMode) {
@@ -648,11 +654,13 @@ export default function App() {
         setUrl(urls[0])
         setDetected(detectPlatform(urls[0]))
         setPendingQuality('')
+        qualityManuallySet.current = false
         fetchVideoQualities(urls[0]).catch(() => {})
       } else if (text) {
         setUrl(text)
         setDetected(detectPlatform(text))
         setPendingQuality('')
+        qualityManuallySet.current = false
         fetchVideoQualities(text).catch(() => {})
       }
     } catch (e) {
@@ -679,6 +687,7 @@ export default function App() {
       setUrl(urls[0])
       setDetected(detectPlatform(urls[0]))
       setPendingQuality('')
+      qualityManuallySet.current = false
       fetchVideoQualities(urls[0]).catch(() => {})
     }
     // 没有Link则Use默认Paste行为
@@ -805,7 +814,7 @@ export default function App() {
     try {
       const r = await axios.post(`${API}/download/batch`, {
         urls: cleanUrls,
-        quality: batchQuality || quality,
+        quality: batchQuality || pendingQuality || quality,
         options: [...selected],
         needAsr: selected.has('asr'),
         asrLanguage,
@@ -870,6 +879,7 @@ export default function App() {
       }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} })
       setTask(r.data.data); setDetected('')
       setPendingQuality('')  // 清空选择的画质
+      qualityManuallySet.current = false
     } catch (e: any) {
       setError(getErrorMessage(e.code === 'ECONNABORTED' ? 'timeout' : (e.response?.data?.message || e.message || t('errorDefault'))))
     } finally { setLoading(false) }
@@ -1366,7 +1376,10 @@ export default function App() {
                           key={idx}
                           onClick={() => {
                             if (!canSelect) { setShowUpgradePopup(true); return }
-                            setPendingQuality(`height<=${shortEdge}`)
+                            const qualityStr = `height<=${shortEdge}`
+                            qualityManuallySet.current = true
+                            setPendingQuality(qualityStr)
+                            setQuality(qualityStr)
                             setAutoQuality({ label: qualityLabel, height: shortEdge })
                           }}
                           className={`flex items-center gap-1.5 px-3 py-2 text-xs rounded-lg transition-all ${

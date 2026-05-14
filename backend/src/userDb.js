@@ -606,6 +606,21 @@ const userDb = {
   },
 
   /**
+   * 检查高清画质试用是否可用（只检查不扣除）
+   * @returns true=试用可用, false=已用完或无需试用
+   */
+  async checkHdTrial(userId) {
+    if (!userId) return false; // 游客不能试用
+    
+    const user = await this.getById(userId);
+    if (!user) return false;
+    if (isVip(user)) return true; // VIP 用户不需要试用
+    
+    const MAX_TRIALS = 1;
+    return user.hd_trials_used < MAX_TRIALS;
+  },
+
+  /**
    * 使用高清画质试用（免费用户限1次）
    * @returns true=试用成功, false=试用已用完或无需试用
    */
