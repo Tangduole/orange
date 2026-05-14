@@ -124,6 +124,7 @@ const ASR_LANGUAGE_OPTIONS = [
 const BATCH_QUALITY_OPTIONS = [
   { value: '',         label: '自动最佳', icon: '🔄', height: 0 },
   { value: 'height<=1080', label: '1080p', icon: '📺', height: 1080 },
+  { value: 'height<=99999', label: '原画',  icon: '🎞️', height: 1080, vipOnly: true },
   { value: 'height<=1440', label: '2K',    icon: '🎬', height: 1440 },
   { value: 'height<=2160', label: '4K',    icon: '🎥', height: 2160 },
 ]
@@ -1370,6 +1371,26 @@ export default function App() {
               <div className="mb-4">
                 <p className="text-xs text-slate-400 mb-2 font-medium">🎬 {t('quality')}</p>
                 <div className="flex flex-wrap gap-1.5">
+                    {/* 原画 - VIP 专属，走 TikHub 原始视频 */}
+                    {isVip && (
+                      <button
+                        onClick={() => {
+                          qualityManuallySet.current = true
+                          setPendingQuality('height<=99999')
+                          setQuality('height<=99999')
+                          setAutoQuality({ label: '原画', height: 99999 })
+                        }}
+                        className={`flex items-center gap-1.5 px-3 py-2 text-xs rounded-lg transition-all ${
+                          pendingQuality === 'height<=99999'
+                            ? 'bg-gradient-to-r from-orange to-orange-light text-white font-semibold shadow-md'
+                            : 'bg-slate-700/40 text-amber-300 border border-amber-500/30 hover:border-amber-400 hover:text-amber-200'
+                        }`}
+                      >
+                        <span>🎞️</span>
+                        <span>原画</span>
+                        <span className="text-[10px] opacity-60">VIP</span>
+                      </button>
+                    )}
                     {availableQualities.map((q, idx) => {
                       const shortEdge = qualityShortEdge(q)
                       const isHighQuality = shortEdge > 720
