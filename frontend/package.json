@@ -9,6 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/core": "^5.0.0",
+    "@capacitor/filesystem": "^5.0.0",
+    "@capacitor/share": "^5.0.0",
     "axios": "^1.6.0",
     "i18next": "^26.0.5",
     "i18next-browser-languagedetector": "^8.2.1",
