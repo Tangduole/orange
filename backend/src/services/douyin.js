@@ -379,8 +379,8 @@ async function downloadDouyin(url, taskId, onProgress, opts = {}) {
   if (onProgress) onProgress(5, '解析链接');
 
   const targetRatio = deriveTargetRatio(opts.quality, opts.isVip);
-  logger.info("[douyin] targetRatio=" + targetRatio + " firstUrl=" + (info.videoCandidates[0]||"").substring(0,120));
   const info = await parseDouyinPage(url, { targetRatio });
+  logger.info("[douyin] targetRatio=" + targetRatio + " firstUrl=" + (info.videoCandidates[0]||"").substring(0,120));
   if (onProgress) onProgress(30, '获取作品信息');
 
   logger.info(`[douyin] Parsed: type=${info.type}, title="${(info.title||'').substring(0, 50)}", images=${info.images.length}, candidates=${info.videoCandidates.length}, target=${targetRatio}, parsedHeight=${info.height}`);
