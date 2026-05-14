@@ -791,8 +791,8 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
     let usedYtdlpFallback = false;
 
     // 判断是否需要高清直通 TikHub
-    // iesdouyin 只能提供 ≤1080p 的源, VIP 用户选 ≥2K 时直接走 TikHub 付费 API
-    // 但如果 TikHub Key 未配置，不要跳过 iesdouyin（至少能拿到 1080p）
+    // iesdouyin 只能提供 ≤1080p 的源(CDN 低码率), VIP 用户选 ≥1080p 时直接走 TikHub 高清 API
+    // 但如果 TikHub Key 未配置，不要跳过 iesdouyin（至少能拿到基础画质）
     let skipIesdouyin = false;
     let requestedHeight = 99999;
     if (quality && typeof quality === 'string') {
@@ -800,11 +800,11 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
       if (m) requestedHeight = parseInt(m[1]);
     }
     const hasTikHubKey = API_KEY_DOUYIN && API_KEY_DOUYIN.length > 10;
-    if (isVip && requestedHeight >= 1440 && hasTikHubKey) {
+    if (isVip && requestedHeight >= 1080 && hasTikHubKey) {
       skipIesdouyin = true;
-      logger.info(`[task] ${taskId} VIP + ${requestedHeight}p requested, using TikHub as primary`);
-    } else if (isVip && requestedHeight >= 1440 && !hasTikHubKey) {
-      logger.warn(`[task] ${taskId} VIP + ${requestedHeight}p but no TikHub key, falling back to iesdouyin (1080p max)`);
+      logger.info(`[task] ${taskId} VIP + ${requestedHeight}p requested, using TikHub as primary (original quality)`);
+    } else if (isVip && requestedHeight >= 1080 && !hasTikHubKey) {
+      logger.warn(`[task] ${taskId} VIP + ${requestedHeight}p but no TikHub key, falling back to iesdouyin (CDN quality)`);
     }
 
     // Step 1: 尝试 iesdouyin.com（免费方案）
@@ -822,40 +822,6 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
       } catch (e) {
         iesdouyinError = e.message;
         logger.warn(`[task] ${taskId} iesdouyin.com failed: ${e.message}, trying TikHub...`);
-      }
-    }
-
-    // Step 1b: VIP 用户即使 iesdouyin 成功，也尝试 TikHub 获取更高画质
-    if (result && hasTikHubKey && isVip && !skipIesdouyin) {
-      try {
-        logger.info(`[task] ${taskId} VIP: trying TikHub for better quality...`);
-        const tikhubResult = await parseDouyinTikHub(url, taskId, (percent, downloaded, total) => {
-          store.update(taskId, {
-            status: percent < 30 ? TASK_STATUS.PARSING : TASK_STATUS.DOWNLOADING,
-            progress: percent,
-            downloadedBytes: downloaded || 0,
-            totalBytes: total || 0
-          });
-        }, quality, isVip);
-        // 比较文件大小，选更大的
-        if (tikhubResult?.filePath && result?.filePath) {
-          const iesSize = fs.existsSync(result.filePath) ? fs.statSync(result.filePath).size : 0;
-          const tikSize = fs.existsSync(tikhubResult.filePath) ? fs.statSync(tikhubResult.filePath).size : 0;
-          if (tikSize > iesSize) {
-            logger.info(`[task] ${taskId} TikHub gives larger file (${(tikSize/1024/1024).toFixed(1)}MB > ${(iesSize/1024/1024).toFixed(1)}MB), using TikHub`);
-            // Clean up iesdouyin file
-            try { fs.unlinkSync(result.filePath); } catch {}
-            result = tikhubResult;
-          } else {
-            logger.info(`[task] ${taskId} iesdouyin already best (${(iesSize/1024/1024).toFixed(1)}MB >= ${(tikSize/1024/1024).toFixed(1)}MB)`);
-            // Clean up TikHub file
-            try { fs.unlinkSync(tikhubResult.filePath); } catch {}
-          }
-        } else if (tikhubResult) {
-          result = tikhubResult;
-        }
-      } catch (tikhubErr) {
-        logger.warn(`[task] ${taskId} TikHub comparison failed: ${tikhubErr.message}, keeping iesdouyin result`);
       }
     }
 
