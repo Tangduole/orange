@@ -547,20 +547,47 @@ export default function App() {
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [])
 
-  // PlayPrompt音
+  // 金属质感"叮"音
   const playNotificationSound = () => {
     try {
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
-      const oscillator = audioContext.createOscillator()
-      const gainNode = audioContext.createGain()
-      oscillator.connect(gainNode)
-      gainNode.connect(audioContext.destination)
-      oscillator.frequency.value = 800
-      oscillator.type = 'sine'
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime)
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3)
-      oscillator.start(audioContext.currentTime)
-      oscillator.stop(audioContext.currentTime + 0.3)
+      const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+      const now = ctx.currentTime
+      
+      // 主音：高频三角波，快速衰减
+      const osc1 = ctx.createOscillator()
+      const gain1 = ctx.createGain()
+      osc1.type = 'triangle'
+      osc1.frequency.value = 2400
+      gain1.gain.setValueAtTime(0, now)
+      gain1.gain.linearRampToValueAtTime(0.25, now + 0.01)   // 快速起音
+      gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.5) // 0.5s 衰减
+      osc1.connect(gain1).connect(ctx.destination)
+      osc1.start(now)
+      osc1.stop(now + 0.5)
+      
+      // 泛音：更高频正弦波，更快消失
+      const osc2 = ctx.createOscillator()
+      const gain2 = ctx.createGain()
+      osc2.type = 'sine'
+      osc2.frequency.value = 3600
+      gain2.gain.setValueAtTime(0, now)
+      gain2.gain.linearRampToValueAtTime(0.15, now + 0.005)
+      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.25)
+      osc2.connect(gain2).connect(ctx.destination)
+      osc2.start(now)
+      osc2.stop(now + 0.25)
+      
+      // 低频余韵：营造金属共鸣感
+      const osc3 = ctx.createOscillator()
+      const gain3 = ctx.createGain()
+      osc3.type = 'sine'
+      osc3.frequency.value = 1200
+      gain3.gain.setValueAtTime(0, now + 0.05)
+      gain3.gain.linearRampToValueAtTime(0.1, now + 0.08)
+      gain3.gain.exponentialRampToValueAtTime(0.001, now + 0.7)
+      osc3.connect(gain3).connect(ctx.destination)
+      osc3.start(now + 0.05)
+      osc3.stop(now + 0.7)
     } catch {}
   }
 
