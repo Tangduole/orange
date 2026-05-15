@@ -436,10 +436,11 @@ async function downloadViaInvidious(url, taskId, onProgress) {
   const http = require('http');
 
   const instances = [
-    'https://invidious.fdn.fr',
+    'https://yewtu.be',
+    'https://vid.puffyan.us',
+    'https://invidious.lunar.icu',
     'https://inv.nadeko.net',
-    'https://invidious.nerdvpn.de',
-    'https://inv.tux.pizza',
+    'https://iv.ggtyler.dev',
   ];
 
   const videoIdMatch = url.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/);
