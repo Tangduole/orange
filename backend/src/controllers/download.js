@@ -1241,6 +1241,39 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
     }
     } // end if (!isOriginalQuality)
 
+    // ========== Invidious 免费兜底 ==========
+    if (!result) {
+      try {
+        logger.info(`[task] ${taskId} youtube trying Invidious (free)...`);
+        const invidiousResult = await ytdlp.downloadViaInvidious(url, taskId, (percent) => {
+          store.update(taskId, {
+            status: percent < 90 ? TASK_STATUS.DOWNLOADING : TASK_STATUS.PROCESSING,
+            progress: percent
+          });
+        });
+        if (invidiousResult) {
+          const update = {
+            status: TASK_STATUS.COMPLETED,
+            height: 720,
+            quality: '720p',
+            progress: 100,
+            title: invidiousResult.title || 'YouTube Video',
+            thumbnailUrl: invidiousResult.thumbnailUrl || '',
+            downloadUrl: `/download/${taskId}.mp4`,
+            filePath: invidiousResult.filePath,
+            ext: 'mp4'
+          };
+          fileRefManager.addRef(`${taskId}.mp4`);
+          store.update(taskId, update);
+          await finalizeTask(taskId);
+          logger.info(`[task] ${taskId} youtube completed via Invidious`);
+          return;
+        }
+      } catch (e) {
+        logger.warn(`[task] ${taskId} Invidious failed: ${e.message}`);
+      }
+    }
+
     // ========== Yout.com API (解决 Vultr IP 被 Google 封锁问题) ==========
     const { isYoutConfigured, downloadViaYout } = require('../services/yout');
     if (isYoutConfigured()) {
