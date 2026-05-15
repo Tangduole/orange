@@ -22,13 +22,13 @@ export default {
           border: '#475569',
         },
         light: {
-          bg: '#f8fafc',
-          surface: '#ffffff',
-          input: '#f1f5f9',
-          border: '#e2e8f0',
+          bg: '#eef2f6',
+          surface: '#f8fafc',
+          input: '#e2e8f0',
+          border: '#cbd5e1',
           text: '#1e293b',
           textSecondary: '#475569',
-          textMuted: '#94a3b8',
+          textMuted: '#64748b',
         },
       },
       borderRadius: {
