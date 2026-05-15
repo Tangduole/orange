@@ -51,9 +51,8 @@ const shareFile = async (
   title: string,
   _fileType: 'video' | 'audio' | 'image' = 'video',
 ) => {
-  // 下载链接用 www.orangedl.com（Vercel 代理到 api），通知里就显示 www
-  const downloadBase = 'https://www.orangedl.com'
-  const fullUrl = url.startsWith('http') ? url : `${downloadBase}${url}`
+  // 下载用相对路径（保持同源，<a download> 才能生效命名）
+  const fullUrl = url.startsWith('http') ? url : url
   const filename = (title || 'orange-download').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 120)
 
   try {
