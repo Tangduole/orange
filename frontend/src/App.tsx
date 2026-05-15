@@ -913,7 +913,7 @@ export default function App() {
         url: url.trim(), platform: detected || 'auto',
         needAsr: selected.has('asr'), options: [...selected], quality: downloadQuality, asrLanguage
       }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} })
-      setTask(r.data.data); setDetected('')
+      setTask(r.data.data);
       setPendingQuality('')  // 清空选择的画质
       qualityManuallySet.current = false
     } catch (e: any) {
