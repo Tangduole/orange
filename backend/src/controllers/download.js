@@ -1157,7 +1157,6 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
           }),
           options: {
             videoQuality,
-            youtubeVideoCodec: 'h264',
             filenameStyle: 'basic'
           }
         });

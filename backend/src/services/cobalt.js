@@ -73,14 +73,12 @@ function requestCobalt(url, options = {}) {
 
   const body = JSON.stringify({
     url,
-    videoQuality: options.videoQuality || 'max',
+    videoQuality: (options.videoQuality || 'max').replace('p', ''), // Cobalt 11.x: '1080' not '1080p'
     audioFormat: options.audioFormat || 'mp3',
     audioBitrate: options.audioBitrate || '320',
     filenameStyle: options.filenameStyle || 'basic',
-    downloadMode: options.downloadMode || 'auto', // auto | audio | mute
-    youtubeVideoCodec: options.youtubeVideoCodec || 'h264',
+    downloadMode: options.downloadMode || 'auto',
     youtubeDubLang: options.youtubeDubLang,
-    // twitterGif removed in cobalt 11.7+ // twitterGif: options.twitterGif !== false,
     tiktokFullAudio: options.tiktokFullAudio || false,
     disableMetadata: options.disableMetadata || false,
     alwaysProxy: options.alwaysProxy || false,
