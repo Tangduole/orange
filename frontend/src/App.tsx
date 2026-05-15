@@ -548,35 +548,49 @@ export default function App() {
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [])
 
-  // 清脆金属敲击"叮"音
+  // 下载完成提示音 — 清脆明亮的叮
   const playNotificationSound = () => {
     try {
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
       const now = ctx.currentTime
       
-      // 主体敲击音 — 正弦波，起音极快，中等衰减
-      const osc = ctx.createOscillator()
-      const gain = ctx.createGain()
-      osc.type = 'sine'
-      osc.frequency.value = 1800
-      gain.gain.setValueAtTime(0, now)
-      gain.gain.linearRampToValueAtTime(0.35, now + 0.003)   // 3ms 极快起音
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35) // 0.35s 清脆衰减
-      osc.connect(gain).connect(ctx.destination)
-      osc.start(now)
-      osc.stop(now + 0.35)
+      // 主音 2100Hz + 微偏 2130Hz — 清脆明亮钟鸣感
+      for (const freq of [2100, 2130]) {
+        const osc = ctx.createOscillator()
+        const gain = ctx.createGain()
+        osc.type = 'sine'
+        osc.frequency.value = freq
+        gain.gain.setValueAtTime(0, now)
+        gain.gain.linearRampToValueAtTime(freq === 2100 ? 0.35 : 0.2, now + 0.005)
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.65)
+        osc.connect(gain).connect(ctx.destination)
+        osc.start(now)
+        osc.stop(now + 0.65)
+      }
       
-      // 高音泛音 — 一个八度上方的轻轻点缀
-      const osc2 = ctx.createOscillator()
-      const gain2 = ctx.createGain()
-      osc2.type = 'sine'
-      osc2.frequency.value = 2400
-      gain2.gain.setValueAtTime(0, now + 0.01)
-      gain2.gain.linearRampToValueAtTime(0.08, now + 0.013)
-      gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.2)
-      osc2.connect(gain2).connect(ctx.destination)
-      osc2.start(now + 0.01)
-      osc2.stop(now + 0.2)
+      // 高频泛音 3100Hz — 光泽层
+      const oscH = ctx.createOscillator()
+      const gainH = ctx.createGain()
+      oscH.type = 'sine'
+      oscH.frequency.value = 3100
+      gainH.gain.setValueAtTime(0, now)
+      gainH.gain.linearRampToValueAtTime(0.12, now + 0.005)
+      gainH.gain.exponentialRampToValueAtTime(0.001, now + 0.35)
+      oscH.connect(gainH).connect(ctx.destination)
+      oscH.start(now)
+      oscH.stop(now + 0.35)
+      
+      // 低频余韵 1050Hz — 悠长感
+      const oscL = ctx.createOscillator()
+      const gainL = ctx.createGain()
+      oscL.type = 'sine'
+      oscL.frequency.value = 1050
+      gainL.gain.setValueAtTime(0, now + 0.08)
+      gainL.gain.linearRampToValueAtTime(0.08, now + 0.12)
+      gainL.gain.exponentialRampToValueAtTime(0.001, now + 0.65)
+      oscL.connect(gainL).connect(ctx.destination)
+      oscL.start(now + 0.08)
+      oscL.stop(now + 0.65)
     } catch {}
   }
 
