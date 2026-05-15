@@ -1143,9 +1143,11 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
     }
 
     // ========== Cobalt (第一优先 - 更高画质 + 免费) ==========
+    // 原画模式跳过 Cobalt，直接用 Yout.com 拿最高码率
+    const isOriginalQuality = quality && quality.includes('height<=99999');
     const { isCobaltConfigured, downloadViaCobalt } = require('../services/cobalt');
     let cobaltResult = null;
-    if (isCobaltConfigured()) {
+    if (isCobaltConfigured() && !isOriginalQuality) {
       try {
         logger.info(`[task] ${taskId} youtube trying cobalt first...`);
         cobaltResult = await downloadViaCobalt(url, taskId, {
@@ -1200,8 +1202,9 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
       return;
     }
 
-    // ========== TikHub v2 API Fallback ==========
+    // ========== TikHub v2 API Fallback (跳过原画模式) ==========
     let result = null;
+    if (!isOriginalQuality) {
     try {
       const { parseYouTubeV2 } = require('../services/tikhub');
       result = await parseYouTubeV2(url, taskId, (percent, downloaded, total) => {
@@ -1236,6 +1239,7 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
       logger.info(`[task] ${taskId} youtube completed via TikHub v2 (${result.quality})`);
       return;
     }
+    } // end if (!isOriginalQuality)
 
     // ========== Yout.com API (解决 Vultr IP 被 Google 封锁问题) ==========
     const { isYoutConfigured, downloadViaYout } = require('../services/yout');

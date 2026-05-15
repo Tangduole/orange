@@ -1401,8 +1401,8 @@ export default function App() {
               <div className="mb-4">
                 <p className="text-xs text-slate-400 mb-2 font-medium">🎬 {t('quality')}</p>
                 <div className="flex flex-wrap gap-1.5">
-                    {/* 原画 - VIP 专属，仅抖音支持 TikHub 高清接口 */}
-                    {isVip && detected === 'douyin' && (
+                    {/* 原画 - VIP 专属，抖音(TikHub) / YouTube(Yout.com) 支持 */}
+                    {isVip && (detected === 'douyin' || detected === 'youtube') && (
                       <button
                         onClick={() => {
                           qualityManuallySet.current = true
