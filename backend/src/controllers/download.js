@@ -1041,14 +1041,51 @@ async function processX(taskId, url, needAsr, options = ['video']) {
   }
 
   try {
-    const { downloadX } = require('../services/x-download');
     store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
-    const result = await downloadX(url, taskId, (percent, msg) => {
+
+    let result = null;
+
+    // ========== Cobalt 优先（自托管 + 免费） ==========
+    const { isCobaltConfigured, downloadViaCobalt } = require('../services/cobalt');
+    if (isCobaltConfigured()) {
+      try {
+        logger.info(`[task] ${taskId} x/twitter trying cobalt first...`);
+        const cobaltResult = await downloadViaCobalt(url, taskId, {
+          onProgress: (percent) => store.update(taskId, {
+            status: percent < 90 ? TASK_STATUS.DOWNLOADING : TASK_STATUS.PROCESSING,
+            progress: percent
+          }),
+          options: { videoQuality: 'max', filenameStyle: 'basic' }
+        });
+        if (cobaltResult && !cobaltResult.isPicker) {
+          result = {
+            title: cobaltResult.title || 'X Video',
+            filePath: cobaltResult.filePath,
+            ext: cobaltResult.ext || 'mp4',
+            downloadUrl: cobaltResult.downloadUrl,
+            thumbnailUrl: cobaltResult.thumbnailUrl || '',
+            width: cobaltResult.width || 0,
+            height: cobaltResult.height || 0,
+            quality: cobaltResult.quality || 'hd',
+          };
+          fileRefManager.addRef(path.basename(cobaltResult.filePath));
+          logger.info(`[task] ${taskId} x/twitter cobalt succeeded`);
+        }
+      } catch (e) {
+        logger.warn(`[task] ${taskId} x/twitter cobalt failed: ${e.message}`);
+      }
+    }
+
+    // ========== vxtwitter/fxtwitter 兜底 ==========
+    if (!result) {
+    const { downloadX } = require('../services/x-download');
+    result = await downloadX(url, taskId, (percent, msg) => {
       store.update(taskId, {
         status: percent < 30 ? TASK_STATUS.PARSING : TASK_STATUS.DOWNLOADING,
         progress: percent
       });
     });
+    }
 
     // 检查是否有可用的下载链接
     if (!result.downloadUrl && (!result.images || result.images.length === 0)) {
