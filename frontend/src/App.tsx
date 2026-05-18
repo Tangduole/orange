@@ -1105,7 +1105,7 @@ export default function App() {
                   {/* 头像按钮 */}
                   <button 
                     onClick={() => setShowUserMenu(!showUserMenu)}
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold cursor-pointer ${authUser?.tier === 'pro' ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50' : isDark ? 'bg-slate-700/50 text-slate-300 border border-slate-600/50' : 'bg-light-input text-light-text border-light-border'}`}
+                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold cursor-pointer ${authUser?.tier === 'pro' ? (isDark ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50' : 'bg-amber-100 text-amber-700 border border-amber-300') : isDark ? 'bg-slate-700/50 text-slate-300 border border-slate-600/50' : 'bg-slate-200 text-slate-700 border border-slate-300'}`}
                   >
                     {(authUser?.email || 'U').charAt(0).toUpperCase()}
                   </button>
@@ -1140,7 +1140,7 @@ export default function App() {
                   )}
                 </>
               ) : (
-                <button onClick={() => setShowAuthModal(true)} className={`p-2 rounded-lg transition ${isDark ? 'text-slate-300 hover:text-orange' : 'text-light-textSecondary hover:text-orange-500'}`} title="Login">
+                <button onClick={() => setShowAuthModal(true)} className={`p-2 rounded-lg transition ${isDark ? 'text-slate-300 hover:text-orange' : 'text-slate-600 hover:text-orange-500'}`} title="Login">
                   <User className="w-5 h-5" />
                 </button>
               )}
