@@ -1383,7 +1383,7 @@ export default function App() {
                   return (
                     <button key={o.id} onClick={() => toggle(o.id)}
                       className={`flex items-center gap-1 px-3 py-2 text-xs rounded-lg transition-all
-                        ${on ? 'bg-orange/15 text-orange border border-orange/30' : 'bg-slate-700/30 text-slate-300 border border-transparent hover:text-slate-300'}`}>
+                        ${on ? 'bg-orange/15 text-orange border border-orange/30' : isDark ? 'bg-slate-700/30 text-slate-300 border border-transparent hover:text-slate-300' : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'}`}>
                       <Icon className="w-3.5 h-3.5" />
                       {getOptionLabel(o.labelKey)}
                       {isAsr && on && <span className="text-orange"> + 🤖</span>}
