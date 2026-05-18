@@ -1191,7 +1191,7 @@ export default function App() {
                     onChange={(e) => handleUrlChange(e.target.value)}
                     onPaste={handleSinglePaste}
                     placeholder={t('pasteUrlPlaceholder')}
-                    className={`w-full pl-10 sm:pl-12 pr-10 sm:pr-12 py-4 sm:py-5 border-2 rounded-2xl sm:rounded-3xl focus:ring-4 focus:ring-orange/10 focus:border-orange/70 outline-none text-base transition-all placeholder:text-slate-300 ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-light-surface border-light-border text-light-text'}`}
+                    className={`w-full pl-10 sm:pl-12 pr-10 sm:pr-12 py-4 sm:py-5 border-2 rounded-2xl sm:rounded-3xl focus:ring-4 focus:ring-orange/10 focus:border-orange/70 outline-none text-base transition-all ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white placeholder:text-slate-400' : 'bg-light-surface border-light-border text-light-text placeholder:text-slate-400'}`}
                   />
                   {/* Clear按钮 - 最右边 */}
                   {url && !loading && (
