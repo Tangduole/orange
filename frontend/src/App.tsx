@@ -1146,7 +1146,7 @@ export default function App() {
               )}
             </div>
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-6 text-[11px] sm:text-xs text-slate-400 mt-2">
+          <div className={`flex flex-wrap items-center justify-center gap-3 sm:gap-6 text-[11px] sm:text-xs mt-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
             <span>🌍 50+ 个国家</span>
             <span>🎬 100K+ 视频</span>
             <span>⭐ 4.8/5 评分</span>
