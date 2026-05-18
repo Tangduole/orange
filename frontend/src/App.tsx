@@ -1055,8 +1055,8 @@ export default function App() {
         {/* Header */}
         <header className="max-w-2xl mx-auto px-6 pt-12 sm:pt-20 pb-6 sm:pb-10 text-center">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-orange-500 to-orange-400 flex items-center justify-center shadow-lg shadow-orange/25 flex-shrink-0 overflow-hidden">
-              <span className="text-3xl leading-none">🍊</span>
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden shadow-lg shadow-orange/25 flex-shrink-0">
+              <img src="/logo.png" alt="Orange" className="w-full h-full object-cover" />
             </div>
             <div className="text-left">
               <h1 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-light-text'}`}>{t('appName')}</h1>
