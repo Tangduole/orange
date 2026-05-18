@@ -1362,10 +1362,10 @@ export default function App() {
 
             {/* Supported Platforms */}
             <div className="mb-5">
-              <p className="text-xs text-slate-300 mb-2">{t('supportedPlatforms')}</p>
+              <p className={`text-xs mb-2 ${isDark ? 'text-slate-300' : 'text-light-textSecondary'}`}>{t('supportedPlatforms')}</p>
               <div className="flex flex-wrap gap-1.5">
                 {PLATFORMS.map((p) => (
-                  <span key={p.id} className="flex items-center gap-1 px-2.5 py-1.5 bg-slate-700/30 text-slate-300 text-xs rounded-lg">
+                  <span key={p.id} className={`flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg ${isDark ? 'bg-slate-700/30 text-slate-300' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}>
                     <span>{p.icon}</span>
                     <span>{t(p.labelKey as any) || p.labelFallback}</span>
                   </span>
