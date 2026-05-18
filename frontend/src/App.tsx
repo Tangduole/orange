@@ -1180,7 +1180,7 @@ export default function App() {
                   {/* Paste按钮 */}
                   <button
                     onClick={handlePasteClick}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 p-2 text-slate-300 hover:text-orange transition-colors"
+                    className={`absolute left-3 top-1/2 -translate-y-1/2 p-2 hover:text-orange transition-colors ${isDark ? 'text-slate-300' : 'text-slate-500'}`}
                     title={t('pasteFromClipboard')}
                   >
                     <Clipboard className="w-5 h-5" />
@@ -1562,8 +1562,8 @@ export default function App() {
               </div>
             )}
             {isVip && (
-              <div className="mb-3 text-center text-xs py-2 rounded-xl bg-yellow-500/10 text-yellow-400">
-                ⭐ {t('unlimited')}
+              <div className={`mb-3 text-center text-xs py-2 rounded-xl font-medium ${isDark ? 'bg-yellow-500/10 text-yellow-400' : 'bg-amber-100 text-amber-700 border border-amber-200'}`}>
+                ⭐ 无限制下载 · 原画品质
               </div>
             )}
 
