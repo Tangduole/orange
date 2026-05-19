@@ -73,28 +73,11 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
       highlight: false,
     },
     {
-      key: 'basic',
-      name: t('basic'),
-      price: billing === 'monthly' ? '$2.99' : '$19.99',
-      period: billing === 'monthly' ? t('monthly') : t('yearly'),
-      savings: billing === 'yearly' ? '44%' : null,
-      desc: t('forRegularUse'),
-      features: [
-        { text: t('dailyDownloadLimit', { count: 30 }), included: true },
-        { text: t('allPlatforms'), included: true },
-        { text: t('qualityUpTo1080p'), included: true },
-        { text: t('batchDownload'), included: false },
-      ],
-      current: status?.tier === 'basic',
-      planId: billing === 'monthly' ? 'basic_monthly' : 'basic_yearly',
-      highlight: false,
-    },
-    {
       key: 'pro',
       name: t('pro'),
-      price: billing === 'monthly' ? '$4.99' : '$29.99',
+      price: billing === 'monthly' ? '$6' : '$49',
       period: billing === 'monthly' ? t('monthly') : t('yearly'),
-      savings: billing === 'yearly' ? '50%' : null,
+      savings: billing === 'yearly' ? '$23' : null,
       desc: t('bestValueForPowerUsers'),
       features: [
         { text: t('unlimited') + ' ' + t('downloads'), included: true },
@@ -150,8 +133,6 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
                 <p className="text-2xl font-bold">
                   {status.tier === 'pro' ? (
                     <span className="text-yellow-400">🎉 {t('pro')}</span>
-                  ) : status.tier === 'basic' ? (
-                    <span className="text-blue-400">✨ {t('basic')}</span>
                   ) : (
                     <span>{t('free')}</span>
                   )}
@@ -217,7 +198,7 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
         </div>
 
         {/* Pricing Cards */}
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
           {plans.map((plan) => (
             <div 
               key={plan.key}
