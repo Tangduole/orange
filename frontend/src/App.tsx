@@ -272,14 +272,6 @@ export default function App() {
   }, [])
 
   // 清除 URL 中的重置 token（初始状态已正确，这里只清理 URL 参数）
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const resetToken = params.get('token') || params.get('reset')
-    if (resetToken) {
-      window.history.replaceState({}, '', window.location.pathname)
-    }
-  }, [])
-
   // 重置成功后解锁关闭弹窗
   const handleResetPwdSuccess = () => {
     localStorage.removeItem('orange_token')
