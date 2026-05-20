@@ -3,6 +3,9 @@
     { "source": "/api/:path*", "destination": "https://api.orangedl.com/api/:path*" },
     { "source": "/download/:path*", "destination": "https://api.orangedl.com/download/:path*" },
     { "source": "/health", "destination": "https://api.orangedl.com/health" },
+    { "source": "/privacy.html", "destination": "/privacy.html" },
+    { "source": "/terms.html", "destination": "/terms.html" },
+    { "source": "/disclaimer.html", "destination": "/disclaimer.html" },
     { "source": "/(.*)", "destination": "/" }
   ]
 }
