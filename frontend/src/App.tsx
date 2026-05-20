@@ -1051,8 +1051,8 @@ export default function App() {
       {/* 横屏保护遮罩 - PWA兜底 */}
       <div id="rotation-guard" className="fixed inset-0 z-[9999] bg-slate-900 hidden flex-col items-center justify-center gap-4">
         <div className="text-5xl">📱</div>
-        <p className="text-white text-lg font-medium">请旋转回竖屏使用</p>
-        <p className="text-slate-400 text-sm">橙子下载器仅支持竖屏模式</p>
+        <p className="text-white text-lg font-medium">{t('rotateToPortrait')}</p>
+        <p className="text-slate-400 text-sm">{t('landscapeWarning')}</p>
         <div className="mt-4 animate-bounce">
           <svg className="w-8 h-8 text-orange" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -1074,7 +1074,7 @@ export default function App() {
             </div>
             <div className="text-left">
               <h1 className={`text-xl font-bold ${isDark ? 'text-white' : 'text-light-text'}`}>{t('appName')}</h1>
-              <p className={`text-xs font-medium tracking-wide ${isDark ? 'text-orange/80' : 'text-orange-600'}`}>去水印 · 高清下载 · AI 文案</p>
+              <p className={`text-xs font-medium tracking-wide ${isDark ? 'text-orange/80' : 'text-orange-600'}`}>{t('appTagline')}</p>
             </div>
             <div className="ml-auto flex items-center gap-2">
               {/* Theme切换 */}
@@ -1161,9 +1161,9 @@ export default function App() {
             </div>
           </div>
           <div className={`flex flex-wrap items-center justify-center gap-3 sm:gap-6 text-[11px] sm:text-xs mt-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-            <span>🌍 50+ 个国家</span>
-            <span>🎬 100K+ 视频</span>
-            <span>⭐ 4.8/5 评分</span>
+            <span>🌍 {t('statsCountries')}</span>
+            <span>🎬 {t('statsVideos')}</span>
+            <span>⭐ {t('statsRating')}</span>
           </div>
         </header>
 
@@ -1353,7 +1353,7 @@ export default function App() {
                     })}
                   </div>
                   <p className="text-[10px] text-slate-500 mt-1">
-                    💡 所有链接统一画质，单个视频不支持时自动降级
+                    {t('batchQualityTip')}
                   </p>
                 </div>
 
@@ -1362,9 +1362,9 @@ export default function App() {
                   <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-2">
                     <span className="text-sm mt-0.5">⏳</span>
                     <div>
-                      <p className="text-xs text-amber-300 font-medium">语音转文字耗时提醒</p>
+                      <p className="text-xs text-amber-300 font-medium">{t('asrTimeNotice')}</p>
                       <p className="text-[11px] text-amber-200/70 mt-0.5">
-                        每个视频约 15-30 秒，请耐心等待不要关闭页面
+                        {t('asrTimeDetail')}
                       </p>
                     </div>
                   </div>
@@ -1526,7 +1526,7 @@ export default function App() {
                   <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-light-textSecondary'}`}>
                     📋 批量下载 · {batchQueue.filter(i => i.status !== 'pending').length}/{batchQueue.length}
                   </p>
-                  {batchId && <span className="text-[10px] text-emerald-400">✅ 可关闭页面，后台处理中</span>}
+                  {batchId && <span className="text-[10px] text-emerald-400">✅ {t('canClosePage')}</span>}
                 </div>
                 <div className="max-h-52 overflow-y-auto">
                   {batchQueue.map((item, idx) => {
@@ -1644,7 +1644,7 @@ export default function App() {
                       {task.eta && <span className={isDark ? 'text-slate-300' : 'text-light-textMuted'}>{t('remaining')} {task.eta}</span>}
                     </div>
                   </div>
-                  <p className="text-[10px] text-emerald-400/70">✅ 可关闭页面，后台处理中</p>
+                  <p className="text-[10px] text-emerald-400/70">✅ {t('canClosePage')}</p>
                 </div>
               )}
 
@@ -1867,7 +1867,7 @@ export default function App() {
                   ) : (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-purple-300 font-medium">🤖 AI 电商文案</span>
+                        <span className="text-xs text-purple-300 font-medium">🤖 {t('aiCopyTitle')}</span>
                         <button onClick={() => setCopywritingResult(null)} className="text-xs text-slate-300 hover:text-red-400"><X className="w-3 h-3" /></button>
                       </div>
                       {copywritingResult.analysis?.productName && (
@@ -1875,7 +1875,7 @@ export default function App() {
                       )}
                       {copywritingResult.analysis?.sellingPoints?.length > 0 && (
                         <div>
-                          <p className="text-[10px] text-slate-400 mb-1">💡 卖点</p>
+                          <p className="text-[10px] text-slate-400 mb-1">💡 {t('aiSellingPoints')}</p>
                           <ul className="text-xs text-slate-300 space-y-0.5">
                             {copywritingResult.analysis.sellingPoints.map((sp: string, i: number) => (
                               <li key={i} className="flex gap-1"><span className="text-purple-400">•</span> {sp}</li>
@@ -1885,7 +1885,7 @@ export default function App() {
                       )}
                       {copywritingResult.analysis?.copyScript && (
                         <div>
-                          <p className="text-[10px] text-slate-400 mb-1">📝 带货脚本</p>
+                          <p className="text-[10px] text-slate-400 mb-1">📝 {t('aiScript')}</p>
                           <p className="text-xs text-slate-300 bg-slate-900/80 p-2 rounded-lg whitespace-pre-wrap max-h-32 overflow-y-auto">
                             {copywritingResult.analysis.copyScript}
                           </p>
@@ -2030,19 +2030,19 @@ export default function App() {
             <div className="mt-5 bg-slate-800/40 backdrop-blur-sm rounded-2xl p-4 border border-slate-700/50">
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div className="bg-slate-700/30 rounded-xl p-3 text-center">
-                  <p className="text-sm font-bold text-slate-300 mb-2">🆓 免费版</p>
+                  <p className="text-sm font-bold text-slate-300 mb-2">🆓 {t('pricingFree')}</p>
                   <div className="space-y-1 text-[11px] text-slate-400">
-                    <p>3 次/天</p>
-                    <p>720p 画质</p>
-                    <p>单链接下载</p>
-                    <p className="text-slate-500">❌ AI 文案</p>
+                    <p>{t('pricingTimes')}</p>
+                    <p>{t('pricing720p')}</p>
+                    <p>{t('pricingSingleLink')}</p>
+                    <p className="text-slate-500">❌ {t('aiCopyTitle')}</p>
                   </div>
                 </div>
                 <div className="bg-gradient-to-br from-amber-500/10 to-orange/10 rounded-xl p-3 text-center border border-amber-500/20">
-                  <p className="text-sm font-bold text-amber-400 mb-2">⭐ Pro 会员</p>
+                  <p className="text-sm font-bold text-amber-400 mb-2">⭐ {t('pricingPro')}</p>
                   <div className="space-y-1 text-[11px] text-amber-300/80">
-                    <p>无限下载</p>
-                    <p>4K 超清</p>
+                    <p>{t('pricingUnlimited')}</p>
+                    <p>{t('pricing4K')}</p>
                     <p>批量下载</p>
                     <p>🤖 AI 文案</p>
                   </div>
@@ -2050,7 +2050,7 @@ export default function App() {
               </div>
               <div className="flex gap-3">
                 <button className="flex-1 py-2 rounded-xl text-xs font-medium bg-slate-700/50 text-slate-400 border border-slate-600/30 cursor-default">
-                  当前方案
+                  {t('pricingCurrentPlan')}
                 </button>
                 <button
                   onClick={() => setShowUpgradePopup(true)}
@@ -2135,11 +2135,11 @@ export default function App() {
         {/* Footer */}
         <footer className={`text-center py-8 text-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
           <div className="flex justify-center gap-4 mb-2">
-            <a href="/terms.html" className="hover:text-orange transition">服务条款</a>
-            <a href="/privacy.html" className="hover:text-orange transition">隐私政策</a>
-            <a href="/disclaimer.html" className="hover:text-orange transition">免责声明</a>
+            <a href="/terms.html" className="hover:text-orange transition">{t('termsOfService')}</a>
+            <a href="/privacy.html" className="hover:text-orange transition">{t('privacyPolicy')}</a>
+            <a href="/disclaimer.html" className="hover:text-orange transition">{t('disclaimer')}</a>
           </div>
-          <p>仅供个人学习使用，不可用于商业或侵犯版权</p>
+          <p>{t('personalUseOnly')}</p>
           <p className="mt-1 opacity-60">Orange Downloader v1.0</p>
         </footer>
         <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} onSuccess={handleAuthSuccess} onForgotPassword={() => { setShowAuthModal(false); setShowResetPwd(true); }} />
