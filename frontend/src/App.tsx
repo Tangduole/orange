@@ -6,7 +6,7 @@ import SubscriptionPage from './components/SubscriptionPage'
 import ReferralModal from './components/ReferralModal'
 import PWAInstallPrompt from './components/PWAInstallPrompt'
 import { initNotifications, showDownloadComplete } from './utils/notify'
-import api, { API_BASE, setOnTokenExpired } from './api/auth'
+import api, { API_BASE, setOnTokenExpired, isTokenExpired } from './api/auth'
 import {
   Download, Link2, CheckCircle2, XCircle, Loader2,
   Video, FileText, Image as ImageIcon, Mic, Languages,
@@ -156,6 +156,16 @@ function detectPlatform(url: string): string {
 export default function App() {
   const [url, setUrl] = useState('')
   useEffect(() => { initNotifications().catch(console.error); }, []);
+
+  // 启动时检查 token 是否过期，提前清理避免 API 调用失败
+  useEffect(() => {
+    if (isTokenExpired()) {
+      localStorage.removeItem('orange_token');
+      localStorage.removeItem('orange_user');
+      setAuthToken(null);
+      setAuthUser(null);
+    }
+  }, []);
 
   // 锁定竖屏（PWA 安装后生效）- 多次重试确保锁定
   useEffect(() => {

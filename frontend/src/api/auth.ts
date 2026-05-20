@@ -11,6 +11,19 @@ export function setOnTokenExpired(fn: () => void) {
   onTokenExpired = fn;
 }
 
+// 提前检查 token 是否过期，避免用户看到错误
+export function isTokenExpired(): boolean {
+  try {
+    const token = localStorage.getItem('orange_token');
+    if (!token) return true;
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const now = Math.floor(Date.now() / 1000);
+    return payload.exp ? payload.exp < now : false;
+  } catch {
+    return true;
+  }
+}
+
 // 统一请求封装，自动处理 401 和 JSON 解析失败
 async function apiFetch(url: string, options?: RequestInit): Promise<any> {
   let res: Response;
