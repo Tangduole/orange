@@ -2133,9 +2133,14 @@ export default function App() {
         )}
 
         {/* Footer */}
-        <footer className={`text-center py-8 text-xs ${isDark ? 'text-slate-500' : 'text-light-textMuted'}`}>
-          <p>仅供个人学习使用，请勿用于商业用途或侵犯他人版权</p>
-            <p className="mt-1 opacity-60">Orange Downloader v1.0</p>
+        <footer className={`text-center py-8 text-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+          <div className="flex justify-center gap-4 mb-2">
+            <a href="/terms.html" className="hover:text-orange transition">服务条款</a>
+            <a href="/privacy.html" className="hover:text-orange transition">隐私政策</a>
+            <a href="/disclaimer.html" className="hover:text-orange transition">免责声明</a>
+          </div>
+          <p>仅供个人学习使用，不可用于商业或侵犯版权</p>
+          <p className="mt-1 opacity-60">Orange Downloader v1.0</p>
         </footer>
         <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} onSuccess={handleAuthSuccess} onForgotPassword={() => { setShowAuthModal(false); setShowResetPwd(true); }} />
         {authToken && <ReferralModal token={authToken} isOpen={showReferral} onClose={() => setShowReferral(false)} />}
