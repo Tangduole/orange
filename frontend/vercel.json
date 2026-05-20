@@ -6,6 +6,7 @@
     { "source": "/privacy.html", "destination": "/privacy.html" },
     { "source": "/terms.html", "destination": "/terms.html" },
     { "source": "/disclaimer.html", "destination": "/disclaimer.html" },
+    { "source": "/en/:path*", "destination": "/en/:path*" },
     { "source": "/(.*)", "destination": "/" }
   ]
 }
