@@ -7,6 +7,8 @@
     { "source": "/terms.html", "destination": "/terms.html" },
     { "source": "/disclaimer.html", "destination": "/disclaimer.html" },
     { "source": "/en/:path*", "destination": "/en/:path*" },
+    { "source": "/ja/:path*", "destination": "/ja/:path*" },
+    { "source": "/ko/:path*", "destination": "/ko/:path*" },
     { "source": "/(.*)", "destination": "/" }
   ]
 }
