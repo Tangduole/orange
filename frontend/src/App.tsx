@@ -2135,9 +2135,9 @@ export default function App() {
         {/* Footer */}
         <footer className={`text-center py-8 text-xs ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
           <div className="flex justify-center gap-4 mb-2">
-            <a href="/terms.html" className="hover:text-orange transition">{t('termsOfService')}</a>
-            <a href="/privacy.html" className="hover:text-orange transition">{t('privacyPolicy')}</a>
-            <a href="/disclaimer.html" className="hover:text-orange transition">{t('disclaimer')}</a>
+            <a href={`/${i18n.language === 'zh-CN' ? '' : i18n.language + '/'}terms.html`} className="hover:text-orange transition">{t('termsOfService')}</a>
+            <a href={`/${i18n.language === 'zh-CN' ? '' : i18n.language + '/'}privacy.html`} className="hover:text-orange transition">{t('privacyPolicy')}</a>
+            <a href={`/${i18n.language === 'zh-CN' ? '' : i18n.language + '/'}disclaimer.html`} className="hover:text-orange transition">{t('disclaimer')}</a>
           </div>
           <p>{t('personalUseOnly')}</p>
           <p className="mt-1 opacity-60">Orange Downloader v1.0</p>
