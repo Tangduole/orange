@@ -152,6 +152,7 @@
   "or": "또는",
   "parsing": "분석 중...",
   "password": "비밀번호",
+  "passwordMinLength": "비밀번호는 6자 이상이어야 합니다",
   "passwordMismatch": "비밀번호가 일치하지 않습니다",
   "passwordResetSuccess": "비밀번호가 재설정되었습니다! 새 비밀번호로 로그인하세요",
   "pasteAnyShortVideo": "동영상 링크를 붙여넣어 다운로드",

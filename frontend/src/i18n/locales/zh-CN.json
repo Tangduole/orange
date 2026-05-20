@@ -152,6 +152,7 @@
   "or": "或",
   "parsing": "正在解析...",
   "password": "密码",
+  "passwordMinLength": "密码至少6位",
   "passwordMismatch": "两次输入的密码不一致",
   "passwordResetSuccess": "密码已重置！请使用新密码登录",
   "pasteAnyShortVideo": "粘贴任意短视频链接即可下载",

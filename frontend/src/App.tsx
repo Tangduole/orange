@@ -408,7 +408,7 @@ export default function App() {
   const handleResetPassword = async () => {
     if (!resetPwd || !resetPwdToken) return
     if (resetPwd.length < 6) {
-      setResetPwdMsg(t('passwordMinLength') || '密码至少6位')
+      setResetPwdMsg(t('passwordMinLength'))
       return
     }
     if (resetPwd !== resetPwdConfirm) {

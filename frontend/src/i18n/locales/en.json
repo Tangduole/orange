@@ -152,6 +152,7 @@
   "or": "or",
   "parsing": "Parsing...",
   "password": "Password",
+  "passwordMinLength": "Password must be at least 6 characters",
   "passwordMismatch": "Passwords do not match",
   "passwordResetSuccess": "Password reset! Please login with your new password",
   "pasteAnyShortVideo": "Paste any short video link to download",

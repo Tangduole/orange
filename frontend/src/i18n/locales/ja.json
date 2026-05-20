@@ -152,6 +152,7 @@
   "or": "または",
   "parsing": "解析中...",
   "password": "パスワード",
+  "passwordMinLength": "パスワードは6文字以上必要です",
   "passwordMismatch": "パスワードが一致しません",
   "passwordResetSuccess": "パスワードがリセットされました！新しいパスワードでログインしてください",
   "pasteAnyShortVideo": "動画リンクを貼り付けてダウンロード",
