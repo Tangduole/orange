@@ -11,15 +11,27 @@ export function setOnTokenExpired(fn: () => void) {
   onTokenExpired = fn;
 }
 
-// 统一请求封装，自动处理 401
+// 统一请求封装，自动处理 401 和 JSON 解析失败
 async function apiFetch(url: string, options?: RequestInit): Promise<any> {
-  const data = await apiFetch(url, options);
-  // 如果返回 HTML（非 JSON），说明请求被重定向或服务器异常
+  let res: Response;
+  try {
+    res = await fetch(url, options);
+  } catch (e: any) {
+    throw new Error('网络连接失败，请检查网络后重试');
+  }
   const contentType = res.headers.get('content-type') || '';
   if (contentType.includes('text/html')) {
-    throw new Error('服务器异常，请稍后重试');
+    throw new Error('服务器繁忙，请稍后重试');
   }
-  // 401 → 触发全局 token 过期回调
+  let data: any;
+  try {
+    const text = await res.text();
+    if (!text) throw new Error('服务器返回空响应');
+    data = JSON.parse(text);
+  } catch (e: any) {
+    if (e.message === '服务器返回空响应') throw e;
+    throw new Error('服务器响应异常，请稍后重试');
+  }
   if (data.code === 401 && onTokenExpired) {
     onTokenExpired();
   }
