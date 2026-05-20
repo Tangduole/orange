@@ -6,7 +6,7 @@ import SubscriptionPage from './components/SubscriptionPage'
 import ReferralModal from './components/ReferralModal'
 import PWAInstallPrompt from './components/PWAInstallPrompt'
 import { initNotifications, showDownloadComplete } from './utils/notify'
-import api, { API_BASE } from './api/auth'
+import api, { API_BASE, setOnTokenExpired } from './api/auth'
 import {
   Download, Link2, CheckCircle2, XCircle, Loader2,
   Video, FileText, Image as ImageIcon, Mic, Languages,
@@ -205,6 +205,17 @@ export default function App() {
   const [showSubscription, setShowSubscription] = useState(false)
   const [showReferral, setShowReferral] = useState(false)
   const [showUpgradePopup, setShowUpgradePopup] = useState(false)
+
+  // 全局 401 拦截：token 过期自动弹出登录框
+  useEffect(() => {
+    setOnTokenExpired(() => {
+      localStorage.removeItem('orange_token')
+      localStorage.removeItem('orange_user')
+      setAuthToken(null)
+      setAuthUser(null)
+      setShowAuthModal(true)
+    })
+  }, [])
   const [showIosGuide, setShowIosGuide] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
   // 在 useState 前同步读取 URL 参数，避免首次渲染闪现/闪退

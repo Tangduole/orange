@@ -5,6 +5,27 @@
 // 本地开发优先走 Vite 代理，生产环境默认走线上 API。
 export const API_BASE = import.meta.env.VITE_API_URL || (import.meta.env.DEV ? '' : 'https://api.orangedl.com');
 
+// 全局 token 过期回调（App.tsx 注册）
+let onTokenExpired: (() => void) | null = null;
+export function setOnTokenExpired(fn: () => void) {
+  onTokenExpired = fn;
+}
+
+// 统一请求封装，自动处理 401
+async function apiFetch(url: string, options?: RequestInit): Promise<any> {
+  const data = await apiFetch(url, options);
+  // 如果返回 HTML（非 JSON），说明请求被重定向或服务器异常
+  const contentType = res.headers.get('content-type') || '';
+  if (contentType.includes('text/html')) {
+    throw new Error('服务器异常，请稍后重试');
+  }
+  // 401 → 触发全局 token 过期回调
+  if (data.code === 401 && onTokenExpired) {
+    onTokenExpired();
+  }
+  return data;
+}
+
 interface AuthResponse {
   token: string;
   user: {
@@ -36,58 +57,53 @@ export const api = {
 
   // 认证 API
   async register(email: string, password: string): Promise<AuthResponse> {
-    const res = await fetch(`${API_BASE}/api/auth/register`, {
+    const data = await apiFetch(`${API_BASE}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
     });
-    const data = await res.json();
     if (data.code !== 0) throw new Error(data.message);
     return data.data;
   },
 
   async login(email: string, password: string): Promise<AuthResponse> {
-    const res = await fetch(`${API_BASE}/api/auth/login`, {
+    const data = await apiFetch(`${API_BASE}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
     });
-    const data = await res.json();
     if (data.code !== 0) throw new Error(data.message);
     return data.data;
   },
 
   async getMe(token: string) {
-    const res = await fetch(`${API_BASE}/api/auth/me`, {
+    const data = await apiFetch(`${API_BASE}/api/auth/me`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
-    const data = await res.json();
     if (data.code !== 0) throw new Error(data.message);
     return data.data;
   },
 
   // 获取用户使用量（下载次数等）
   async getUsage(token: string) {
-    const res = await fetch(`${API_BASE}/api/subscribe/status`, {
+    const data = await apiFetch(`${API_BASE}/api/subscribe/status`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
-    const data = await res.json();
     if (data.code !== 0) throw new Error(data.message);
     return data.data.usage;
   },
 
   // 订阅 API
   async getSubscriptionStatus(token: string) {
-    const res = await fetch(`${API_BASE}/api/subscribe/status`, {
+    const data = await apiFetch(`${API_BASE}/api/subscribe/status`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
-    const data = await res.json();
     if (data.code !== 0) throw new Error(data.message);
     return data.data;
   },
 
   async createCheckout(token: string, plan: string = 'pro_monthly'): Promise<SubscribeResponse> {
-    const res = await fetch(`${API_BASE}/api/subscribe/checkout`, {
+    const data = await apiFetch(`${API_BASE}/api/subscribe/checkout`, {
       method: 'POST',
       headers: { 
         'Authorization': `Bearer ${token}`,
@@ -95,7 +111,6 @@ export const api = {
       },
       body: JSON.stringify({ plan })
     });
-    const data = await res.json();
     if (data.code !== 0) throw new Error(data.message);
     return data.data;
   },
@@ -113,7 +128,7 @@ export const api = {
 
   // 注销账号
   async deleteAccount(token: string, password: string) {
-    const res = await fetch(`${API_BASE}/api/auth/delete-account`, {
+    const data = await apiFetch(`${API_BASE}/api/auth/delete-account`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -121,23 +136,21 @@ export const api = {
       },
       body: JSON.stringify({ password })
     });
-    const data = await res.json();
     if (data.code !== 0) throw new Error(data.message);
     return data.data;
   },
 
   // 推荐系统
   async getReferralInfo(token: string) {
-    const res = await fetch(`${API_BASE}/api/auth/referral`, {
+    const data = await apiFetch(`${API_BASE}/api/auth/referral`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
-    const data = await res.json();
     if (data.code !== 0) throw new Error(data.message);
     return data.data;
   },
 
   async applyReferralCode(token: string, code: string) {
-    const res = await fetch(`${API_BASE}/api/auth/referral/apply`, {
+    const data = await apiFetch(`${API_BASE}/api/auth/referral/apply`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -145,38 +158,35 @@ export const api = {
       },
       body: JSON.stringify({ code })
     });
-    const data = await res.json();
     if (data.code !== 0) throw new Error(data.message);
     return data;
   },
 
   // 忘记密码
   async forgotPassword(email: string) {
-    const res = await fetch(`${API_BASE}/api/auth/forgot-password`, {
+    const data = await apiFetch(`${API_BASE}/api/auth/forgot-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email })
     });
-    const data = await res.json();
     if (data.code !== 0) throw new Error(data.message);
     return data;
   },
 
   // 重置密码
   async resetPassword(token: string, password: string) {
-    const res = await fetch(`${API_BASE}/api/auth/reset-password`, {
+    const data = await apiFetch(`${API_BASE}/api/auth/reset-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, password })
     });
-    const data = await res.json();
     if (data.code !== 0) throw new Error(data.message);
     return data;
   },
 
   // 管理员：赋予会员
   async adminGrantVip(token: string, email: string, days: number = 365) {
-    const res = await fetch(`${API_BASE}/api/subscribe/admin/grant-vip`, {
+    const data = await apiFetch(`${API_BASE}/api/subscribe/admin/grant-vip`, {
       method: 'POST',
       headers: { 
         'Authorization': `Bearer ${token}`,
@@ -184,14 +194,13 @@ export const api = {
       },
       body: JSON.stringify({ email, days })
     });
-    const data = await res.json();
     if (data.code !== 0) throw new Error(data.message);
     return data;
   },
 
   // 管理员：撤销会员
   async adminRevokeVip(token: string, email: string) {
-    const res = await fetch(`${API_BASE}/api/subscribe/admin/revoke-vip`, {
+    const data = await apiFetch(`${API_BASE}/api/subscribe/admin/revoke-vip`, {
       method: 'POST',
       headers: { 
         'Authorization': `Bearer ${token}`,
@@ -199,7 +208,6 @@ export const api = {
       },
       body: JSON.stringify({ email })
     });
-    const data = await res.json();
     if (data.code !== 0) throw new Error(data.message);
     return data;
   }
