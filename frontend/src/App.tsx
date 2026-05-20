@@ -641,13 +641,9 @@ export default function App() {
       playNotificationSound()
       // ShowCompleted通知
       showDownloadComplete(task.taskId, task.title || 'Download', false).catch(console.error)
-      // UpdateGuest本地DownloadCount
-      if (!authToken) {
-        const today = new Date().toISOString().split('T')[0]
-        const parsed = readStoredJson<{ date?: string; count?: number }>('orange_guest_downloads', { date: '', count: 0 })
-        const newCount = parsed.date === today ? (parsed.count || 0) + 1 : 1
-        localStorage.setItem('orange_guest_downloads', JSON.stringify({ date: today, count: newCount }))
-        setRemainingDownloads(Math.max(0, GUEST_DAILY_LIMIT - newCount))
+      // 更新游客剩余次数
+      if (!authToken && remainingDownloads > 0) {
+        setRemainingDownloads(Math.max(0, remainingDownloads - 1))
       }
       // 延迟 500ms 后AutoDownload
       autoDownloadTimer.current = setTimeout(() => {
@@ -804,12 +800,8 @@ export default function App() {
   const handleSubmit = async () => {
     if (loading) return  // 防重复提交
     autoDownloaded.current = false
-    
-    // 检查GuestDownloadTimes限制
-    if (!isVip && remainingDownloads === 0) {
-      setShowUpgradePopup(true)
-      return
-    }
+
+    // 交由后端 IP 限制判断，不做本地预判（防止清缓存绕过）
     
     // 批量模式
     if (batchMode) {
@@ -920,12 +912,7 @@ export default function App() {
   }
 
   const doSingleDownload = async () => {
-    // 检查GuestDownloadTimes限制
-    if (!isVip && remainingDownloads === 0) {
-      setShowUpgradePopup(true)
-      setLoading(false)
-      return
-    }
+    // 交由后端 IP 限制判断
     setLoading(true); setError('')
     
     // 使用用户选择的画质
@@ -937,6 +924,10 @@ export default function App() {
         needAsr: selected.has('asr'), options: [...selected], quality: downloadQuality, asrLanguage
       }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} })
       setTask(r.data.data);
+      // 服务器返回 403 且提到次数用尽 → 弹升级提示
+      if (r.data.code === 403 && (r.data.message || '').includes('下载次数')) {
+        setShowUpgradePopup(true)
+      }
       setPendingQuality('')  // 清空选择的画质
       qualityManuallySet.current = false
     } catch (e: any) {
