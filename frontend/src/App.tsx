@@ -238,6 +238,7 @@ export default function App() {
   const [resetPwdStep, setResetPwdStep] = useState(!!_urlResetToken) // false=Send邮件, true=Settings新Password
   const [resetPwdToken, setResetPwdToken] = useState(_urlResetToken)
   const [resetPwd, setResetPwd] = useState('')
+  const [resetPwdConfirm, setResetPwdConfirm] = useState('')
   const [resetPwdMsg, setResetPwdMsg] = useState('')
   const [resetPwdLoading, setResetPwdLoading] = useState(false)
   const [isVip, setIsVip] = useState(false)
@@ -406,6 +407,14 @@ export default function App() {
   // 重置Password
   const handleResetPassword = async () => {
     if (!resetPwd || !resetPwdToken) return
+    if (resetPwd.length < 6) {
+      setResetPwdMsg(t('passwordMinLength') || '密码至少6位')
+      return
+    }
+    if (resetPwd !== resetPwdConfirm) {
+      setResetPwdMsg(t('passwordMismatch'))
+      return
+    }
     setResetPwdLoading(true)
     setResetPwdMsg('')
     try {
@@ -421,6 +430,7 @@ export default function App() {
         setResetPwdStep(false)
         setResetEmail('')
         setResetPwd('')
+        setResetPwdConfirm('')
         setResetPwdToken('')
         setResetPwdMsg('')
         // 自动弹出登录框
@@ -2244,6 +2254,13 @@ export default function App() {
                       value={resetPwd}
                       onChange={(e) => setResetPwd(e.target.value)}
                       placeholder={t('newPassword')}
+                      className="w-full px-3 py-2.5 bg-slate-900/60 border border-slate-600/50 rounded-lg text-white text-sm outline-none focus:border-orange/70 mb-2"
+                    />
+                    <input
+                      type="password"
+                      value={resetPwdConfirm}
+                      onChange={(e) => setResetPwdConfirm(e.target.value)}
+                      placeholder={t('confirmPassword')}
                       className="w-full px-3 py-2.5 bg-slate-900/60 border border-slate-600/50 rounded-lg text-white text-sm outline-none focus:border-orange/70 mb-3"
                     />
                     {resetPwdMsg && <p className={`text-xs mb-3 ${resetPwdMsg.includes('Failed') || resetPwdMsg.includes('无效') ? 'text-red-400' : 'text-green-400'}`}>{resetPwdMsg}</p>}
