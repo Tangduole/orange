@@ -465,20 +465,20 @@ async function burnSubtitlesIntoVideo(taskId, videoPath, subtitleText, targetLan
   await asyncFs.safeWriteFile(srtPath, srt, 'utf-8');
 
   // ffmpeg 烧录字幕
-  const escapedPath = srtPath.replace(/'/g, "'\\''").replace(/:/g, '\\:');
   const fontStyle = targetLang === 'ja' || targetLang === 'ko' || targetLang === 'zh' 
-    ? "FontName=Noto Sans CJK SC:FontSize=20:Outline=1:Shadow=1:BorderStyle=1"
-    : "FontName=Arial:FontSize=16:Outline=1:Shadow=1:BorderStyle=1";
+    ? "FontName=Noto Serif CJK SC:FontSize=20"
+    : "FontName=Arial:FontSize=16";
   
+  const ffmpegPath = 'ffmpeg';
   await new Promise((resolve, reject) => {
     const { spawn } = require('child_process');
-    const ff = spawn('ffmpeg', [
-      '-i', videoPath, '-vf', `subtitles=${escapedPath}:force_style='${fontStyle}'`,
-      '-c:a', 'copy', '-y', outputPath
-    ]);
+    const args = ['-i', videoPath, '-vf', `subtitles='${srtPath}':force_style='${fontStyle}'`, '-c:a', 'copy', '-y', outputPath];
+    const ff = spawn('ffmpeg', args);
+    let stderr = '';
+    ff.stderr.on('data', d => { stderr += d.toString(); });
+    ff.on('error', err => reject(err));
     const timer = setTimeout(() => { ff.kill('SIGKILL'); reject(new Error('subtitle burn timeout')); }, 300000);
-    ff.on('close', code => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error('ffmpeg exit ' + code)); });
-    ff.on('error', err => { clearTimeout(timer); reject(err); });
+    ff.on('close', code => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error('ffmpeg exit ' + code + ': ' + stderr.substring(0,200))); });
   });
 
   // 清理 SRT 文件
