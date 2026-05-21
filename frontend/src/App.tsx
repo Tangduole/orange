@@ -79,7 +79,7 @@ const shareFile = async (
 interface Task {
   taskId: string; status: string; progress: number
   title?: string; platform?: string; thumbnailUrl?: string
-  downloadUrl?: string; audioUrl?: string; asrText?: string; summaryText?: string; copyText?: string
+  downloadUrl?: string; audioUrl?: string; asrText?: string; summaryText?: any; copyText?: string
   translatedText?: string; translatedTxtUrl?: string; subbedVideoUrl?: string
   coverUrl?: string; isNote?: boolean
   imageFiles?: Array<{ filename: string; url: string }>
@@ -1969,6 +1969,29 @@ export default function App() {
                     <span className="text-xs text-orange font-medium">{t('aiSummary')}</span>
                   </div>
                   <p className="text-sm text-slate-300 leading-relaxed">{task.summaryText}</p>
+                </div>
+              )}
+
+              {/* AI 视频总结 */}
+              {task.summaryText?.summary && (
+                <div className="p-3 bg-cyan-500/5 border border-cyan-500/15 rounded-xl">
+                  <p className="text-xs text-cyan-400 mb-2 font-medium">🤖 AI 视频总结</p>
+                  <p className="text-sm text-slate-300 mb-2">{task.summaryText.summary}</p>
+                  {task.summaryText.tags && (
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      {task.summaryText.tags.map((tag: string, i: number) => (
+                        <span key={i} className="px-2 py-0.5 bg-cyan-500/10 text-cyan-300 text-[10px] rounded-full">#{tag}</span>
+                      ))}
+                    </div>
+                  )}
+                  {task.summaryText.titles && (
+                    <div className="text-[11px] text-slate-400 space-y-0.5">
+                      <p className="text-cyan-400/60">📝 推荐标题：</p>
+                      {task.summaryText.titles.slice(0,3).map((t: string, i: number) => (
+                        <p key={i} className="cursor-pointer hover:text-cyan-300" onClick={() => clip(t, 'title' + i)}>• {t}</p>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -193,7 +193,68 @@ async function polishTranslation(rawTranslation, targetLang) {
   }
 }
 
-module.exports = { summarizeText, correctAsrText, polishTranslation, correctWithDeepSeek, translateWithDeepSeek };
+module.exports = { summarizeText, correctAsrText, polishTranslation, correctWithDeepSeek, translateWithDeepSeek, videoSummary };
+
+/**
+ * AI 视频内容总结（DeepSeek，VIP 专属）
+ * 输入：ASR 文字 + 视频标题
+ * 输出：摘要 + 标签 + 推荐平台 + 推荐标题
+ */
+async function videoSummary(transcript, title = '', language = 'zh') {
+  const deepseekKey = process.env.AI_API_KEY || '';
+  if (!deepseekKey) return null;
+  
+  const isZh = language.startsWith('zh');
+  const prompt = isZh
+    ? `你是视频内容分析师。根据以下视频字幕和标题，输出一个 JSON：
+{
+  "summary": "2-3句话概括核心内容",
+  "tags": ["标签1", "标签2", "标签3", "标签4", "标签5"],
+  "platforms": ["适合发布的平台"],
+  "titles": ["推荐标题1", "推荐标题2", "推荐标题3"]
+}
+只输出 JSON，不要加任何解释。
+标题：${title || '无'}
+字幕：${transcript.substring(0, 3000)}`
+    : `You are a video content analyst. Based on the transcript and title below, output a JSON:
+{
+  "summary": "2-3 sentence core summary",
+  "tags": ["tag1", "tag2", "tag3", "tag4", "tag5"],
+  "platforms": ["suitable platforms"],
+  "titles": ["suggested title 1", "suggested title 2", "suggested title 3"]
+}
+Output ONLY valid JSON, no explanation.
+Title: ${title || 'None'}
+Transcript: ${transcript.substring(0, 3000)}`;
+
+  try {
+    const axios = require('axios');
+    const url = (process.env.AI_API_URL || 'https://api.deepseek.com/v1').replace(/\/+$/, '');
+    const res = await axios.post(`${url}/chat/completions`, {
+      model: 'deepseek-chat',
+      messages: [
+        { role: 'system', content: 'You are a video content analyst. Output valid JSON only.' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.3,
+      max_tokens: 800,
+      response_format: { type: 'json_object' }
+    }, {
+      headers: { 'Authorization': `Bearer ${deepseekKey}`, 'Content-Type': 'application/json' },
+      timeout: 30000
+    });
+    
+    const content = res.data?.choices?.[0]?.message?.content?.trim();
+    if (!content) return null;
+    
+    const parsed = JSON.parse(content);
+    logger.info(`[video-summary] Generated summary for "${(title||'').substring(0,30)}"`);
+    return parsed;
+  } catch (e) {
+    logger.warn('[video-summary] Failed:', e.message);
+    return null;
+  }
+}
 
 /**
  * DeepSeek 翻译（替代 M2M-100，支持长文本，质量更好）

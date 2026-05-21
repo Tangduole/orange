@@ -549,8 +549,17 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
     let summary = null;
     if (text && text.length >= 50) {
       try {
-        const { summarizeText } = require('../services/summarize');
+        const { summarizeText, videoSummary: videoSum } = require('../services/summarize');
         summary = await summarizeText(text, asrLanguage);
+        // VIP 自动生成视频总结（DeepSeek）
+        if (task?.userId) {
+          const userDb = require('../userDb');
+          const user = await userDb.getById(task.userId);
+          if (user && userDb.isVip(user)) {
+            const fullSummary = await videoSum(text, task?.title || '', asrLanguage);
+            if (fullSummary) summary = { ...summary, ...fullSummary };
+          }
+        }
       } catch (e) {
         logger.warn(`[summarize] ${taskId} failed: ${e.message}`);
       }
@@ -2113,6 +2122,7 @@ function getStatus(req, res) {
       downloadUrl: task.downloadUrl,
       subtitleFiles: task.subtitleFiles || [],
       asrText: task.asrText,
+      summaryText: task.summaryText,
       asrTxtUrl: task.asrTxtUrl,
       translatedText: task.translatedText,
       translatedTxtUrl: task.translatedTxtUrl,
