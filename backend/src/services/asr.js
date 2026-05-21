@@ -162,7 +162,7 @@ function transcribeLocal(audioPath, language = 'zh') {
       try {
         const result = JSON.parse(stdout.trim());
         if (result.success) {
-          resolve(result.text);
+          resolve({ text: result.text, segments: result.segments || [] });
         } else {
           reject(new Error(result.error || 'ASR failed'));
         }

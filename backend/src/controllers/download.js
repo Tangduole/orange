@@ -449,20 +449,26 @@ async function saveTextFile(taskId, text, suffix = 'txt') {
 /**
  * 生成 SRT 字幕文件 + 烧录到视频中
  */
-async function burnSubtitlesIntoVideo(taskId, videoPath, subtitleText, targetLang) {
+async function burnSubtitlesIntoVideo(taskId, videoPath, subtitleText, targetLang, segments = []) {
   const downloadDir = path.join(__dirname, '../../downloads');
   const srtPath = path.join(downloadDir, taskId + '_subs.srt');
   const outputPath = path.join(downloadDir, taskId + '_subbed.mp4');
 
-  // 生成 SRT（按标点分段，每段一行，底部居中显示）
-  const segments = subtitleText.split(/[。！？\n.!?，,；;]+/).filter(s => s.trim());
+  // 生成 SRT — 优先用 ASR 时间戳，否则按标点均分
   let srt = '';
-  for (let i = 0; i < segments.length; i++) {
-    const start = formatSrtTime(i * 4);
-    const end = formatSrtTime((i + 1) * 4);
-    // 每段限制一行 30 字，超出拆两行
-    const seg = segments[i].trim();
-    srt += `${i + 1}\n${start} --> ${end}\n${seg}\n\n`;
+  if (segments && segments.length > 0) {
+    for (let i = 0; i < segments.length; i++) {
+      const s = segments[i];
+      if (!s.text.trim()) continue;
+      srt += `${i + 1}\n${formatSrtTime(s.start)} --> ${formatSrtTime(s.end)}\n${s.text.trim()}\n\n`;
+    }
+  } else {
+    const parts = subtitleText.split(/[。！？\n.!?，,；;]+/).filter(s => s.trim());
+    for (let i = 0; i < parts.length; i++) {
+      const start = formatSrtTime(i * 4);
+      const end = formatSrtTime((i + 1) * 4);
+      srt += `${i + 1}\n${start} --> ${end}\n${parts[i].trim()}\n\n`;
+    }
   }
   await asyncFs.safeWriteFile(srtPath, srt, 'utf-8');
 
@@ -510,8 +516,10 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
       ff.on('error', err => { clearTimeout(timer); reject(err); });
     });
 
-    // ASR 转文字
-    let text = await asr.transcribe(audioPath, asrLanguage);
+    // ASR 转文字（含时间戳）
+    const asrResult = await asr.transcribe(audioPath, asrLanguage);
+    let text = typeof asrResult === 'string' ? asrResult : asrResult.text;
+    const asrSegments = typeof asrResult === 'object' ? (asrResult.segments || []) : [];
 
     // AI 同音纠错（自动，失败不影响 ASR）
     if (text && text.length >= 10) {
@@ -567,7 +575,7 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
     let subbedVideoUrl = null;
     if (translatedText && tLang) {
       try {
-        const subbedPath = await burnSubtitlesIntoVideo(taskId, filePath, translatedText, tLang);
+        const subbedPath = await burnSubtitlesIntoVideo(taskId, filePath, translatedText, tLang, asrSegments);
         subbedVideoUrl = '/download/' + path.basename(subbedPath);
         fileRefManager.addRef(path.basename(subbedPath));
         logger.info(`[ASR] ${taskId} subtitles burned into video`);
@@ -1052,7 +1060,9 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
         });
 
         // ASR 转文字 + AI 纠错
-        let text = await asr.transcribe(audioPath, asrLanguage);
+        const asrResult = await asr.transcribe(audioPath, asrLanguage);
+        let text = typeof asrResult === 'string' ? asrResult : asrResult.text;
+        const asrSegments = typeof asrResult === 'object' ? (asrResult.segments || []) : [];
         if (text && text.length >= 10) {
           try {
             const summarize = require('../services/summarize');
@@ -1080,7 +1090,7 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
               // 烧录字幕到视频
               try {
                 console.error(`[DEBUG-BURN] ${taskId} burning subtitles: file=${result.filePath}, textLen=${translated.length}, lang=${task.targetLang}`);
-                const subbedPath = await burnSubtitlesIntoVideo(taskId, result.filePath, translated, task.targetLang);
+                const subbedPath = await burnSubtitlesIntoVideo(taskId, result.filePath, translated, task.targetLang, asrSegments);
                 console.error(`[DEBUG-BURN] ${taskId} OK: ${subbedPath}`);
                 update.subbedVideoUrl = '/download/' + path.basename(subbedPath);
                 fileRefManager.addRef(path.basename(subbedPath));
