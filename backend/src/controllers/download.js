@@ -1087,6 +1087,17 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
             const task = store.get(taskId);
             const deepCorrected = await summarize.correctWithDeepSeek(text, asrLanguage, task?.title || '');
             text = deepCorrected !== text ? deepCorrected : await summarize.correctAsrText(text, asrLanguage, task?.title || '');
+            // VIP AI 视频总结
+            if (task?.userId && text.length >= 50) {
+              try {
+                const userDb = require('../userDb');
+                const user = await userDb.getById(task.userId);
+                if (user && userDb.isVip(user)) {
+                  const fullSummary = await summarize.videoSummary(text, task.title || '', asrLanguage);
+                  if (fullSummary) update.summaryText = fullSummary;
+                }
+              } catch {}
+            }
           } catch (e) {
             console.error('[ASR-douyin] Correction error:', e.message);
           }
