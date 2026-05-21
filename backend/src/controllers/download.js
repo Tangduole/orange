@@ -1070,9 +1070,11 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
               update.translatedTxtUrl = await saveTextFile(taskId, translated, 'translation');
               // 烧录字幕到视频
               try {
+                logger.info(`[ASR] ${taskId} burning subtitles: file=${result.filePath}, len=${translated.length}, lang=${task.targetLang}`);
                 const subbedPath = await burnSubtitlesIntoVideo(taskId, result.filePath, translated, task.targetLang);
                 update.subbedVideoUrl = '/download/' + path.basename(subbedPath);
                 fileRefManager.addRef(path.basename(subbedPath));
+                logger.info(`[ASR] ${taskId} subtitle burn OK: ${subbedPath}`);
               } catch (burnErr) {
                 logger.warn(`[ASR] ${taskId} subtitle burn failed:`, burnErr.message);
               }
