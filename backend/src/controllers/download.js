@@ -465,13 +465,9 @@ async function burnSubtitlesIntoVideo(taskId, videoPath, subtitleText, targetLan
   await asyncFs.safeWriteFile(srtPath, srt, 'utf-8');
 
   // ffmpeg 烧录字幕
-  const fontStyle = targetLang === 'ja' || targetLang === 'ko' || targetLang === 'zh' 
-    ? "FontName=Noto Serif CJK SC:FontSize=20"
-    : "FontName=Arial:FontSize=16";
-  
   await new Promise((resolve, reject) => {
     const { spawn } = require('child_process');
-    const args = ['-i', videoPath, '-vf', `subtitles=${srtPath}:force_style='${fontStyle}'`, '-c:a', 'copy', '-y', outputPath];
+    const args = ['-i', videoPath, '-vf', `subtitles=${srtPath}`, '-c:a', 'copy', '-y', outputPath];
     const ff = spawn('ffmpeg', args);
     let stderr = '';
     ff.stderr.on('data', d => { stderr += d.toString(); });
