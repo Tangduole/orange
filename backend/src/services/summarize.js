@@ -230,7 +230,12 @@ async function correctWithDeepSeek(text, language = 'zh', context = '') {
   const deepseekKey = process.env.AI_API_KEY || '';
   const deepseekUrl = (process.env.AI_API_URL || 'https://api.deepseek.com/v1').replace(/\/+$/, '');
   
-  if (!deepseekKey || !language.startsWith('zh')) return text;
+  console.error(`[deepseek-correct] called: key=${!!deepseekKey}, lang=${language}, textLen=${(text||'').length}`);
+  
+  if (!deepseekKey || !language.startsWith('zh')) {
+    console.error('[deepseek-correct] SKIP: no key or not zh');
+    return text;
+  }
   
   let prompt = `纠正以下语音识别的同音错别字。逐句检查：词汇组合是否合理？语义是否通顺？符合常识吗？\n\n`;
   if (context) prompt += `视频标题：${context}\n`;
