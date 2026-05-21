@@ -182,4 +182,41 @@ async function polishTranslation(rawTranslation, targetLang) {
   }
 }
 
-module.exports = { summarizeText, correctAsrText, polishTranslation };
+module.exports = { summarizeText, correctAsrText, polishTranslation, correctWithDeepSeek };
+
+/**
+ * DeepSeek 中文纠错（比 Llama 3 8B 强得多，几乎免费）
+ * 作为 correctAsrText 的前置增强
+ */
+async function correctWithDeepSeek(text, language = 'zh', context = '') {
+  const deepseekKey = process.env.AI_API_KEY || '';
+  const deepseekUrl = (process.env.AI_API_URL || 'https://api.deepseek.com/v1').replace(/\/+$/, '');
+  
+  if (!deepseekKey || !language.startsWith('zh')) return text;
+  
+  let prompt = `纠正以下语音识别的同音错别字。逐句检查：词汇组合是否合理？语义是否通顺？符合常识吗？\n\n`;
+  if (context) prompt += `视频标题：${context}\n`;
+  prompt += `文本：\n${text.substring(0, 3000)}`;
+  
+  try {
+    const axios = require('axios');
+    const res = await axios.post(`${deepseekUrl}/chat/completions`, {
+      model: 'deepseek-chat',
+      messages: [
+        { role: 'system', content: '你是中文纠错专家。纠正同音错别字，检查词汇组合合理性。只返回纠正后的全文。' },
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.1,
+      max_tokens: text.length * 2
+    }, {
+      headers: { 'Authorization': `Bearer ${deepseekKey}`, 'Content-Type': 'application/json' },
+      timeout: 30000
+    });
+    const corrected = res.data?.choices?.[0]?.message?.content?.trim() || text;
+    if (corrected !== text) logger.info('[deepseek-correct] Fixed homophone errors');
+    return corrected;
+  } catch (e) {
+    logger.warn('[deepseek-correct] Failed, falling back:', e.message);
+    return text;
+  }
+}

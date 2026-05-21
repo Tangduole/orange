@@ -513,9 +513,11 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
     // AI 同音纠错（自动，失败不影响 ASR）
     if (text && text.length >= 10) {
       try {
-        const { correctAsrText } = require('../services/summarize');
+        const { correctAsrText, correctWithDeepSeek } = require('../services/summarize');
         const task = store.get(taskId);
-        const corrected = await correctAsrText(text, asrLanguage, task?.title || '');
+        // DeepSeek 主纠错（中文），Llama 3 兜底
+        const deepCorrected = await correctWithDeepSeek(text, asrLanguage, task?.title || '');
+        text = deepCorrected !== text ? deepCorrected : await correctAsrText(text, asrLanguage, task?.title || '');
         if (corrected && corrected !== text) {
           text = corrected;
           logger.info('[ASR] Text corrected (homophone fix)');
@@ -1053,9 +1055,10 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
         let text = await asr.transcribe(audioPath, asrLanguage);
         if (text && text.length >= 10) {
           try {
-            const { correctAsrText } = require('../services/summarize');
+            const { correctAsrText, correctWithDeepSeek } = require('../services/summarize');
             const task = store.get(taskId);
-            text = await correctAsrText(text, asrLanguage, task?.title || '');
+            const deepCorrected = await correctWithDeepSeek(text, asrLanguage, task?.title || '');
+            text = deepCorrected !== text ? deepCorrected : await correctAsrText(text, asrLanguage, task?.title || '');
           } catch {}
         }
         if (text) {
