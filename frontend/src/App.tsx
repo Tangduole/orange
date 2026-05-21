@@ -80,6 +80,7 @@ interface Task {
   taskId: string; status: string; progress: number
   title?: string; platform?: string; thumbnailUrl?: string
   downloadUrl?: string; audioUrl?: string; asrText?: string; summaryText?: string; copyText?: string
+  translatedText?: string; translatedTxtUrl?: string; subbedVideoUrl?: string
   coverUrl?: string; isNote?: boolean
   imageFiles?: Array<{ filename: string; url: string }>
   subtitleFiles?: Array<{ filename: string; url: string }>
@@ -1981,6 +1982,12 @@ export default function App() {
                   </div>
                   <p className="text-sm text-slate-300 whitespace-pre-wrap max-h-32 overflow-y-auto">{task.asrText}</p>
                 </div>
+              )}
+
+              {task.subbedVideoUrl && (
+                <a href={task.subbedVideoUrl} download className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl text-sm font-semibold bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/20 transition-all">
+                  🎬 下载翻译字幕视频
+                </a>
               )}
 
               {task.translatedText && (

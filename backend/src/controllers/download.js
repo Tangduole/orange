@@ -447,6 +447,54 @@ async function saveTextFile(taskId, text, suffix = 'txt') {
 }
 
 /**
+ * 生成 SRT 字幕文件 + 烧录到视频中
+ */
+async function burnSubtitlesIntoVideo(taskId, videoPath, subtitleText, targetLang) {
+  const downloadDir = path.join(__dirname, '../../downloads');
+  const srtPath = path.join(downloadDir, taskId + '_subs.srt');
+  const outputPath = path.join(downloadDir, taskId + '_subbed.mp4');
+
+  // 生成 SRT（按句号/换行分段，每段假设 ~4s 时长）
+  const segments = subtitleText.split(/[。！？\n.!?]+/).filter(s => s.trim());
+  let srt = '';
+  for (let i = 0; i < segments.length; i++) {
+    const start = formatSrtTime(i * 4);
+    const end = formatSrtTime((i + 1) * 4);
+    srt += `${i + 1}\n${start} --> ${end}\n${segments[i].trim()}\n\n`;
+  }
+  await asyncFs.safeWriteFile(srtPath, srt, 'utf-8');
+
+  // ffmpeg 烧录字幕
+  const escapedPath = srtPath.replace(/'/g, "'\\''").replace(/:/g, '\\:');
+  const fontStyle = targetLang === 'ja' || targetLang === 'ko' || targetLang === 'zh' 
+    ? "FontName=Noto Sans CJK SC:FontSize=20:Outline=1:Shadow=1:BorderStyle=1"
+    : "FontName=Arial:FontSize=16:Outline=1:Shadow=1:BorderStyle=1";
+  
+  await new Promise((resolve, reject) => {
+    const { spawn } = require('child_process');
+    const ff = spawn('ffmpeg', [
+      '-i', videoPath, '-vf', `subtitles=${escapedPath}:force_style='${fontStyle}'`,
+      '-c:a', 'copy', '-y', outputPath
+    ]);
+    const timer = setTimeout(() => { ff.kill('SIGKILL'); reject(new Error('subtitle burn timeout')); }, 300000);
+    ff.on('close', code => { clearTimeout(timer); code === 0 ? resolve() : reject(new Error('ffmpeg exit ' + code)); });
+    ff.on('error', err => { clearTimeout(timer); reject(err); });
+  });
+
+  // 清理 SRT 文件
+  await asyncFs.safeUnlink(srtPath);
+  return outputPath;
+}
+
+function formatSrtTime(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = Math.floor(seconds % 60);
+  const ms = Math.floor((seconds % 1) * 1000);
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')},${String(ms).padStart(3,'0')}`;
+}
+
+/**
  * ASR 语音转文字(公共函数)
  */
 async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
@@ -510,10 +558,23 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
     const txtUrl = await saveTextFile(taskId, text, 'subtitle');
     const translatedTxtUrl = translatedText ? await saveTextFile(taskId, translatedText, 'translation') : null;
 
+    // 翻译字幕烧录到视频中（VIP 专属）
+    let subbedVideoUrl = null;
+    if (translatedText && tLang) {
+      try {
+        const subbedPath = await burnSubtitlesIntoVideo(taskId, filePath, translatedText, tLang);
+        subbedVideoUrl = '/download/' + path.basename(subbedPath);
+        fileRefManager.addRef(path.basename(subbedPath));
+        logger.info(`[ASR] ${taskId} subtitles burned into video`);
+      } catch (e) {
+        logger.warn(`[ASR] ${taskId} subtitle burn failed: ${e.message}`);
+      }
+    }
+
     // 清理临时音频
     await asyncFs.safeUnlink(audioPath);
 
-    return { text, txtUrl, translatedText, translatedTxtUrl, summary };
+    return { text, txtUrl, translatedText, translatedTxtUrl, summary, subbedVideoUrl };
   } catch (e) {
     logger.error(`[ASR] ${taskId} failed:`, e.message);
     return null;
@@ -747,6 +808,7 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
           update.asrTxtUrl = asrResult.txtUrl;
           if (asrResult.summary) update.summaryText = asrResult.summary;
           if (asrResult.translatedText) { update.translatedText = asrResult.translatedText; update.translatedTxtUrl = asrResult.translatedTxtUrl; }
+          if (asrResult.subbedVideoUrl) update.subbedVideoUrl = asrResult.subbedVideoUrl;
         }
         store.update(taskId, update);
       } catch (asrError) {
@@ -1138,7 +1200,7 @@ async function processX(taskId, url, needAsr, options = ['video']) {
     // ASR 语音转文字
     if (needAsr && update.filePath) {
       const asrResult = await handleAsr(taskId, update.filePath, 'zh');
-      if (asrResult?.text) { const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl }; if (asrResult.summary) upd.summaryText = asrResult.summary; if (asrResult.translatedText) { upd.translatedText = asrResult.translatedText; upd.translatedTxtUrl = asrResult.translatedTxtUrl; } store.update(taskId, upd); }
+      if (asrResult?.text) { const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl }; if (asrResult.summary) upd.summaryText = asrResult.summary; if (asrResult.translatedText) { upd.translatedText = asrResult.translatedText; upd.translatedTxtUrl = asrResult.translatedTxtUrl; } if (asrResult.subbedVideoUrl) upd.subbedVideoUrl = asrResult.subbedVideoUrl; store.update(taskId, upd); }
     }
 
     await finalizeTask(taskId);
@@ -1682,7 +1744,7 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
     // ASR 语音转文字
     if (needAsr && update.filePath) {
       const asrResult = await handleAsr(taskId, update.filePath, 'zh');
-      if (asrResult?.text) { const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl }; if (asrResult.summary) upd.summaryText = asrResult.summary; if (asrResult.translatedText) { upd.translatedText = asrResult.translatedText; upd.translatedTxtUrl = asrResult.translatedTxtUrl; } store.update(taskId, upd); }
+      if (asrResult?.text) { const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl }; if (asrResult.summary) upd.summaryText = asrResult.summary; if (asrResult.translatedText) { upd.translatedText = asrResult.translatedText; upd.translatedTxtUrl = asrResult.translatedTxtUrl; } if (asrResult.subbedVideoUrl) upd.subbedVideoUrl = asrResult.subbedVideoUrl; store.update(taskId, upd); }
     }
 
     await finalizeTask(taskId);
@@ -1745,7 +1807,7 @@ async function processBilibili(taskId, url, needAsr, options = ['video'], qualit
     // ASR
     if (needAsr && update.filePath) {
       const asrResult = await handleAsr(taskId, update.filePath, 'zh');
-      if (asrResult?.text) { const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl }; if (asrResult.summary) upd.summaryText = asrResult.summary; if (asrResult.translatedText) { upd.translatedText = asrResult.translatedText; upd.translatedTxtUrl = asrResult.translatedTxtUrl; } store.update(taskId, upd); }
+      if (asrResult?.text) { const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl }; if (asrResult.summary) upd.summaryText = asrResult.summary; if (asrResult.translatedText) { upd.translatedText = asrResult.translatedText; upd.translatedTxtUrl = asrResult.translatedTxtUrl; } if (asrResult.subbedVideoUrl) upd.subbedVideoUrl = asrResult.subbedVideoUrl; store.update(taskId, upd); }
     }
 
     await finalizeTask(taskId);
@@ -2009,6 +2071,7 @@ function getStatus(req, res) {
       asrTxtUrl: task.asrTxtUrl,
       translatedText: task.translatedText,
       translatedTxtUrl: task.translatedTxtUrl,
+      subbedVideoUrl: task.subbedVideoUrl,
       asrError: task.asrError,
       copyText: task.copyText,
       copyTxtUrl: task.copyTxtUrl,
