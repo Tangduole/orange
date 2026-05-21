@@ -87,13 +87,14 @@ async function correctAsrText(text, language = 'zh', context = '') {
   const isZh = language.startsWith('zh');
 
   const systemPrompt = isZh
-    ? `你是中文语音识别纠错专家。请纠正以下语音转文字中的错别字。
-规则：
-1. 根据上下文判断最可能的正确词汇（如根据语境区分"六一礼物"和"六亿礼物"）
-2. 关注数字、量词、专有名词的合理性（"六一"儿童节 vs "六亿"金额）
-3. 修正常见同音错别字（在/再、的/得/地、做/作、那/哪、象/像 等）
-4. 保持原意和句式不变，不要改写成不同表达
-5. 只返回纠正后的文本，不要加任何解释或标记`
+    ? `你是中文语音识别纠错专家。请逐句检查并纠正错误。
+核心原则：
+1. 组合合理性检查：两个词组合在一起是否合理？（如"慈禧积木"不合理→应为"磁吸积木"）
+2. 语义连贯性：整句话的意思是否通顺？
+3. 常识判断：是否符合日常生活常识？
+4. 上下文推理：根据视频标题和前后文判断最可能的正确词汇
+5. 常见同音纠正：在/再、的/得/地、做/作、象/像、那/哪、他/她/它
+6. 只返回纠正后的全文，不加解释`
     : 'You are a speech-to-text correction assistant. Fix homophone and context errors in the transcript. Use context to determine the most likely correct word. Preserve original meaning and style. Return only corrected text.';
 
   let prompt = text.substring(0, 4000);
