@@ -2064,8 +2064,8 @@ export default function App() {
                   <div className="space-y-1 text-[11px] text-amber-300/80">
                     <p>{t('pricingUnlimited')}</p>
                     <p>{t('pricing4K')}</p>
-                    <p>批量下载</p>
-                    <p>🤖 AI 文案</p>
+                    <p>{t('batchDownload')}</p>
+                    <p>🤖 {t('aiCopyTitle')}</p>
                   </div>
                 </div>
               </div>
