@@ -464,19 +464,35 @@ async function burnSubtitlesIntoVideo(taskId, videoPath, subtitleText, targetLan
   } catch { videoDuration = 60; }
 
   if (segments && segments.length > 0) {
+    // 有原文字段时间戳 → 把翻译按比例分配到各段
+    const totalOrigChars = segments.reduce((sum, s) => sum + (s.text || '').length, 0);
+    let translatedPos = 0;
     for (let i = 0; i < segments.length; i++) {
       const s = segments[i];
       if (!s.text.trim() || s.start >= videoDuration) continue;
       const end = Math.min(s.end, videoDuration);
-      srt += `${i + 1}\n${formatSrtTime(s.start)} --> ${formatSrtTime(end)}\n${s.text.trim()}\n\n`;
+      // 按原文长度比例取对应翻译文本
+      const ratio = totalOrigChars > 0 ? (s.text.length / totalOrigChars) : (1 / segments.length);
+      const tLen = Math.max(20, Math.floor(subtitleText.length * ratio));
+      const tText = subtitleText.substring(translatedPos, translatedPos + tLen).trim();
+      translatedPos += tLen;
+      if (tText) srt += `${i + 1}\n${formatSrtTime(s.start)} --> ${formatSrtTime(end)}\n${tText}\n\n`;
     }
   } else {
-    const parts = subtitleText.split(/[。！？\n.!?，,；;]+/).filter(s => s.trim());
-    const segLen = Math.max(1.5, videoDuration / Math.max(parts.length, 1));
-    for (let i = 0; i < parts.length; i++) {
-      const start = i * segLen;
-      const end = Math.min((i + 1) * segLen, videoDuration);
-      srt += `${i + 1}\n${formatSrtTime(start)} --> ${formatSrtTime(end)}\n${parts[i].trim()}\n\n`;
+    // 无时间戳 → 按句子均分（每段最多 80 字，时间按比例）
+    const sentences = subtitleText.split(/(?<=[.!?。！？\n])/).filter(s => s.trim());
+    const chunks = [];
+    let cur = '';
+    for (const s of sentences) {
+      if ((cur + s).length > 80 && cur) { chunks.push(cur.trim()); cur = s; }
+      else { cur += s; }
+    }
+    if (cur.trim()) chunks.push(cur.trim());
+    const chunkDur = videoDuration / Math.max(chunks.length, 1);
+    for (let i = 0; i < chunks.length; i++) {
+      const start = i * chunkDur;
+      const end = Math.min((i + 1) * chunkDur, videoDuration);
+      srt += `${i + 1}\n${formatSrtTime(start)} --> ${formatSrtTime(end)}\n${chunks[i]}\n\n`;
     }
   }
   await asyncFs.safeWriteFile(srtPath, srt, 'utf-8');
