@@ -454,20 +454,23 @@ async function burnSubtitlesIntoVideo(taskId, videoPath, subtitleText, targetLan
   const srtPath = path.join(downloadDir, taskId + '_subs.srt');
   const outputPath = path.join(downloadDir, taskId + '_subbed.mp4');
 
-  // 生成 SRT（按句号/换行分段，每段假设 ~4s 时长）
-  const segments = subtitleText.split(/[。！？\n.!?]+/).filter(s => s.trim());
+  // 生成 SRT（按标点分段，每段一行，底部居中显示）
+  const segments = subtitleText.split(/[。！？\n.!?，,；;]+/).filter(s => s.trim());
   let srt = '';
   for (let i = 0; i < segments.length; i++) {
     const start = formatSrtTime(i * 4);
     const end = formatSrtTime((i + 1) * 4);
-    srt += `${i + 1}\n${start} --> ${end}\n${segments[i].trim()}\n\n`;
+    // 每段限制一行 30 字，超出拆两行
+    const seg = segments[i].trim();
+    srt += `${i + 1}\n${start} --> ${end}\n${seg}\n\n`;
   }
   await asyncFs.safeWriteFile(srtPath, srt, 'utf-8');
 
-  // ffmpeg 烧录字幕
+  // ffmpeg 烧录字幕 — 底部居中，一行一行显示
   await new Promise((resolve, reject) => {
     const { spawn } = require('child_process');
-    const args = ['-i', videoPath, '-vf', `subtitles=${srtPath}`, '-c:a', 'copy', '-y', outputPath];
+    const fontStyle = "Alignment=2,MarginV=30,FontSize=20,Outline=1,Shadow=1,BorderStyle=1";
+    const args = ['-i', videoPath, '-vf', `subtitles=${srtPath}:force_style='${fontStyle}'`, '-c:a', 'copy', '-y', outputPath];
     const ff = spawn('ffmpeg', args);
     let stderr = '';
     ff.stderr.on('data', d => { stderr += d.toString(); });
