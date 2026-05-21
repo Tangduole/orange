@@ -1055,11 +1055,13 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
         let text = await asr.transcribe(audioPath, asrLanguage);
         if (text && text.length >= 10) {
           try {
-            const { correctAsrText, correctWithDeepSeek } = require('../services/summarize');
+            const summarize = require('../services/summarize');
             const task = store.get(taskId);
-            const deepCorrected = await correctWithDeepSeek(text, asrLanguage, task?.title || '');
-            text = deepCorrected !== text ? deepCorrected : await correctAsrText(text, asrLanguage, task?.title || '');
-          } catch {}
+            const deepCorrected = await summarize.correctWithDeepSeek(text, asrLanguage, task?.title || '');
+            text = deepCorrected !== text ? deepCorrected : await summarize.correctAsrText(text, asrLanguage, task?.title || '');
+          } catch (e) {
+            console.error('[ASR-douyin] Correction error:', e.message);
+          }
         }
         if (text) {
           update.asrText = text;
