@@ -240,7 +240,7 @@ export default function App() {
   const [resetPwdStep, setResetPwdStep] = useState(!!_urlResetToken) // false=Send邮件, true=Settings新Password
   const [resetPwdToken, setResetPwdToken] = useState(_urlResetToken)
   const [resetPwd, setResetPwd] = useState('')
-  const [resetPwdConfirm, setResetPwdConfirm] = useState('')
+  const [subbedDownloading, setSubbedDownloading] = useState(false)
   const [resetPwdMsg, setResetPwdMsg] = useState('')
   const [resetPwdLoading, setResetPwdLoading] = useState(false)
   const [isVip, setIsVip] = useState(false)
@@ -2022,9 +2022,26 @@ export default function App() {
               )}
 
               {task.subbedVideoUrl && (
-                <a href={task.subbedVideoUrl} download className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl text-sm font-semibold bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/20 transition-all">
-                  🎬 下载翻译字幕视频
-                </a>
+                <button
+                  onClick={async () => {
+                    setSubbedDownloading(true)
+                    try {
+                      const fullUrl = task.subbedVideoUrl!.startsWith('http') ? task.subbedVideoUrl : `${BASE_URL}${task.subbedVideoUrl}`
+                      const a = document.createElement('a')
+                      a.href = fullUrl
+                      a.download = (task.title || 'subbed') + '_subbed.mp4'
+                      document.body.appendChild(a)
+                      a.click()
+                      document.body.removeChild(a)
+                      await new Promise(r => setTimeout(r, 1000))
+                    } catch {}
+                    setSubbedDownloading(false)
+                  }}
+                  disabled={subbedDownloading}
+                  className="flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl text-sm font-semibold bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 hover:bg-cyan-500/20 transition-all disabled:opacity-50"
+                >
+                  {subbedDownloading ? <><Loader2 className="w-4 h-4 animate-spin" /> 下载中...</> : <>🎬 下载翻译字幕视频</>}
+                </button>
               )}
 
               {task.translatedText && (
