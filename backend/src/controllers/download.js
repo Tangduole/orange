@@ -514,7 +514,8 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
     if (text && text.length >= 10) {
       try {
         const { correctAsrText } = require('../services/summarize');
-        const corrected = await correctAsrText(text, asrLanguage);
+        const task = store.get(taskId);
+        const corrected = await correctAsrText(text, asrLanguage, task?.title || '');
         if (corrected && corrected !== text) {
           text = corrected;
           logger.info('[ASR] Text corrected (homophone fix)');
@@ -1048,8 +1049,15 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
           ff.on('error', err => { clearTimeout(timer); reject(err); });
         });
 
-        // ASR 转文字
-        const text = await asr.transcribe(audioPath, asrLanguage);
+        // ASR 转文字 + AI 纠错
+        let text = await asr.transcribe(audioPath, asrLanguage);
+        if (text && text.length >= 10) {
+          try {
+            const { correctAsrText } = require('../services/summarize');
+            const task = store.get(taskId);
+            text = await correctAsrText(text, asrLanguage, task?.title || '');
+          } catch {}
+        }
         if (text) {
           update.asrText = text;
           update.asrTxtUrl = await saveTextFile(taskId, text, 'subtitle');

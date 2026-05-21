@@ -75,7 +75,7 @@ async function summarizeText(transcript, language = 'zh') {
  * 使用 Cloudflare Workers AI (Llama 3 8B) 纠正中文语音识别中的同音错误
  * 纠错失败不影响主流程，返回原文
  */
-async function correctAsrText(text, language = 'zh') {
+async function correctAsrText(text, language = 'zh', context = '') {
   if (!CONFIG.accountId || !CONFIG.token) {
     logger.info('[asr-correct] Cloudflare AI not configured, skipping');
     return text;
@@ -87,10 +87,20 @@ async function correctAsrText(text, language = 'zh') {
   const isZh = language.startsWith('zh');
 
   const systemPrompt = isZh
-    ? '你是一个中文语音识别纠错助手。请纠正以下语音转文字结果中的同音错别字（如：在/再、的/得/地、它/他/她、做/作、那/哪 等）。只纠正明显的错别字，保持原意和句式不变。直接返回纠正后的文本，不要加任何解释。'
-    : 'You are a speech-to-text correction assistant. Fix any homophone or spelling errors in the transcript while preserving the original meaning and style. Return only the corrected text without explanation.';
+    ? `你是中文语音识别纠错专家。请纠正以下语音转文字中的错别字。
+规则：
+1. 根据上下文判断最可能的正确词汇（如根据语境区分"六一礼物"和"六亿礼物"）
+2. 关注数字、量词、专有名词的合理性（"六一"儿童节 vs "六亿"金额）
+3. 修正常见同音错别字（在/再、的/得/地、做/作、那/哪、象/像 等）
+4. 保持原意和句式不变，不要改写成不同表达
+5. 只返回纠正后的文本，不要加任何解释或标记`
+    : 'You are a speech-to-text correction assistant. Fix homophone and context errors in the transcript. Use context to determine the most likely correct word. Preserve original meaning and style. Return only corrected text.';
 
-  const prompt = systemPrompt + '\n\n' + text.substring(0, 4000);
+  let prompt = text.substring(0, 4000);
+  if (context) {
+    prompt = `视频标题：${context}\n\n${prompt}`;
+  }
+  prompt = systemPrompt + '\n\n' + prompt;
 
   try {
     logger.info('[asr-correct] Correcting homophone errors...');
