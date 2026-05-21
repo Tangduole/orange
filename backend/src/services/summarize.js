@@ -8,6 +8,17 @@
 const axios = require('axios');
 const logger = require('../utils/logger');
 
+// 主动加载 .env（确保 AI_API_KEY 等可用）
+(function loadEnv() {
+  const fs = require('fs');
+  const path = require('path');
+  for (const p of [path.join(__dirname, '../../.env'), path.join(__dirname, '../../../.env')]) {
+    if (fs.existsSync(p)) {
+      try { require('dotenv').config({ path: p }); break; } catch {}
+    }
+  }
+})();
+
 const CONFIG = {
   accountId: process.env.CLOUDFLARE_ACCOUNT_ID || '',
   token: process.env.CLOUDFLARE_API_KEY || '',
