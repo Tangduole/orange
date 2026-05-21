@@ -1062,6 +1062,7 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
 
         // 翻译
         let task = store.get(taskId);
+        console.error(`[DEBUG-ASR] targetLang=${task?.targetLang}, hasText=${!!text}`);
         if (task?.targetLang && text) {
           try {
             const translated = await asr.translateText(text, asrLanguage === 'auto' ? 'zh' : asrLanguage, task.targetLang);
@@ -1070,13 +1071,13 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
               update.translatedTxtUrl = await saveTextFile(taskId, translated, 'translation');
               // 烧录字幕到视频
               try {
-                logger.info(`[ASR] ${taskId} burning subtitles: file=${result.filePath}, len=${translated.length}, lang=${task.targetLang}`);
+                console.error(`[DEBUG-BURN] ${taskId} burning subtitles: file=${result.filePath}, textLen=${translated.length}, lang=${task.targetLang}`);
                 const subbedPath = await burnSubtitlesIntoVideo(taskId, result.filePath, translated, task.targetLang);
+                console.error(`[DEBUG-BURN] ${taskId} OK: ${subbedPath}`);
                 update.subbedVideoUrl = '/download/' + path.basename(subbedPath);
                 fileRefManager.addRef(path.basename(subbedPath));
-                logger.info(`[ASR] ${taskId} subtitle burn OK: ${subbedPath}`);
               } catch (burnErr) {
-                logger.warn(`[ASR] ${taskId} subtitle burn failed:`, burnErr.message);
+                console.error(`[DEBUG-BURN] ${taskId} FAILED: ${burnErr.message}`);
               }
             }
           } catch (e) {
