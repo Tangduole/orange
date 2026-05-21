@@ -322,6 +322,13 @@ async function correctWithDeepSeek(text, language = 'zh', context = '') {
     });
     const corrected = res.data?.choices?.[0]?.message?.content?.trim() || text;
     if (corrected !== text) logger.info('[deepseek-correct] Fixed homophone errors');
+    // 后处理：标题含设计/风格关键词→用"式"，含家族关键词→用"氏"
+    if (context && /设计|风格|装修|家居|家具|建筑|产品|款|系列/.test(context) && /氏/.test(corrected)) {
+      corrected = corrected.replace(/氏/g, '式');
+    }
+    if (context && /家族|姓氏|宗亲|谱/.test(context) && /式/.test(corrected)) {
+      corrected = corrected.replace(/式/g, '氏');
+    }
     return corrected;
   } catch (e) {
     logger.warn('[deepseek-correct] Failed, falling back:', e.message);
