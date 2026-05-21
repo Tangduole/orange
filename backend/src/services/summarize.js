@@ -128,4 +128,47 @@ async function correctAsrText(text, language = 'zh') {
   }
 }
 
-module.exports = { summarizeText, correctAsrText };
+/**
+ * AI 翻译润色（使用 Llama 3 8B 免费）
+ * M2M-100 粗译 → Llama 3 润色为自然表达
+ */
+async function polishTranslation(rawTranslation, targetLang) {
+  if (!CONFIG.accountId || !CONFIG.token) return rawTranslation;
+  if (!rawTranslation || rawTranslation.length < 10) return rawTranslation;
+
+  const langNames = { zh: 'Chinese', en: 'English', ja: 'Japanese', ko: 'Korean' };
+  const langName = langNames[targetLang] || targetLang;
+
+  const prompt = `Polish this machine translation to sound natural in ${langName}. Fix grammar, word choice, and flow. Keep the same meaning. Do NOT add or remove information. Return ONLY the polished text, no explanations.\n\nRaw translation:\n${rawTranslation}`;
+
+  try {
+    const axios = require('axios');
+    const response = await axios.post(
+      'https://api.cloudflare.com/client/v4/accounts/' + CONFIG.accountId + '/ai/run/@cf/meta/llama-3-8b-instruct',
+      {
+        messages: [
+          { role: 'system', content: 'You are a professional translator. Output polished translation only.' },
+          { role: 'user', content: prompt },
+        ],
+        max_tokens: rawTranslation.length * 2,
+        temperature: 0.2,
+      },
+      {
+        headers: {
+          'X-Auth-Email': CONFIG.email,
+          'X-Auth-Key': CONFIG.token,
+          'Content-Type': 'application/json'
+        },
+        timeout: 30000
+      }
+    );
+    const polished = response.data.result?.response?.trim() || rawTranslation;
+    logger.info(`[polish] Translation polished (${rawTranslation.length} → ${polished.length} chars)`);
+    return polished;
+  } catch (e) {
+    logger.warn('[polish] Failed:', e.message);
+    return rawTranslation;
+  }
+}
+
+module.exports = { summarizeText, correctAsrText, polishTranslation };

@@ -540,7 +540,7 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
       }
     }
 
-    // 翻译(如果指定了目标语言)
+    // 翻译(如果指定了目标语言) + AI 润色
     const task = store.get(taskId);
     const tLang = targetLang || task?.targetLang;
     logger.info(`[ASR] ${taskId} targetLang=${targetLang}, task.targetLang=${task?.targetLang}, tLang=${tLang}`);
@@ -548,7 +548,14 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
     if (tLang && text) {
       try {
         logger.info(`[ASR] ${taskId} translating: ${asrLanguage === 'auto' ? 'zh' : asrLanguage} -> ${tLang}, textLen=${text.length}`);
-        translatedText = await asr.translateText(text, asrLanguage === 'auto' ? 'zh' : asrLanguage, tLang);
+        const raw = await asr.translateText(text, asrLanguage === 'auto' ? 'zh' : asrLanguage, tLang);
+        // AI 润色（M2M-100 粗译 → Llama 3 自然表达）
+        try {
+          const { polishTranslation } = require('../services/summarize');
+          translatedText = await polishTranslation(raw, tLang);
+        } catch {
+          translatedText = raw; // 润色失败用原译
+        }
       } catch (e) {
         logger.error(`[ASR] Translation failed: ${e.message}`);
       }
