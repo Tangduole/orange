@@ -1961,8 +1961,8 @@ export default function App() {
                 </div>
               )}
 
-              {/* AI 摘要 */}
-              {task.summaryText && (
+              {/* AI 摘要（纯文本版本） */}
+              {typeof task.summaryText === 'string' && task.summaryText && (
                 <div className="p-3 bg-gradient-to-r from-orange/10 to-orange-light/10 rounded-xl border border-orange/20">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-xs text-orange">🤖</span>
