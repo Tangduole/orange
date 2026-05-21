@@ -2106,6 +2106,31 @@ export default function App() {
             </div>
           )}
 
+          {/* Pro 功能预览 — 游客可见，点击引导升级 */}
+          {!isVip && (
+            <div className="mt-4 bg-slate-800/30 rounded-2xl p-4 border border-slate-700/30">
+              <p className="text-xs text-slate-500 mb-3">⭐ Pro 专属功能预览</p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {[
+                  { icon: '🎬', title: '原画 4K', desc: '无压缩原始画质' },
+                  { icon: '📦', title: '批量下载', desc: '一次性下多个视频' },
+                  { icon: '🤖', title: 'AI 文案提取', desc: '自动提取口播带货文案' },
+                  { icon: '📊', title: 'AI 视频总结', desc: '摘要+标签+推荐标题' },
+                  { icon: '🌐', title: '翻译字幕', desc: 'ASR→翻译→烧录到视频' },
+                  { icon: '🔓', title: '无限下载', desc: '不限次数随心下载' },
+                ].map(f => (
+                  <div key={f.title} className="flex items-start gap-2 p-2 bg-slate-700/20 rounded-lg cursor-pointer hover:bg-slate-700/30 transition" onClick={() => setShowUpgradePopup(true)}>
+                    <span className="text-base">{f.icon}</span>
+                    <div>
+                      <p className="text-slate-300 font-medium">{f.title}</p>
+                      <p className="text-slate-500">{f.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* // Download History - Enhanced */}
           <div className="mt-5">
             <button onClick={() => setShowHistory(!showHistory)}
