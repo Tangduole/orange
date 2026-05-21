@@ -454,20 +454,29 @@ async function burnSubtitlesIntoVideo(taskId, videoPath, subtitleText, targetLan
   const srtPath = path.join(downloadDir, taskId + '_subs.srt');
   const outputPath = path.join(downloadDir, taskId + '_subbed.mp4');
 
-  // 生成 SRT — 优先用 ASR 时间戳，否则按标点均分
+  // 生成 SRT — 优先用 ASR 时间戳，否则按时长均分
   let srt = '';
+  let videoDuration = 0;
+  try {
+    const { spawnSync } = require('child_process');
+    const probe = spawnSync('ffprobe', ['-v', 'quiet', '-show_entries', 'format=duration', '-of', 'csv=p=0', videoPath]);
+    videoDuration = parseFloat(probe.stdout.toString().trim()) || 60;
+  } catch { videoDuration = 60; }
+
   if (segments && segments.length > 0) {
     for (let i = 0; i < segments.length; i++) {
       const s = segments[i];
-      if (!s.text.trim()) continue;
-      srt += `${i + 1}\n${formatSrtTime(s.start)} --> ${formatSrtTime(s.end)}\n${s.text.trim()}\n\n`;
+      if (!s.text.trim() || s.start >= videoDuration) continue;
+      const end = Math.min(s.end, videoDuration);
+      srt += `${i + 1}\n${formatSrtTime(s.start)} --> ${formatSrtTime(end)}\n${s.text.trim()}\n\n`;
     }
   } else {
     const parts = subtitleText.split(/[。！？\n.!?，,；;]+/).filter(s => s.trim());
+    const segLen = Math.max(1.5, videoDuration / Math.max(parts.length, 1));
     for (let i = 0; i < parts.length; i++) {
-      const start = formatSrtTime(i * 4);
-      const end = formatSrtTime((i + 1) * 4);
-      srt += `${i + 1}\n${start} --> ${end}\n${parts[i].trim()}\n\n`;
+      const start = i * segLen;
+      const end = Math.min((i + 1) * segLen, videoDuration);
+      srt += `${i + 1}\n${formatSrtTime(start)} --> ${formatSrtTime(end)}\n${parts[i].trim()}\n\n`;
     }
   }
   await asyncFs.safeWriteFile(srtPath, srt, 'utf-8');
@@ -475,7 +484,7 @@ async function burnSubtitlesIntoVideo(taskId, videoPath, subtitleText, targetLan
   // ffmpeg 烧录字幕 — 底部居中，一行一行显示
   await new Promise((resolve, reject) => {
     const { spawn } = require('child_process');
-    const fontStyle = "Alignment=2,MarginV=30,FontSize=20,Outline=1,Shadow=1,BorderStyle=1";
+    const fontStyle = "Alignment=2,MarginV=16,FontSize=14,Outline=1,Shadow=0,BorderStyle=1";
     const args = ['-i', videoPath, '-vf', `subtitles=${srtPath}:force_style='${fontStyle}'`, '-c:a', 'copy', '-y', outputPath];
     const ff = spawn('ffmpeg', args);
     let stderr = '';
