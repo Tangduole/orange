@@ -197,6 +197,7 @@ export default function App() {
   const [batchMode, setBatchMode] = useState(false)
   const [quality, setQuality] = useState('')
   const [asrLanguage, setAsrLanguage] = useState('zh')
+  const [targetLang, setTargetLang] = useState('')
   const [availableQualities, setAvailableQualities] = useState<Array<{qualityLabel?: string, quality: string, format: string, width: number, height: number, hasVideo: boolean, hasAudio: boolean, size?: number}>>([])
   const [qualitiesLoading, setQualitiesLoading] = useState(false)
   const [autoQuality, setAutoQuality] = useState<{label: string, height: number} | null>(null) // 自动选择的画质
@@ -870,6 +871,7 @@ export default function App() {
         options: [...selected],
         needAsr: selected.has('asr'),
         asrLanguage,
+        targetLang,
       }, { timeout: 30000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} })
 
       const { batchId: bid, tasks } = r.data.data
@@ -922,7 +924,7 @@ export default function App() {
     try {
       const r = await axios.post(`${API}/download`, {
         url: url.trim(), platform: detected || 'auto',
-        needAsr: selected.has('asr'), options: [...selected], quality: downloadQuality, asrLanguage
+        needAsr: selected.has('asr'), options: [...selected], quality: downloadQuality, asrLanguage, targetLang
       }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} })
       setTask(r.data.data);
       // 服务器返回 403 且提到次数用尽 → 弹升级提示
@@ -1481,6 +1483,18 @@ export default function App() {
                   {ASR_LANGUAGE_OPTIONS.map(opt => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
+                </select>
+                <label className="text-xs text-slate-400 mt-3 mb-2 block font-medium">🌐 {t('translateTo') || '翻译为'}</label>
+                <select
+                  value={targetLang}
+                  onChange={(e) => setTargetLang(e.target.value)}
+                  className={`w-full px-3 py-2 border-2 rounded-xl text-sm outline-none focus:border-orange/70 cursor-pointer appearance-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-light-surface border-light-border text-light-text'}`}
+                >
+                  <option value="">不翻译</option>
+                  <option value="en">English</option>
+                  <option value="ja">日本語</option>
+                  <option value="ko">한국어</option>
+                  <option value="zh">中文</option>
                 </select>
               </div>
             )}
