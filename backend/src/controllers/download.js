@@ -515,11 +515,9 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
       try {
         const { correctAsrText, correctWithDeepSeek } = require('../services/summarize');
         const task = store.get(taskId);
-        // DeepSeek 主纠错（中文），Llama 3 兜底
         const deepCorrected = await correctWithDeepSeek(text, asrLanguage, task?.title || '');
         text = deepCorrected !== text ? deepCorrected : await correctAsrText(text, asrLanguage, task?.title || '');
-        if (corrected && corrected !== text) {
-          text = corrected;
+        if (deepCorrected && deepCorrected !== text) {
           logger.info('[ASR] Text corrected (homophone fix)');
         }
       } catch (e) {
@@ -546,14 +544,13 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
     if (tLang && text) {
       try {
         logger.info(`[ASR] ${taskId} translating: ${asrLanguage === 'auto' ? 'zh' : asrLanguage} -> ${tLang}, textLen=${text.length}`);
-        const raw = await asr.translateText(text, asrLanguage === 'auto' ? 'zh' : asrLanguage, tLang);
-        // AI 润色（M2M-100 粗译 → Llama 3 自然表达）
-        try {
-          const { polishTranslation } = require('../services/summarize');
-          translatedText = await polishTranslation(raw, tLang);
-        } catch {
-          translatedText = raw; // 润色失败用原译
+        // DeepSeek 翻译（支持长文本，质量好）→ M2M-100 兜底
+        const { translateWithDeepSeek } = require('../services/summarize');
+        let raw = await translateWithDeepSeek(text, asrLanguage === 'auto' ? 'zh' : asrLanguage, tLang);
+        if (!raw) {
+          raw = await asr.translateText(text, asrLanguage === 'auto' ? 'zh' : asrLanguage, tLang);
         }
+        translatedText = raw;
       } catch (e) {
         logger.error(`[ASR] Translation failed: ${e.message}`);
       }

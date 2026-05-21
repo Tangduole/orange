@@ -182,7 +182,45 @@ async function polishTranslation(rawTranslation, targetLang) {
   }
 }
 
-module.exports = { summarizeText, correctAsrText, polishTranslation, correctWithDeepSeek };
+module.exports = { summarizeText, correctAsrText, polishTranslation, correctWithDeepSeek, translateWithDeepSeek };
+
+/**
+ * DeepSeek 翻译（替代 M2M-100，支持长文本，质量更好）
+ */
+async function translateWithDeepSeek(text, sourceLang, targetLang) {
+  const deepseekKey = process.env.AI_API_KEY || '';
+  const deepseekUrl = (process.env.AI_API_URL || 'https://api.deepseek.com/v1').replace(/\/+$/, '');
+  if (!deepseekKey || !text) return null;
+  
+  const langNames = { zh: 'Chinese', en: 'English', ja: 'Japanese', ko: 'Korean' };
+  const src = langNames[sourceLang] || sourceLang;
+  const tgt = langNames[targetLang] || targetLang;
+  
+  try {
+    const axios = require('axios');
+    const res = await axios.post(`${deepseekUrl}/chat/completions`, {
+      model: 'deepseek-chat',
+      messages: [
+        { role: 'system', content: `Translate from ${src} to ${tgt}. Keep the style natural. Return only the translation.` },
+        { role: 'user', content: text }
+      ],
+      temperature: 0.1,
+      max_tokens: text.length * 2
+    }, {
+      headers: { 'Authorization': `Bearer ${deepseekKey}`, 'Content-Type': 'application/json' },
+      timeout: 60000
+    });
+    const translated = res.data?.choices?.[0]?.message?.content?.trim();
+    if (translated && translated !== text) {
+      logger.info(`[deepseek-translate] ${sourceLang}→${targetLang}, ${text.length}→${translated.length} chars`);
+      return translated;
+    }
+    return null;
+  } catch (e) {
+    logger.warn('[deepseek-translate] Failed:', e.message);
+    return null;
+  }
+}
 
 /**
  * DeepSeek 中文纠错（比 Llama 3 8B 强得多，几乎免费）
