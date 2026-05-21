@@ -98,14 +98,7 @@ async function correctAsrText(text, language = 'zh', context = '') {
   const isZh = language.startsWith('zh');
 
   const systemPrompt = isZh
-    ? `你是中文语音识别纠错专家。请逐句检查并纠正错误。
-核心原则：
-1. 组合合理性检查：两个词组合在一起是否合理？（如"慈禧积木"不合理→应为"磁吸积木"）
-2. 语义连贯性：整句话的意思是否通顺？
-3. 常识判断：是否符合日常生活常识？
-4. 上下文推理：根据视频标题和前后文判断最可能的正确词汇
-5. 常见同音纠正：在/再、的/得/地、做/作、象/像、那/哪、他/她/它
-6. 只返回纠正后的全文，不加解释`
+    ? `你是中文语音识别纠错专家。逐句检查并纠正。特别注意：式/氏、作/做、在/再、象/像、的/得/地、那/哪、买/卖、六一/六亿、磁吸/慈禧。根据上下文选最合理的词。组合不合理必须纠正。只返回纠正后全文。`
     : 'You are a speech-to-text correction assistant. Fix homophone and context errors in the transcript. Use context to determine the most likely correct word. Preserve original meaning and style. Return only corrected text.';
 
   let prompt = text.substring(0, 4000);
@@ -309,7 +302,7 @@ async function correctWithDeepSeek(text, language = 'zh', context = '') {
     return text;
   }
   
-  let prompt = `纠正以下语音识别的同音错别字。逐句检查：词汇组合是否合理？语义是否通顺？符合常识吗？\n\n`;
+  let prompt = `纠正以下语音识别的同音错别字。特别注意这些常见混淆：式/氏、作/做、在/再、象/像、的/得/地、那/哪、买/卖、六一/六亿、磁吸/慈禧。根据上下文选择最合理的词。\n\n`;
   if (context) prompt += `视频标题：${context}\n`;
   prompt += `文本：\n${text.substring(0, 3000)}`;
   
