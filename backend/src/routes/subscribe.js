@@ -74,14 +74,21 @@ router.post('/checkout', auth.required, async (req, res) => {
   // ---- 终身会员（直接激活，无需支付网关） ----
   if (plan === 'pro_lifetime') {
     try {
-      const endsAt = Math.floor(Date.now() / 1000) + 3650 * 24 * 60 * 60; // 10 年
-      await userDb.upgradeToPro(email.toLowerCase(), endsAt);
-      // 标记为终身会员
+      const endsAt = Math.floor(Date.now() / 1000) + 3650 * 24 * 60 * 60;
+      // 如果当前是月付/年付会员，保留剩余时长（叠加到终身之后）
+      const user = await userDb.getByEmail(email.toLowerCase());
+      let lifetimeStart = endsAt;
+      if (user && user.subscription_ends_at && user.subscription_ends_at > Math.floor(Date.now() / 1000)) {
+        const remaining = user.subscription_ends_at - Math.floor(Date.now() / 1000);
+        lifetimeStart = endsAt + remaining; // 终身 + 剩余月付/年付时长
+        logger.info(`[subscribe] Lifetime: carrying over ${Math.round(remaining/86400)} days from existing plan`);
+      }
+      await userDb.upgradeToPro(email.toLowerCase(), lifetimeStart);
       await userDb.db.execute({
         sql: 'UPDATE users SET subscription_status = ? WHERE email = ?',
         args: ['lifetime', email.toLowerCase()]
       });
-      logger.info(`[subscribe] Lifetime VIP activated: ${email}`);
+      logger.info(`[subscribe] Lifetime VIP activated: ${email}, ends at ${lifetimeStart}`);
       return res.json({ code: 0, message: '终身会员已激活', data: { lifetime: true } });
     } catch (e) {
       logger.error('[subscribe] Lifetime activation failed: ' + e.message);
