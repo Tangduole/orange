@@ -59,7 +59,7 @@ const FREE_DAILY_LIMIT = 3;
 function isVip(user) {
   if (!user) return false;
   if (user.tier !== 'pro') return false;
-  if (user.subscription_status !== 'active' && user.subscription_status !== 'past_due') {
+  if (user.subscription_status !== 'active' && user.subscription_status !== 'past_due' && user.subscription_status !== 'lifetime') {
     return false;
   }
   // 必须有有效的到期时间，否则认为是过期/测试账号
