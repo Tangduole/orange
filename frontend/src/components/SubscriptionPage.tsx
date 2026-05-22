@@ -111,7 +111,6 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
         { text: t('qualityUpTo4K'), included: true },
         { text: t('batchDownload'), included: true },
         { text: t('prioritySupport'), included: true },
-        { text: '原画/月 100次', included: true },
       ],
       current: status?.tier === 'pro' && !status?.subscriptionEndsAt,
       planId: 'pro_lifetime',
