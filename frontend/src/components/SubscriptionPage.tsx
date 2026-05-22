@@ -15,7 +15,7 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
   const [userEmail, setUserEmail] = useState('');
   const [error, setError] = useState('');
   const [upgrading, setUpgrading] = useState('');
-  const [billing, setBilling] = useState<'monthly' | 'yearly'>('monthly');
+  const [billing, setBilling] = useState<'monthly' | 'yearly' | 'lifetime'>('monthly');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
@@ -42,7 +42,15 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
     setError('');
     try {
       const data = await api.createCheckout(token, plan);
-      window.location.href = data.checkoutUrl;
+      if (data.lifetime) {
+        // 终身会员直接激活
+        loadStatus();
+        setUpgrading('');
+        return;
+      }
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+      }
     } catch (err: any) {
       setError(err.message || t('subscribeFailed'));
       setUpgrading('');
@@ -88,7 +96,26 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
       ],
       current: status?.tier === 'pro',
       planId: billing === 'monthly' ? 'pro_monthly' : 'pro_yearly',
-      highlight: true,
+      highlight: billing !== 'lifetime',
+    },
+    {
+      key: 'pro_lifetime',
+      name: t('lifetime') || '永久',
+      price: '$99',
+      period: t('once') || '一次',
+      savings: t('bestValue') || '最划算',
+      desc: t('payOnceForever') || '一次付费，永久使用',
+      features: [
+        { text: t('unlimited') + ' ' + t('downloads'), included: true },
+        { text: t('allPlatformsIncluding'), included: true },
+        { text: t('qualityUpTo4K'), included: true },
+        { text: t('batchDownload'), included: true },
+        { text: t('prioritySupport'), included: true },
+        { text: '原画/月 100次', included: true },
+      ],
+      current: status?.tier === 'pro' && !status?.subscriptionEndsAt,
+      planId: 'pro_lifetime',
+      highlight: billing === 'lifetime',
     },
   ];
 
@@ -191,7 +218,20 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
             >
               {t('yearly')}
               <span className="absolute -top-2 -right-2 px-1.5 py-0.5 bg-green-500 text-white text-[10px] font-bold rounded-full">
-                -50%
+                -32%
+              </span>
+            </button>
+            <button
+              onClick={() => setBilling('lifetime')}
+              className={`px-6 py-2 rounded-lg text-sm font-medium transition-all relative ${
+                billing === 'lifetime' 
+                  ? 'bg-amber-500 text-white shadow-lg' 
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              终身
+              <span className="absolute -top-2 -right-2 px-1.5 py-0.5 bg-amber-500 text-white text-[10px] font-bold rounded-full">
+                🔥
               </span>
             </button>
           </div>

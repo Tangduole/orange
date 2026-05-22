@@ -68,8 +68,26 @@ async function ensureWebhookTable() {
  */
 router.post('/checkout', auth.required, async (req, res) => {
   const { email } = req.user;
-  const { plan = 'pro_monthly' } = req.body; // 默认 Pro 月付
+  const { plan = 'pro_monthly' } = req.body;
   const redirectUrl = `${process.env.FRONTEND_URL || 'https://orangedl.com'}/subscription?success=true`;
+
+  // ---- 终身会员（直接激活，无需支付网关） ----
+  if (plan === 'pro_lifetime') {
+    try {
+      const endsAt = Math.floor(Date.now() / 1000) + 3650 * 24 * 60 * 60; // 10 年
+      await userDb.upgradeToPro(email.toLowerCase(), endsAt);
+      // 标记为终身会员
+      await userDb.db.execute({
+        sql: 'UPDATE users SET subscription_status = ? WHERE email = ?',
+        args: ['lifetime', email.toLowerCase()]
+      });
+      logger.info(`[subscribe] Lifetime VIP activated: ${email}`);
+      return res.json({ code: 0, message: '终身会员已激活', data: { lifetime: true } });
+    } catch (e) {
+      logger.error('[subscribe] Lifetime activation failed: ' + e.message);
+      return res.json({ code: 500, message: '激活失败，请联系管理员' });
+    }
+  }
 
   // ---- Creem 分支 ----
   if (PAYMENT_PROVIDER === 'creem') {
