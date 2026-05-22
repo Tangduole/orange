@@ -212,7 +212,7 @@ async function tryDownloadViaCobalt(url, taskId, onProgress) {
     if (cobaltResult.isPicker) {
       // 图集
       return {
-        title: meta.title || `X Post ${taskId}`,
+        title: meta.title || 'X Post',
         duration: 0,
         thumbnailUrl: meta.thumbnailUrl || '',
         subtitleFiles: [],
@@ -224,7 +224,7 @@ async function tryDownloadViaCobalt(url, taskId, onProgress) {
     }
 
     return {
-      title: meta.title || `X Video ${taskId}`,
+      title: meta.title || cobaltResult.cobaltFilename || (cobaltResult.title || 'X Video'),
       duration: 0,
       thumbnailUrl: meta.thumbnailUrl || '',
       subtitleFiles: [],
