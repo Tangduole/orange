@@ -476,6 +476,7 @@ export default function App() {
 
   // ProcessPaste事件 - AutoExtractLink
   const [batchQueue, setBatchQueue] = useState<Array<{url: string, status: string, progress: number, title?: string}>>([])
+  const savedBatchTasks = useRef<Set<string>>(new Set())
   const [batchIndex, setBatchIndex] = useState(0)
   const [saveLocation, setSaveLocation] = useState<string>('album')
 
@@ -876,6 +877,7 @@ export default function App() {
 
       const { batchId: bid, tasks } = r.data.data
       setBatchId(bid)
+      savedBatchTasks.current.clear()
       setBatchQueue(tasks.map((t: any) => ({ url: t.url, status: t.status, progress: 0 })))
 
       // 后台轮询批量状态
@@ -900,6 +902,13 @@ export default function App() {
           title: t.title || '',
           downloadUrl: t.downloadUrl || '',
         })))
+        // 批量任务完成时自动保存（每个任务只保存一次）
+        batchTasks.forEach((t: any) => {
+          if (t.status === 'completed' && t.downloadUrl && !savedBatchTasks.current.has(t.taskId)) {
+            savedBatchTasks.current.add(t.taskId)
+            shareFile(t.downloadUrl, t.title || 'video')
+          }
+        })
         if (status === 'completed') {
           clearInterval(timer)
           setBatchId(null)
