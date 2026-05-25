@@ -115,7 +115,7 @@ input:focus, select:focus { outline: none; border-color: #f97316; }
       </div>
       <div class="modal-field">
         <label>订阅状态</label>
-        <select id="editStatus"><option value="active">active</option><option value="past_due">past_due</option><option value="inactive">inactive</option><option value="canceled">canceled</option></select>
+        <select id="editStatus" onchange="if(this.value==='lifetime'){get('editTier').value='pro';get('editExpires').value=new Date(Date.now()+3650*86400000).toISOString().slice(0,16)}"><option value="active">active</option><option value="lifetime">🔥 lifetime</option><option value="past_due">past_due</option><option value="inactive">inactive</option><option value="canceled">canceled</option></select>
       </div>
     </div>
     <div class="col-50">
