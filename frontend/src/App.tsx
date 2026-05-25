@@ -2126,7 +2126,7 @@ export default function App() {
                   onClick={() => setShowUpgradePopup(true)}
                   className="flex-1 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-amber-500 to-orange text-white hover:from-amber-600 hover:to-orange-600 transition-all"
                 >
-                  升级 ¥9.9/月
+                  $6/月
                 </button>
               </div>
             </div>
