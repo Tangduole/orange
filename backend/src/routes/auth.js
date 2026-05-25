@@ -415,24 +415,4 @@ router.post('/referral/apply', auth.required, async (req, res) => {
   }
 });
 
-// 管理员：触发生命周期邮件（复用统一的 admin key 中间件）
-router.post('/admin/lifecycle-emails', auth.requireAdminKey, async (req, res) => {
-  let lifecycle;
-  try {
-    lifecycle = require('../lifecycle');
-  } catch (e) {
-    return res.status(501).json({
-      code: 501,
-      message: 'lifecycle module not implemented'
-    });
-  }
-  try {
-    const result = await lifecycle.run();
-    res.json({ code: 0, data: result });
-  } catch (err) {
-    logger.error('[admin] Lifecycle emails error: ' + err.message);
-    res.status(500).json({ code: 500, message: 'lifecycle run failed' });
-  }
-});
-
 module.exports = router;
