@@ -55,3 +55,5 @@ router.get('/history', auth.optional, getHistory);
 // 删除任务
 router.delete('/tasks/:taskId', auth.required, deleteTask);
 router.delete('/history', auth.optional, clearHistory);
+
+module.exports = router;
