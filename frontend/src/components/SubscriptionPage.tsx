@@ -44,6 +44,12 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
       setShowLifetimeConfirm(true);
       return;
     }
+    if (plan === 'pro_lifetime') {
+      setError('终身会员请联系管理员开通（support@orangedl.com）');
+      setUpgrading('');
+      setShowLifetimeConfirm(false);
+      return;
+    }
     setUpgrading(plan);
     setError('');
     try {
@@ -330,19 +336,15 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
         {showLifetimeConfirm && (
           <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
             <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-amber-500/50">
-              <h3 className="text-lg font-bold text-amber-400 mb-4">🔥 确认升级终身会员</h3>
+              <h3 className="text-lg font-bold text-amber-400 mb-4">🔥 终身会员</h3>
               <p className="text-slate-300 text-sm mb-4">
-                终身会员 $99 一次付费，永久使用。你当前的订阅剩余时长将叠加到终身会员之后。
+                $99 一次付费，永久使用。请联系管理员开通（support@orangedl.com）
               </p>
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowLifetimeConfirm(false)}
                   className="flex-1 py-2.5 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition"
-                >取消</button>
-                <button
-                  onClick={() => handleUpgrade('pro_lifetime')}
-                  className="flex-1 py-2.5 px-4 rounded-xl bg-amber-500 text-white hover:bg-amber-600 transition font-bold"
-                >确认升级 🔥</button>
+                >关闭</button>
               </div>
             </div>
           </div>
