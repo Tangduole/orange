@@ -214,28 +214,6 @@ app.get('/', (req, res) => {
   });
 });
 
-// 管理面板 — 需要 admin key
-app.get('/admin', (req, res) => {
-  const adminKey = process.env.ADMIN_API_KEY;
-  if (!adminKey) {
-    return res.status(500).send('ADMIN_API_KEY not configured');
-  }
-  // 支持 URL 参数 ?key=xxx 或 X-Admin-Key 头
-  const key = req.query.key || req.headers['x-admin-key'];
-  if (key !== adminKey) {
-    res.setHeader('WWW-Authenticate', 'Basic');
-    return res.status(401).send('Unauthorized. Access via ?key=YOUR_KEY or set X-Admin-Key header.');
-  }
-  try {
-    const html = fs.readFileSync(path.join(__dirname, 'admin.html'), 'utf-8');
-    res.setHeader('Content-Type', 'text/html');
-    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-    res.send(html);
-  } catch (e) {
-    res.status(500).send('admin.html not found: ' + e.message);
-  }
-});
-
 // 前端静态文件 (生产环境)
 const frontendDist = path.join(__dirname, '../../frontend/dist');
 if (fs.existsSync(frontendDist)) {
