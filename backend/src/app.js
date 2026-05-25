@@ -214,8 +214,18 @@ app.get('/', (req, res) => {
   });
 });
 
-// 管理面板
+// 管理面板 — 需要 admin key
 app.get('/admin', (req, res) => {
+  const adminKey = process.env.ADMIN_API_KEY;
+  if (!adminKey) {
+    return res.status(500).send('ADMIN_API_KEY not configured');
+  }
+  // 支持 URL 参数 ?key=xxx 或 X-Admin-Key 头
+  const key = req.query.key || req.headers['x-admin-key'];
+  if (key !== adminKey) {
+    res.setHeader('WWW-Authenticate', 'Basic');
+    return res.status(401).send('Unauthorized. Access via ?key=YOUR_KEY or set X-Admin-Key header.');
+  }
   try {
     const html = fs.readFileSync(path.join(__dirname, 'admin.html'), 'utf-8');
     res.setHeader('Content-Type', 'text/html');
