@@ -299,5 +299,9 @@
   "aiScript": "Sales Script",
   "termsOfService": "Terms of Service",
   "privacyPolicy": "Privacy Policy",
-  "disclaimer": "Disclaimer"
+  "disclaimer": "Disclaimer",
+  "lifetime": "Lifetime",
+  "once": "Once",
+  "bestValue": "Best Value",
+  "payOnceForever": "Pay once, use forever"
 }

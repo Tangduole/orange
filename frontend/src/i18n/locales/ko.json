@@ -299,5 +299,9 @@
   "aiScript": "판매 스크립트",
   "termsOfService": "이용약관",
   "privacyPolicy": "개인정보처리방침",
-  "disclaimer": "면책 조항"
+  "disclaimer": "면책 조항",
+  "lifetime": "평생",
+  "once": "1회",
+  "bestValue": "최고가치",
+  "payOnceForever": "한 번 결제, 평생 사용"
 }

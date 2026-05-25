@@ -299,5 +299,9 @@
   "aiScript": "販売スクリプト",
   "termsOfService": "利用規約",
   "privacyPolicy": "プライバシーポリシー",
-  "disclaimer": "免責事項"
+  "disclaimer": "免責事項",
+  "lifetime": "永久",
+  "once": "一回",
+  "bestValue": "お得",
+  "payOnceForever": "一度の支払いで永続利用"
 }

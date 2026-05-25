@@ -299,5 +299,9 @@
   "aiScript": "带货脚本",
   "termsOfService": "服务条款",
   "privacyPolicy": "隐私政策",
-  "disclaimer": "免责声明"
+  "disclaimer": "免责声明",
+  "lifetime": "终身",
+  "once": "一次",
+  "bestValue": "最划算",
+  "payOnceForever": "一次付费，永久使用"
 }

@@ -107,11 +107,11 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
     },
     {
       key: 'pro_lifetime',
-      name: t('lifetime') || '永久',
+      name: t('lifetime'),
       price: '$99',
-      period: t('once') || '一次',
-      savings: t('bestValue') || '最划算',
-      desc: t('payOnceForever') || '一次付费，永久使用',
+      period: t('once'),
+      savings: t('bestValue'),
+      desc: t('payOnceForever'),
       features: [
         { text: t('unlimited') + ' ' + t('downloads'), included: true },
         { text: t('allPlatformsIncluding'), included: true },
