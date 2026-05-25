@@ -148,7 +148,7 @@ if (!adminKey) {
 }
 if (!adminKey) document.body.innerHTML = '<div style="padding:60px;text-align:center"><div style="color:#64748b;font-size:14px">需要 Admin API Key 才能访问</div></div>';
 
-const headers = { 'Authorization': adminKey };
+const headers = { 'X-Admin-Key': adminKey };
 
 function get(id) { return document.getElementById(id); }
 function hide(id) { get(id).classList.add('hidden'); }
