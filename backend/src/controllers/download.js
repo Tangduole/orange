@@ -2258,22 +2258,7 @@ async function deleteTask(req, res) {
   const { taskId } = req.params;
   const task = store.get(taskId);
 
-  if (!task) {
-    return res.json({ code: 404, message: '任务不存在' });
-  }
-
-  // 检查权限:登录用户只能删自己的任务
-  const userId = req.user?.id;
-  const guestIp = getClientIp(req);
-  const canDelete = (userId && task.userId === userId) || (!task.userId && task.guestIp === guestIp);
-
-  if (!canDelete) {
-    return res.json({ code: 403, message: '无权删除此任务' });
-  }
-
-  store.removeWithFiles(taskId);
-  
-  // 同时从数据库历史中删除
+  // 从数据库历史中删除（无论内存中是否存在）
   try {
     const userDb = require('../userDb');
     await userDb.db.execute({
@@ -2283,7 +2268,18 @@ async function deleteTask(req, res) {
   } catch (e) {
     logger.warn('[deleteTask] DB delete failed:', e.message);
   }
-  
+
+  // 如果内存中还存在，也清理文件
+  if (task) {
+    const userId = req.user?.id;
+    const guestIp = getClientIp(req);
+    const canDelete = (userId && task.userId === userId) || (!task.userId && task.guestIp === guestIp);
+    if (!canDelete) {
+      return res.json({ code: 403, message: '无权删除此任务' });
+    }
+    store.removeWithFiles(taskId);
+  }
+
   res.json({ code: 0, message: '删除成功' });
 }
 
