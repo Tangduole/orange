@@ -186,6 +186,7 @@ export default function App() {
   const [selected, setSelected] = useState<Set<string>>(new Set(['video']))
   const [task, setTask] = useState<Task | null>(null)
   const [history, setHistory] = useState<HistoryItem[]>([])
+  const [historyTotal, setHistoryTotal] = useState(0)
   const [loading, setLoading] = useState(false)
   const [showDupConfirm, setShowDupConfirm] = useState(false)
   const [dupUrl, setDupUrl] = useState('')
@@ -677,7 +678,8 @@ export default function App() {
     try { 
       const r = await axios.get(`${API}/history`, { headers: getAuthHeaders() }); 
       const data = r.data.data || {};
-      setHistory(Array.isArray(data.tasks) ? data.tasks : (Array.isArray(data) ? data : [])) 
+      setHistory(Array.isArray(data.tasks) ? data.tasks : (Array.isArray(data) ? data : []))
+      setHistoryTotal(data.total || 0) 
     } catch {}
   }, [authToken])
   useEffect(() => { fetchHistory() }, [fetchHistory])
@@ -2163,7 +2165,7 @@ export default function App() {
               className={`w-full flex items-center justify-between px-5 py-3 rounded-2xl border text-sm transition ${isDark ? 'bg-slate-900/60 border-slate-700/60 text-slate-300 hover:text-slate-300' : 'bg-light-surface border-light-border text-light-textSecondary hover:text-light-text'}`}>
               <span className="flex items-center gap-2">
                 <Clock className="w-5 h-5" /> {t('downloadHistory')}
-                {history.length > 0 && <span className="bg-orange/20 text-orange px-2 py-0.5 rounded text-xs">{history.length}</span>}
+                {historyTotal > 0 && <span className="bg-orange/20 text-orange px-2 py-0.5 rounded text-xs">{historyTotal}</span>}
               </span>
               <span className="flex items-center gap-2">
                 {history.length > 0 && showHistory && (
