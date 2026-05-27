@@ -53,7 +53,7 @@ router.get('/status/:taskId', getStatus);
 router.get('/history', auth.optional, getHistory);
 
 // 删除任务
-router.delete('/tasks/:taskId', auth.required, deleteTask);
+router.delete('/tasks/:taskId', auth.optional, deleteTask);
 router.delete('/history', auth.optional, clearHistory);
 
 module.exports = router;

@@ -953,7 +953,7 @@ export default function App() {
     return n
   })
   const del = async (id: string) => {
-    try { await axios.delete(`${API}/tasks/${id}`, { headers: getAuthHeaders() }); fetchHistory(); if (task?.taskId === id) setTask(null) } catch {}
+    try { await axios.delete(`${API}/tasks/${id}`, { headers: getAuthHeaders() }); fetchHistory(); if (task?.taskId === id) setTask(null) } catch (e) { setError('删除失败，请重试') }
   }
   const deleteSelected = async () => {
     if (selectedTasks.size === 0) return
