@@ -2272,6 +2272,18 @@ async function deleteTask(req, res) {
   }
 
   store.removeWithFiles(taskId);
+  
+  // 同时从数据库历史中删除
+  try {
+    const userDb = require('../userDb');
+    await userDb.db.execute({
+      sql: 'DELETE FROM download_history WHERE task_id = ?',
+      args: [taskId]
+    });
+  } catch (e) {
+    logger.warn('[deleteTask] DB delete failed:', e.message);
+  }
+  
   res.json({ code: 0, message: '删除成功' });
 }
 
