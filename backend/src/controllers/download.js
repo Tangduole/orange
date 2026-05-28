@@ -1201,8 +1201,17 @@ async function processX(taskId, url, needAsr, options = ['video']) {
           options: { videoQuality: 'max', filenameStyle: 'basic' }
         });
         if (cobaltResult && !cobaltResult.isPicker) {
+          // 提取标题：优先 Cobalt 文件名，否则 yt-dlp 兜底
+          let xTitle = cobaltResult.cobaltFilename || '';
+          if (!xTitle || xTitle === 'X Video') {
+            try {
+              const ytdlp = require('../services/yt-dlp');
+              const info = await ytdlp.getInfo(url);
+              xTitle = (info?.title || '').replace(/\.\w+$/, '');
+            } catch {}
+          }
           result = {
-            title: cobaltResult.title || 'X Video',
+            title: xTitle || 'X Video',
             filePath: cobaltResult.filePath,
             ext: cobaltResult.ext || 'mp4',
             downloadUrl: cobaltResult.downloadUrl,
