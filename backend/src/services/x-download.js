@@ -223,8 +223,14 @@ async function tryDownloadViaCobalt(url, taskId, onProgress) {
       };
     }
 
+    // 从 Cobalt 文件名提取标题（格式通常是 "author - text - date.mp4"）
+    let fallbackTitle = 'X Video';
+    if (cobaltResult.cobaltFilename) {
+      fallbackTitle = cobaltResult.cobaltFilename.replace(/\.\w+$/, ''); // 去掉文件扩展名
+    }
+    
     return {
-      title: meta.title || cobaltResult.cobaltFilename || (cobaltResult.title || 'X Video'),
+      title: meta.title || fallbackTitle,
       duration: 0,
       thumbnailUrl: meta.thumbnailUrl || '',
       subtitleFiles: [],
