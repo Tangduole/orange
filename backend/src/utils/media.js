@@ -35,24 +35,36 @@ function formatSize(bytes) {
   return `${(bytes / 1073741824).toFixed(2)} GB`;
 }
 
+function hostnameOf(url) {
+  try {
+    return new URL(url).hostname.toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+function hostMatches(hostname, hosts) {
+  return hosts.some(host => hostname === host || hostname.endsWith(`.${host}`));
+}
+
 /**
  * URL → 平台标识
  */
 function detectPlatform(url) {
   if (!url || typeof url !== 'string') return 'unknown';
-  const u = url.toLowerCase();
-  if (/douyin\.com|douyin\.cn|iesdouyin\.com/.test(u)) return 'douyin';
-  if (/tiktok\.com|tiktok\.cn/.test(u)) return 'tiktok';
-  if (/twitter\.com|x\.com/.test(u)) return 'x';
-  if (/youtube\.com|youtu\.be/.test(u)) return 'youtube';
-  if (/xiaohongshu\.com|xhslink\.com/.test(u)) return 'xiaohongshu';
-  if (/instagram\.com|instagr\.am/.test(u)) return 'instagram';
-  if (/bilibili\.com|b23\.tv/.test(u)) return 'bilibili';
-  if (/kuaishou\.com|v\.kuaishou\.com/.test(u)) return 'kuaishou';
-  if (/facebook\.com|fb\.watch|fb\.gg/.test(u)) return 'facebook';
-  if (/weixin\.qq\.com|channels\.weixin/.test(u)) return 'wechat';
-  if (/tumblr\.com/.test(u)) return 'tumblr';
-  if (/reddit\.com|redd\.it/.test(u)) return 'reddit';
+  const host = hostnameOf(url);
+  if (hostMatches(host, ['douyin.com', 'douyin.cn', 'iesdouyin.com'])) return 'douyin';
+  if (hostMatches(host, ['tiktok.com', 'tiktok.cn'])) return 'tiktok';
+  if (hostMatches(host, ['twitter.com', 'x.com'])) return 'x';
+  if (hostMatches(host, ['youtube.com', 'youtu.be'])) return 'youtube';
+  if (hostMatches(host, ['xiaohongshu.com', 'xhslink.com'])) return 'xiaohongshu';
+  if (hostMatches(host, ['instagram.com', 'instagr.am'])) return 'instagram';
+  if (hostMatches(host, ['bilibili.com', 'b23.tv'])) return 'bilibili';
+  if (hostMatches(host, ['kuaishou.com', 'v.kuaishou.com'])) return 'kuaishou';
+  if (hostMatches(host, ['facebook.com', 'fb.watch', 'fb.gg'])) return 'facebook';
+  if (hostMatches(host, ['weixin.qq.com', 'channels.weixin.qq.com', 'finder.weixin.qq.com'])) return 'wechat';
+  if (hostMatches(host, ['tumblr.com'])) return 'tumblr';
+  if (hostMatches(host, ['reddit.com', 'redd.it'])) return 'reddit';
   return 'auto';
 }
 

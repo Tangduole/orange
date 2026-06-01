@@ -13,6 +13,7 @@ const path = require('path');
 const fs = require('fs');
 const EventEmitter = require('events');
 const logger = require('../utils/logger');
+const ALLOW_INSECURE_YTDLP_TLS = process.env.YTDLP_NO_CHECK_CERTIFICATES === '1';
 
 // 下载目录
 const DOWNLOAD_DIR = path.join(__dirname, '../../downloads');
@@ -38,7 +39,8 @@ function fetchMetadata(url) {
     const meta = { title: '', duration: 0, thumbnailUrl: '' };
     const proc = spawn('yt-dlp', [
       '--no-warnings', '--dump-json', '--skip-download',
-      '--ignore-errors', '--no-check-certificates',
+      '--ignore-errors',
+      ...(ALLOW_INSECURE_YTDLP_TLS ? ['--no-check-certificates'] : []),
       '--socket-timeout', '30',
       url
     ], { stdio: ['pipe', 'pipe', 'pipe'] });
@@ -78,8 +80,8 @@ async function download(url, taskId, onProgress, quality = null) {
       '--retries', '5',
       '--fragment-retries', '5',
       '--socket-timeout', '60',
-      '--no-check-certificates',
     ];
+    if (ALLOW_INSECURE_YTDLP_TLS) args.push('--no-check-certificates');
     
     // YouTube 专用参数（YouTube 主链路已切到 TikHub V2，此处仅作通用入口的兜底）
     if (/youtube\.com|youtu\.be/i.test(url)) {
@@ -361,7 +363,6 @@ function downloadAudio(url, taskId, onProgress) {
       '--ignore-errors',
       '--retries', '5',
       '--socket-timeout', '60',
-      '--no-check-certificates',
       '--no-playlist',
       '--extract-audio',
       '--audio-format', 'mp3',
@@ -372,6 +373,7 @@ function downloadAudio(url, taskId, onProgress) {
       '-o', outputPath,
       '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     ];
+    if (ALLOW_INSECURE_YTDLP_TLS) args.push('--no-check-certificates');
 
     // YouTube 专用参数（YouTube 主链路已切到 TikHub V2，此处仅作通用入口的兜底）
     if (/youtube\.com|youtu\.be/i.test(url)) {

@@ -14,6 +14,7 @@ const asyncFs = require('./utils/asyncFs');
 const fileRefManager = require('./utils/fileRefManager');
 const logger = require('./utils/logger');
 const { CLEANUP, TIME } = require('./config/constants');
+const { getFileRetentionMsForTask } = require('./utils/entitlements');
 
 const DATA_DIR = path.join(__dirname, '../data');
 const TASKS_FILE = path.join(DATA_DIR, 'tasks.json');
@@ -122,13 +123,14 @@ async function removeByUserId(userId) {
  * 清理过期任务及其关联文件
  * @param {number} maxAgeMs 最大存活时间
  */
-async function cleanup(maxAgeMs = CLEANUP.TASK_RETENTION) {
+async function cleanup(maxAgeMs = null) {
   const now = Date.now();
   let count = 0;
   const toDelete = [];
 
   for (const [id, task] of tasks) {
-    if ((task.status === 'completed' || task.status === 'error') && now - task.createdAt > maxAgeMs) {
+    const retentionMs = maxAgeMs ?? await getFileRetentionMsForTask(task);
+    if ((task.status === 'completed' || task.status === 'error') && now - task.createdAt > retentionMs) {
       toDelete.push(id);
     }
   }

@@ -6,10 +6,13 @@ const jwt = require('jsonwebtoken');
 const userDb = require('./userDb');
 const logger = require('./utils/logger');
 
-// JWT_SECRET 必须设置，不允许 fallback
 if (!process.env.JWT_SECRET) {
-  console.error('❌ JWT_SECRET environment variable is required!');
-  process.exit(1);
+  if (process.env.NODE_ENV === 'production') {
+    console.error('❌ JWT_SECRET environment variable is required!');
+    process.exit(1);
+  }
+  process.env.JWT_SECRET = 'dev-only-jwt-secret-change-before-production';
+  logger.warn('[auth] JWT_SECRET not set; using development-only fallback secret');
 }
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -87,24 +90,6 @@ const auth = {
         console.error('[auth] required error:', e.message);
         res.json({ code: 401, message: 'Token 无效或已过期' });
       });
-  },
-
-  /**
-   * 要求管理员 API Key
-   */
-  requireAdminKey(req, res, next) {
-    const adminKey = process.env.ADMIN_API_KEY;
-    if (!adminKey) {
-      console.error('[auth] ADMIN_API_KEY not configured');
-      return res.status(500).json({ code: 500, message: '管理员功能未配置' });
-    }
-
-    const requestKey = req.headers['x-admin-key'];
-    if (requestKey !== adminKey) {
-      return res.status(403).json({ code: 403, message: '无权访问' });
-    }
-
-    next();
   },
 
   /**

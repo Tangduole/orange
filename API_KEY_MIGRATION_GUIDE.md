@@ -139,8 +139,6 @@ FILE_RETENTION_HOURS=24
 # 应用URL
 APP_URL=https://www.orangedl.com
 
-# 管理员API密钥
-ADMIN_API_KEY=your_random_admin_key
 ```
 
 ---

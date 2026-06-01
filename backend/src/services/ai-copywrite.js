@@ -14,6 +14,8 @@ const logger = require('../utils/logger');
 const AI_API_URL = (process.env.AI_API_URL || 'https://api.deepseek.com/v1').replace(/\/+$/, '');
 const AI_API_KEY = process.env.AI_API_KEY || '';
 const AI_MODEL = process.env.AI_MODEL || 'deepseek-chat';
+const isProduction = () => process.env.NODE_ENV === 'production';
+const useMockCopywrite = () => process.env.DEV_COPYWRITE_MOCK === '1' && !isProduction();
 
 const DOWNLOAD_DIR = path.join(__dirname, '../../downloads');
 const TIMEOUT_FFMPEG = parseInt(process.env.FFMPEG_TIMEOUT_MS || '120000', 10);
@@ -52,7 +54,10 @@ async function transcribeAudio(audioPath, language = 'zh') {
  * AI 分析文案
  */
 async function analyzeWithAI(transcript) {
-  if (!AI_API_KEY) throw new Error('AI_API_KEY 未配置');
+  if (!AI_API_KEY) {
+    if (useMockCopywrite()) return buildMockAnalysis(transcript);
+    throw new Error('AI_API_KEY 未配置');
+  }
 
   const prompt = `你是一个专业的电商内容分析师。请分析以下视频口播文案，提取结构化信息。
 
@@ -115,6 +120,22 @@ ${transcript.substring(0, 4000)}`;
   }
 }
 
+function buildMockAnalysis(transcript) {
+  const sample = transcript.replace(/\s+/g, ' ').trim().slice(0, 120);
+  return {
+    productName: '本地测试素材',
+    sellingPoints: [
+      '这是开发环境生成的模拟 AI 分析结果',
+      '用于验证前端展示、素材库标签和使用量记录',
+      '生产环境必须配置 AI_API_KEY 才会调用真实模型'
+    ],
+    priceInfo: '',
+    targetAudience: '本地测试用户',
+    copyScript: sample ? `根据视频内容可提炼为：${sample}` : '这是本地测试生成的口播脚本。',
+    tags: ['本地测试', 'AI文案', '素材库', '开发模式']
+  };
+}
+
 /**
  * 主入口：从视频任务提取文案
  * @param {string} taskId
@@ -122,6 +143,11 @@ ${transcript.substring(0, 4000)}`;
  * @returns {Promise<{transcript, analysis}>}
  */
 async function extractCopywrite(taskId, platform = '') {
+  if (useMockCopywrite()) {
+    const transcript = `本地 mock 转写文本：task=${taskId}, platform=${platform || 'unknown'}。用于验证 AI 文案提取、素材库标签写入和用量计量。`;
+    return { transcript, analysis: buildMockAnalysis(transcript) };
+  }
+
   // 1. 找到视频文件
   const files = fs.readdirSync(DOWNLOAD_DIR).filter(f =>
     f.startsWith(taskId) && (f.endsWith('.mp4') || f.endsWith('.mkv') || f.endsWith('.webm'))

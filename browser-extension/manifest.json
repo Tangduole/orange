@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Orange Downloader",
+  "version": "0.1.0",
+  "description": "Send the current page to Orange Downloader.",
+  "permissions": ["activeTab", "tabs"],
+  "action": {
+    "default_title": "Send to Orange",
+    "default_popup": "popup.html"
+  }
+}

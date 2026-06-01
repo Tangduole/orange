@@ -12,7 +12,7 @@ const { v4: uuidv4 } = require('uuid');
 const store = require('../store');
 const ytdlp = require('../services/yt-dlp');
 const asr = require('../services/asr');
-const { validateInput } = require('../utils/validator');
+const { validateInput, validateUrl, extractUrl } = require('../utils/validator');
 const { executeWithRetry, downloadWithLimit, getLimiterStatus } = require('../utils/limiter');
 const { tikhubRequest } = require('../services/tikhub');
 const path = require('path');
@@ -23,9 +23,12 @@ const axios = require('axios');
 const taskLock = require('../utils/taskLock');
 const asyncFs = require('../utils/asyncFs');
 const fileRefManager = require('../utils/fileRefManager');
+const { signTaskDownloadFields } = require('../utils/downloadToken');
+const { isPrivateHost } = require('../utils/httpGet');
 const { spawn } = require('child_process');
 const logger = require('../utils/logger');
 const { heightToLabel, formatSize, detectPlatform } = require('../utils/media');
+const { getAiCopywriteMonthlyLimit, monthStartUnix, retentionSummaryForUser } = require('../utils/entitlements');
 const { 
   QUALITY, 
   TIMEOUT, 
@@ -37,9 +40,33 @@ const {
 } = require('../config/constants');
 
 const API_KEY_DOUYIN = process.env.TIKHUB_API_KEY_DOUYIN;
+const MAX_STREAM_DOWNLOAD_BYTES = parseInt(process.env.MAX_STREAM_DOWNLOAD_BYTES || String(500 * 1024 * 1024), 10);
 
 // 获取客户端 IP
 const getClientIp = (req) => req.ip || (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
+
+function canAccessTask(req, task) {
+  if (!task) return false;
+  if (req.user?.id) return task.userId === req.user.id;
+  return !task.userId && task.guestIp === getClientIp(req);
+}
+
+function signTaskResponse(data) {
+  return signTaskDownloadFields(data);
+}
+
+function summarizeAiUsage(rows, feature, monthlyLimit) {
+  const row = (rows || []).find(item => item.feature === feature) || {};
+  const used = Number(row.requests || 0);
+  return {
+    feature,
+    used,
+    limit: monthlyLimit,
+    remaining: monthlyLimit < 0 ? -1 : Math.max(0, monthlyLimit - used),
+    inputChars: Number(row.input_chars || 0),
+    outputItems: Number(row.output_items || 0)
+  };
+}
 
 /**
  * 立即保存下载历史到数据库（不依赖 /status 调用）
@@ -66,8 +93,25 @@ function saveHistory(taskId) {
  * 流式下载文件到磁盘(避免 OOM)
  */
 async function downloadToStream(url, destPath, timeout = TIMEOUT.DOWNLOAD) {
+  let parsed;
+  try { parsed = new URL(url); } catch { throw new Error('Invalid download URL'); }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('Only http/https download URLs are allowed');
+  }
+  if (isPrivateHost(parsed.hostname)) {
+    throw new Error('Refused to download from private host');
+  }
   const writer = fs.createWriteStream(destPath);
-  const response = await axios.get(url, { responseType: 'stream', timeout });
+  const response = await axios.get(url, { responseType: 'stream', timeout, maxRedirects: 5 });
+  const finalUrl = response.request?.res?.responseUrl;
+  if (finalUrl) {
+    const finalParsed = new URL(finalUrl);
+    if (isPrivateHost(finalParsed.hostname)) {
+      writer.close();
+      await asyncFs.safeUnlink(destPath);
+      throw new Error('Refused redirect to private host');
+    }
+  }
 
   // 检查 Content-Type，防止下载到 HTML 错误页
   const contentType = response.headers['content-type'] || '';
@@ -76,9 +120,26 @@ async function downloadToStream(url, destPath, timeout = TIMEOUT.DOWNLOAD) {
     await asyncFs.safeUnlink(destPath);
     throw new Error('Video link expired or blocked');
   }
+  const contentLength = Number(response.headers['content-length'] || 0);
+  if (contentLength > MAX_STREAM_DOWNLOAD_BYTES) {
+    writer.close();
+    await asyncFs.safeUnlink(destPath);
+    throw new Error('File too large');
+  }
 
   return new Promise((resolve, reject) => {
+    let downloaded = 0;
+    response.data.on('data', async (chunk) => {
+      downloaded += chunk.length;
+      if (downloaded > MAX_STREAM_DOWNLOAD_BYTES) {
+        response.data.destroy(new Error('File too large'));
+      }
+    });
     response.data.pipe(writer);
+    response.data.on('error', async (err) => {
+      await asyncFs.safeUnlink(destPath);
+      reject(err);
+    });
     writer.on('finish', async () => {
       // 下载完成后再次检查文件内容（防止 Content-Type 误报）
       const isHtml = await asyncFs.isHtmlFile(destPath);
@@ -423,9 +484,14 @@ async function createDownload(req, res) {
  */
 async function getInfo(req, res) {
   try {
-    const { url } = req.query;
+    let { url } = req.query;
     if (!url) {
       return res.json({ code: 400, message: '请提供 url 参数' });
+    }
+    url = extractUrl(String(url)) || String(url).trim();
+    const validation = validateUrl(url, 'auto');
+    if (!validation.valid) {
+      return res.json({ code: 400, message: validation.message });
     }
 
     const info = await ytdlp.getInfo(url);
@@ -643,11 +709,12 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
   }
 
   try {
-    const normalizedOptions = (Array.isArray(options) ? options : [options]).map(
+    const rawOptions = Array.isArray(options) ? options : [options];
+    const normalizedOptions = rawOptions.map(
       o => o === 'asr' || o === 'audio_only' ? 'audio' : o
     );
     const wantsVideo = normalizedOptions.includes('video');
-    const wantsAudioOnly = normalizedOptions.includes('audio_only');
+    const wantsAudioOnly = rawOptions.includes('audio_only') || (normalizedOptions.includes('audio') && !wantsVideo);
     const wantsCopywriting = normalizedOptions.includes('copywriting');
     const wantsCover = normalizedOptions.includes('cover');
     const wantsAudio = normalizedOptions.includes('audio');
@@ -2125,6 +2192,9 @@ function getStatus(req, res) {
   if (!task) {
     return res.json({ code: 404, message: '任务不存在' });
   }
+  if (!canAccessTask(req, task)) {
+    return res.status(403).json({ code: 403, message: '无权访问此任务' });
+  }
 
   // 保存下载历史(仅首次完成时)
   if (task.status === 'completed' && !task.historySaved) {
@@ -2144,7 +2214,7 @@ function getStatus(req, res) {
 
   res.json({
     code: 0,
-    data: {
+    data: signTaskResponse({
       taskId: task.taskId,
       url: task.url,
       status: task.status,
@@ -2174,7 +2244,7 @@ function getStatus(req, res) {
       downloadedBytes: task.downloadedBytes || 0,
       totalBytes: task.totalBytes || 0,
       createdAt: task.createdAt
-    }
+    })
   });
 }
 
@@ -2218,6 +2288,10 @@ async function getHistory(req, res) {
         title: h.title,
         thumbnailUrl: h.thumbnail_url,
         duration: h.duration,
+        isFavorite: h.is_favorite === 1,
+        tags: safeJsonArray(h.tags),
+        notes: h.notes || '',
+        aiAnalysis: safeJsonObject(h.ai_analysis),
         status: 'completed',
         createdAt: h.created_at * 1000,
         fromDb: true
@@ -2228,7 +2302,9 @@ async function getHistory(req, res) {
   // 按时间倒序
   allTasks.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
-  const tasks = allTasks.slice(parseInt(offset), parseInt(offset) + parseInt(limit));
+  const tasks = allTasks
+    .slice(parseInt(offset), parseInt(offset) + parseInt(limit))
+    .map(task => signTaskResponse(task));
 
   res.json({
     code: 0,
@@ -2237,6 +2313,26 @@ async function getHistory(req, res) {
       total: allTasks.length
     }
   });
+}
+
+function safeJsonArray(value) {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function safeJsonObject(value) {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -2266,27 +2362,34 @@ function getSystemStatus(req, res) {
 async function deleteTask(req, res) {
   const { taskId } = req.params;
   const task = store.get(taskId);
+  const userId = req.user?.id || null;
+  const guestIp = userId ? null : getClientIp(req);
 
-  // 从数据库历史中删除（无论内存中是否存在）
+  if (task && !canAccessTask(req, task)) {
+    return res.json({ code: 403, message: '无权删除此任务' });
+  }
+
+  // 从数据库历史中删除，仅删除当前用户/游客自己的记录
   try {
     const userDb = require('../userDb');
-    await userDb.db.execute({
-      sql: 'DELETE FROM download_history WHERE task_id = ?',
-      args: [taskId]
-    });
+    if (userId) {
+      await userDb.db.execute({
+        sql: 'DELETE FROM download_history WHERE task_id = ? AND user_id = ?',
+        args: [taskId, userId]
+      });
+    } else {
+      await userDb.db.execute({
+        sql: 'DELETE FROM download_history WHERE task_id = ? AND guest_ip = ?',
+        args: [taskId, guestIp]
+      });
+    }
   } catch (e) {
     logger.warn('[deleteTask] DB delete failed:', e.message);
   }
 
   // 如果内存中还存在，也清理文件
   if (task) {
-    const userId = req.user?.id;
-    const guestIp = getClientIp(req);
-    const canDelete = (userId && task.userId === userId) || (!task.userId && task.guestIp === guestIp);
-    if (!canDelete) {
-      return res.json({ code: 403, message: '无权删除此任务' });
-    }
-    store.removeWithFiles(taskId);
+    await store.removeWithFiles(taskId);
   }
 
   res.json({ code: 0, message: '删除成功' });
@@ -2357,27 +2460,136 @@ async function adminClearAllHistory(req, res) {
     res.json({ code: 500, message: e.message });
   }
 }
-function clearHistory(req, res) {
+async function clearHistory(req, res) {
   const userId = req.user?.id;
   const userDb = require('../userDb');
   
   if (userId) {
-    const count = store.removeByUserId(userId);
+    const count = await store.removeByUserId(userId);
     // 同时清除数据库历史
-    userDb.clearHistory(userId, null).catch(() => {});
+    await userDb.clearHistory(userId, null).catch(() => {});
     res.json({ code: 0, message: `已清除 ${count} 条记录` });
   } else {
-    // 游客：清除所有非登录用户的任务
+    // 游客：只清除当前 IP 关联的游客任务
     const guestIp = getClientIp(req);
-    const tasks = store.list().filter(t => !t.userId);
+    const tasks = store.list().filter(t => !t.userId && t.guestIp === guestIp);
     let count = 0;
     for (const t of tasks) {
-      store.removeWithFiles(t.taskId);
+      await store.removeWithFiles(t.taskId);
       count++;
     }
     // 同时清除数据库中该游客的历史
-    userDb.clearHistory(null, guestIp).catch(() => {});
+    await userDb.clearHistory(null, guestIp).catch(() => {});
     res.json({ code: 0, message: `已清除 ${count} 条记录` });
+  }
+}
+
+async function updateHistoryItem(req, res) {
+  const { taskId } = req.params;
+  const { isFavorite, tags, notes } = req.body || {};
+  const task = store.get(taskId);
+  if (task && !canAccessTask(req, task)) {
+    return res.status(403).json({ code: 403, message: '无权修改此素材' });
+  }
+
+  try {
+    const userDb = require('../userDb');
+    const userId = req.user?.id || null;
+    const guestIp = userId ? null : getClientIp(req);
+    await userDb.updateHistoryMeta({ userId, guestIp, taskId, isFavorite, tags, notes });
+    if (task) {
+      const updates = {};
+      if (typeof isFavorite === 'boolean') updates.isFavorite = isFavorite;
+      if (Array.isArray(tags)) updates.tags = tags.slice(0, 20);
+      if (typeof notes === 'string') updates.notes = notes.slice(0, 2000);
+      store.update(taskId, updates);
+    }
+    return res.json({ code: 0, data: { taskId, isFavorite, tags, notes } });
+  } catch (e) {
+    logger.error('[history] update meta failed:', e.message);
+    return res.status(500).json({ code: 500, message: '素材更新失败' });
+  }
+}
+
+async function extractCopywriteForTask(req, res) {
+  const { taskId } = req.body || {};
+  if (!taskId) return res.json({ code: 400, message: '缺少 taskId' });
+
+  const task = store.get(taskId);
+  if (!task) return res.json({ code: 404, message: '任务不存在或文件已过期' });
+  if (!canAccessTask(req, task)) {
+    return res.status(403).json({ code: 403, message: '无权访问此任务' });
+  }
+  if (task.status !== TASK_STATUS.COMPLETED) {
+    return res.json({ code: 400, message: '任务尚未完成，无法分析文案' });
+  }
+
+  try {
+    const userDb = require('../userDb');
+    if (req.user.email_verified !== 1) {
+      return res.status(403).json({ code: 403, message: '请先验证邮箱' });
+    }
+    if (!userDb.isVip(req.user)) {
+      return res.status(403).json({ code: 403, message: 'AI 文案提取为 Pro 会员功能' });
+    }
+    const monthStart = monthStartUnix();
+    const monthlyLimit = getAiCopywriteMonthlyLimit(req.user);
+    const usageRows = await userDb.getAiUsage(req.user.id, monthStart);
+    const usage = summarizeAiUsage(usageRows, 'copywrite', monthlyLimit);
+    if (monthlyLimit >= 0 && usage.remaining <= 0) {
+      return res.status(403).json({
+        code: 403,
+        message: `本月 AI 文案额度已用完（${usage.used}/${monthlyLimit}）`,
+        data: { usage, periodStart: monthStart }
+      });
+    }
+
+    const { extractCopywrite } = require('../services/ai-copywrite');
+    const result = await extractCopywrite(taskId, task.platform || '');
+    store.update(taskId, {
+      copywriteAnalysis: result.analysis,
+      copywriteTranscript: result.transcript,
+      tags: result.analysis?.tags || task.tags || []
+    });
+    await userDb.updateHistoryMeta({
+      userId: req.user.id,
+      taskId,
+      tags: result.analysis?.tags || [],
+      aiAnalysis: result.analysis
+    });
+    await userDb.recordAiUsage({
+      userId: req.user.id,
+      taskId,
+      feature: 'copywrite',
+      inputChars: result.transcript?.length || 0,
+      outputItems: Array.isArray(result.analysis?.tags) ? result.analysis.tags.length : 0
+    });
+    return res.json({ code: 0, data: result });
+  } catch (e) {
+    logger.error(`[copywrite] ${taskId} failed:`, e.message);
+    return res.status(500).json({ code: 500, message: e.message || 'AI 文案提取失败' });
+  }
+}
+
+async function getAiUsageStatus(req, res) {
+  try {
+    const userDb = require('../userDb');
+    const periodStart = monthStartUnix();
+    const monthlyLimit = getAiCopywriteMonthlyLimit(req.user);
+    const rows = await userDb.getAiUsage(req.user.id, periodStart);
+    const copywrite = summarizeAiUsage(rows, 'copywrite', monthlyLimit);
+    return res.json({
+      code: 0,
+      data: {
+        period: 'month',
+        periodStart,
+        copywrite,
+        retention: retentionSummaryForUser(req.user)
+      }
+    });
+  } catch (e) {
+    logger.error('[ai-usage] failed:', e.message);
+    return res.status(500).json({ code: 500, message: 'AI 用量查询失败' });
   }
 }
 
@@ -2569,17 +2781,20 @@ async function getBatchStatus(req, res) {
   const { batchId } = req.params;
   const batch = batchStore.get(batchId);
   if (!batch) return res.json({ code: 404, message: '批量任务不存在' });
+  if (!req.user?.id || batch.userId !== req.user.id) {
+    return res.status(403).json({ code: 403, message: '无权访问此批量任务' });
+  }
 
   const taskDetails = batch.tasks.map(t => {
     const detail = store.get(t.taskId);
-    return {
+    return signTaskResponse({
       taskId: t.taskId,
       url: t.url,
       status: detail?.status || t.status,
       title: detail?.title || '',
       downloadUrl: detail?.downloadUrl || '',
       error: detail?.error || '',
-    };
+    });
   });
 
   res.json({ code: 0, data: { batchId, status: batch.status, progress: batch.progress, tasks: taskDetails } });
@@ -2596,6 +2811,9 @@ module.exports = {
   getAdminStats,
   deleteTask,
   clearHistory,
+  updateHistoryItem,
+  extractCopywriteForTask,
+  getAiUsageStatus,
   adminClearAllHistory,
   detectPlatform
 };

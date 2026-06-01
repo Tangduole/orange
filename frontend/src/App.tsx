@@ -93,7 +93,19 @@ interface Task {
 interface HistoryItem {
   taskId: string; status: string; title?: string
   platform?: string; thumbnailUrl?: string; createdAt: string | number
-  url?: string; height?: number
+  url?: string; downloadUrl?: string; height?: number
+  isFavorite?: boolean; tags?: string[]; notes?: string
+}
+interface AiUsageStatus {
+  copywrite: {
+    used: number
+    limit: number
+    remaining: number
+  }
+  retention: {
+    hours: number
+    tier: string
+  }
 }
 
 const PLATFORMS = [
@@ -210,6 +222,7 @@ export default function App() {
   const qualityManuallySet = useRef(false) // 防止 useEffect 自动选择覆盖用户手动选择
   const [copywritingLoading, setCopywritingLoading] = useState(false)
   const [copywritingResult, setCopywritingResult] = useState<any>(null)
+  const [aiUsage, setAiUsage] = useState<AiUsageStatus | null>(null)
 
   // Auth state
   const [showAuthModal, setShowAuthModal] = useState(false)
@@ -254,6 +267,17 @@ export default function App() {
   const { t, i18n } = useTranslation()
   const [showLangMenu, setShowLangMenu] = useState(false)
   const getAuthHeaders = () => authToken ? { Authorization: `Bearer ${authToken}` } : {}
+  const fetchAiUsage = useCallback(async () => {
+    if (!authToken) {
+      setAiUsage(null)
+      return
+    }
+    try {
+      setAiUsage(await api.getAiUsage(authToken))
+    } catch (err) {
+      console.error('[AI] getAiUsage failed:', err)
+    }
+  }, [authToken])
   const changeLanguage = (lng: string) => {
     i18n.changeLanguage(lng)
     localStorage.setItem('orange_language', lng)
@@ -342,6 +366,7 @@ export default function App() {
         } else {
           setRemainingDownloads(status?.usage?.remaining ?? GUEST_DAILY_LIMIT)
         }
+        fetchAiUsage()
       }).catch((err) => { 
         // API Failed时不要把Member当GuestProcess，HideTimesPrompt即可
         console.error('[VIP] getSubscriptionStatus failed:', err);
@@ -349,6 +374,7 @@ export default function App() {
       })
     } else {
       setIsVip(false)
+      setAiUsage(null)
       // Check localStorage for guest remaining downloads
       const today = new Date().toISOString().split('T')[0]
       const parsed = readStoredJson<{ date?: string; count?: number } | null>('orange_guest_downloads', null)
@@ -358,24 +384,67 @@ export default function App() {
         setRemainingDownloads(GUEST_DAILY_LIMIT)
       }
     }
-  }, [authToken])
+  }, [authToken, fetchAiUsage])
   const [historySearch, setHistorySearch] = useState('')
   const [historyFilter, setHistoryFilter] = useState<'all' | 'completed' | 'error' | 'favorites'>('all')
   const [favorites, setFavorites] = useState<Set<string>>(() => new Set(readStoredJson<string[]>('orange_favorites', [])))
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set())
+  const [editingMaterial, setEditingMaterial] = useState<HistoryItem | null>(null)
+  const [materialTagsText, setMaterialTagsText] = useState('')
+  const [materialNotes, setMaterialNotes] = useState('')
 
   const filteredHistory = history.filter(item => {
-    if (historyFilter === 'favorites' && !favorites.has(item.taskId)) return false
+    const isFav = item.isFavorite || favorites.has(item.taskId)
+    if (historyFilter === 'favorites' && !isFav) return false
     if (historyFilter !== 'all' && historyFilter !== 'favorites' && item.status !== historyFilter) return false
-    if (historySearch && !(item.title || '').toLowerCase().includes(historySearch.toLowerCase())) return false
+    if (historySearch) {
+      const q = historySearch.toLowerCase()
+      const haystack = `${item.title || ''} ${(item.tags || []).join(' ')}`.toLowerCase()
+      if (!haystack.includes(q)) return false
+    }
     return true
   })
 
-  const toggleFavorite = (taskId: string) => {
+  const toggleFavorite = async (taskId: string) => {
     const nf = new Set(favorites)
-    nf.has(taskId) ? nf.delete(taskId) : nf.add(taskId)
+    const nextFavorite = !nf.has(taskId)
+    nextFavorite ? nf.add(taskId) : nf.delete(taskId)
     setFavorites(nf)
     localStorage.setItem('orange_favorites', JSON.stringify([...nf]))
+    setHistory(prev => prev.map(item => item.taskId === taskId ? { ...item, isFavorite: nextFavorite } : item))
+    if (authToken) {
+      try {
+        await axios.patch(`${API}/history/${taskId}`, { isFavorite: nextFavorite }, { headers: getAuthHeaders() })
+      } catch {
+        fetchHistory()
+      }
+    }
+  }
+
+  const openMaterialEditor = (item: HistoryItem) => {
+    setEditingMaterial(item)
+    setMaterialTagsText((item.tags || []).join(', '))
+    setMaterialNotes(item.notes || '')
+  }
+
+  const saveMaterialMeta = async () => {
+    if (!editingMaterial) return
+    const tags = materialTagsText
+      .split(/[,，#\n]/)
+      .map(t => t.trim())
+      .filter(Boolean)
+      .slice(0, 20)
+    const notes = materialNotes.slice(0, 2000)
+    const taskId = editingMaterial.taskId
+
+    setHistory(prev => prev.map(item => item.taskId === taskId ? { ...item, tags, notes } : item))
+    setEditingMaterial(null)
+    try {
+      await axios.patch(`${API}/history/${taskId}`, { tags, notes }, { headers: getAuthHeaders() })
+    } catch (e: any) {
+      setError(e.response?.data?.message || '素材保存失败')
+      fetchHistory()
+    }
   }
 
   const handleAuthSuccess = (token: string, user: any) => {
@@ -509,7 +578,7 @@ export default function App() {
     
     const t = setInterval(async () => {
       try {
-        const r = await axios.get(`${API}/status/${task.taskId}`)
+        const r = await axios.get(`${API}/status/${task.taskId}`, { headers: getAuthHeaders() })
         if (r.data.data) {
           setTask(r.data.data)
           if (['completed', 'error'].includes(r.data.data.status)) { 
@@ -521,7 +590,7 @@ export default function App() {
       } catch {}
     }, 1500)
     return () => clearInterval(t)
-  }, [task?.taskId])
+  }, [task?.taskId, authToken])
 
   // 画质短边(竖屏视频高宽颠倒,1080x1920是1080p不是2K)
   const qualityShortEdge = (q: {width: number, height: number}) => Math.min(q.width || 0, q.height || 0)
@@ -552,7 +621,7 @@ export default function App() {
     const savedTaskId = localStorage.getItem('orange_active_task')
     if (savedTaskId && (!task || task.taskId !== savedTaskId)) {
       // 恢复之前未完成的任务
-      axios.get(`${API}/status/${savedTaskId}`).then(r => {
+      axios.get(`${API}/status/${savedTaskId}`, { headers: getAuthHeaders() }).then(r => {
         if (r.data.data && !['completed', 'error'].includes(r.data.data.status)) {
           setTask(r.data.data)
         } else {
@@ -565,7 +634,7 @@ export default function App() {
       if (document.visibilityState === 'visible') {
         const tid = localStorage.getItem('orange_active_task')
         if (tid) {
-          axios.get(`${API}/status/${tid}`).then(r => {
+          axios.get(`${API}/status/${tid}`, { headers: getAuthHeaders() }).then(r => {
             if (r.data.data) setTask(r.data.data)
           }).catch(() => {})
         }
@@ -573,7 +642,7 @@ export default function App() {
     }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
-  }, [])
+  }, [authToken])
 
   // 下载完成提示音 — 清脆明亮的叮
   const playNotificationSound = () => {
@@ -678,7 +747,16 @@ export default function App() {
     try { 
       const r = await axios.get(`${API}/history`, { headers: getAuthHeaders() }); 
       const data = r.data.data || {};
-      setHistory(Array.isArray(data.tasks) ? data.tasks : (Array.isArray(data) ? data : []))
+      const tasks = Array.isArray(data.tasks) ? data.tasks : (Array.isArray(data) ? data : [])
+      setHistory(tasks)
+      const serverFavorites = tasks.filter((item: HistoryItem) => item.isFavorite).map((item: HistoryItem) => item.taskId)
+      if (serverFavorites.length > 0) {
+        setFavorites(prev => {
+          const merged = new Set([...prev, ...serverFavorites])
+          localStorage.setItem('orange_favorites', JSON.stringify([...merged]))
+          return merged
+        })
+      }
       setHistoryTotal(data.total || 0) 
     } catch {}
   }, [authToken])
@@ -801,6 +879,18 @@ export default function App() {
     setQualitiesLoading(false)
     return false
   }
+
+  useEffect(() => {
+    const sharedUrl = new URLSearchParams(window.location.search).get('url')
+    if (!sharedUrl) return
+    setUrl(sharedUrl)
+    setDetected(detectPlatform(sharedUrl))
+    fetchVideoQualities(sharedUrl).catch(() => {})
+    const clean = new URL(window.location.href)
+    clean.searchParams.delete('url')
+    clean.searchParams.delete('source')
+    window.history.replaceState({}, '', clean.toString())
+  }, [])
 
   const handleSubmit = async () => {
     if (loading) return  // 防重复提交
@@ -985,7 +1075,7 @@ export default function App() {
             const newTaskId = r.data.data.taskId;
             // 轮询新任务状态
             const pollTask = async () => {
-              const status = await axios.get(`${API}/status/${newTaskId}`);
+              const status = await axios.get(`${API}/status/${newTaskId}`, { headers: getAuthHeaders() });
               if (status.data.data?.status === 'completed') {
                 setTask(status.data.data);
                 fetchHistory();
@@ -1020,8 +1110,9 @@ export default function App() {
   }
   const openSavedFile = (item: HistoryItem) => {
     // 在新窗口打开视频File
-    const videoUrl = `${BASE_URL}/download/${item.taskId}.mp4`
-    window.open(videoUrl, '_blank')
+    if (item.downloadUrl) {
+      window.open(item.downloadUrl, '_blank')
+    }
   }
   const clip = async (text: string, id: string) => {
     try { await navigator.clipboard.writeText(text); setCopied(id); setTimeout(() => setCopied(null), 3000) } catch {}
@@ -1606,6 +1697,22 @@ export default function App() {
                 ⭐ 无限制下载 · 原画品质
               </div>
             )}
+            {authToken && aiUsage && (
+              <div className={`mb-3 grid grid-cols-2 gap-2 text-[11px] ${isDark ? 'text-slate-300' : 'text-light-textSecondary'}`}>
+                <div className={`rounded-xl px-3 py-2 ${isDark ? 'bg-purple-500/10 border border-purple-500/20' : 'bg-purple-50 border border-purple-100'}`}>
+                  <p className="text-purple-300 font-medium">AI 文案额度</p>
+                  <p className="mt-0.5">
+                    {aiUsage.copywrite.limit < 0
+                      ? `已用 ${aiUsage.copywrite.used} 次 / 不限`
+                      : `已用 ${aiUsage.copywrite.used}/${aiUsage.copywrite.limit} 次，剩余 ${aiUsage.copywrite.remaining} 次`}
+                  </p>
+                </div>
+                <div className={`rounded-xl px-3 py-2 ${isDark ? 'bg-slate-800/60 border border-slate-700/60' : 'bg-light-input border border-light-border'}`}>
+                  <p className="text-orange font-medium">文件保留</p>
+                  <p className="mt-0.5">{aiUsage.retention.hours >= 24 ? `${Math.round(aiUsage.retention.hours / 24)} 天` : `${aiUsage.retention.hours} 小时`}</p>
+                </div>
+              </div>
+            )}
 
             {/* Unified Action Area: 按钮 + 进度融合 */}
             <div className="mb-5">
@@ -1867,6 +1974,14 @@ export default function App() {
                   {!copywritingResult || copywritingResult.taskId !== task.taskId ? (
                     <button
                       onClick={async () => {
+                        if (!authToken) {
+                          setShowAuthModal(true);
+                          return;
+                        }
+                        if (!isVip) {
+                          setShowUpgradePopup(true);
+                          return;
+                        }
                         setCopywritingLoading(true);
                         try {
                           const r = await axios.post(`${API}/copywrite`, { taskId: task.taskId }, {
@@ -1875,6 +1990,8 @@ export default function App() {
                           });
                           if (r.data.code === 0) {
                             setCopywritingResult({ taskId: task.taskId, ...r.data.data });
+                            fetchHistory();
+                            fetchAiUsage();
                           } else {
                             setError(r.data.message);
                           }
@@ -1888,7 +2005,7 @@ export default function App() {
                       className="w-full flex items-center justify-center gap-2 py-2 text-sm text-purple-300 hover:text-purple-200 transition-colors"
                     >
                       {copywritingLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <span>🤖</span>}
-                      {copywritingLoading ? 'AI 分析中...' : '🤖 AI 文案提取'}
+                      {copywritingLoading ? 'AI 分析中...' : isVip ? '🤖 AI 文案提取' : '🤖 Pro AI 文案提取'}
                     </button>
                   ) : (
                     <div className="space-y-2">
@@ -2202,10 +2319,18 @@ export default function App() {
                           {item.height && <span className={`text-xs px-1.5 py-0.5 rounded ${item.height >= 720 ? 'text-yellow-400 bg-yellow-500/10' : 'text-emerald-400 bg-emerald-500/10'}`}>🎬 {item.height}p {item.height >= 720 ? '⭐' : '✓'}</span>}
                           <span className="text-xs text-slate-500">{new Date(item.createdAt).toLocaleString(i18n.language === 'zh-CN' ? 'zh-CN' : i18n.language === 'ja' ? 'ja-JP' : i18n.language === 'ko' ? 'ko-KR' : 'en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
+                        {item.tags?.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {item.tags.slice(0, 4).map(tag => (
+                              <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-300">#{tag}</span>
+                            ))}
+                          </div>
+                        )}
                       </div>
                       {item.status === 'error' && <button onClick={() => retryTask(item)} className="p-1.5 text-orange-500 hover:text-orange"><Loader2 className="w-5 h-5" /></button>}
                       {item.status === 'completed' && <button onClick={() => retryTask(item)} title="Re-download" className="p-1 text-slate-500 hover:text-green-400"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg></button>}
-                      <button onClick={() => toggleFavorite(item.taskId)} className={`p-1.5 ${favorites.has(item.taskId) ? 'text-yellow-400' : 'text-slate-500 hover:text-yellow-400'}`}><svg className="w-4 h-4" fill={favorites.has(item.taskId) ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg></button>
+                      <button onClick={() => openMaterialEditor(item)} className="p-1 text-slate-500 hover:text-purple-300" title="编辑素材"><FileText className="w-4 h-4" /></button>
+                      <button onClick={() => toggleFavorite(item.taskId)} className={`p-1.5 ${item.isFavorite || favorites.has(item.taskId) ? 'text-yellow-400' : 'text-slate-500 hover:text-yellow-400'}`}><svg className="w-4 h-4" fill={item.isFavorite || favorites.has(item.taskId) ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg></button>
                       <button onClick={() => del(item.taskId)} className="p-1 text-slate-500 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   ))}
@@ -2224,6 +2349,37 @@ export default function App() {
               <div className="flex gap-3">
                 <button onClick={() => { setShowDupConfirm(false); setPendingDownload(null) }} className="flex-1 py-2 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition">{t("cancel")}</button>
                 <button onClick={() => { setShowDupConfirm(false); if (pendingDownload) pendingDownload() }} className="flex-1 py-2 px-4 rounded-xl bg-orange text-white hover:bg-orange-dark transition">{t("downloadAgain")}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {editingMaterial && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-800 rounded-2xl p-5 max-w-md w-full border border-slate-700">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-base font-bold text-white">编辑素材</h3>
+                <button onClick={() => setEditingMaterial(null)} className="text-slate-400 hover:text-white"><X className="w-4 h-4" /></button>
+              </div>
+              <p className="text-xs text-slate-400 mb-3 truncate">{editingMaterial.title || editingMaterial.url || editingMaterial.taskId}</p>
+              <label className="block text-xs text-slate-300 mb-1">标签（逗号或 # 分隔）</label>
+              <input
+                value={materialTagsText}
+                onChange={(e) => setMaterialTagsText(e.target.value)}
+                placeholder="短视频, 带货, 选题"
+                className="w-full px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-700 text-sm text-white placeholder:text-slate-500 mb-3"
+              />
+              <label className="block text-xs text-slate-300 mb-1">备注</label>
+              <textarea
+                value={materialNotes}
+                onChange={(e) => setMaterialNotes(e.target.value)}
+                placeholder="记录用途、灵感或客户需求..."
+                rows={4}
+                className="w-full px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-700 text-sm text-white placeholder:text-slate-500 resize-none"
+              />
+              <div className="flex gap-3 mt-4">
+                <button onClick={() => setEditingMaterial(null)} className="flex-1 py-2 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition">取消</button>
+                <button onClick={saveMaterialMeta} className="flex-1 py-2 rounded-xl bg-orange text-white hover:bg-orange-dark transition">保存</button>
               </div>
             </div>
           </div>

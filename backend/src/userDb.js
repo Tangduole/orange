@@ -40,7 +40,21 @@ const bcrypt = require('bcryptjs');
 function buildDbUrl() {
   if (process.env.TURSO_DATABASE_URL) return process.env.TURSO_DATABASE_URL;
   const local = process.env.LOCAL_DB_PATH || './data/users.db';
-  return /^(file|libsql|wss?):/i.test(local) ? local : 'file:' + local;
+  const dbUrl = /^(file|libsql|wss?):/i.test(local) ? local : 'file:' + local;
+  ensureLocalDbDir(dbUrl);
+  return dbUrl;
+}
+
+function ensureLocalDbDir(dbUrl) {
+  if (!dbUrl.startsWith('file:')) return;
+  const fs = require('fs');
+  const path = require('path');
+  const dbPath = dbUrl.slice('file:'.length);
+  if (!dbPath || dbPath === ':memory:') return;
+  const dir = path.dirname(dbPath);
+  if (dir && dir !== '.' && !fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
 }
 
 const db = createClient({
@@ -124,10 +138,22 @@ async function initDb() {
         title TEXT,
         thumbnail_url TEXT,
         duration INTEGER,
+        is_favorite INTEGER DEFAULT 0,
+        tags TEXT,
+        notes TEXT,
+        ai_analysis TEXT,
         created_at INTEGER NOT NULL
       )
     `);
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_history_user ON download_history(user_id, created_at DESC)`);
+    for (const statement of [
+      `ALTER TABLE download_history ADD COLUMN is_favorite INTEGER DEFAULT 0`,
+      `ALTER TABLE download_history ADD COLUMN tags TEXT`,
+      `ALTER TABLE download_history ADD COLUMN notes TEXT`,
+      `ALTER TABLE download_history ADD COLUMN ai_analysis TEXT`,
+    ]) {
+      try { await db.execute({ sql: statement }); } catch (e) {}
+    }
     
     // 迁移：添加邮箱验证相关列（如果不存在）
     try {
@@ -186,6 +212,19 @@ async function initDb() {
         created_at INTEGER DEFAULT (unixepoch())
       )`
     });
+
+    await db.execute({
+      sql: `CREATE TABLE IF NOT EXISTS ai_usage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        task_id TEXT,
+        feature TEXT NOT NULL,
+        input_chars INTEGER DEFAULT 0,
+        output_items INTEGER DEFAULT 0,
+        created_at INTEGER DEFAULT (unixepoch())
+      )`
+    });
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_ai_usage_user ON ai_usage(user_id, created_at DESC)`);
     
     console.log('[userDb] Turso 数据库初始化完成');
   } catch (err) {
@@ -713,6 +752,55 @@ const userDb = {
     } else if (guestIp) {
       await db.execute({ sql: 'DELETE FROM download_history WHERE user_id IS NULL AND guest_ip = ?', args: [guestIp] });
     }
+  },
+
+  async updateHistoryMeta({ userId, guestIp, taskId, isFavorite, tags, notes, aiAnalysis }) {
+    const sets = [];
+    const args = [];
+    if (typeof isFavorite === 'boolean') {
+      sets.push('is_favorite = ?');
+      args.push(isFavorite ? 1 : 0);
+    }
+    if (Array.isArray(tags)) {
+      sets.push('tags = ?');
+      args.push(JSON.stringify(tags.slice(0, 20)));
+    }
+    if (typeof notes === 'string') {
+      sets.push('notes = ?');
+      args.push(notes.slice(0, 2000));
+    }
+    if (aiAnalysis !== undefined) {
+      sets.push('ai_analysis = ?');
+      args.push(JSON.stringify(aiAnalysis));
+    }
+    if (sets.length === 0) return;
+
+    const ownerWhere = userId ? 'user_id = ?' : 'user_id IS NULL AND guest_ip = ?';
+    args.push(taskId, userId || guestIp);
+    await db.execute({
+      sql: `UPDATE download_history SET ${sets.join(', ')} WHERE task_id = ? AND ${ownerWhere}`,
+      args
+    });
+  },
+
+  async recordAiUsage({ userId, taskId, feature, inputChars = 0, outputItems = 0 }) {
+    if (!userId) return;
+    await db.execute({
+      sql: `INSERT INTO ai_usage (user_id, task_id, feature, input_chars, output_items)
+            VALUES (?, ?, ?, ?, ?)`,
+      args: [userId, taskId || null, feature, Number(inputChars) || 0, Number(outputItems) || 0]
+    });
+  },
+
+  async getAiUsage(userId, sinceUnix = 0) {
+    const result = await db.execute({
+      sql: `SELECT feature, COUNT(*) as requests, SUM(input_chars) as input_chars, SUM(output_items) as output_items
+            FROM ai_usage
+            WHERE user_id = ? AND created_at >= ?
+            GROUP BY feature`,
+      args: [userId, sinceUnix]
+    });
+    return result.rows || [];
   }
 };
 

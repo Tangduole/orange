@@ -71,6 +71,23 @@ interface UsageResponse {
   subscriptionEndsAt: number | null;
 }
 
+interface AiUsageResponse {
+  period: string;
+  periodStart: number;
+  copywrite: {
+    feature: string;
+    used: number;
+    limit: number;
+    remaining: number;
+    inputChars: number;
+    outputItems: number;
+  };
+  retention: {
+    hours: number;
+    tier: string;
+  };
+}
+
 interface SubscribeResponse {
   checkoutUrl: string;
   checkoutId: string;
@@ -121,6 +138,14 @@ export const api = {
   // 订阅 API
   async getSubscriptionStatus(token: string) {
     const data = await apiFetch(`${API_BASE}/api/subscribe/status`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (data.code !== 0) throw new Error(data.message);
+    return data.data;
+  },
+
+  async getAiUsage(token: string): Promise<AiUsageResponse> {
+    const data = await apiFetch(`${API_BASE}/api/ai/usage`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     if (data.code !== 0) throw new Error(data.message);
@@ -204,34 +229,6 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ token, password })
-    });
-    if (data.code !== 0) throw new Error(data.message);
-    return data;
-  },
-
-  // 管理员：赋予会员
-  async adminGrantVip(token: string, email: string, days: number = 365) {
-    const data = await apiFetch(`${API_BASE}/api/subscribe/admin/grant-vip`, {
-      method: 'POST',
-      headers: { 
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ email, days })
-    });
-    if (data.code !== 0) throw new Error(data.message);
-    return data;
-  },
-
-  // 管理员：撤销会员
-  async adminRevokeVip(token: string, email: string) {
-    const data = await apiFetch(`${API_BASE}/api/subscribe/admin/revoke-vip`, {
-      method: 'POST',
-      headers: { 
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ email })
     });
     if (data.code !== 0) throw new Error(data.message);
     return data;

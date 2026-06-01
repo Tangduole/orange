@@ -47,6 +47,8 @@ function isPrivateHost(hostname) {
  * @param {object} [opts.headers] 额外请求头
  * @param {string} [opts.responseType='text'] 'text' | 'arraybuffer'
  * @param {boolean} [opts.followRedirect=true] 是否跟随重定向
+ * @param {number} [opts.redirectCount=0] 当前重定向次数
+ * @param {number} [opts.maxRedirects=5] 最大重定向次数
  * @returns {Promise<Buffer|{body: string, finalUrl: string}>}
  */
 function httpGet(rawUrl, opts = {}) {
@@ -54,9 +56,14 @@ function httpGet(rawUrl, opts = {}) {
   const maxSize = opts.maxSize || DEFAULT_MAX_SIZE;
   const responseType = opts.responseType || 'text';
   const followRedirect = opts.followRedirect !== false;
+  const redirectCount = opts.redirectCount || 0;
+  const maxRedirects = opts.maxRedirects ?? 5;
 
   let url;
   try { url = new URL(rawUrl); } catch { return Promise.reject(new Error('Invalid URL: ' + rawUrl)); }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    return Promise.reject(new Error('Only http/https URLs are allowed'));
+  }
 
   // SSRF 防护
   if (isPrivateHost(url.hostname)) {
@@ -74,8 +81,11 @@ function httpGet(rawUrl, opts = {}) {
       // 跟随重定向
       if (followRedirect && [301, 302, 303, 307, 308].includes(res.statusCode) && res.headers.location) {
         res.resume();
+        if (redirectCount >= maxRedirects) {
+          return reject(new Error('Too many redirects'));
+        }
         const nextUrl = new URL(res.headers.location, url).href;
-        return httpGet(nextUrl, opts).then(resolve).catch(reject);
+        return httpGet(nextUrl, { ...opts, redirectCount: redirectCount + 1, maxRedirects }).then(resolve).catch(reject);
       }
 
       if (res.statusCode !== 200) {

@@ -145,7 +145,6 @@ FILE_RETENTION_HOURS=${config.FILE_RETENTION_HOURS}
 
 # 认证（自动生成）
 JWT_SECRET=${config.JWT_SECRET}
-ADMIN_API_KEY=your_random_admin_key_here
 
 # -------- 数据库 (Turso) --------
 TURSO_DATABASE_URL=libsql://your-database-name-your-org.turso.io

@@ -7,6 +7,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const crypto = require('crypto');
 const path = require('path');
 const fs = require('fs');
 const logger = require('./utils/logger');
@@ -17,6 +18,7 @@ const apiRouter = require('./routes/api');
 const authRouter = require('./routes/auth');
 const subscribeRouter = require('./routes/subscribe');
 const healthRouter = require('./routes/health');
+const { verifyDownloadRequest } = require('./utils/downloadToken');
 const { DOWNLOAD_DIR } = require('./services/yt-dlp');
 const store = require('./store');
 
@@ -98,6 +100,20 @@ app.use('/api/subscribe/webhook', express.raw({ type: '*/*', limit: '1mb' }));
 // Telegram Bot Webhook (在全局JSON解析之前处理)
 app.post('/api/bot/telegram', express.json({ limit: '5mb' }), async (req, res) => {
   try {
+    if (process.env.TELEGRAM_BOT_TOKEN) {
+      const expected = process.env.TELEGRAM_WEBHOOK_SECRET || '';
+      const received = String(req.headers['x-telegram-bot-api-secret-token'] || '');
+      if (!expected) {
+        logger.error('[Bot] TELEGRAM_WEBHOOK_SECRET not configured; rejecting webhook');
+        return res.status(500).json({ ok: false });
+      }
+      const expectedBuf = Buffer.from(expected);
+      const receivedBuf = Buffer.from(received);
+      if (expectedBuf.length !== receivedBuf.length || !crypto.timingSafeEqual(expectedBuf, receivedBuf)) {
+        logger.warn('[Bot] Invalid Telegram webhook secret');
+        return res.status(403).json({ ok: false });
+      }
+    }
     const { handleWebhook } = require('./services/telegramBot');
     const result = await handleWebhook(req.body);
     res.json(result);
@@ -126,12 +142,19 @@ app.use('/health', healthRouter);
 app.use('/download', (req, res, next) => {
   // 防止路径遍历攻击
   const normalized = path.normalize(req.path).replace(/^\//, '');
-  if (normalized.includes('..')) {
+  if (normalized.includes('..') || path.isAbsolute(normalized)) {
     return res.status(403).send('Forbidden');
   }
-  const filePath = path.join(DOWNLOAD_DIR, normalized);
+  const filePath = path.resolve(DOWNLOAD_DIR, normalized);
+  const relative = path.relative(DOWNLOAD_DIR, filePath);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    return res.status(403).send('Forbidden');
+  }
   if (fs.existsSync(filePath)) {
     const rawFilename = path.basename(filePath);
+    if (!verifyDownloadRequest(rawFilename, req.query.exp, req.query.sig)) {
+      return res.status(403).json({ error: 'Invalid or expired download link' });
+    }
     const ext = path.extname(rawFilename).toLowerCase();
     
     // 从任务元数据获取视频标题作为下载文件名

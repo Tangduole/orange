@@ -5,12 +5,15 @@
 const logger = require('./logger');
 
 // 生产环境必需的变量（缺一不可启动）
-const REQUIRED_ENV_VARS = [
+const PRODUCTION_REQUIRED_ENV_VARS = [
   'JWT_SECRET',
   'NODE_ENV',
   'TURSO_DATABASE_URL',
   'TURSO_AUTH_TOKEN',
 ];
+
+// 本地开发只强制最小集合；数据库会回退到 LOCAL_DB_PATH / ./data/users.db
+const DEVELOPMENT_REQUIRED_ENV_VARS = [];
 
 // 推荐变量（警告但不退出）
 const RECOMMENDED_ENV_VARS = [
@@ -26,16 +29,20 @@ const RECOMMENDED_ENV_VARS = [
 function validateEnv() {
   let hasError = false;
   let hasWarning = false;
+  const requiredEnvVars = isProduction() ? PRODUCTION_REQUIRED_ENV_VARS : DEVELOPMENT_REQUIRED_ENV_VARS;
 
   // 检查必需变量
   logger.info('[env] Validating required environment variables...');
-  for (const key of REQUIRED_ENV_VARS) {
+  for (const key of requiredEnvVars) {
     if (!process.env[key]) {
       logger.error(`❌ Missing required environment variable: ${key}`);
       hasError = true;
     } else {
       logger.info(`✅ ${key} is set`);
     }
+  }
+  if (!isProduction()) {
+    logger.warn('[env] Development mode: Turso/payment/provider API keys are optional for local smoke testing.');
   }
 
   // 检查推荐变量

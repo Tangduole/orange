@@ -306,7 +306,11 @@ async function setupWebhook(baseUrl) {
   
   const webhookUrl = `${baseUrl}/api/bot/telegram`;
   try {
-    const res = await tgApi('setWebhook', { url: webhookUrl });
+    const params = { url: webhookUrl };
+    if (process.env.TELEGRAM_WEBHOOK_SECRET) {
+      params.secret_token = process.env.TELEGRAM_WEBHOOK_SECRET;
+    }
+    const res = await tgApi('setWebhook', params);
     logger.info(`[Bot] Webhook set to ${webhookUrl}: ${JSON.stringify(res)}`);
     return res.ok;
   } catch (e) {

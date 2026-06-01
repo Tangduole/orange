@@ -72,6 +72,18 @@ function isHttpUrl(value) {
   }
 }
 
+function getHostname(value) {
+  try {
+    return new URL(value).hostname.toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+function hostMatches(hostname, allowedHosts) {
+  return allowedHosts.some(host => hostname === host || hostname.endsWith(`.${host}`));
+}
+
 /**
  * 验证视频链接格式
  */
@@ -101,55 +113,51 @@ function validateUrl(url, platform) {
 
   // 如果指定了平台，再做平台域名归属校验
   if (platform && platform !== 'auto') {
+    const hostname = getHostname(url);
     switch (String(platform).toLowerCase()) {
       case 'douyin':
-        if (!url.includes('douyin.com') && !url.includes('douyin.cn') &&
-            !url.includes('iesdouyin.com')) {
+        if (!hostMatches(hostname, ['douyin.com', 'douyin.cn', 'iesdouyin.com'])) {
           return { valid: false, message: '抖音链接格式不正确' };
         }
         break;
       case 'tiktok':
-        if (!url.includes('tiktok.com') && !url.includes('tiktok.cn')) {
+        if (!hostMatches(hostname, ['tiktok.com', 'tiktok.cn'])) {
           return { valid: false, message: 'TikTok 链接格式不正确' };
         }
         break;
       case 'x':
       case 'twitter':
-        if (!url.includes('twitter.com') && !url.includes('x.com')) {
+        if (!hostMatches(hostname, ['twitter.com', 'x.com'])) {
           return { valid: false, message: 'X (Twitter) 链接格式不正确' };
         }
         break;
       case 'youtube':
-        if (!url.includes('youtube.com') && !url.includes('youtu.be')) {
+        if (!hostMatches(hostname, ['youtube.com', 'youtu.be'])) {
           return { valid: false, message: 'YouTube 链接格式不正确' };
         }
         break;
       case 'bilibili':
-        if (!url.includes('bilibili.com') && !url.includes('b23.tv')) {
+        if (!hostMatches(hostname, ['bilibili.com', 'b23.tv'])) {
           return { valid: false, message: 'B 站链接格式不正确' };
         }
         break;
       case 'kuaishou':
-        if (!url.includes('kuaishou.com')) {
+        if (!hostMatches(hostname, ['kuaishou.com'])) {
           return { valid: false, message: '快手链接格式不正确' };
         }
         break;
       case 'instagram':
-        if (!url.includes('instagram.com')) {
+        if (!hostMatches(hostname, ['instagram.com', 'instagr.am'])) {
           return { valid: false, message: 'Instagram 链接格式不正确' };
         }
         break;
       case 'xiaohongshu':
-        if (!url.includes('xiaohongshu.com') && !url.includes('xhslink.com')) {
+        if (!hostMatches(hostname, ['xiaohongshu.com', 'xhslink.com'])) {
           return { valid: false, message: '小红书链接格式不正确' };
         }
         break;
       case 'wechat':
-        if (
-          !url.includes('channels.weixin.qq.com') &&
-          !url.includes('finder.weixin.qq.com') &&
-          !url.includes('weixin.qq.com/sph/')
-        ) {
+        if (!hostMatches(hostname, ['channels.weixin.qq.com', 'finder.weixin.qq.com', 'weixin.qq.com'])) {
           return { valid: false, message: '微信视频号链接格式不正确' };
         }
         break;
@@ -199,5 +207,7 @@ module.exports = {
   validatePlatform,
   extractUrl,
   isHttpUrl,
+  getHostname,
+  hostMatches,
   ALLOWED_PLATFORMS
 };

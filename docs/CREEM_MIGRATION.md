@@ -137,13 +137,7 @@ Creem 自带商户后台，常用操作：
 
 - **退款**：Dashboard → Orders → 找到订单 → Refund
 - **延长免费试用**：Dashboard → Subscriptions → Customer → Add credit
-- **批量赠送会员**：用我们后端自带的 admin endpoint
-  ```
-  POST /api/subscribe/admin/grant-vip
-  X-Admin-Key: <ADMIN_API_KEY>
-  body: { "email": "user@example.com", "days": 30 }
-  ```
-  无论用 LS 还是 Creem，这个 admin 接口都生效。
+- **批量赠送会员**：不要暴露公开 admin-key 接口。优先在 Creem 商户后台处理；确需上线前测试账号，可从可信服务器 shell 直接更新数据库中的 `tier`、`subscription_status`、`subscription_ends_at` 字段。
 
 ---
 

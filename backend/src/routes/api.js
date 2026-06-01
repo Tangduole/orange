@@ -21,6 +21,9 @@ const {
   getAdminStats,
   deleteTask,
   clearHistory,
+  updateHistoryItem,
+  extractCopywriteForTask,
+  getAiUsageStatus,
   adminClearAllHistory
 } = require('../controllers/download');
 const { getVideoInfo } = require('../controllers/videoInfo');
@@ -40,17 +43,22 @@ router.post('/download', downloadLimiter, auth.optional, createDownload);
 router.post('/download/batch', auth.required, createBatchDownload);
 
 // 查询批量任务状态
-router.get('/download/batch/:batchId', auth.optional, getBatchStatus);
+router.get('/download/batch/:batchId', auth.required, getBatchStatus);
 
 // 获取视频信息（不下载）
-router.get('/info', getInfo);
+router.get('/info', downloadLimiter, getInfo);
 router.post('/video-info', auth.optional, getVideoInfo);
 
 // 查询任务状态
-router.get('/status/:taskId', getStatus);
+router.get('/status/:taskId', auth.optional, getStatus);
 
 // 获取历史记录
 router.get('/history', auth.optional, getHistory);
+router.patch('/history/:taskId', auth.optional, updateHistoryItem);
+
+// AI 文案提取（Pro）
+router.post('/copywrite', downloadLimiter, auth.required, extractCopywriteForTask);
+router.get('/ai/usage', auth.required, getAiUsageStatus);
 
 // 删除任务
 router.delete('/tasks/:taskId', auth.optional, deleteTask);
