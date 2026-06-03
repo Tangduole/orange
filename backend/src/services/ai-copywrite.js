@@ -189,4 +189,4 @@ async function extractCopywrite(taskId, platform = '') {
   return { transcript, analysis };
 }
 
-module.exports = { extractCopywrite };
+module.exports = { extractCopywrite, analyzeWithAI };

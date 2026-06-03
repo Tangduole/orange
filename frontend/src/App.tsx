@@ -82,6 +82,7 @@ interface Task {
   downloadUrl?: string; audioUrl?: string; asrText?: string; summaryText?: any; copyText?: string
   translatedText?: string; translatedTxtUrl?: string; subbedVideoUrl?: string
   coverUrl?: string; isNote?: boolean
+  copywriteAnalysis?: any; copywriteTranscript?: string; commerceCardStatus?: string; commerceCardError?: string
   imageFiles?: Array<{ filename: string; url: string }>
   subtitleFiles?: Array<{ filename: string; url: string }>
   error?: string; createdAt: string | number
@@ -128,7 +129,7 @@ const OPTIONS: { id: string; labelKey: string; icon: typeof Video }[] = [
 const AI_TOOLS: { id: string; label: string; desc: string; icon: typeof FileText }[] = [
   { id: 'asr', label: '语音转文字', desc: '生成字幕/TXT', icon: FileText },
   { id: 'ai_summary', label: 'AI 总结', desc: '摘要+标签+标题', icon: Zap },
-  { id: 'copywriting', label: '带货文案', desc: '提取口播卖点', icon: FileText },
+  { id: 'copywriting', label: '带货素材卡', desc: '商品卖点+口播脚本', icon: FileText },
   { id: 'translate_subtitle', label: '翻译字幕', desc: '翻译并烧录视频', icon: Languages },
 ]
 
@@ -493,6 +494,43 @@ export default function App() {
       setLexiconMessage(e.message || '词库保存失败')
     } finally {
       setLexiconLoading(false)
+    }
+  }
+
+  const runCommerceCard = async () => {
+    if (!task?.taskId) return
+    if (!authToken) {
+      setShowAuthModal(true)
+      return
+    }
+    if (!isVip) {
+      setShowUpgradePopup(true)
+      return
+    }
+    setCopywritingLoading(true)
+    try {
+      const r = await axios.post(`${API}/copywrite`, { taskId: task.taskId }, {
+        headers: getAuthHeaders(),
+        timeout: 120000,
+      })
+      if (r.data.code === 0) {
+        const nextTask = {
+          ...task,
+          copywriteAnalysis: r.data.data.analysis,
+          copywriteTranscript: r.data.data.transcript,
+          commerceCardStatus: 'completed'
+        }
+        setTask(nextTask)
+        setCopywritingResult({ taskId: task.taskId, ...r.data.data })
+        fetchHistory()
+        fetchAiUsage()
+      } else {
+        setError(r.data.message)
+      }
+    } catch (e: any) {
+      setError(e.response?.data?.message || e.message)
+    } finally {
+      setCopywritingLoading(false)
     }
   }
 
@@ -2078,87 +2116,86 @@ export default function App() {
                 </div>
               )}
 
-              {/* AI 文案分析 */}
+              {/* AI 带货素材卡 */}
               {task.status === 'completed' && task.taskId && !task.directLink && (
                 <div className="p-3 bg-purple-500/10 border border-purple-500/20 rounded-xl">
-                  {!copywritingResult || copywritingResult.taskId !== task.taskId ? (
-                    <button
-                      onClick={async () => {
-                        if (!authToken) {
-                          setShowAuthModal(true);
-                          return;
-                        }
-                        if (!isVip) {
-                          setShowUpgradePopup(true);
-                          return;
-                        }
-                        setCopywritingLoading(true);
-                        try {
-                          const r = await axios.post(`${API}/copywrite`, { taskId: task.taskId }, {
-                            headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
-                            timeout: 120000,
-                          });
-                          if (r.data.code === 0) {
-                            setCopywritingResult({ taskId: task.taskId, ...r.data.data });
-                            fetchHistory();
-                            fetchAiUsage();
-                          } else {
-                            setError(r.data.message);
-                          }
-                        } catch (e: any) {
-                          setError(e.response?.data?.message || e.message);
-                        } finally {
-                          setCopywritingLoading(false);
-                        }
-                      }}
-                      disabled={copywritingLoading}
-                      className="w-full flex items-center justify-center gap-2 py-2 text-sm text-purple-300 hover:text-purple-200 transition-colors"
-                    >
-                      {copywritingLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <span>🤖</span>}
-                      {copywritingLoading ? 'AI 分析中...' : isVip ? '🤖 AI 文案提取' : '🤖 Pro AI 文案提取'}
-                    </button>
-                  ) : (
+                  {(() => {
+                    const commerce = copywritingResult?.taskId === task.taskId ? copywritingResult.analysis : task.copywriteAnalysis
+                    if (!commerce) {
+                      const requested = selectedAiTools.has('copywriting') || task.commerceCardStatus === 'processing'
+                      return (
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-xs text-purple-300 font-medium">🤖 AI 带货素材卡</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">
+                              {task.commerceCardStatus === 'error'
+                                ? (task.commerceCardError || '生成失败，可重新生成')
+                                : requested
+                                  ? '正在生成商品卖点、目标人群和口播脚本...'
+                                  : '可生成商品卖点、目标人群和口播脚本'}
+                            </p>
+                          </div>
+                          <button
+                            onClick={runCommerceCard}
+                            disabled={copywritingLoading || task.commerceCardStatus === 'processing'}
+                            className="shrink-0 px-3 py-1.5 rounded-lg text-xs bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 transition disabled:opacity-50"
+                          >
+                            {copywritingLoading || task.commerceCardStatus === 'processing' ? '生成中...' : '生成'}
+                          </button>
+                        </div>
+                      )
+                    }
+                    return (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-purple-300 font-medium">🤖 {t('aiCopyTitle')}</span>
-                        <button onClick={() => setCopywritingResult(null)} className="text-xs text-slate-300 hover:text-red-400"><X className="w-3 h-3" /></button>
+                        <span className="text-xs text-purple-300 font-medium">🤖 AI 带货素材卡</span>
+                        <button onClick={runCommerceCard} disabled={copywritingLoading} className="text-[10px] text-purple-400 hover:text-purple-300 disabled:opacity-50">
+                          {copywritingLoading ? '重生成中...' : '重新生成'}
+                        </button>
                       </div>
-                      {copywritingResult.analysis?.productName && (
-                        <p className="text-xs text-slate-300">📦 <span className="text-white">{copywritingResult.analysis.productName}</span></p>
+                      {commerce.productName && (
+                        <p className="text-xs text-slate-300">📦 <span className="text-white">{commerce.productName}</span></p>
                       )}
-                      {copywritingResult.analysis?.sellingPoints?.length > 0 && (
+                      {commerce.sellingPoints?.length > 0 && (
                         <div>
                           <p className="text-[10px] text-slate-400 mb-1">💡 {t('aiSellingPoints')}</p>
                           <ul className="text-xs text-slate-300 space-y-0.5">
-                            {copywritingResult.analysis.sellingPoints.map((sp: string, i: number) => (
+                            {commerce.sellingPoints.map((sp: string, i: number) => (
                               <li key={i} className="flex gap-1"><span className="text-purple-400">•</span> {sp}</li>
                             ))}
                           </ul>
                         </div>
                       )}
-                      {copywritingResult.analysis?.copyScript && (
+                      {commerce.targetAudience && (
+                        <p className="text-xs text-slate-300">🎯 <span className="text-slate-400">目标人群：</span>{commerce.targetAudience}</p>
+                      )}
+                      {commerce.priceInfo && (
+                        <p className="text-xs text-slate-300">💰 <span className="text-slate-400">价格/优惠：</span>{commerce.priceInfo}</p>
+                      )}
+                      {commerce.copyScript && (
                         <div>
                           <p className="text-[10px] text-slate-400 mb-1">📝 {t('aiScript')}</p>
                           <p className="text-xs text-slate-300 bg-slate-900/80 p-2 rounded-lg whitespace-pre-wrap max-h-32 overflow-y-auto">
-                            {copywritingResult.analysis.copyScript}
+                            {commerce.copyScript}
                           </p>
                           <button
-                            onClick={() => clip(copywritingResult.analysis.copyScript, 'copywrite')}
+                            onClick={() => clip(commerce.copyScript, 'copywrite')}
                             className="mt-1 text-[10px] text-purple-400 hover:text-purple-300"
                           >
                             {copied === 'copywrite' ? '✓ 已复制' : '📋 复制脚本'}
                           </button>
                         </div>
                       )}
-                      {copywritingResult.analysis?.tags?.length > 0 && (
+                      {commerce.tags?.length > 0 && (
                         <div className="flex flex-wrap gap-1">
-                          {copywritingResult.analysis.tags.map((t: string, i: number) => (
+                          {commerce.tags.map((t: string, i: number) => (
                             <span key={i} className="text-[10px] px-1.5 py-0.5 bg-purple-500/20 text-purple-300 rounded-full">#{t}</span>
                           ))}
                         </div>
                       )}
                     </div>
-                  )}
+                    )
+                  })()}
                 </div>
               )}
 

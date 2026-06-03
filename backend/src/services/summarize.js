@@ -189,7 +189,7 @@ async function polishTranslation(rawTranslation, targetLang) {
   }
 }
 
-module.exports = { summarizeText, correctAsrText, polishTranslation, correctWithDeepSeek, translateWithDeepSeek, videoSummary };
+module.exports = { summarizeText, correctAsrText, polishTranslation, correctWithDeepSeek, translateWithDeepSeek, translateSubtitleSegments, videoSummary };
 
 /**
  * AI 视频内容总结（DeepSeek，VIP 专属）
@@ -288,6 +288,66 @@ async function translateWithDeepSeek(text, sourceLang, targetLang) {
     logger.warn('[deepseek-translate] Failed:', e.message);
     return null;
   }
+}
+
+async function translateSubtitleSegments(segments, sourceLang, targetLang, context = '') {
+  const deepseekKey = process.env.AI_API_KEY || '';
+  const deepseekUrl = (process.env.AI_API_URL || 'https://api.deepseek.com/v1').replace(/\/+$/, '');
+  if (!deepseekKey || !Array.isArray(segments) || segments.length === 0) return null;
+
+  const normalized = segments
+    .map((segment, index) => ({
+      index,
+      text: String(segment.text || '').trim()
+    }))
+    .filter(item => item.text);
+  if (normalized.length === 0) return null;
+
+  const results = new Array(segments.length).fill('');
+  const batchSize = 20;
+  const langNames = { zh: 'Chinese', en: 'English', ja: 'Japanese', ko: 'Korean', auto: 'auto-detected language' };
+  const src = langNames[sourceLang] || sourceLang;
+  const tgt = langNames[targetLang] || targetLang;
+
+  for (let i = 0; i < normalized.length; i += batchSize) {
+    const batch = normalized.slice(i, i + batchSize);
+    const prompt = `Translate each subtitle segment from ${src} to ${tgt}.
+Keep each output short enough for one subtitle cue.
+Preserve the array length and item order.
+Return ONLY JSON in this exact format: {"items":["translation 1","translation 2"]}.
+${context ? `Context: ${context}\n` : ''}
+Segments:
+${JSON.stringify(batch.map(item => item.text))}`;
+
+    try {
+      const res = await axios.post(`${deepseekUrl}/chat/completions`, {
+        model: process.env.AI_MODEL || 'deepseek-chat',
+        messages: [
+          { role: 'system', content: 'You are a subtitle translator. Return valid JSON only.' },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.1,
+        max_tokens: Math.min(4096, Math.max(800, batch.reduce((sum, item) => sum + item.text.length, 0) * 3)),
+        response_format: { type: 'json_object' }
+      }, {
+        headers: { 'Authorization': `Bearer ${deepseekKey}`, 'Content-Type': 'application/json' },
+        timeout: 60000
+      });
+
+      const content = res.data?.choices?.[0]?.message?.content?.trim();
+      const parsed = content ? JSON.parse(content) : null;
+      const items = Array.isArray(parsed?.items) ? parsed.items : [];
+      if (items.length !== batch.length) return null;
+      batch.forEach((item, idx) => {
+        results[item.index] = String(items[idx] || '').trim();
+      });
+    } catch (e) {
+      logger.warn('[deepseek-subtitle-translate] Failed:', e.message);
+      return null;
+    }
+  }
+
+  return results;
 }
 
 /**

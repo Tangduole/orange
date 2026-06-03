@@ -86,6 +86,74 @@ async function buildAsrCorrectionContext(task, language = 'auto') {
   return parts.join('\n');
 }
 
+async function getCopywriteUsageOrBlock(user, taskId) {
+  const userDb = require('../userDb');
+  const monthStart = monthStartUnix();
+  const monthlyLimit = getAiCopywriteMonthlyLimit(user);
+  const usageRows = await userDb.getAiUsage(user.id, monthStart);
+  const usage = summarizeAiUsage(usageRows, 'copywrite', monthlyLimit);
+  if (monthlyLimit >= 0 && usage.remaining <= 0) {
+    const err = new Error(`本月 AI 文案额度已用完（${usage.used}/${monthlyLimit}）`);
+    err.statusCode = 403;
+    err.data = { usage, periodStart: monthStart, taskId };
+    throw err;
+  }
+  return { usage, periodStart: monthStart };
+}
+
+async function saveCopywriteResult({ taskId, task, user, transcript, analysis }) {
+  const userDb = require('../userDb');
+  store.update(taskId, {
+    copywriteAnalysis: analysis,
+    copywriteTranscript: transcript,
+    commerceCardStatus: 'completed',
+    tags: analysis?.tags || task.tags || []
+  });
+  await userDb.updateHistoryMeta({
+    userId: user.id,
+    taskId,
+    tags: analysis?.tags || [],
+    aiAnalysis: analysis
+  });
+  await userDb.recordAiUsage({
+    userId: user.id,
+    taskId,
+    feature: 'copywrite',
+    inputChars: transcript?.length || 0,
+    outputItems: Array.isArray(analysis?.tags) ? analysis.tags.length : 0
+  });
+}
+
+async function generateCommerceCardForTask(taskId, user) {
+  const task = store.get(taskId);
+  if (!task) throw new Error('任务不存在或文件已过期');
+  if (!user) throw new Error('请先登录');
+  const userDb = require('../userDb');
+  if (!userDb.isVip(user)) {
+    const err = new Error('带货素材卡为 Pro 会员功能');
+    err.statusCode = 403;
+    throw err;
+  }
+  await getCopywriteUsageOrBlock(user, taskId);
+
+  store.update(taskId, { commerceCardStatus: 'processing' });
+  let transcript = task.asrText || task.copywriteTranscript || '';
+  let analysis = null;
+
+  if (transcript && transcript.length >= 5) {
+    const { analyzeWithAI } = require('../services/ai-copywrite');
+    analysis = await analyzeWithAI(transcript);
+  } else {
+    const { extractCopywrite } = require('../services/ai-copywrite');
+    const result = await extractCopywrite(taskId, task.platform || '');
+    transcript = result.transcript;
+    analysis = result.analysis;
+  }
+
+  await saveCopywriteResult({ taskId, task, user, transcript, analysis });
+  return { transcript, analysis };
+}
+
 /**
  * 立即保存下载历史到数据库（不依赖 /status 调用）
  */
@@ -538,7 +606,7 @@ async function saveTextFile(taskId, text, suffix = 'txt') {
 /**
  * 生成 SRT 字幕文件 + 烧录到视频中
  */
-async function burnSubtitlesIntoVideo(taskId, videoPath, subtitleText, targetLang, segments = []) {
+async function burnSubtitlesIntoVideo(taskId, videoPath, subtitleText, targetLang, segments = [], segmentTranslations = []) {
   const downloadDir = path.join(__dirname, '../../downloads');
   const srtPath = path.join(downloadDir, taskId + '_subs.srt');
   const outputPath = path.join(downloadDir, taskId + '_subbed.mp4');
@@ -552,36 +620,36 @@ async function burnSubtitlesIntoVideo(taskId, videoPath, subtitleText, targetLan
     videoDuration = parseFloat(probe.stdout.toString().trim()) || 60;
   } catch { videoDuration = 60; }
 
-  if (segments && segments.length > 0) {
-    // 有原文字段时间戳 → 把翻译按比例分配到各段
-    const totalOrigChars = segments.reduce((sum, s) => sum + (s.text || '').length, 0);
-    let translatedPos = 0;
+  const timedSegments = (segments || []).filter(s =>
+    s &&
+    typeof s.start === 'number' &&
+    typeof s.end === 'number' &&
+    s.end > s.start &&
+    s.start < videoDuration
+  );
+
+  if (timedSegments.length > 0) {
+    const fallbackTexts = splitSubtitleTextForCues(subtitleText, timedSegments.length, targetLang);
+    let cueIndex = 0;
     for (let i = 0; i < segments.length; i++) {
       const s = segments[i];
-      if (!s.text.trim() || s.start >= videoDuration) continue;
-      const end = Math.min(s.end, videoDuration);
-      // 按原文长度比例取对应翻译文本
-      const ratio = totalOrigChars > 0 ? (s.text.length / totalOrigChars) : (1 / segments.length);
-      const tLen = Math.max(20, Math.floor(subtitleText.length * ratio));
-      const tText = subtitleText.substring(translatedPos, translatedPos + tLen).trim();
-      translatedPos += tLen;
-      if (tText) srt += `${i + 1}\n${formatSrtTime(s.start)} --> ${formatSrtTime(end)}\n${tText}\n\n`;
+      if (!s || typeof s.start !== 'number' || typeof s.end !== 'number' || s.end <= s.start || s.start >= videoDuration) continue;
+      const start = Math.max(0, s.start);
+      const end = Math.min(Math.max(s.end, start + 0.8), videoDuration);
+      const cueText = formatSubtitleCue(segmentTranslations[i] || fallbackTexts[cueIndex] || s.text || '', targetLang);
+      if (cueText) {
+        cueIndex++;
+        srt += `${cueIndex}\n${formatSrtTime(start)} --> ${formatSrtTime(end)}\n${cueText}\n\n`;
+      }
     }
   } else {
     // 无时间戳 → 按句子均分（每段最多 80 字，时间按比例）
-    const sentences = subtitleText.split(/(?<=[.!?。！？\n])/).filter(s => s.trim());
-    const chunks = [];
-    let cur = '';
-    for (const s of sentences) {
-      if ((cur + s).length > 80 && cur) { chunks.push(cur.trim()); cur = s; }
-      else { cur += s; }
-    }
-    if (cur.trim()) chunks.push(cur.trim());
+    const chunks = splitSubtitleTextForCues(subtitleText, Math.ceil(videoDuration / 3), targetLang);
     const chunkDur = videoDuration / Math.max(chunks.length, 1);
     for (let i = 0; i < chunks.length; i++) {
       const start = i * chunkDur;
       const end = Math.min((i + 1) * chunkDur, videoDuration);
-      srt += `${i + 1}\n${formatSrtTime(start)} --> ${formatSrtTime(end)}\n${chunks[i]}\n\n`;
+      srt += `${i + 1}\n${formatSrtTime(start)} --> ${formatSrtTime(end)}\n${formatSubtitleCue(chunks[i], targetLang)}\n\n`;
     }
   }
   await asyncFs.safeWriteFile(srtPath, srt, 'utf-8');
@@ -589,7 +657,7 @@ async function burnSubtitlesIntoVideo(taskId, videoPath, subtitleText, targetLan
   // ffmpeg 烧录字幕 — 底部居中，一行一行显示
   await new Promise((resolve, reject) => {
     const { spawn } = require('child_process');
-    const fontStyle = "Alignment=2,MarginV=16,FontSize=14,Outline=1,Shadow=0,BorderStyle=1";
+    const fontStyle = "Alignment=2,MarginV=42,FontSize=18,Outline=1,Shadow=0,BorderStyle=1,WrapStyle=2";
     const args = ['-i', videoPath, '-vf', `subtitles=${srtPath}:force_style='${fontStyle}'`, '-c:a', 'copy', '-y', outputPath];
     const ff = spawn('ffmpeg', args);
     let stderr = '';
@@ -610,6 +678,61 @@ function formatSrtTime(seconds) {
   const s = Math.floor(seconds % 60);
   const ms = Math.floor((seconds % 1) * 1000);
   return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')},${String(ms).padStart(3,'0')}`;
+}
+
+function splitSubtitleTextForCues(text, targetCount = 1, language = '') {
+  const cleaned = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!cleaned) return [];
+  const maxChars = isCjkLanguage(language) ? 18 : 42;
+  const sentences = cleaned
+    .split(/(?<=[.!?。！？；;])\s*/)
+    .map(item => item.trim())
+    .filter(Boolean);
+
+  const chunks = [];
+  let current = '';
+  for (const sentence of sentences.length ? sentences : [cleaned]) {
+    if ((current + sentence).length > maxChars * 2 && current) {
+      chunks.push(current.trim());
+      current = sentence;
+    } else {
+      current += (current ? ' ' : '') + sentence;
+    }
+  }
+  if (current.trim()) chunks.push(current.trim());
+
+  const expanded = [];
+  for (const chunk of chunks) {
+    if (chunk.length <= maxChars * 2) {
+      expanded.push(chunk);
+      continue;
+    }
+    for (let i = 0; i < chunk.length; i += maxChars * 2) {
+      expanded.push(chunk.slice(i, i + maxChars * 2));
+    }
+  }
+
+  if (targetCount > 0 && expanded.length < targetCount) {
+    while (expanded.length < targetCount) expanded.push('');
+  }
+  return targetCount > 0 ? expanded.slice(0, targetCount) : expanded;
+}
+
+function formatSubtitleCue(text, language = '') {
+  const cleaned = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!cleaned) return '';
+  const maxLineChars = isCjkLanguage(language) ? 18 : 42;
+  const maxCueChars = maxLineChars * 2;
+  const clipped = cleaned.length > maxCueChars ? cleaned.slice(0, maxCueChars - 1) + '…' : cleaned;
+  const lines = [];
+  for (let i = 0; i < clipped.length && lines.length < 2; i += maxLineChars) {
+    lines.push(clipped.slice(i, i + maxLineChars).trim());
+  }
+  return lines.filter(Boolean).join('\n');
+}
+
+function isCjkLanguage(language = '') {
+  return /^(zh|ja|ko)/i.test(String(language || ''));
 }
 
 /**
@@ -677,16 +800,25 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
     const tLang = targetLang || task?.targetLang;
     logger.info(`[ASR] ${taskId} targetLang=${targetLang}, task.targetLang=${task?.targetLang}, tLang=${tLang}`);
     let translatedText = null;
+    let translatedSegments = [];
     if (tLang && text) {
       try {
         logger.info(`[ASR] ${taskId} translating: ${asrLanguage === 'auto' ? 'zh' : asrLanguage} -> ${tLang}, textLen=${text.length}`);
         // DeepSeek 翻译（支持长文本，质量好）→ M2M-100 兜底
-        const { translateWithDeepSeek } = require('../services/summarize');
+        const { translateWithDeepSeek, translateSubtitleSegments } = require('../services/summarize');
+        if (asrSegments.length > 0) {
+          translatedSegments = await translateSubtitleSegments(
+            asrSegments,
+            asrLanguage === 'auto' ? 'zh' : asrLanguage,
+            tLang,
+            correctionContext
+          ) || [];
+        }
         let raw = await translateWithDeepSeek(text, asrLanguage === 'auto' ? 'zh' : asrLanguage, tLang);
         if (!raw) {
           raw = await asr.translateText(text, asrLanguage === 'auto' ? 'zh' : asrLanguage, tLang);
         }
-        translatedText = raw;
+        translatedText = raw || translatedSegments.filter(Boolean).join('\n');
       } catch (e) {
         logger.error(`[ASR] Translation failed: ${e.message}`);
       }
@@ -696,11 +828,29 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
     const txtUrl = await saveTextFile(taskId, text, 'subtitle');
     const translatedTxtUrl = translatedText ? await saveTextFile(taskId, translatedText, 'translation') : null;
 
+    let copywriteResult = null;
+    if (task?.options?.includes('copywriting') && task?.userId) {
+      try {
+        const userDb = require('../userDb');
+        const user = await userDb.getById(task.userId);
+        if (user && userDb.isVip(user)) {
+          const { analyzeWithAI } = require('../services/ai-copywrite');
+          const analysis = await analyzeWithAI(text);
+          await saveCopywriteResult({ taskId, task, user, transcript: text, analysis });
+          copywriteResult = { transcript: text, analysis };
+          logger.info(`[copywrite] ${taskId} commerce card generated from corrected ASR`);
+        }
+      } catch (e) {
+        logger.warn(`[copywrite] ${taskId} automatic commerce card failed: ${e.message}`);
+        store.update(taskId, { commerceCardStatus: 'error', commerceCardError: e.message });
+      }
+    }
+
     // 翻译字幕烧录到视频中（VIP 专属）
     let subbedVideoUrl = null;
     if (translatedText && tLang) {
       try {
-        const subbedPath = await burnSubtitlesIntoVideo(taskId, filePath, translatedText, tLang, asrSegments);
+        const subbedPath = await burnSubtitlesIntoVideo(taskId, filePath, translatedText, tLang, asrSegments, translatedSegments);
         subbedVideoUrl = '/download/' + path.basename(subbedPath);
         fileRefManager.addRef(path.basename(subbedPath));
         logger.info(`[ASR] ${taskId} subtitles burned into video`);
@@ -712,7 +862,7 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
     // 清理临时音频
     await asyncFs.safeUnlink(audioPath);
 
-    return { text, rawText, txtUrl, translatedText, translatedTxtUrl, summary, subbedVideoUrl };
+    return { text, rawText, txtUrl, translatedText, translatedTxtUrl, summary, subbedVideoUrl, copywriteResult };
   } catch (e) {
     logger.error(`[ASR] ${taskId} failed:`, e.message);
     return null;
@@ -947,6 +1097,11 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
           if (asrResult.rawText && asrResult.rawText !== asrResult.text) update.asrRawText = asrResult.rawText;
           update.asrTxtUrl = asrResult.txtUrl;
           if (asrResult.summary) update.summaryText = asrResult.summary;
+          if (asrResult.copywriteResult) {
+            update.copywriteAnalysis = asrResult.copywriteResult.analysis;
+            update.copywriteTranscript = asrResult.copywriteResult.transcript;
+            update.commerceCardStatus = 'completed';
+          }
           if (asrResult.translatedText) { update.translatedText = asrResult.translatedText; update.translatedTxtUrl = asrResult.translatedTxtUrl; }
           if (asrResult.subbedVideoUrl) update.subbedVideoUrl = asrResult.subbedVideoUrl;
         }
@@ -1220,19 +1375,46 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
           update.asrTxtUrl = await saveTextFile(taskId, text, 'subtitle');
         }
 
+        if (options.includes('copywriting') && text) {
+          try {
+            const userDb = require('../userDb');
+            const user = task?.userId ? await userDb.getById(task.userId) : null;
+            if (user && userDb.isVip(user)) {
+              const { analyzeWithAI } = require('../services/ai-copywrite');
+              const analysis = await analyzeWithAI(text);
+              await saveCopywriteResult({ taskId, task, user, transcript: text, analysis });
+              update.copywriteAnalysis = analysis;
+              update.copywriteTranscript = text;
+              update.commerceCardStatus = 'completed';
+              logger.info(`[copywrite] ${taskId} douyin commerce card generated`);
+            }
+          } catch (e) {
+            update.commerceCardStatus = 'error';
+            update.commerceCardError = e.message;
+            logger.warn(`[copywrite] ${taskId} douyin commerce card failed: ${e.message}`);
+          }
+        }
+
         // 翻译
         let task = store.get(taskId);
         console.error(`[DEBUG-ASR] targetLang=${task?.targetLang}, hasText=${!!text}`);
         if (task?.targetLang && text) {
           try {
-            const translated = await asr.translateText(text, asrLanguage === 'auto' ? 'zh' : asrLanguage, task.targetLang);
+            const summarize = require('../services/summarize');
+            const correctionContext = await buildAsrCorrectionContext(task, asrLanguage);
+            const translatedSegments = asrSegments.length > 0
+              ? (await summarize.translateSubtitleSegments(asrSegments, asrLanguage === 'auto' ? 'zh' : asrLanguage, task.targetLang, correctionContext) || [])
+              : [];
+            const translated = await summarize.translateWithDeepSeek(text, asrLanguage === 'auto' ? 'zh' : asrLanguage, task.targetLang)
+              || await asr.translateText(text, asrLanguage === 'auto' ? 'zh' : asrLanguage, task.targetLang)
+              || translatedSegments.filter(Boolean).join('\n');
             if (translated) {
               update.translatedText = translated;
               update.translatedTxtUrl = await saveTextFile(taskId, translated, 'translation');
               // 烧录字幕到视频
               try {
                 console.error(`[DEBUG-BURN] ${taskId} burning subtitles: file=${result.filePath}, textLen=${translated.length}, lang=${task.targetLang}`);
-                const subbedPath = await burnSubtitlesIntoVideo(taskId, result.filePath, translated, task.targetLang, asrSegments);
+                const subbedPath = await burnSubtitlesIntoVideo(taskId, result.filePath, translated, task.targetLang, asrSegments, translatedSegments);
                 console.error(`[DEBUG-BURN] ${taskId} OK: ${subbedPath}`);
                 update.subbedVideoUrl = '/download/' + path.basename(subbedPath);
                 fileRefManager.addRef(path.basename(subbedPath));
@@ -2565,42 +2747,11 @@ async function extractCopywriteForTask(req, res) {
     if (!userDb.isVip(req.user)) {
       return res.status(403).json({ code: 403, message: 'AI 文案提取为 Pro 会员功能' });
     }
-    const monthStart = monthStartUnix();
-    const monthlyLimit = getAiCopywriteMonthlyLimit(req.user);
-    const usageRows = await userDb.getAiUsage(req.user.id, monthStart);
-    const usage = summarizeAiUsage(usageRows, 'copywrite', monthlyLimit);
-    if (monthlyLimit >= 0 && usage.remaining <= 0) {
-      return res.status(403).json({
-        code: 403,
-        message: `本月 AI 文案额度已用完（${usage.used}/${monthlyLimit}）`,
-        data: { usage, periodStart: monthStart }
-      });
-    }
-
-    const { extractCopywrite } = require('../services/ai-copywrite');
-    const result = await extractCopywrite(taskId, task.platform || '');
-    store.update(taskId, {
-      copywriteAnalysis: result.analysis,
-      copywriteTranscript: result.transcript,
-      tags: result.analysis?.tags || task.tags || []
-    });
-    await userDb.updateHistoryMeta({
-      userId: req.user.id,
-      taskId,
-      tags: result.analysis?.tags || [],
-      aiAnalysis: result.analysis
-    });
-    await userDb.recordAiUsage({
-      userId: req.user.id,
-      taskId,
-      feature: 'copywrite',
-      inputChars: result.transcript?.length || 0,
-      outputItems: Array.isArray(result.analysis?.tags) ? result.analysis.tags.length : 0
-    });
+    const result = await generateCommerceCardForTask(taskId, req.user);
     return res.json({ code: 0, data: result });
   } catch (e) {
     logger.error(`[copywrite] ${taskId} failed:`, e.message);
-    return res.status(500).json({ code: 500, message: e.message || 'AI 文案提取失败' });
+    return res.status(e.statusCode || 500).json({ code: e.statusCode || 500, message: e.message || 'AI 文案提取失败', data: e.data });
   }
 }
 
