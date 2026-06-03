@@ -12,6 +12,8 @@ async function main() {
   const { signDownloadUrl, verifyDownloadRequest } = require('../src/utils/downloadToken');
   const { extractCopywrite } = require('../src/services/ai-copywrite');
   const { getAiCopywriteMonthlyLimit, getFileRetentionHoursForTier } = require('../src/utils/entitlements');
+  const { applyHomophoneCorrections, buildCorrectionHints } = require('../src/utils/asrCorrectionRules');
+  const userDb = require('../src/userDb');
 
   assert.strictEqual(validateUrl('https://www.youtube.com/watch?v=dQw4w9WgXcQ', 'youtube').valid, true);
   assert.strictEqual(validateUrl('https://evil-youtube.com/watch?v=dQw4w9WgXcQ', 'youtube').valid, false);
@@ -31,6 +33,20 @@ async function main() {
   assert.strictEqual(getAiCopywriteMonthlyLimit({ tier: 'free' }), 0);
   assert.ok(getAiCopywriteMonthlyLimit({ tier: 'pro', subscription_status: 'active', subscription_ends_at: Math.floor(Date.now() / 1000) + 86400 }) > 0);
   assert.ok(getFileRetentionHoursForTier('pro') >= getFileRetentionHoursForTier('free'));
+  assert.strictEqual(
+    applyHomophoneCorrections('这个慈禧支架可以无线充电', '手机配件 磁吸支架'),
+    '这个磁吸支架可以无线充电'
+  );
+  assert.strictEqual(
+    applyHomophoneCorrections('这款房间模型很逼真', '仿真产品 模型 材质'),
+    '这款仿真模型很逼真'
+  );
+  assert.ok(buildCorrectionHints('磁吸手机壳').includes('磁吸'));
+  const lexiconUserId = 'smoke-lexicon-user';
+  const lexicon = await userDb.replaceAsrLexicon(lexiconUserId, ['MagSafe', '磁吸', '仿真'], 'auto');
+  assert.ok(lexicon.some(item => item.term === 'MagSafe'));
+  const zhLexicon = await userDb.getAsrLexicon(lexiconUserId, 'zh');
+  assert.ok(zhLexicon.some(item => item.term === '磁吸'));
 
   const extensionManifest = path.join(__dirname, '../../browser-extension/manifest.json');
   assert.ok(fs.existsSync(extensionManifest), 'browser extension manifest should exist');

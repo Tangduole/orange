@@ -24,6 +24,8 @@ const {
   updateHistoryItem,
   extractCopywriteForTask,
   getAiUsageStatus,
+  getAsrLexicon,
+  updateAsrLexicon,
   adminClearAllHistory
 } = require('../controllers/download');
 const { getVideoInfo } = require('../controllers/videoInfo');
@@ -59,6 +61,8 @@ router.patch('/history/:taskId', auth.optional, updateHistoryItem);
 // AI 文案提取（Pro）
 router.post('/copywrite', downloadLimiter, auth.required, extractCopywriteForTask);
 router.get('/ai/usage', auth.required, getAiUsageStatus);
+router.get('/asr/lexicon', auth.required, getAsrLexicon);
+router.put('/asr/lexicon', auth.required, updateAsrLexicon);
 
 // 删除任务
 router.delete('/tasks/:taskId', auth.optional, deleteTask);

@@ -152,6 +152,27 @@ export const api = {
     return data.data;
   },
 
+  async getAsrLexicon(token: string, language: string = 'auto') {
+    const data = await apiFetch(`${API_BASE}/api/asr/lexicon?language=${encodeURIComponent(language)}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (data.code !== 0) throw new Error(data.message);
+    return data.data;
+  },
+
+  async updateAsrLexicon(token: string, terms: string[], language: string = 'auto') {
+    const data = await apiFetch(`${API_BASE}/api/asr/lexicon`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ language, terms })
+    });
+    if (data.code !== 0) throw new Error(data.message);
+    return data.data;
+  },
+
   async createCheckout(token: string, plan: string = 'pro_monthly'): Promise<SubscribeResponse> {
     const data = await apiFetch(`${API_BASE}/api/subscribe/checkout`, {
       method: 'POST',

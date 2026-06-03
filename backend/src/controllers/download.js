@@ -68,6 +68,24 @@ function summarizeAiUsage(rows, feature, monthlyLimit) {
   };
 }
 
+async function buildAsrCorrectionContext(task, language = 'auto') {
+  if (!task) return '';
+  const parts = [];
+  if (task.title) parts.push(`视频标题：${task.title}`);
+  if (task.platform) parts.push(`平台：${task.platform}`);
+  if (task.userId) {
+    try {
+      const userDb = require('../userDb');
+      const rows = await userDb.getAsrLexicon(task.userId, language || 'auto');
+      const terms = rows.map(row => row.term).filter(Boolean).slice(0, 80);
+      if (terms.length) parts.push(`用户专有词：${terms.join('、')}`);
+    } catch (e) {
+      logger.warn('[ASR] load lexicon failed:', e.message);
+    }
+  }
+  return parts.join('\n');
+}
+
 /**
  * 立即保存下载历史到数据库（不依赖 /status 调用）
  */
@@ -239,17 +257,22 @@ async function createDownload(req, res) {
     const finalPlatform = platform || detectedPlatform || 'auto';
 
     // 兼容:前端 'audio' 和 'audio_only' 选项
-    const normalizedOptions = (Array.isArray(options) ? options : [options]).map(
+    const rawOptions = Array.isArray(options) ? options : [options];
+    const normalizedOptions = rawOptions.map(
       o => o === 'asr' || o === 'audio_only' ? 'audio' : o
     );
 
-    const wantsAsr = needAsr;
+    const wantsAsr = !!needAsr || rawOptions.some(o => ['asr', 'ai_summary', 'translate_subtitle', 'copywriting'].includes(o));
 
     // ========== 用户限额检查（auth.optional 中间件已设置 req.user） ==========
     const userDb = require('../userDb');
     const isGuest = !req.user;
     const userId = req.user ? req.user.id : null;
     const isVip = req.user ? userDb.isVip(req.user) : false;
+    const wantsProAiTool = rawOptions.some(o => ['ai_summary', 'translate_subtitle', 'copywriting'].includes(o));
+    if (wantsProAiTool && !isVip) {
+      return res.status(403).json({ code: 403, message: 'AI 工具为 Pro 会员功能' });
+    }
 
     if (!isGuest) {
       // 检查邮箱是否已验证
@@ -610,16 +633,19 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
     // ASR 转文字（含时间戳）
     const asrResult = await asr.transcribe(audioPath, asrLanguage);
     let text = typeof asrResult === 'string' ? asrResult : asrResult.text;
+    const rawText = text;
     const asrSegments = typeof asrResult === 'object' ? (asrResult.segments || []) : [];
+    const task = store.get(taskId);
+    const correctionContext = await buildAsrCorrectionContext(task, asrLanguage);
 
     // AI 同音纠错（自动，失败不影响 ASR）
     if (text && text.length >= 10) {
       try {
         const { correctAsrText, correctWithDeepSeek } = require('../services/summarize');
-        const task = store.get(taskId);
-        const deepCorrected = await correctWithDeepSeek(text, asrLanguage, task?.title || '');
-        text = deepCorrected !== text ? deepCorrected : await correctAsrText(text, asrLanguage, task?.title || '');
-        if (deepCorrected && deepCorrected !== text) {
+        const deepCorrected = await correctWithDeepSeek(text, asrLanguage, correctionContext);
+        const corrected = deepCorrected !== text ? deepCorrected : await correctAsrText(text, asrLanguage, correctionContext);
+        if (corrected && corrected !== text) {
+          text = corrected;
           logger.info('[ASR] Text corrected (homophone fix)');
         }
       } catch (e) {
@@ -648,7 +674,6 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
     }
 
     // 翻译(如果指定了目标语言) + AI 润色
-    const task = store.get(taskId);
     const tLang = targetLang || task?.targetLang;
     logger.info(`[ASR] ${taskId} targetLang=${targetLang}, task.targetLang=${task?.targetLang}, tLang=${tLang}`);
     let translatedText = null;
@@ -687,7 +712,7 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
     // 清理临时音频
     await asyncFs.safeUnlink(audioPath);
 
-    return { text, txtUrl, translatedText, translatedTxtUrl, summary, subbedVideoUrl };
+    return { text, rawText, txtUrl, translatedText, translatedTxtUrl, summary, subbedVideoUrl };
   } catch (e) {
     logger.error(`[ASR] ${taskId} failed:`, e.message);
     return null;
@@ -919,6 +944,7 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
         const update = { status: TASK_STATUS.COMPLETED, width: result.width, height: result.height, quality: result.quality };
         if (asrResult?.text) {
           update.asrText = asrResult.text;
+          if (asrResult.rawText && asrResult.rawText !== asrResult.text) update.asrRawText = asrResult.rawText;
           update.asrTxtUrl = asrResult.txtUrl;
           if (asrResult.summary) update.summaryText = asrResult.summary;
           if (asrResult.translatedText) { update.translatedText = asrResult.translatedText; update.translatedTxtUrl = asrResult.translatedTxtUrl; }
@@ -1163,13 +1189,16 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
         // ASR 转文字 + AI 纠错
         const asrResult = await asr.transcribe(audioPath, asrLanguage);
         let text = typeof asrResult === 'string' ? asrResult : asrResult.text;
+        const rawText = text;
         const asrSegments = typeof asrResult === 'object' ? (asrResult.segments || []) : [];
         if (text && text.length >= 10) {
           try {
             const summarize = require('../services/summarize');
             const task = store.get(taskId);
-            const deepCorrected = await summarize.correctWithDeepSeek(text, asrLanguage, task?.title || '');
-            text = deepCorrected !== text ? deepCorrected : await summarize.correctAsrText(text, asrLanguage, task?.title || '');
+            const correctionContext = await buildAsrCorrectionContext(task, asrLanguage);
+            const deepCorrected = await summarize.correctWithDeepSeek(text, asrLanguage, correctionContext);
+            const corrected = deepCorrected !== text ? deepCorrected : await summarize.correctAsrText(text, asrLanguage, correctionContext);
+            if (corrected && corrected !== text) text = corrected;
             // VIP AI 视频总结
             if (task?.userId && text.length >= 50) {
               try {
@@ -1187,6 +1216,7 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
         }
         if (text) {
           update.asrText = text;
+          if (rawText && rawText !== text) update.asrRawText = rawText;
           update.asrTxtUrl = await saveTextFile(taskId, text, 'subtitle');
         }
 
@@ -1357,7 +1387,7 @@ async function processX(taskId, url, needAsr, options = ['video']) {
     // ASR 语音转文字
     if (needAsr && update.filePath) {
       const asrResult = await handleAsr(taskId, update.filePath, 'zh');
-      if (asrResult?.text) { const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl }; if (asrResult.summary) upd.summaryText = asrResult.summary; if (asrResult.translatedText) { upd.translatedText = asrResult.translatedText; upd.translatedTxtUrl = asrResult.translatedTxtUrl; } if (asrResult.subbedVideoUrl) upd.subbedVideoUrl = asrResult.subbedVideoUrl; store.update(taskId, upd); }
+      if (asrResult?.text) { const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl }; if (asrResult.rawText && asrResult.rawText !== asrResult.text) upd.asrRawText = asrResult.rawText; if (asrResult.summary) upd.summaryText = asrResult.summary; if (asrResult.translatedText) { upd.translatedText = asrResult.translatedText; upd.translatedTxtUrl = asrResult.translatedTxtUrl; } if (asrResult.subbedVideoUrl) upd.subbedVideoUrl = asrResult.subbedVideoUrl; store.update(taskId, upd); }
     }
 
     await finalizeTask(taskId);
@@ -1443,6 +1473,7 @@ async function processYouTube(taskId, url, needAsr, options = ['video'], quality
         const asrResult = await handleAsr(taskId, cobaltResult.filePath, 'zh');
         if (asrResult?.text) {
           const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl };
+          if (asrResult.rawText && asrResult.rawText !== asrResult.text) upd.asrRawText = asrResult.rawText;
           if (asrResult.summary) upd.summaryText = asrResult.summary;
           if (asrResult.translatedText) {
             upd.translatedText = asrResult.translatedText;
@@ -1901,7 +1932,7 @@ async function processTikTok(taskId, url, needAsr, options = ['video'], quality 
     // ASR 语音转文字
     if (needAsr && update.filePath) {
       const asrResult = await handleAsr(taskId, update.filePath, 'zh');
-      if (asrResult?.text) { const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl }; if (asrResult.summary) upd.summaryText = asrResult.summary; if (asrResult.translatedText) { upd.translatedText = asrResult.translatedText; upd.translatedTxtUrl = asrResult.translatedTxtUrl; } if (asrResult.subbedVideoUrl) upd.subbedVideoUrl = asrResult.subbedVideoUrl; store.update(taskId, upd); }
+      if (asrResult?.text) { const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl }; if (asrResult.rawText && asrResult.rawText !== asrResult.text) upd.asrRawText = asrResult.rawText; if (asrResult.summary) upd.summaryText = asrResult.summary; if (asrResult.translatedText) { upd.translatedText = asrResult.translatedText; upd.translatedTxtUrl = asrResult.translatedTxtUrl; } if (asrResult.subbedVideoUrl) upd.subbedVideoUrl = asrResult.subbedVideoUrl; store.update(taskId, upd); }
     }
 
     await finalizeTask(taskId);
@@ -1964,7 +1995,7 @@ async function processBilibili(taskId, url, needAsr, options = ['video'], qualit
     // ASR
     if (needAsr && update.filePath) {
       const asrResult = await handleAsr(taskId, update.filePath, 'zh');
-      if (asrResult?.text) { const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl }; if (asrResult.summary) upd.summaryText = asrResult.summary; if (asrResult.translatedText) { upd.translatedText = asrResult.translatedText; upd.translatedTxtUrl = asrResult.translatedTxtUrl; } if (asrResult.subbedVideoUrl) upd.subbedVideoUrl = asrResult.subbedVideoUrl; store.update(taskId, upd); }
+      if (asrResult?.text) { const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl }; if (asrResult.rawText && asrResult.rawText !== asrResult.text) upd.asrRawText = asrResult.rawText; if (asrResult.summary) upd.summaryText = asrResult.summary; if (asrResult.translatedText) { upd.translatedText = asrResult.translatedText; upd.translatedTxtUrl = asrResult.translatedTxtUrl; } if (asrResult.subbedVideoUrl) upd.subbedVideoUrl = asrResult.subbedVideoUrl; store.update(taskId, upd); }
     }
 
     await finalizeTask(taskId);
@@ -2028,6 +2059,7 @@ async function processXiaohongshu(taskId, url, needAsr, options = ['video'], qua
       const asrResult = await handleAsr(taskId, update.filePath, 'zh');
       if (asrResult?.text) {
         const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl };
+        if (asrResult.rawText && asrResult.rawText !== asrResult.text) upd.asrRawText = asrResult.rawText;
         if (asrResult.summary) upd.summaryText = asrResult.summary;
         if (asrResult.translatedText) {
           upd.translatedText = asrResult.translatedText;
@@ -2127,6 +2159,7 @@ async function processInstagram(taskId, url, needAsr, options = ['video'], quali
           const asrResult = await handleAsr(taskId, cobaltResult.filePath, 'zh');
           if (asrResult?.text) {
             const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl };
+            if (asrResult.rawText && asrResult.rawText !== asrResult.text) upd.asrRawText = asrResult.rawText;
             if (asrResult.summary) upd.summaryText = asrResult.summary;
             if (asrResult.translatedText) {
               upd.translatedText = asrResult.translatedText;
@@ -2593,6 +2626,47 @@ async function getAiUsageStatus(req, res) {
   }
 }
 
+async function getAsrLexicon(req, res) {
+  try {
+    const userDb = require('../userDb');
+    const language = String(req.query.language || 'auto').slice(0, 16);
+    const rows = await userDb.getAsrLexicon(req.user.id, language);
+    return res.json({
+      code: 0,
+      data: {
+        language,
+        terms: rows.map(row => row.term),
+        items: rows
+      }
+    });
+  } catch (e) {
+    logger.error('[asr-lexicon] get failed:', e.message);
+    return res.status(500).json({ code: 500, message: '词库读取失败' });
+  }
+}
+
+async function updateAsrLexicon(req, res) {
+  try {
+    const userDb = require('../userDb');
+    const language = String(req.body?.language || 'auto').slice(0, 16);
+    const rawTerms = Array.isArray(req.body?.terms)
+      ? req.body.terms
+      : String(req.body?.terms || '').split(/[,，\n]/);
+    const rows = await userDb.replaceAsrLexicon(req.user.id, rawTerms, language);
+    return res.json({
+      code: 0,
+      data: {
+        language,
+        terms: rows.map(row => row.term),
+        items: rows
+      }
+    });
+  } catch (e) {
+    logger.error('[asr-lexicon] update failed:', e.message);
+    return res.status(500).json({ code: 500, message: '词库保存失败' });
+  }
+}
+
 // ============ 微信视频号 ============
 
 const { downloadWechat } = require('../services/tikhub');
@@ -2655,7 +2729,7 @@ const batchStore = new Map();
  * 一次提交多个链接，后端顺序处理，前端可关闭页面
  */
 async function createBatchDownload(req, res) {
-  const { urls, quality = '', options = ['video'], needAsr = false, asrLanguage = 'zh' } = req.body || {};
+  const { urls, quality = '', options = ['video'], needAsr = false, asrLanguage = 'zh', targetLang = null } = req.body || {};
 
   if (!Array.isArray(urls) || urls.length === 0) {
     return res.json({ code: 400, message: '请提供至少一个链接' });
@@ -2678,6 +2752,11 @@ async function createBatchDownload(req, res) {
   const userId = req.user?.id || null;
   const guestIp = req.user ? null : getClientIp(req);
   const normalizedOptions = (Array.isArray(options) ? options : [options]).map(o => o === 'asr' || o === 'audio_only' ? 'audio' : o);
+  const rawOptions = Array.isArray(options) ? options : [options];
+  const wantsAsr = !!needAsr || rawOptions.some(o => ['asr', 'ai_summary', 'translate_subtitle', 'copywriting'].includes(o));
+  if (rawOptions.some(o => ['ai_summary', 'translate_subtitle', 'copywriting'].includes(o)) && !isVip) {
+    return res.json({ code: 403, message: 'AI 工具为 Pro 会员功能' });
+  }
   const { extractUrl } = require('../utils/validator');
   const { isDouyinUrl } = require('../services/douyin');
   const { isXUrl } = require('../services/x-download');
@@ -2692,8 +2771,8 @@ async function createBatchDownload(req, res) {
       taskId,
       url: extracted,
       platform: detectedPlatform || 'auto',
-      needAsr,
-      targetLang: null,
+      needAsr: wantsAsr,
+      targetLang,
       options: normalizedOptions,
       saveTarget: 'phone',
       status: 'pending',
@@ -2709,7 +2788,7 @@ async function createBatchDownload(req, res) {
   batchStore.set(batchId, { tasks, status: 'processing', progress: 0, userId });
 
   // 后台顺序处理
-  processBatchQueue(batchId, tasks, { quality, options: normalizedOptions, needAsr, asrLanguage, userId, guestIp, isDouyinUrl, isXUrl, parseWechatExportId });
+  processBatchQueue(batchId, tasks, { quality, options: normalizedOptions, needAsr: wantsAsr, asrLanguage, userId, guestIp, isDouyinUrl, isXUrl, parseWechatExportId });
 
   res.json({
     code: 0,
@@ -2814,6 +2893,8 @@ module.exports = {
   updateHistoryItem,
   extractCopywriteForTask,
   getAiUsageStatus,
+  getAsrLexicon,
+  updateAsrLexicon,
   adminClearAllHistory,
   detectPlatform
 };

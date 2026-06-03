@@ -64,6 +64,24 @@ const db = createClient({
 
 // 免费用户每日下载次数限制
 const FREE_DAILY_LIMIT = 3;
+let asrLexiconReady = false;
+
+async function ensureAsrLexiconTable() {
+  if (asrLexiconReady) return;
+  await db.execute({
+    sql: `CREATE TABLE IF NOT EXISTS asr_lexicon (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      term TEXT NOT NULL,
+      language TEXT DEFAULT 'auto',
+      category TEXT DEFAULT 'custom',
+      created_at INTEGER DEFAULT (unixepoch()),
+      UNIQUE(user_id, term, language)
+    )`
+  });
+  await db.execute(`CREATE INDEX IF NOT EXISTS idx_asr_lexicon_user ON asr_lexicon(user_id, language, created_at DESC)`);
+  asrLexiconReady = true;
+}
 
 /**
  * 统一判定一个 user 是否为 VIP（pro 权益生效中）
@@ -225,6 +243,19 @@ async function initDb() {
       )`
     });
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_ai_usage_user ON ai_usage(user_id, created_at DESC)`);
+
+    await db.execute({
+      sql: `CREATE TABLE IF NOT EXISTS asr_lexicon (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT NOT NULL,
+        term TEXT NOT NULL,
+        language TEXT DEFAULT 'auto',
+        category TEXT DEFAULT 'custom',
+        created_at INTEGER DEFAULT (unixepoch()),
+        UNIQUE(user_id, term, language)
+      )`
+    });
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_asr_lexicon_user ON asr_lexicon(user_id, language, created_at DESC)`);
     
     console.log('[userDb] Turso 数据库初始化完成');
   } catch (err) {
@@ -801,6 +832,45 @@ const userDb = {
       args: [userId, sinceUnix]
     });
     return result.rows || [];
+  },
+
+  async getAsrLexicon(userId, language = 'auto') {
+    if (!userId) return [];
+    await ensureAsrLexiconTable();
+    const result = await db.execute({
+      sql: `SELECT id, term, language, category, created_at
+            FROM asr_lexicon
+            WHERE user_id = ? AND (language = ? OR language = 'auto')
+            ORDER BY created_at DESC
+            LIMIT 200`,
+      args: [userId, language || 'auto']
+    });
+    return result.rows || [];
+  },
+
+  async replaceAsrLexicon(userId, terms = [], language = 'auto') {
+    if (!userId) return [];
+    await ensureAsrLexiconTable();
+    const safeLanguage = String(language || 'auto').slice(0, 16);
+    const normalized = Array.from(new Set(
+      terms
+        .map(item => String(item || '').trim())
+        .filter(item => item.length >= 2 && item.length <= 40)
+    )).slice(0, 200);
+
+    await db.execute({
+      sql: `DELETE FROM asr_lexicon WHERE user_id = ? AND language = ?`,
+      args: [userId, safeLanguage]
+    });
+
+    for (const term of normalized) {
+      await db.execute({
+        sql: `INSERT OR IGNORE INTO asr_lexicon (user_id, term, language, category)
+              VALUES (?, ?, ?, 'custom')`,
+        args: [userId, term, safeLanguage]
+      });
+    }
+    return this.getAsrLexicon(userId, safeLanguage);
   }
 };
 

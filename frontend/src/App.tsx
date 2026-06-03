@@ -122,9 +122,14 @@ const PLATFORMS = [
 const OPTIONS: { id: string; labelKey: string; icon: typeof Video }[] = [
   { id: 'video', labelKey: 'downloadOptionVideo', icon: Video },
   { id: 'audio_only', labelKey: 'downloadOptionAudio', icon: Mic },
-  { id: 'copywriting', labelKey: 'downloadOptionText', icon: FileText },
   { id: 'cover', labelKey: 'downloadOptionCover', icon: ImageIcon },
-  { id: 'asr', labelKey: 'downloadOptionSubtitle', icon: Languages },
+]
+
+const AI_TOOLS: { id: string; label: string; desc: string; icon: typeof FileText }[] = [
+  { id: 'asr', label: '语音转文字', desc: '生成字幕/TXT', icon: FileText },
+  { id: 'ai_summary', label: 'AI 总结', desc: '摘要+标签+标题', icon: Zap },
+  { id: 'copywriting', label: '带货文案', desc: '提取口播卖点', icon: FileText },
+  { id: 'translate_subtitle', label: '翻译字幕', desc: '翻译并烧录视频', icon: Languages },
 ]
 
 const ASR_LANGUAGE_OPTIONS = [
@@ -196,6 +201,7 @@ export default function App() {
   }, []);
   const [detected, setDetected] = useState('')
   const [selected, setSelected] = useState<Set<string>>(new Set(['video']))
+  const [selectedAiTools, setSelectedAiTools] = useState<Set<string>>(new Set())
   const [task, setTask] = useState<Task | null>(null)
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [historyTotal, setHistoryTotal] = useState(0)
@@ -392,6 +398,10 @@ export default function App() {
   const [editingMaterial, setEditingMaterial] = useState<HistoryItem | null>(null)
   const [materialTagsText, setMaterialTagsText] = useState('')
   const [materialNotes, setMaterialNotes] = useState('')
+  const [showLexiconEditor, setShowLexiconEditor] = useState(false)
+  const [lexiconText, setLexiconText] = useState('')
+  const [lexiconLoading, setLexiconLoading] = useState(false)
+  const [lexiconMessage, setLexiconMessage] = useState('')
 
   const filteredHistory = history.filter(item => {
     const isFav = item.isFavorite || favorites.has(item.taskId)
@@ -444,6 +454,45 @@ export default function App() {
     } catch (e: any) {
       setError(e.response?.data?.message || '素材保存失败')
       fetchHistory()
+    }
+  }
+
+  const openLexiconEditor = async () => {
+    if (!authToken) {
+      setShowAuthModal(true)
+      return
+    }
+    setShowLexiconEditor(true)
+    setLexiconMessage('')
+    setLexiconLoading(true)
+    try {
+      const data = await api.getAsrLexicon(authToken)
+      setLexiconText((data.terms || []).join('\n'))
+    } catch (e: any) {
+      setLexiconMessage(e.message || '词库读取失败')
+    } finally {
+      setLexiconLoading(false)
+    }
+  }
+
+  const saveLexicon = async () => {
+    if (!authToken) return
+    const terms = Array.from(new Set(
+      lexiconText
+        .split(/[,，#\n]/)
+        .map(item => item.trim())
+        .filter(item => item.length >= 2)
+    )).slice(0, 200)
+    setLexiconLoading(true)
+    setLexiconMessage('')
+    try {
+      const data = await api.updateAsrLexicon(authToken, terms)
+      setLexiconText((data.terms || terms).join('\n'))
+      setLexiconMessage(`已保存 ${data.terms?.length ?? terms.length} 个专有词`)
+    } catch (e: any) {
+      setLexiconMessage(e.message || '词库保存失败')
+    } finally {
+      setLexiconLoading(false)
     }
   }
 
@@ -952,6 +1001,9 @@ export default function App() {
 
   const doBatchDownload = async (urls: string[]) => {
     if (!isVip) { setShowUpgradePopup(true); return }
+    const requestOptions = [...selected, ...selectedAiTools]
+    const requestNeedAsr = selectedAiTools.size > 0
+    const requestTargetLang = selectedAiTools.has('translate_subtitle') ? (targetLang || 'en') : null
 
     const cleanUrls = urls.map(u => u.replace(/^\d+\.\s*/, '').trim()).filter(u => u)
     setBatchQueue(cleanUrls.map(u => ({ url: u, status: 'pending', progress: 0 })))
@@ -961,10 +1013,10 @@ export default function App() {
       const r = await axios.post(`${API}/download/batch`, {
         urls: cleanUrls,
         quality: batchQuality || pendingQuality || quality,
-        options: [...selected],
-        needAsr: selected.has('asr'),
+        options: requestOptions,
+        needAsr: requestNeedAsr,
         asrLanguage,
-        targetLang,
+        targetLang: requestTargetLang,
       }, { timeout: 30000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} })
 
       const { batchId: bid, tasks } = r.data.data
@@ -1021,11 +1073,14 @@ export default function App() {
     
     // 使用用户选择的画质
     const downloadQuality = pendingQuality
+    const requestOptions = [...selected, ...selectedAiTools]
+    const requestNeedAsr = selectedAiTools.size > 0
+    const requestTargetLang = selectedAiTools.has('translate_subtitle') ? (targetLang || 'en') : null
     
     try {
       const r = await axios.post(`${API}/download`, {
         url: url.trim(), platform: detected || 'auto',
-        needAsr: selected.has('asr'), options: [...selected], quality: downloadQuality, asrLanguage, targetLang
+        needAsr: requestNeedAsr, options: requestOptions, quality: downloadQuality, asrLanguage, targetLang: requestTargetLang
       }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} })
       setTask(r.data.data);
       // 服务器返回 403 且提到次数用尽 → 弹升级提示
@@ -1044,6 +1099,22 @@ export default function App() {
     n.has(o) && n.size > 1 ? n.delete(o) : n.add(o)
     return n
   })
+  const toggleAiTool = (toolId: string) => {
+    if (!authToken) {
+      setShowAuthModal(true)
+      return
+    }
+    if (!isVip) {
+      setShowUpgradePopup(true)
+      return
+    }
+    setSelectedAiTools(prev => {
+      const next = new Set(prev)
+      next.has(toolId) ? next.delete(toolId) : next.add(toolId)
+      if (toolId === 'translate_subtitle' && !targetLang) setTargetLang('en')
+      return next
+    })
+  }
   const del = async (id: string) => {
     try { await axios.delete(`${API}/tasks/${id}`, { headers: getAuthHeaders() }); fetchHistory(); if (task?.taskId === id) setTask(null) } catch (e) { setError('删除失败，请重试') }
   }
@@ -1244,6 +1315,9 @@ export default function App() {
                           </button>
                           <button onClick={() => { setShowUserMenu(false); setShowReferral(true) }} className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700/50 transition flex items-center gap-2">
                             <span>🎁</span> {t('referral')}
+                          </button>
+                          <button onClick={() => { setShowUserMenu(false); openLexiconEditor() }} className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700/50 transition flex items-center gap-2">
+                            <span>📝</span> ASR 专有词库
                           </button>
                           <button onClick={() => { setShowUserMenu(false); setShowResetPwd(true) }} className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700/50 transition flex items-center gap-2">
                             <span>🔑</span> {t('changePassword')}
@@ -1463,7 +1537,7 @@ export default function App() {
                 </div>
 
                 {/* ASR 耗时提示 */}
-                {selected.has('asr') && (
+                {selectedAiTools.size > 0 && (
                   <div className="mt-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-2">
                     <span className="text-sm mt-0.5">⏳</span>
                     <div>
@@ -1498,14 +1572,47 @@ export default function App() {
               <div className="flex flex-wrap gap-1.5">
                 {OPTIONS.map(o => {
                   const Icon = o.icon; const on = selected.has(o.id)
-                  const isAsr = o.id === 'asr'
                   return (
                     <button key={o.id} onClick={() => toggle(o.id)}
                       className={`flex items-center gap-1 px-3 py-2 text-xs rounded-lg transition-all
                         ${on ? 'bg-orange/15 text-orange border border-orange/30' : isDark ? 'bg-slate-700/30 text-slate-300 border border-transparent hover:text-slate-300' : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200'}`}>
                       <Icon className="w-3.5 h-3.5" />
                       {getOptionLabel(o.labelKey)}
-                      {isAsr && on && <span className="text-orange"> + 🤖</span>}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* AI 工具 */}
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-purple-300 font-medium">🤖 AI 工具 <span className="text-orange">Pro</span></p>
+                <button onClick={openLexiconEditor} className="text-[11px] text-slate-400 hover:text-orange transition">专有词库</button>
+              </div>
+              <p className="text-[11px] text-slate-500 mb-2">自动转文字、总结、提取文案、翻译字幕，不需要额外选择“字幕”。</p>
+              <div className="grid grid-cols-2 gap-2">
+                {AI_TOOLS.map(tool => {
+                  const Icon = tool.icon
+                  const on = selectedAiTools.has(tool.id)
+                  return (
+                    <button
+                      key={tool.id}
+                      onClick={() => toggleAiTool(tool.id)}
+                      className={`text-left rounded-xl px-3 py-2 border transition-all ${
+                        on
+                          ? 'bg-purple-500/15 border-purple-400/40 text-purple-200'
+                          : isDark
+                            ? 'bg-slate-700/25 border-slate-700/50 text-slate-300 hover:border-purple-400/30'
+                            : 'bg-slate-100 border-slate-200 text-slate-700 hover:border-purple-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 text-xs font-medium">
+                        <Icon className="w-3.5 h-3.5" />
+                        <span>{tool.label}</span>
+                        {!isVip && <span className="ml-auto text-orange">🔒</span>}
+                      </div>
+                      <p className="text-[10px] opacity-70 mt-0.5">{tool.desc}</p>
                     </button>
                   )
                 })}
@@ -1573,8 +1680,8 @@ export default function App() {
               </div>
             )}
 
-            {/* ASR Language Selection */}
-            {selected.has('asr') && (
+            {/* AI/ASR Language Selection */}
+            {selectedAiTools.size > 0 && (
               <div className="mb-4">
                 <label className="text-xs text-slate-400 mb-2 block font-medium">🌐 {t('asrLanguageLabel')}</label>
                 <select
@@ -1586,18 +1693,21 @@ export default function App() {
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
                   ))}
                 </select>
-                <label className="text-xs text-slate-400 mt-3 mb-2 block font-medium">🌐 {t('translateTo') || '翻译为'}</label>
-                <select
-                  value={targetLang}
-                  onChange={(e) => setTargetLang(e.target.value)}
-                  className={`w-full px-3 py-2 border-2 rounded-xl text-sm outline-none focus:border-orange/70 cursor-pointer appearance-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-light-surface border-light-border text-light-text'}`}
-                >
-                  <option value="">不翻译</option>
-                  <option value="en">English</option>
-                  <option value="ja">日本語</option>
-                  <option value="ko">한국어</option>
-                  <option value="zh">中文</option>
-                </select>
+                {selectedAiTools.has('translate_subtitle') && (
+                  <>
+                    <label className="text-xs text-slate-400 mt-3 mb-2 block font-medium">🌐 {t('translateTo') || '翻译为'}</label>
+                    <select
+                      value={targetLang || 'en'}
+                      onChange={(e) => setTargetLang(e.target.value)}
+                      className={`w-full px-3 py-2 border-2 rounded-xl text-sm outline-none focus:border-orange/70 cursor-pointer appearance-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-light-surface border-light-border text-light-text'}`}
+                    >
+                      <option value="en">English</option>
+                      <option value="ja">日本語</option>
+                      <option value="ko">한국어</option>
+                      <option value="zh">中文</option>
+                    </select>
+                  </>
+                )}
               </div>
             )}
 
@@ -2380,6 +2490,35 @@ export default function App() {
               <div className="flex gap-3 mt-4">
                 <button onClick={() => setEditingMaterial(null)} className="flex-1 py-2 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition">取消</button>
                 <button onClick={saveMaterialMeta} className="flex-1 py-2 rounded-xl bg-orange text-white hover:bg-orange-dark transition">保存</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showLexiconEditor && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-800 rounded-2xl p-5 max-w-md w-full border border-slate-700">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-base font-bold text-white">ASR 专有词库</h3>
+                <button onClick={() => setShowLexiconEditor(false)} className="text-slate-400 hover:text-white"><X className="w-4 h-4" /></button>
+              </div>
+              <p className="text-xs text-slate-400 mb-3">
+                添加品牌名、产品名、行业词。语音转文字会优先参考这些词，减少同音错别字。
+              </p>
+              <textarea
+                value={lexiconText}
+                onChange={(e) => setLexiconText(e.target.value)}
+                placeholder="磁吸&#10;仿真&#10;MagSafe&#10;品牌名&#10;产品型号"
+                rows={8}
+                className="w-full px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-700 text-sm text-white placeholder:text-slate-500 resize-none"
+              />
+              <p className="mt-2 text-[11px] text-slate-500">支持逗号、# 或换行分隔，最多保存 200 个词。</p>
+              {lexiconMessage && <p className="mt-2 text-xs text-orange">{lexiconMessage}</p>}
+              <div className="flex gap-3 mt-4">
+                <button onClick={() => setShowLexiconEditor(false)} className="flex-1 py-2 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition">关闭</button>
+                <button onClick={saveLexicon} disabled={lexiconLoading} className="flex-1 py-2 rounded-xl bg-orange text-white hover:bg-orange-dark transition disabled:opacity-50">
+                  {lexiconLoading ? '保存中...' : '保存词库'}
+                </button>
               </div>
             </div>
           </div>

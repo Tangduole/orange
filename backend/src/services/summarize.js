@@ -7,6 +7,7 @@
 
 const axios = require('axios');
 const logger = require('../utils/logger');
+const { applyHomophoneCorrections, buildCorrectionHints } = require('../utils/asrCorrectionRules');
 
 // 主动加载 .env（确保 AI_API_KEY 等可用）
 (function loadEnv() {
@@ -87,9 +88,10 @@ async function summarizeText(transcript, language = 'zh') {
  * 纠错失败不影响主流程，返回原文
  */
 async function correctAsrText(text, language = 'zh', context = '') {
+  const ruleCorrected = applyHomophoneCorrections(text, context);
   if (!CONFIG.accountId || !CONFIG.token) {
     logger.info('[asr-correct] Cloudflare AI not configured, skipping');
-    return text;
+    return ruleCorrected;
   }
   if (!text || text.trim().length < 10) {
     return text;
@@ -97,11 +99,12 @@ async function correctAsrText(text, language = 'zh', context = '') {
 
   const isZh = language.startsWith('zh');
 
+  const hints = buildCorrectionHints(context, language);
   const systemPrompt = isZh
-    ? `你是中文语音识别纠错专家。逐句检查并纠正。特别注意：式/氏、作/做、在/再、象/像、的/得/地、那/哪、买/卖、六一/六亿、磁吸/慈禧。根据上下文选最合理的词。组合不合理必须纠正。只返回纠正后全文。`
+    ? `你是中文语音识别纠错专家。逐句检查并纠正同音错别字，只修正明显 ASR 错误，不总结、不改写、不扩写。${hints} 只返回纠正后全文。`
     : 'You are a speech-to-text correction assistant. Fix homophone and context errors in the transcript. Use context to determine the most likely correct word. Preserve original meaning and style. Return only corrected text.';
 
-  let prompt = text.substring(0, 4000);
+  let prompt = ruleCorrected.substring(0, 4000);
   if (context) {
     prompt = `视频标题：${context}\n\n${prompt}`;
   }
@@ -117,7 +120,7 @@ async function correctAsrText(text, language = 'zh', context = '') {
           { role: 'system', content: systemPrompt },
           { role: 'user', content: prompt },
         ],
-        max_tokens: Math.min(text.length * 2, 4096),
+        max_tokens: Math.min(ruleCorrected.length * 2, 4096),
         temperature: 0.1,
       },
       {
@@ -131,15 +134,15 @@ async function correctAsrText(text, language = 'zh', context = '') {
     );
 
     const corrected = response.data?.result?.response?.trim() || '';
-    if (corrected && corrected.length >= text.length * 0.5) {
+    if (corrected && corrected.length >= ruleCorrected.length * 0.5) {
       logger.info('[asr-correct] Corrected successfully');
-      return corrected;
+      return applyHomophoneCorrections(corrected, context);
     }
     logger.warn('[asr-correct] Correction result too short, using original');
-    return text;
+    return ruleCorrected;
   } catch (e) {
     logger.warn('[asr-correct] Cloudflare AI failed:', e.message);
-    return text; // 纠错失败不影响主流程
+    return ruleCorrected; // 纠错失败不影响主流程
   }
 }
 
@@ -294,44 +297,104 @@ async function translateWithDeepSeek(text, sourceLang, targetLang) {
 async function correctWithDeepSeek(text, language = 'zh', context = '') {
   const deepseekKey = process.env.AI_API_KEY || '';
   const deepseekUrl = (process.env.AI_API_URL || 'https://api.deepseek.com/v1').replace(/\/+$/, '');
-  
-  console.error(`[deepseek-correct] called: key=${!!deepseekKey}, lang=${language}, textLen=${(text||'').length}`);
-  
+  const ruleCorrected = applyHomophoneCorrections(text, context);
+
   if (!deepseekKey || !language.startsWith('zh')) {
-    console.error('[deepseek-correct] SKIP: no key or not zh');
-    return text;
+    logger.info('[deepseek-correct] skipped: no key or not zh');
+    return ruleCorrected;
   }
-  
-  let prompt = `纠正以下语音识别的同音错别字。特别注意这些常见混淆：式/氏、作/做、在/再、象/像、的/得/地、那/哪、买/卖、六一/六亿、磁吸/慈禧。根据上下文选择最合理的词。\n\n`;
-  if (context) prompt += `视频标题：${context}\n`;
-  prompt += `文本：\n${text.substring(0, 3000)}`;
-  
+
   try {
-    const axios = require('axios');
-    const res = await axios.post(`${deepseekUrl}/chat/completions`, {
-      model: 'deepseek-chat',
-      messages: [
-        { role: 'system', content: '你是中文纠错专家。纠正同音错别字，检查词汇组合合理性。只返回纠正后的全文。' },
-        { role: 'user', content: prompt }
-      ],
-      temperature: 0.1,
-      max_tokens: text.length * 2
-    }, {
-      headers: { 'Authorization': `Bearer ${deepseekKey}`, 'Content-Type': 'application/json' },
-      timeout: 30000
-    });
-    const corrected = res.data?.choices?.[0]?.message?.content?.trim() || text;
+    const chunks = splitTextForCorrection(ruleCorrected, 1800);
+    const correctedChunks = [];
+    logger.info(`[deepseek-correct] correcting ${chunks.length} chunk(s), textLen=${ruleCorrected.length}`);
+
+    for (let i = 0; i < chunks.length; i++) {
+      const previous = correctedChunks.length ? correctedChunks[correctedChunks.length - 1].slice(-160) : '';
+      const next = chunks[i + 1] ? chunks[i + 1].slice(0, 160) : '';
+      const correctedChunk = await correctChunkWithDeepSeek({
+        chunk: chunks[i],
+        previous,
+        next,
+        context,
+        language,
+        deepseekKey,
+        deepseekUrl
+      });
+      correctedChunks.push(correctedChunk);
+    }
+
+    const corrected = applyHomophoneCorrections(correctedChunks.join('\n'), context);
     if (corrected !== text) logger.info('[deepseek-correct] Fixed homophone errors');
-    // 后处理：标题含设计/风格关键词→用"式"，含家族关键词→用"氏"
-    if (context && /设计|风格|装修|家居|家具|建筑|产品|款|系列/.test(context) && /氏/.test(corrected)) {
-      corrected = corrected.replace(/氏/g, '式');
-    }
-    if (context && /家族|姓氏|宗亲|谱/.test(context) && /式/.test(corrected)) {
-      corrected = corrected.replace(/式/g, '氏');
-    }
     return corrected;
   } catch (e) {
     logger.warn('[deepseek-correct] Failed, falling back:', e.message);
-    return text;
+    return ruleCorrected;
   }
+}
+
+function splitTextForCorrection(text, maxLen = 1800) {
+  const normalized = String(text || '').trim();
+  if (normalized.length <= maxLen) return [normalized];
+
+  const parts = normalized.split(/(?<=[。！？!?；;\n])/);
+  const chunks = [];
+  let current = '';
+  for (const part of parts) {
+    if (!part) continue;
+    if ((current + part).length > maxLen && current) {
+      chunks.push(current.trim());
+      current = part;
+    } else {
+      current += part;
+    }
+  }
+  if (current.trim()) chunks.push(current.trim());
+
+  const finalChunks = [];
+  for (const chunk of chunks) {
+    if (chunk.length <= maxLen * 1.2) {
+      finalChunks.push(chunk);
+      continue;
+    }
+    for (let i = 0; i < chunk.length; i += maxLen) {
+      finalChunks.push(chunk.slice(i, i + maxLen));
+    }
+  }
+  return finalChunks;
+}
+
+async function correctChunkWithDeepSeek({ chunk, previous, next, context, language, deepseekKey, deepseekUrl }) {
+  const hints = buildCorrectionHints(context, language);
+  let prompt = `${hints}
+
+请纠正下面这段 ASR 文本中的同音错别字。要求：
+1. 只修正明显错别字，不总结、不改写、不扩写。
+2. 保留原句顺序、标点风格和换行。
+3. 只返回纠正后的“当前段落”，不要返回前后文。
+`;
+  if (context) prompt += `\n视频标题/上下文：${context}`;
+  if (previous) prompt += `\n前文参考：${previous}`;
+  if (next) prompt += `\n后文参考：${next}`;
+  prompt += `\n\n当前段落：\n${chunk}`;
+
+  const res = await axios.post(`${deepseekUrl}/chat/completions`, {
+    model: process.env.AI_MODEL || 'deepseek-chat',
+    messages: [
+      { role: 'system', content: '你是中文 ASR 纠错专家。只纠正同音错别字和明显不合理词组，输出纠正后的当前段落。' },
+      { role: 'user', content: prompt }
+    ],
+    temperature: 0,
+    max_tokens: Math.min(Math.max(chunk.length * 2, 800), 4096)
+  }, {
+    headers: { 'Authorization': `Bearer ${deepseekKey}`, 'Content-Type': 'application/json' },
+    timeout: 45000
+  });
+
+  const corrected = res.data?.choices?.[0]?.message?.content?.trim();
+  if (!corrected || corrected.length < chunk.length * 0.45) {
+    logger.warn('[deepseek-correct] chunk result invalid, using rule-corrected chunk');
+    return chunk;
+  }
+  return applyHomophoneCorrections(corrected, context);
 }
