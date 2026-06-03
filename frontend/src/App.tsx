@@ -2456,23 +2456,22 @@ export default function App() {
                 </div>
                 <div className="max-h-60 overflow-y-auto">
                   {filteredHistory.length === 0 ? <p className="py-8 text-center text-sm text-slate-500">{historySearch || historyFilter !== 'all' ? t('noResults') : t('noHistory')}</p> : filteredHistory.map(item => (
-                    <div key={item.taskId} className={`flex items-center gap-3 px-4 py-3 border-b border-slate-700/20 last:border-0 hover:bg-slate-900/60 transition ${selectedTasks.has(item.taskId) ? 'bg-orange/10' : ''}`}>
+                    <div key={item.taskId} className={`flex items-center gap-2 px-3 py-2 border-b border-slate-700/20 last:border-0 hover:bg-slate-900/60 transition ${selectedTasks.has(item.taskId) ? 'bg-orange/10' : ''}`}>
                       <input type="checkbox" checked={selectedTasks.has(item.taskId)} onChange={() => { const s = new Set(selectedTasks); selectedTasks.has(item.taskId) ? s.delete(item.taskId) : s.add(item.taskId); setSelectedTasks(s) }} className="w-3.5 h-3.5 rounded-full border-slate-600 shrink-0" />
-                      {item.thumbnailUrl ? <button onClick={() => openSavedFile(item)} className="relative shrink-0 group"><img src={`${BASE_URL}${item.thumbnailUrl}`} alt="" className="w-14 h-10 object-cover rounded-lg" /><div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 transition"><Play className="w-5 h-5 text-white" /></div></button> : <div className="w-14 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0"><Video className="w-5 h-5 text-slate-500" /></div>}
+                      {item.thumbnailUrl ? <button onClick={() => openSavedFile(item)} className="relative shrink-0 group"><img src={`${BASE_URL}${item.thumbnailUrl}`} alt="" className="w-12 h-9 object-cover rounded-lg" /><div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 transition"><Play className="w-4 h-4 text-white" /></div></button> : <div className="w-12 h-9 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0"><Video className="w-4 h-4 text-slate-500" /></div>}
                       <div className="flex-1 min-w-0 overflow-hidden">
-<p className={`text-sm text-slate-500 font-medium whitespace-nowrap ${(item.title || '').length > 20 ? 'animate-marquee' : 'truncate'}`}>{item.title || t('untitled')}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          {item.platform && <span className="text-xs text-orange bg-orange/10 px-1.5 py-0.5 rounded">{getPlatformLabel(item.platform)}</span>}
-                          {item.height && <span className={`text-xs px-1.5 py-0.5 rounded ${item.height >= 720 ? 'text-yellow-400 bg-yellow-500/10' : 'text-emerald-400 bg-emerald-500/10'}`}>🎬 {item.height}p {item.height >= 720 ? '⭐' : '✓'}</span>}
-                          <span className="text-xs text-slate-500">{new Date(item.createdAt).toLocaleString(i18n.language === 'zh-CN' ? 'zh-CN' : i18n.language === 'ja' ? 'ja-JP' : i18n.language === 'ko' ? 'ko-KR' : 'en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+                        <p className="text-xs text-slate-300 font-medium truncate leading-5" title={item.title || t('untitled')}>{item.title || t('untitled')}</p>
+                        <div className="flex items-center gap-1.5 mt-0.5 overflow-hidden whitespace-nowrap">
+                          {item.platform && <span className="shrink-0 text-[10px] text-orange bg-orange/10 px-1.5 py-0.5 rounded">{getPlatformLabel(item.platform)}</span>}
+                          {item.height && <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded ${item.height >= 720 ? 'text-yellow-400 bg-yellow-500/10' : 'text-emerald-400 bg-emerald-500/10'}`}>{item.height}p</span>}
+                          {(item.tags || []).slice(0, 2).map(tag => (
+                            <span key={tag} className="max-w-[72px] truncate text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-300" title={`#${tag}`}>#{tag}</span>
+                          ))}
+                          {(item.tags || []).length > 2 && (
+                            <span className="shrink-0 text-[10px] text-slate-500">+{(item.tags || []).length - 2}</span>
+                          )}
+                          <span className="shrink-0 text-[10px] text-slate-500">{new Date(item.createdAt).toLocaleString(i18n.language === 'zh-CN' ? 'zh-CN' : i18n.language === 'ja' ? 'ja-JP' : i18n.language === 'ko' ? 'ko-KR' : 'en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
-                        {item.tags?.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {item.tags.slice(0, 4).map(tag => (
-                              <span key={tag} className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-300">#{tag}</span>
-                            ))}
-                          </div>
-                        )}
                       </div>
                       {item.status === 'error' && <button onClick={() => retryTask(item)} className="p-1.5 text-orange-500 hover:text-orange"><Loader2 className="w-5 h-5" /></button>}
                       {item.status === 'completed' && <button onClick={() => retryTask(item)} title="Re-download" className="p-1 text-slate-500 hover:text-green-400"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg></button>}
