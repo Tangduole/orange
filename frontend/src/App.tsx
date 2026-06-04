@@ -792,6 +792,7 @@ export default function App() {
   // Use ref Track是否已AutoDownload过，AvoidDuplicateTrigger
   const autoDownloaded = useRef(false)
   const autoDownloadTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const previewingHistory = useRef(false)
   
   // ClearAutoDownload定时器
   const clearAutoDownload = () => {
@@ -805,6 +806,11 @@ export default function App() {
     // 每次 task 变化时，重置AutoDownloadMark
     autoDownloaded.current = false
     clearAutoDownload()
+    if (previewingHistory.current) {
+      previewingHistory.current = false
+      autoDownloaded.current = true
+      return
+    }
     
     if (task?.status === 'completed' && task.downloadUrl && !downloading && !autoDownloaded.current) {
       autoDownloaded.current = true
@@ -1229,11 +1235,18 @@ export default function App() {
     try { await axios.delete(`${API}/history`, { headers: getAuthHeaders() }); fetchHistory(); setTask(null) } catch {}
   }
   const openSavedFile = (item: HistoryItem) => {
-    // 在新窗口打开视频File
-    if (item.downloadUrl) {
-      const fullUrl = item.downloadUrl.startsWith('http') ? item.downloadUrl : `${BASE_URL}${item.downloadUrl}`
-      window.open(fullUrl, '_blank')
+    if (!item.downloadUrl) {
+      setError('历史文件已过期，请重新下载后预览')
+      return
     }
+    clearAutoDownload()
+    previewingHistory.current = true
+    setTask({
+      ...(item as unknown as Task),
+      status: item.status || 'completed',
+      progress: 100,
+      directLink: false
+    })
   }
   const clip = async (text: string, id: string) => {
     try { await navigator.clipboard.writeText(text); setCopied(id); setTimeout(() => setCopied(null), 3000) } catch {}
