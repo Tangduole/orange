@@ -2460,16 +2460,20 @@ export default function App() {
                       <input type="checkbox" checked={selectedTasks.has(item.taskId)} onChange={() => { const s = new Set(selectedTasks); selectedTasks.has(item.taskId) ? s.delete(item.taskId) : s.add(item.taskId); setSelectedTasks(s) }} className="w-3.5 h-3.5 rounded-full border-slate-600 shrink-0" />
                       {item.thumbnailUrl ? <button onClick={() => openSavedFile(item)} className="relative shrink-0 group"><img src={`${BASE_URL}${item.thumbnailUrl}`} alt="" className="w-12 h-9 object-cover rounded-lg" /><div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 transition"><Play className="w-4 h-4 text-white" /></div></button> : <div className="w-12 h-9 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0"><Video className="w-4 h-4 text-slate-500" /></div>}
                       <div className="flex-1 min-w-0 overflow-hidden">
-                        <p className="text-xs text-slate-300 font-medium truncate leading-5" title={item.title || t('untitled')}>{item.title || t('untitled')}</p>
-                        <div className="flex items-center gap-1.5 mt-0.5 overflow-hidden whitespace-nowrap">
-                          {item.platform && <span className="shrink-0 text-[10px] text-orange bg-orange/10 px-1.5 py-0.5 rounded">{getPlatformLabel(item.platform)}</span>}
-                          {item.height && <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded ${item.height >= 720 ? 'text-yellow-400 bg-yellow-500/10' : 'text-emerald-400 bg-emerald-500/10'}`}>{item.height}p</span>}
-                          {(item.tags || []).slice(0, 2).map(tag => (
-                            <span key={tag} className="max-w-[72px] truncate text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-300" title={`#${tag}`}>#{tag}</span>
-                          ))}
-                          {(item.tags || []).length > 2 && (
-                            <span className="shrink-0 text-[10px] text-slate-500">+{(item.tags || []).length - 2}</span>
-                          )}
+                        <div className="overflow-hidden leading-5" title={item.title || t('untitled')}>
+                          <p className={`text-xs text-slate-300 font-medium whitespace-nowrap ${(item.title || '').length > 20 ? 'animate-marquee' : 'truncate'}`}>{item.title || t('untitled')}</p>
+                        </div>
+                        <div className="flex items-center justify-between gap-2 mt-0.5">
+                          <div className="flex items-center gap-1.5 min-w-0 overflow-hidden whitespace-nowrap">
+                            {item.platform && <span className="shrink-0 text-[10px] text-orange bg-orange/10 px-1.5 py-0.5 rounded">{getPlatformLabel(item.platform)}</span>}
+                            {item.height && <span className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded ${item.height >= 720 ? 'text-yellow-400 bg-yellow-500/10' : 'text-emerald-400 bg-emerald-500/10'}`}>{item.height}p</span>}
+                            {(item.tags || []).slice(0, 2).map(tag => (
+                              <span key={tag} className="min-w-0 max-w-[56px] truncate text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-300" title={`#${tag}`}>#{tag}</span>
+                            ))}
+                            {(item.tags || []).length > 2 && (
+                              <span className="shrink-0 text-[10px] text-slate-500">+{(item.tags || []).length - 2}</span>
+                            )}
+                          </div>
                           <span className="shrink-0 text-[10px] text-slate-500">{new Date(item.createdAt).toLocaleString(i18n.language === 'zh-CN' ? 'zh-CN' : i18n.language === 'ja' ? 'ja-JP' : i18n.language === 'ko' ? 'ko-KR' : 'en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       </div>
