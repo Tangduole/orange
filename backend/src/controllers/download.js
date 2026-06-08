@@ -124,7 +124,7 @@ async function saveCopywriteResult({ taskId, task, user, transcript, analysis })
   });
 }
 
-async function generateCommerceCardForTask(taskId, user) {
+async function generateCommerceCardForTask(taskId, user, outputLanguage = null) {
   const task = store.get(taskId);
   if (!task) throw new Error('任务不存在或文件已过期');
   if (!user) throw new Error('请先登录');
@@ -140,12 +140,13 @@ async function generateCommerceCardForTask(taskId, user) {
   let transcript = task.asrText || task.copywriteTranscript || '';
   let analysis = null;
 
+  const language = outputLanguage || task.outputLanguage || 'zh';
   if (transcript && transcript.length >= 5) {
     const { analyzeWithAI } = require('../services/ai-copywrite');
-    analysis = await analyzeWithAI(transcript);
+    analysis = await analyzeWithAI(transcript, language);
   } else {
     const { extractCopywrite } = require('../services/ai-copywrite');
-    const result = await extractCopywrite(taskId, task.platform || '');
+    const result = await extractCopywrite(taskId, task.platform || '', language);
     transcript = result.transcript;
     analysis = result.analysis;
   }
@@ -313,7 +314,7 @@ async function createDownload(req, res) {
       return res.json({ code: 400, message: validation.message });
     }
 
-    let { url, platform, needAsr = false, options = ['video'], saveTarget = 'phone', quality = null, asrLanguage = 'zh', targetLang = null } = req.body;
+    let { url, platform, needAsr = false, options = ['video'], saveTarget = 'phone', quality = null, asrLanguage = 'zh', targetLang = null, outputLanguage = 'zh' } = req.body;
 
     // 从分享文本中提取 URL
     const { extractUrl } = require('../utils/validator');
@@ -446,6 +447,7 @@ async function createDownload(req, res) {
       platform: finalPlatform,
       needAsr: wantsAsr,
       targetLang,
+      outputLanguage,
       asrLanguage,
       options: normalizedOptions,
       saveTarget,
@@ -835,7 +837,7 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
         const user = await userDb.getById(task.userId);
         if (user && userDb.isVip(user)) {
           const { analyzeWithAI } = require('../services/ai-copywrite');
-          const analysis = await analyzeWithAI(text);
+          const analysis = await analyzeWithAI(text, task.outputLanguage || 'zh');
           await saveCopywriteResult({ taskId, task, user, transcript: text, analysis });
           copywriteResult = { transcript: text, analysis };
           logger.info(`[copywrite] ${taskId} commerce card generated from corrected ASR`);
@@ -1381,7 +1383,7 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
             const user = task?.userId ? await userDb.getById(task.userId) : null;
             if (user && userDb.isVip(user)) {
               const { analyzeWithAI } = require('../services/ai-copywrite');
-              const analysis = await analyzeWithAI(text);
+              const analysis = await analyzeWithAI(text, task.outputLanguage || 'zh');
               await saveCopywriteResult({ taskId, task, user, transcript: text, analysis });
               update.copywriteAnalysis = analysis;
               update.copywriteTranscript = text;
@@ -2727,7 +2729,7 @@ async function updateHistoryItem(req, res) {
 }
 
 async function extractCopywriteForTask(req, res) {
-  const { taskId } = req.body || {};
+  const { taskId, outputLanguage = null } = req.body || {};
   if (!taskId) return res.json({ code: 400, message: '缺少 taskId' });
 
   const task = store.get(taskId);
@@ -2747,7 +2749,7 @@ async function extractCopywriteForTask(req, res) {
     if (!userDb.isVip(req.user)) {
       return res.status(403).json({ code: 403, message: 'AI 文案提取为 Pro 会员功能' });
     }
-    const result = await generateCommerceCardForTask(taskId, req.user);
+    const result = await generateCommerceCardForTask(taskId, req.user, outputLanguage);
     return res.json({ code: 0, data: result });
   } catch (e) {
     logger.error(`[copywrite] ${taskId} failed:`, e.message);
@@ -2880,7 +2882,7 @@ const batchStore = new Map();
  * 一次提交多个链接，后端顺序处理，前端可关闭页面
  */
 async function createBatchDownload(req, res) {
-  const { urls, quality = '', options = ['video'], needAsr = false, asrLanguage = 'zh', targetLang = null } = req.body || {};
+  const { urls, quality = '', options = ['video'], needAsr = false, asrLanguage = 'zh', targetLang = null, outputLanguage = 'zh' } = req.body || {};
 
   if (!Array.isArray(urls) || urls.length === 0) {
     return res.json({ code: 400, message: '请提供至少一个链接' });
@@ -2924,6 +2926,7 @@ async function createBatchDownload(req, res) {
       platform: detectedPlatform || 'auto',
       needAsr: wantsAsr,
       targetLang,
+      outputLanguage,
       options: normalizedOptions,
       saveTarget: 'phone',
       status: 'pending',

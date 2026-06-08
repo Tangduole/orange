@@ -53,23 +53,43 @@ async function transcribeAudio(audioPath, language = 'zh') {
 /**
  * AI 分析文案
  */
-async function analyzeWithAI(transcript) {
-  if (!AI_API_KEY) {
-    if (useMockCopywrite()) return buildMockAnalysis(transcript);
-    throw new Error('AI_API_KEY 未配置');
-  }
+function normalizeOutputLanguage(language = 'zh') {
+  const lang = String(language || 'zh').toLowerCase();
+  if (lang.startsWith('en')) return 'en';
+  if (lang.startsWith('ja')) return 'ja';
+  if (lang.startsWith('ko')) return 'ko';
+  return 'zh';
+}
 
-  const prompt = `你是一个专业的电商内容分析师。请分析以下视频口播文案，提取结构化信息。
+function buildAnalysisPrompt(transcript, outputLanguage = 'zh') {
+  const lang = normalizeOutputLanguage(outputLanguage);
+  const languageNames = {
+    zh: '简体中文',
+    en: 'English',
+    ja: '日本語',
+    ko: '한국어'
+  };
+  const localizedInstruction = {
+    zh: '请用简体中文输出卖点、目标人群、口播脚本和标签。商品名、品牌名、型号、规格保留原文，不要强行翻译。',
+    en: 'Write selling points, target audience, sales script, and tags in English. Preserve product names, brand names, model numbers, and specifications in their original language.',
+    ja: 'セールスポイント、ターゲット層、販売スクリプト、タグは日本語で出力してください。商品名、ブランド名、型番、仕様は原文を保持してください。',
+    ko: '판매 포인트, 타깃 고객, 판매 스크립트, 태그는 한국어로 작성하세요. 상품명, 브랜드명, 모델명, 사양은 원문을 유지하세요.'
+  };
 
-要求：
-1. 商品/产品名称（如果有）
-2. 核心卖点（3-5 条，每条一句话）
-3. 价格信息（如有提及）
-4. 目标人群（适合什么用户）
-5. 带货口播脚本（整理成可直接使用的带货文案，200字以内）
-6. 关键词标签（5-8 个 tag）
+  return `You are a professional e-commerce content analyst. Analyze the following video transcript and extract structured product marketing material.
 
-请用 JSON 格式返回，不要多余文字：
+Output language: ${languageNames[lang]}.
+${localizedInstruction[lang]}
+
+Requirements:
+1. Product name, if mentioned.
+2. Core selling points, 3-5 short items.
+3. Price or promotion information, if mentioned.
+4. Target audience.
+5. A ready-to-use e-commerce sales script, within 200 ${lang === 'en' ? 'words' : 'characters'}.
+6. Keyword tags, 5-8 items.
+
+Return JSON only, without markdown or extra text:
 {
   "productName": "",
   "sellingPoints": ["", ""],
@@ -79,8 +99,17 @@ async function analyzeWithAI(transcript) {
   "tags": ["", ""]
 }
 
-视频口播文案：
+Video transcript:
 ${transcript.substring(0, 4000)}`;
+}
+
+async function analyzeWithAI(transcript, outputLanguage = 'zh') {
+  if (!AI_API_KEY) {
+    if (useMockCopywrite()) return buildMockAnalysis(transcript, outputLanguage);
+    throw new Error('AI_API_KEY 未配置');
+  }
+
+  const prompt = buildAnalysisPrompt(transcript, outputLanguage);
 
   try {
     const res = await axios.post(`${AI_API_URL}/chat/completions`, {
@@ -120,19 +149,46 @@ ${transcript.substring(0, 4000)}`;
   }
 }
 
-function buildMockAnalysis(transcript) {
+function buildMockAnalysis(transcript, outputLanguage = 'zh') {
+  const lang = normalizeOutputLanguage(outputLanguage);
   const sample = transcript.replace(/\s+/g, ' ').trim().slice(0, 120);
+  const localized = {
+    zh: {
+      productName: '本地测试素材',
+      points: ['这是开发环境生成的模拟 AI 分析结果', '用于验证前端展示、素材库标签和使用量记录', '生产环境必须配置 AI_API_KEY 才会调用真实模型'],
+      audience: '本地测试用户',
+      script: sample ? `根据视频内容可提炼为：${sample}` : '这是本地测试生成的口播脚本。',
+      tags: ['本地测试', 'AI文案', '素材库', '开发模式']
+    },
+    en: {
+      productName: 'Local Test Material',
+      points: ['Mock AI analysis generated in development mode', 'Useful for verifying UI display, material tags, and usage metering', 'Production requires AI_API_KEY to call the real model'],
+      audience: 'Local test users',
+      script: sample ? `This video can be turned into the following sales angle: ${sample}` : 'This is a locally generated mock sales script.',
+      tags: ['local-test', 'ai-copy', 'materials', 'dev-mode']
+    },
+    ja: {
+      productName: 'ローカルテスト素材',
+      points: ['開発環境で生成された模擬AI分析結果です', 'UI表示、素材タグ、利用回数の検証に使えます', '本番環境では実モデル呼び出しにAI_API_KEYが必要です'],
+      audience: 'ローカルテストユーザー',
+      script: sample ? `動画内容から次の販売文を作成できます：${sample}` : 'これはローカルで生成された模擬販売スクリプトです。',
+      tags: ['ローカルテスト', 'AI文章', '素材庫', '開発モード']
+    },
+    ko: {
+      productName: '로컬 테스트 소재',
+      points: ['개발 환경에서 생성된 mock AI 분석 결과입니다', 'UI 표시, 소재 태그, 사용량 기록을 검증하는 데 사용됩니다', '운영 환경에서는 실제 모델 호출을 위해 AI_API_KEY가 필요합니다'],
+      audience: '로컬 테스트 사용자',
+      script: sample ? `영상 내용을 바탕으로 다음 판매 문구를 만들 수 있습니다: ${sample}` : '로컬에서 생성된 mock 판매 스크립트입니다.',
+      tags: ['로컬테스트', 'AI카피', '소재함', '개발모드']
+    }
+  }[lang];
   return {
-    productName: '本地测试素材',
-    sellingPoints: [
-      '这是开发环境生成的模拟 AI 分析结果',
-      '用于验证前端展示、素材库标签和使用量记录',
-      '生产环境必须配置 AI_API_KEY 才会调用真实模型'
-    ],
+    productName: localized.productName,
+    sellingPoints: localized.points,
     priceInfo: '',
-    targetAudience: '本地测试用户',
-    copyScript: sample ? `根据视频内容可提炼为：${sample}` : '这是本地测试生成的口播脚本。',
-    tags: ['本地测试', 'AI文案', '素材库', '开发模式']
+    targetAudience: localized.audience,
+    copyScript: localized.script,
+    tags: localized.tags
   };
 }
 
@@ -142,10 +198,10 @@ function buildMockAnalysis(transcript) {
  * @param {string} platform 平台名
  * @returns {Promise<{transcript, analysis}>}
  */
-async function extractCopywrite(taskId, platform = '') {
+async function extractCopywrite(taskId, platform = '', outputLanguage = 'zh') {
   if (useMockCopywrite()) {
     const transcript = `本地 mock 转写文本：task=${taskId}, platform=${platform || 'unknown'}。用于验证 AI 文案提取、素材库标签写入和用量计量。`;
-    return { transcript, analysis: buildMockAnalysis(transcript) };
+    return { transcript, analysis: buildMockAnalysis(transcript, outputLanguage) };
   }
 
   // 1. 找到视频文件
@@ -184,7 +240,7 @@ async function extractCopywrite(taskId, platform = '') {
 
   // 4. AI 分析
   logger.info(`[AI] Analyzing transcript (${transcript.length} chars)...`);
-  const analysis = await analyzeWithAI(transcript);
+  const analysis = await analyzeWithAI(transcript, outputLanguage);
 
   return { transcript, analysis };
 }

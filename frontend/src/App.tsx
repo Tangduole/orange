@@ -126,11 +126,11 @@ const OPTIONS: { id: string; labelKey: string; icon: typeof Video }[] = [
   { id: 'cover', labelKey: 'downloadOptionCover', icon: ImageIcon },
 ]
 
-const AI_TOOLS: { id: string; label: string; desc: string; icon: typeof FileText }[] = [
-  { id: 'asr', label: '语音转文字', desc: '生成字幕/TXT', icon: FileText },
-  { id: 'ai_summary', label: 'AI 总结', desc: '摘要+标签+标题', icon: Zap },
-  { id: 'copywriting', label: '带货素材卡', desc: '商品卖点+口播脚本', icon: FileText },
-  { id: 'translate_subtitle', label: '翻译字幕', desc: '翻译并烧录视频', icon: Languages },
+const AI_TOOLS: { id: string; labelKey: string; descKey: string; icon: typeof FileText }[] = [
+  { id: 'asr', labelKey: 'aiToolAsr', descKey: 'aiToolAsrDesc', icon: FileText },
+  { id: 'ai_summary', labelKey: 'aiToolSummary', descKey: 'aiToolSummaryDesc', icon: Zap },
+  { id: 'copywriting', labelKey: 'aiToolCommerceCard', descKey: 'aiToolCommerceCardDesc', icon: FileText },
+  { id: 'translate_subtitle', labelKey: 'aiToolTranslateSubtitle', descKey: 'aiToolTranslateSubtitleDesc', icon: Languages },
 ]
 
 const normalizeHistoryTags = (tags?: string[] | string) => {
@@ -142,6 +142,13 @@ const normalizeHistoryTags = (tags?: string[] | string) => {
       .filter(Boolean)
   }
   return []
+}
+
+const getAiOutputLanguage = (language: string) => {
+  if (language.startsWith('en')) return 'en'
+  if (language.startsWith('ja')) return 'ja'
+  if (language.startsWith('ko')) return 'ko'
+  return 'zh'
 }
 
 const ASR_LANGUAGE_OPTIONS = [
@@ -520,7 +527,7 @@ export default function App() {
     }
     setCopywritingLoading(true)
     try {
-      const r = await axios.post(`${API}/copywrite`, { taskId: task.taskId }, {
+      const r = await axios.post(`${API}/copywrite`, { taskId: task.taskId, outputLanguage: getAiOutputLanguage(i18n.language) }, {
         headers: getAuthHeaders(),
         timeout: 120000,
       })
@@ -1072,6 +1079,7 @@ export default function App() {
         needAsr: requestNeedAsr,
         asrLanguage,
         targetLang: requestTargetLang,
+        outputLanguage: getAiOutputLanguage(i18n.language),
       }, { timeout: 30000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} })
 
       const { batchId: bid, tasks } = r.data.data
@@ -1135,7 +1143,7 @@ export default function App() {
     try {
       const r = await axios.post(`${API}/download`, {
         url: url.trim(), platform: detected || 'auto',
-        needAsr: requestNeedAsr, options: requestOptions, quality: downloadQuality, asrLanguage, targetLang: requestTargetLang
+        needAsr: requestNeedAsr, options: requestOptions, quality: downloadQuality, asrLanguage, targetLang: requestTargetLang, outputLanguage: getAiOutputLanguage(i18n.language)
       }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} })
       setTask(r.data.data);
       // 服务器返回 403 且提到次数用尽 → 弹升级提示
@@ -1650,10 +1658,10 @@ export default function App() {
             {/* AI 工具 */}
             <div className="mb-4">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-xs text-purple-300 font-medium">🤖 AI 工具 <span className="text-orange">Pro</span></p>
-                <button onClick={openLexiconEditor} className="text-[11px] text-slate-400 hover:text-orange transition">专有词库</button>
+                <p className="text-xs text-purple-300 font-medium">🤖 {t('aiToolsTitle')} <span className="text-orange">Pro</span></p>
+                <button onClick={openLexiconEditor} className="text-[11px] text-slate-400 hover:text-orange transition">{t('asrLexicon')}</button>
               </div>
-              <p className="text-[11px] text-slate-500 mb-2">自动转文字、总结、提取文案、翻译字幕，不需要额外选择“字幕”。</p>
+              <p className="text-[11px] text-slate-500 mb-2">{t('aiToolsHint')}</p>
               <div className="grid grid-cols-2 gap-2">
                 {AI_TOOLS.map(tool => {
                   const Icon = tool.icon
@@ -1672,10 +1680,10 @@ export default function App() {
                     >
                       <div className="flex items-center gap-1.5 text-xs font-medium">
                         <Icon className="w-3.5 h-3.5" />
-                        <span>{tool.label}</span>
+                        <span>{t(tool.labelKey)}</span>
                         {!isVip && <span className="ml-auto text-orange">🔒</span>}
                       </div>
-                      <p className="text-[10px] opacity-70 mt-0.5">{tool.desc}</p>
+                      <p className="text-[10px] opacity-70 mt-0.5">{t(tool.descKey)}</p>
                     </button>
                   )
                 })}
@@ -2151,13 +2159,13 @@ export default function App() {
                       return (
                         <div className="flex items-center justify-between gap-3">
                           <div>
-                            <p className="text-xs text-purple-300 font-medium">🤖 AI 带货素材卡</p>
+                            <p className="text-xs text-purple-300 font-medium">🤖 {t('aiCommerceCardTitle')}</p>
                             <p className="text-[11px] text-slate-400 mt-0.5">
                               {task.commerceCardStatus === 'error'
-                                ? (task.commerceCardError || '生成失败，可重新生成')
+                                ? (task.commerceCardError || t('aiCommerceCardFailed'))
                                 : requested
-                                  ? '正在生成商品卖点、目标人群和口播脚本...'
-                                  : '可生成商品卖点、目标人群和口播脚本'}
+                                  ? t('aiCommerceCardGeneratingHint')
+                                  : t('aiCommerceCardReadyHint')}
                             </p>
                           </div>
                           <button
@@ -2165,7 +2173,7 @@ export default function App() {
                             disabled={copywritingLoading || task.commerceCardStatus === 'processing'}
                             className="shrink-0 px-3 py-1.5 rounded-lg text-xs bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 transition disabled:opacity-50"
                           >
-                            {copywritingLoading || task.commerceCardStatus === 'processing' ? '生成中...' : '生成'}
+                            {copywritingLoading || task.commerceCardStatus === 'processing' ? t('generating') : t('generate')}
                           </button>
                         </div>
                       )
@@ -2173,9 +2181,9 @@ export default function App() {
                     return (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-purple-300 font-medium">🤖 AI 带货素材卡</span>
+                        <span className="text-xs text-purple-300 font-medium">🤖 {t('aiCommerceCardTitle')}</span>
                         <button onClick={runCommerceCard} disabled={copywritingLoading} className="text-[10px] text-purple-400 hover:text-purple-300 disabled:opacity-50">
-                          {copywritingLoading ? '重生成中...' : '重新生成'}
+                          {copywritingLoading ? t('regenerating') : t('regenerate')}
                         </button>
                       </div>
                       {commerce.productName && (
@@ -2192,10 +2200,10 @@ export default function App() {
                         </div>
                       )}
                       {commerce.targetAudience && (
-                        <p className="text-xs text-slate-300">🎯 <span className="text-slate-400">目标人群：</span>{commerce.targetAudience}</p>
+                        <p className="text-xs text-slate-300">🎯 <span className="text-slate-400">{t('targetAudience')}：</span>{commerce.targetAudience}</p>
                       )}
                       {commerce.priceInfo && (
-                        <p className="text-xs text-slate-300">💰 <span className="text-slate-400">价格/优惠：</span>{commerce.priceInfo}</p>
+                        <p className="text-xs text-slate-300">💰 <span className="text-slate-400">{t('pricePromotion')}：</span>{commerce.priceInfo}</p>
                       )}
                       {commerce.copyScript && (
                         <div>
@@ -2207,7 +2215,7 @@ export default function App() {
                             onClick={() => clip(commerce.copyScript, 'copywrite')}
                             className="mt-1 text-[10px] text-purple-400 hover:text-purple-300"
                           >
-                            {copied === 'copywrite' ? '✓ 已复制' : '📋 复制脚本'}
+                            {copied === 'copywrite' ? `✓ ${t('copied')}` : `📋 ${t('copyScript')}`}
                           </button>
                         </div>
                       )}
