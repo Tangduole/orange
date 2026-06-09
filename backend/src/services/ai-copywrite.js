@@ -88,6 +88,7 @@ Requirements:
 4. Target audience.
 5. A ready-to-use e-commerce sales script, within 200 ${lang === 'en' ? 'words' : 'characters'}.
 6. Keyword tags, 5-8 items.
+7. Viral content breakdown: opening hook, customer pain points, conversion triggers, content structure, reasons it may perform well, platform fit, and rewrite angles.
 
 Return JSON only, without markdown or extra text:
 {
@@ -96,7 +97,14 @@ Return JSON only, without markdown or extra text:
   "priceInfo": "",
   "targetAudience": "",
   "copyScript": "",
-  "tags": ["", ""]
+  "tags": ["", ""],
+  "openingHook": "",
+  "painPoints": ["", ""],
+  "conversionTriggers": ["", ""],
+  "contentStructure": ["", ""],
+  "viralReason": ["", ""],
+  "platformFit": ["", ""],
+  "rewriteAngles": ["", ""]
 }
 
 Video transcript:
@@ -137,6 +145,13 @@ async function analyzeWithAI(transcript, outputLanguage = 'zh') {
         targetAudience: parsed.targetAudience || '',
         copyScript: parsed.copyScript || '',
         tags: parsed.tags || [],
+        openingHook: parsed.openingHook || '',
+        painPoints: parsed.painPoints || [],
+        conversionTriggers: parsed.conversionTriggers || [],
+        contentStructure: parsed.contentStructure || [],
+        viralReason: parsed.viralReason || [],
+        platformFit: parsed.platformFit || [],
+        rewriteAngles: parsed.rewriteAngles || [],
       };
     }
     throw new Error('AI 返回格式异常');
@@ -158,28 +173,56 @@ function buildMockAnalysis(transcript, outputLanguage = 'zh') {
       points: ['这是开发环境生成的模拟 AI 分析结果', '用于验证前端展示、素材库标签和使用量记录', '生产环境必须配置 AI_API_KEY 才会调用真实模型'],
       audience: '本地测试用户',
       script: sample ? `根据视频内容可提炼为：${sample}` : '这是本地测试生成的口播脚本。',
-      tags: ['本地测试', 'AI文案', '素材库', '开发模式']
+      tags: ['本地测试', 'AI文案', '素材库', '开发模式'],
+      hook: '3秒内点出商品核心场景，快速建立观看理由。',
+      pain: ['用户不知道素材价值点', '缺少可复用的带货脚本'],
+      triggers: ['强调省时', '突出可直接复用'],
+      structure: ['场景引入', '卖点说明', '行动号召'],
+      viral: ['信息密度高', '适合做短视频二创'],
+      platform: ['TikTok短视频', '抖音带货'],
+      angles: ['痛点开场版', '测评种草版', '限时优惠版']
     },
     en: {
       productName: 'Local Test Material',
       points: ['Mock AI analysis generated in development mode', 'Useful for verifying UI display, material tags, and usage metering', 'Production requires AI_API_KEY to call the real model'],
       audience: 'Local test users',
       script: sample ? `This video can be turned into the following sales angle: ${sample}` : 'This is a locally generated mock sales script.',
-      tags: ['local-test', 'ai-copy', 'materials', 'dev-mode']
+      tags: ['local-test', 'ai-copy', 'materials', 'dev-mode'],
+      hook: 'Lead with the core use case in the first 3 seconds.',
+      pain: ['Users need faster material analysis', 'Creators need reusable sales scripts'],
+      triggers: ['Save time', 'Ready-to-use copy'],
+      structure: ['Scene setup', 'Selling points', 'Call to action'],
+      viral: ['High information density', 'Easy to repurpose for short videos'],
+      platform: ['TikTok short videos', 'Product demo ads'],
+      angles: ['Pain-point opener', 'Review-style pitch', 'Limited-time offer']
     },
     ja: {
       productName: 'ローカルテスト素材',
       points: ['開発環境で生成された模擬AI分析結果です', 'UI表示、素材タグ、利用回数の検証に使えます', '本番環境では実モデル呼び出しにAI_API_KEYが必要です'],
       audience: 'ローカルテストユーザー',
       script: sample ? `動画内容から次の販売文を作成できます：${sample}` : 'これはローカルで生成された模擬販売スクリプトです。',
-      tags: ['ローカルテスト', 'AI文章', '素材庫', '開発モード']
+      tags: ['ローカルテスト', 'AI文章', '素材庫', '開発モード'],
+      hook: '最初の3秒で商品の利用シーンを提示します。',
+      pain: ['素材の価値を素早く把握したい', '再利用できる販売文が必要'],
+      triggers: ['時短を訴求', 'すぐ使える文案を提示'],
+      structure: ['シーン提示', 'セールスポイント', '行動喚起'],
+      viral: ['情報密度が高い', 'ショート動画に再編集しやすい'],
+      platform: ['TikTok短尺動画', '商品デモ広告'],
+      angles: ['悩み訴求型', 'レビュー型', '限定オファー型']
     },
     ko: {
       productName: '로컬 테스트 소재',
       points: ['개발 환경에서 생성된 mock AI 분석 결과입니다', 'UI 표시, 소재 태그, 사용량 기록을 검증하는 데 사용됩니다', '운영 환경에서는 실제 모델 호출을 위해 AI_API_KEY가 필요합니다'],
       audience: '로컬 테스트 사용자',
       script: sample ? `영상 내용을 바탕으로 다음 판매 문구를 만들 수 있습니다: ${sample}` : '로컬에서 생성된 mock 판매 스크립트입니다.',
-      tags: ['로컬테스트', 'AI카피', '소재함', '개발모드']
+      tags: ['로컬테스트', 'AI카피', '소재함', '개발모드'],
+      hook: '첫 3초 안에 핵심 사용 장면을 보여줍니다.',
+      pain: ['소재의 가치를 빠르게 파악해야 함', '재사용 가능한 판매 스크립트가 필요함'],
+      triggers: ['시간 절약 강조', '바로 쓸 수 있는 문구 제공'],
+      structure: ['상황 제시', '판매 포인트', '행동 유도'],
+      viral: ['정보 밀도가 높음', '숏폼 영상으로 재가공하기 쉬움'],
+      platform: ['TikTok 숏폼', '상품 데모 광고'],
+      angles: ['문제 제기형', '리뷰형', '한정 혜택형']
     }
   }[lang];
   return {
@@ -188,7 +231,14 @@ function buildMockAnalysis(transcript, outputLanguage = 'zh') {
     priceInfo: '',
     targetAudience: localized.audience,
     copyScript: localized.script,
-    tags: localized.tags
+    tags: localized.tags,
+    openingHook: localized.hook,
+    painPoints: localized.pain,
+    conversionTriggers: localized.triggers,
+    contentStructure: localized.structure,
+    viralReason: localized.viral,
+    platformFit: localized.platform,
+    rewriteAngles: localized.angles
   };
 }
 

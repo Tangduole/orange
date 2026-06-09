@@ -96,6 +96,7 @@ interface HistoryItem {
   platform?: string; thumbnailUrl?: string; createdAt: string | number
   url?: string; downloadUrl?: string; height?: number
   isFavorite?: boolean; tags?: string[] | string; notes?: string
+  aiAnalysis?: any; copywriteAnalysis?: any
 }
 interface AiUsageStatus {
   copywrite: {
@@ -149,6 +150,15 @@ const getAiOutputLanguage = (language: string) => {
   if (language.startsWith('ja')) return 'ja'
   if (language.startsWith('ko')) return 'ko'
   return 'zh'
+}
+
+const getHistoryAnalysis = (item: HistoryItem) => item.copywriteAnalysis || item.aiAnalysis || null
+
+const flattenAnalysisText = (value: any): string => {
+  if (!value) return ''
+  if (Array.isArray(value)) return value.map(flattenAnalysisText).join(' ')
+  if (typeof value === 'object') return Object.values(value).map(flattenAnalysisText).join(' ')
+  return String(value)
 }
 
 const ASR_LANGUAGE_OPTIONS = [
@@ -428,7 +438,15 @@ export default function App() {
     if (historyFilter !== 'all' && historyFilter !== 'favorites' && item.status !== historyFilter) return false
     if (historySearch) {
       const q = historySearch.toLowerCase()
-      const haystack = `${item.title || ''} ${normalizeHistoryTags(item.tags).join(' ')}`.toLowerCase()
+      const haystack = [
+        item.title || '',
+        item.url || '',
+        item.platform || '',
+        getPlatformLabel(item.platform || ''),
+        item.notes || '',
+        normalizeHistoryTags(item.tags).join(' '),
+        flattenAnalysisText(getHistoryAnalysis(item))
+      ].join(' ').toLowerCase()
       if (!haystack.includes(q)) return false
     }
     return true
@@ -550,6 +568,64 @@ export default function App() {
     } finally {
       setCopywritingLoading(false)
     }
+  }
+
+  const listify = (value: any): string[] => {
+    if (Array.isArray(value)) return value.map(item => String(item || '').trim()).filter(Boolean)
+    if (typeof value === 'string' && value.trim()) return [value.trim()]
+    return []
+  }
+
+  const buildCommerceCardExport = (commerce: any, format: 'md' | 'txt' = 'md') => {
+    const title = commerce.productName || task?.title || t('aiCommerceCardTitle')
+    const sections: Array<[string, string[]]> = [
+      [t('openingHook'), listify(commerce.openingHook)],
+      [t('aiSellingPoints'), listify(commerce.sellingPoints)],
+      [t('painPoints'), listify(commerce.painPoints)],
+      [t('conversionTriggers'), listify(commerce.conversionTriggers)],
+      [t('targetAudience'), listify(commerce.targetAudience)],
+      [t('pricePromotion'), listify(commerce.priceInfo)],
+      [t('contentStructure'), listify(commerce.contentStructure)],
+      [t('viralReason'), listify(commerce.viralReason)],
+      [t('platformFit'), listify(commerce.platformFit)],
+      [t('rewriteAngles'), listify(commerce.rewriteAngles)],
+      [t('aiScript'), listify(commerce.copyScript)],
+      [t('tags'), listify(commerce.tags).map(tag => `#${tag}`)]
+    ].filter(([, items]) => items.length > 0)
+
+    if (format === 'txt') {
+      return [
+        `${t('aiCommerceCardTitle')}: ${title}`,
+        '',
+        ...sections.flatMap(([heading, items]) => [
+          heading,
+          ...items.map(item => `- ${item}`),
+          ''
+        ])
+      ].join('\n')
+    }
+
+    return [
+      `# ${title}`,
+      '',
+      ...sections.flatMap(([heading, items]) => [
+        `## ${heading}`,
+        ...items.map(item => `- ${item}`),
+        ''
+      ])
+    ].join('\n')
+  }
+
+  const exportCommerceCard = (commerce: any, format: 'md' | 'txt') => {
+    const text = buildCommerceCardExport(commerce, format)
+    const filename = `${(commerce.productName || task?.title || 'commerce-card').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 80)}.${format}`
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+    const objectUrl = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = objectUrl
+    a.download = filename
+    a.click()
+    URL.revokeObjectURL(objectUrl)
   }
 
   const handleAuthSuccess = (token: string, user: any) => {
@@ -2186,12 +2262,19 @@ export default function App() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-purple-300 font-medium">🤖 {t('aiCommerceCardTitle')}</span>
-                        <button onClick={runCommerceCard} disabled={copywritingLoading} className="text-[10px] text-purple-400 hover:text-purple-300 disabled:opacity-50">
-                          {copywritingLoading ? t('regenerating') : t('regenerate')}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => exportCommerceCard(commerce, 'md')} className="text-[10px] text-purple-400 hover:text-purple-300">MD</button>
+                          <button onClick={() => exportCommerceCard(commerce, 'txt')} className="text-[10px] text-purple-400 hover:text-purple-300">TXT</button>
+                          <button onClick={runCommerceCard} disabled={copywritingLoading} className="text-[10px] text-purple-400 hover:text-purple-300 disabled:opacity-50">
+                            {copywritingLoading ? t('regenerating') : t('regenerate')}
+                          </button>
+                        </div>
                       </div>
                       {commerce.productName && (
                         <p className="text-xs text-slate-300">📦 <span className="text-white">{commerce.productName}</span></p>
+                      )}
+                      {commerce.openingHook && (
+                        <p className="text-xs text-slate-300">🪝 <span className="text-slate-400">{t('openingHook')}：</span>{commerce.openingHook}</p>
                       )}
                       {commerce.sellingPoints?.length > 0 && (
                         <div>
@@ -2203,11 +2286,71 @@ export default function App() {
                           </ul>
                         </div>
                       )}
+                      {commerce.painPoints?.length > 0 && (
+                        <div>
+                          <p className="text-[10px] text-slate-400 mb-1">⚠️ {t('painPoints')}</p>
+                          <ul className="text-xs text-slate-300 space-y-0.5">
+                            {commerce.painPoints.map((item: string, i: number) => (
+                              <li key={i} className="flex gap-1"><span className="text-purple-400">•</span> {item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {commerce.conversionTriggers?.length > 0 && (
+                        <div>
+                          <p className="text-[10px] text-slate-400 mb-1">🎯 {t('conversionTriggers')}</p>
+                          <ul className="text-xs text-slate-300 space-y-0.5">
+                            {commerce.conversionTriggers.map((item: string, i: number) => (
+                              <li key={i} className="flex gap-1"><span className="text-purple-400">•</span> {item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                       {commerce.targetAudience && (
                         <p className="text-xs text-slate-300">🎯 <span className="text-slate-400">{t('targetAudience')}：</span>{commerce.targetAudience}</p>
                       )}
                       {commerce.priceInfo && (
                         <p className="text-xs text-slate-300">💰 <span className="text-slate-400">{t('pricePromotion')}：</span>{commerce.priceInfo}</p>
+                      )}
+                      {commerce.contentStructure?.length > 0 && (
+                        <div>
+                          <p className="text-[10px] text-slate-400 mb-1">🧩 {t('contentStructure')}</p>
+                          <div className="flex flex-wrap gap-1">
+                            {commerce.contentStructure.map((item: string, i: number) => (
+                              <span key={i} className="text-[10px] px-1.5 py-0.5 bg-slate-700/60 text-slate-300 rounded-full">{i + 1}. {item}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {commerce.viralReason?.length > 0 && (
+                        <div>
+                          <p className="text-[10px] text-slate-400 mb-1">📈 {t('viralReason')}</p>
+                          <ul className="text-xs text-slate-300 space-y-0.5">
+                            {commerce.viralReason.map((item: string, i: number) => (
+                              <li key={i} className="flex gap-1"><span className="text-purple-400">•</span> {item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {commerce.platformFit?.length > 0 && (
+                        <div>
+                          <p className="text-[10px] text-slate-400 mb-1">📱 {t('platformFit')}</p>
+                          <div className="flex flex-wrap gap-1">
+                            {commerce.platformFit.map((item: string, i: number) => (
+                              <span key={i} className="text-[10px] px-1.5 py-0.5 bg-blue-500/10 text-blue-300 rounded-full">{item}</span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {commerce.rewriteAngles?.length > 0 && (
+                        <div>
+                          <p className="text-[10px] text-slate-400 mb-1">✍️ {t('rewriteAngles')}</p>
+                          <div className="flex flex-wrap gap-1">
+                            {commerce.rewriteAngles.map((item: string, i: number) => (
+                              <span key={i} className="text-[10px] px-1.5 py-0.5 bg-emerald-500/10 text-emerald-300 rounded-full">{item}</span>
+                            ))}
+                          </div>
+                        </div>
                       )}
                       {commerce.copyScript && (
                         <div>
@@ -2509,6 +2652,9 @@ export default function App() {
                             ))}
                             {normalizeHistoryTags(item.tags).length > 2 && (
                               <span className="shrink-0 text-[10px] text-slate-500">+{normalizeHistoryTags(item.tags).length - 2}</span>
+                            )}
+                            {getHistoryAnalysis(item) && (
+                              <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-300" title={t('aiCommerceCardTitle')}>AI</span>
                             )}
                           </div>
                           <span className="shrink-0 text-[10px] text-slate-500">{new Date(item.createdAt).toLocaleString(i18n.language === 'zh-CN' ? 'zh-CN' : i18n.language === 'ja' ? 'ja-JP' : i18n.language === 'ko' ? 'ko-KR' : 'en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
