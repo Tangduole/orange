@@ -3052,4 +3052,4 @@ module.exports = {
   adminClearAllHistory,
   detectPlatform
 };
-// force redeploy Thu Mar 26 13:57:07 CST 2026
+// force redeploy Tue Jun 9 2026 after GitHub Secrets fix
