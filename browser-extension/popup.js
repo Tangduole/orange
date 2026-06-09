@@ -1,4 +1,4 @@
-const ORANGE_URL = "https://orangedl.com";
+const ORANGE_URL = "https://www.orangedl.com";
 
 async function getActiveTab() {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });

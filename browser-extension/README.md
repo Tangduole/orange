@@ -13,10 +13,10 @@ Minimal Chrome/Edge extension for sending the current tab URL to Orange Download
 The extension opens:
 
 ```text
-https://orangedl.com?url=<current-page-url>&source=extension
+https://www.orangedl.com?url=<current-page-url>&source=extension
 ```
 
-The web app reads the `url` query parameter and pre-fills the download input.
+The web app reads the `url` query parameter, pre-fills the download input, and shows a confirmation banner with a Start Download action.
 
 ## Production Notes
 

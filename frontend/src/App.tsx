@@ -249,6 +249,7 @@ export default function App() {
   const [availableQualities, setAvailableQualities] = useState<Array<{qualityLabel?: string, quality: string, format: string, width: number, height: number, hasVideo: boolean, hasAudio: boolean, size?: number}>>([])
   const [qualitiesLoading, setQualitiesLoading] = useState(false)
   const [autoQuality, setAutoQuality] = useState<{label: string, height: number} | null>(null) // 自动选择的画质
+  const [sharedEntrySource, setSharedEntrySource] = useState<'extension' | 'share' | ''>('')
     const [pendingUrl, setPendingUrl] = useState('')
   const [pendingQuality, setPendingQuality] = useState('')
   const [batchUrls, setBatchUrls] = useState('')
@@ -984,6 +985,7 @@ export default function App() {
     const finalUrl = urls.length === 1 ? urls[0] : value.trim()
     const platform = detectPlatform(finalUrl)
     
+    setSharedEntrySource('')
     setUrl(finalUrl)
     setDetected(platform)
     setPendingQuality('')
@@ -1000,6 +1002,7 @@ export default function App() {
     try {
       const text = await navigator.clipboard.readText()
       const urls = text.match(/https?:\/\/[^\s\n,，、；;）)】"']+/g) || []
+      setSharedEntrySource('')
       if (urls.length > 1) {
         if (!isVip) { setShowUpgradePopup(true); return }
         setBatchMode(true)
@@ -1097,10 +1100,12 @@ export default function App() {
   }
 
   useEffect(() => {
-    const sharedUrl = new URLSearchParams(window.location.search).get('url')
+    const params = new URLSearchParams(window.location.search)
+    const sharedUrl = params.get('url')
     if (!sharedUrl) return
     setUrl(sharedUrl)
     setDetected(detectPlatform(sharedUrl))
+    setSharedEntrySource(params.get('source') === 'extension' ? 'extension' : 'share')
     fetchVideoQualities(sharedUrl).catch(() => {})
     const clean = new URL(window.location.href)
     clean.searchParams.delete('url')
@@ -1371,7 +1376,7 @@ export default function App() {
     if (bytes < 1073741824) return `${(bytes / 1048576).toFixed(1)} MB`
     return `${(bytes / 1073741824).toFixed(2)} GB`
   }
-  const clearUrl = () => { setUrl(''); setDetected('') }
+  const clearUrl = () => { setUrl(''); setDetected(''); setSharedEntrySource('') }
 
   const isWorking = (s: string) => ['pending', 'parsing', 'processing', 'downloading', 'asr'].includes(s)
   const statusLabel = (s: string) => ({ pending: t('pending'), parsing: t('parsing'), downloading: t('downloading'), asr: t('speechRecognition'), completed: t('completed'), error: t('failed') }[s] || s)
@@ -1579,6 +1584,23 @@ export default function App() {
                     </div>
                   )}
                 </div>
+                {sharedEntrySource && url && (
+                  <div className="mt-3 p-3 rounded-xl bg-orange/10 border border-orange/30 flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-xs text-orange font-medium">
+                        {sharedEntrySource === 'extension' ? t('extensionLinkReceived') : t('sharedLinkReceived')}
+                      </p>
+                      <p className="text-[11px] text-slate-400 truncate mt-0.5">{t('sharedLinkHint')}</p>
+                    </div>
+                    <button
+                      onClick={handleSubmit}
+                      disabled={loading}
+                      className="shrink-0 px-3 py-1.5 rounded-lg bg-orange text-white text-xs font-medium hover:bg-orange-dark transition disabled:opacity-60"
+                    >
+                      {loading ? t('processing') : t('startDownload')}
+                    </button>
+                  </div>
+                )}
 
               </div>
             )}

@@ -361,5 +361,8 @@
   "allTags": "모든 태그",
   "aiCardsOnly": "AI 소재 카드만",
   "selectedCount": "{{count}}개 선택됨",
-  "noAiCardsToExport": "AI 소재 카드가 있는 기록을 선택하세요"
+  "noAiCardsToExport": "AI 소재 카드가 있는 기록을 선택하세요",
+  "extensionLinkReceived": "브라우저 확장 프로그램에서 링크를 받았습니다",
+  "sharedLinkReceived": "공유 링크를 받았습니다",
+  "sharedLinkHint": "다운로드 콘텐츠와 AI 도구를 확인한 뒤 시작하세요"
 }

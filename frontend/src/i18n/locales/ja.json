@@ -361,5 +361,8 @@
   "allTags": "すべてのタグ",
   "aiCardsOnly": "AI素材カードのみ",
   "selectedCount": "{{count}}件選択中",
-  "noAiCardsToExport": "AI素材カードがある履歴を選択してください"
+  "noAiCardsToExport": "AI素材カードがある履歴を選択してください",
+  "extensionLinkReceived": "ブラウザ拡張機能からリンクを受信しました",
+  "sharedLinkReceived": "共有リンクを受信しました",
+  "sharedLinkHint": "ダウンロード内容とAIツールを確認して開始できます"
 }

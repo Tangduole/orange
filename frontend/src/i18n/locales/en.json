@@ -361,5 +361,8 @@
   "allTags": "All tags",
   "aiCardsOnly": "AI cards only",
   "selectedCount": "{{count}} selected",
-  "noAiCardsToExport": "Select history items that already have AI material cards"
+  "noAiCardsToExport": "Select history items that already have AI material cards",
+  "extensionLinkReceived": "Link received from browser extension",
+  "sharedLinkReceived": "Shared link received",
+  "sharedLinkHint": "Confirm download content and AI tools, then start"
 }
