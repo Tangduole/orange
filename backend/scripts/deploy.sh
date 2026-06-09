@@ -7,16 +7,19 @@
 
 set -e
 
-BACKEND_DIR="/opt/orange/backend"
+BACKEND_DIR="/root/orange-backend"
 APP_NAME="orange-backend"
 
-echo "[1/3] Git pull..."
+echo "[1/4] Git pull..."
 cd $BACKEND_DIR && git pull origin master
 
-echo "[2/3] 安装依赖..."
-cd $BACKEND_DIR/backend && npm install --production
+echo "[2/4] 安装后端依赖..."
+cd $BACKEND_DIR/backend && npm install --no-audit --no-fund
 
-echo "[3/3] 重启 PM2..."
-pm2 restart $APP_NAME
+echo "[3/4] 重启 PM2..."
+pm2 restart $APP_NAME --update-env
 pm2 save
 pm2 logs $APP_NAME --lines 3 --nostream
+
+echo "[4/4] 构建前端..."
+cd $BACKEND_DIR/frontend && npm install --no-audit --no-fund && npm run build

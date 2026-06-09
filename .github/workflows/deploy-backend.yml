@@ -27,4 +27,8 @@ jobs:
           command_timeout: 10m
           script: |
             set -e
-            bash /opt/orange/backend/backend/scripts/deploy.sh
+            cd /root/orange-backend
+            git pull origin master
+            cd backend && npm install --no-audit --no-fund
+            pm2 restart orange-backend --update-env
+            cd ../frontend && npm install --no-audit --no-fund && npm run build

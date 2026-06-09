@@ -2,7 +2,7 @@ module.exports = {
   apps: [{
     name: 'orange-backend',
     script: 'src/app.js',
-    cwd: '/opt/orange/backend/backend',
+    cwd: '/root/orange-backend/backend',
     instances: 1,
     exec_mode: 'fork',
     env_production: {
@@ -10,7 +10,7 @@ module.exports = {
       PORT: 3000
     },
     env: {
-      // 环境变量从 /opt/orange/backend/.env 读取
+      // 环境变量从 /root/orange-backend/backend/.env 读取
       // 不要在这里写任何密钥！
     },
     watch: false,
