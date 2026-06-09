@@ -160,11 +160,11 @@ const ASR_LANGUAGE_OPTIONS = [
 ]
 
 const BATCH_QUALITY_OPTIONS = [
-  { value: '',         label: '自动最佳', icon: '🔄', height: 0 },
+  { value: '', labelKey: 'qualityAutoBest', icon: '🔄', height: 0 },
   { value: 'height<=1080', label: '1080p', icon: '📺', height: 1080 },
-  { value: 'height<=99999', label: '原画',  icon: '🎞️', height: 1080, vipOnly: true },
-  { value: 'height<=1440', label: '2K',    icon: '🎬', height: 1440 },
-  { value: 'height<=2160', label: '4K',    icon: '🎥', height: 2160 },
+  { value: 'height<=99999', labelKey: 'originalQuality', icon: '🎞️', height: 1080, vipOnly: true },
+  { value: 'height<=1440', label: '2K', icon: '🎬', height: 1440 },
+  { value: 'height<=2160', label: '4K', icon: '🎥', height: 2160 },
 ]
 
 function formatBytes(bytes: number): string {
@@ -1596,7 +1596,7 @@ export default function App() {
                           }`}
                         >
                           <span>{opt.icon}</span>
-                          <span>{opt.label}</span>
+                          <span>{opt.labelKey ? t(opt.labelKey) : opt.label}</span>
                           {isHigh && !isVip && <span className="text-[10px]">⭐</span>}
                         </button>
                       )
@@ -1702,7 +1702,7 @@ export default function App() {
                           qualityManuallySet.current = true
                           setPendingQuality('height<=99999')
                           setQuality('height<=99999')
-                          setAutoQuality({ label: '原画', height: 99999 })
+                          setAutoQuality({ label: t('originalQuality'), height: 99999 })
                         }}
                         className={`flex items-center gap-1.5 px-3 py-2 text-xs rounded-lg transition-all ${
                           pendingQuality === 'height<=99999'
@@ -1711,7 +1711,7 @@ export default function App() {
                         }`}
                       >
                         <span>🎞️</span>
-                        <span>原画</span>
+                        <span>{t('originalQuality')}</span>
                         <span className="text-[10px] opacity-60">VIP</span>
                       </button>
                     )}
@@ -1875,22 +1875,26 @@ export default function App() {
             )}
             {isVip && (
               <div className={`mb-3 text-center text-xs py-2 rounded-xl font-medium ${isDark ? 'bg-yellow-500/10 text-yellow-400' : 'bg-amber-100 text-amber-700 border border-amber-200'}`}>
-                ⭐ 无限制下载 · 原画品质
+                ⭐ {t('proUnlimitedOriginalQuality')}
               </div>
             )}
             {authToken && aiUsage && (
               <div className={`mb-3 grid grid-cols-2 gap-2 text-[11px] ${isDark ? 'text-slate-300' : 'text-light-textSecondary'}`}>
                 <div className={`rounded-xl px-3 py-2 ${isDark ? 'bg-purple-500/10 border border-purple-500/20' : 'bg-purple-50 border border-purple-100'}`}>
-                  <p className="text-purple-300 font-medium">AI 文案额度</p>
+                  <p className="text-purple-300 font-medium">{t('aiCopyQuota')}</p>
                   <p className="mt-0.5">
                     {aiUsage.copywrite.limit < 0
-                      ? `已用 ${aiUsage.copywrite.used} 次 / 不限`
-                      : `已用 ${aiUsage.copywrite.used}/${aiUsage.copywrite.limit} 次，剩余 ${aiUsage.copywrite.remaining} 次`}
+                      ? t('aiQuotaUsedUnlimited', { used: aiUsage.copywrite.used })
+                      : t('aiQuotaUsedRemaining', { used: aiUsage.copywrite.used, limit: aiUsage.copywrite.limit, remaining: aiUsage.copywrite.remaining })}
                   </p>
                 </div>
                 <div className={`rounded-xl px-3 py-2 ${isDark ? 'bg-slate-800/60 border border-slate-700/60' : 'bg-light-input border border-light-border'}`}>
-                  <p className="text-orange font-medium">文件保留</p>
-                  <p className="mt-0.5">{aiUsage.retention.hours >= 24 ? `${Math.round(aiUsage.retention.hours / 24)} 天` : `${aiUsage.retention.hours} 小时`}</p>
+                  <p className="text-orange font-medium">{t('fileRetention')}</p>
+                  <p className="mt-0.5">
+                    {aiUsage.retention.hours >= 24
+                      ? t('retentionDays', { count: Math.round(aiUsage.retention.hours / 24) })
+                      : t('retentionHours', { count: aiUsage.retention.hours })}
+                  </p>
                 </div>
               </div>
             )}
@@ -1908,11 +1912,11 @@ export default function App() {
                     {loading ? (
                       <><Loader2 className="w-5 h-5 animate-spin" />{batchMode ? `${t('processing')} ${batchIndex + 1}/${batchQueue.length}...` : t('processing')}</>
                     ) : (
-                      <><Zap className="w-5 h-5" />{autoQuality ? `${t('startDownload')} (${autoQuality.label})` : t('startDownload')}</>
+                      <><Zap className="w-5 h-5" />{autoQuality ? `${t('startDownload')} (${autoQuality.height === 99999 ? t('originalQuality') : autoQuality.label})` : t('startDownload')}</>
                     )}
                   </button>
                   {!isVip && (
-                    <p className="text-center text-[11px] text-slate-500">免费用户每天 3 次下载</p>
+                    <p className="text-center text-[11px] text-slate-500">{t('freeDailyDownloads')}</p>
                   )}
                 </div>
               )}
@@ -2434,15 +2438,15 @@ export default function App() {
           {/* Pro 功能预览 — 游客可见，点击引导升级 */}
           {!isVip && (
             <div className="mt-4 bg-slate-800/30 rounded-2xl p-4 border border-slate-700/30">
-              <p className="text-xs text-slate-500 mb-3">⭐ Pro 专属功能预览</p>
+              <p className="text-xs text-slate-500 mb-3">⭐ {t('proFeaturePreview')}</p>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 {[
-                  { icon: '🎬', title: '原画 4K', desc: '无压缩原始画质' },
-                  { icon: '📦', title: '批量下载', desc: '一次性下多个视频' },
-                  { icon: '🤖', title: 'AI 文案提取', desc: '自动提取口播带货文案' },
-                  { icon: '📊', title: 'AI 视频总结', desc: '摘要+标签+推荐标题' },
-                  { icon: '🌐', title: '翻译字幕', desc: 'ASR→翻译→烧录到视频' },
-                  { icon: '🔓', title: '无限下载', desc: '不限次数随心下载' },
+                  { icon: '🎬', title: t('proFeatureOriginal4K'), desc: t('proFeatureOriginal4KDesc') },
+                  { icon: '📦', title: t('proFeatureBatch'), desc: t('proFeatureBatchDesc') },
+                  { icon: '🤖', title: t('proFeatureAiCopy'), desc: t('proFeatureAiCopyDesc') },
+                  { icon: '📊', title: t('proFeatureAiSummary'), desc: t('proFeatureAiSummaryDesc') },
+                  { icon: '🌐', title: t('proFeatureTranslatedSubtitle'), desc: t('proFeatureTranslatedSubtitleDesc') },
+                  { icon: '🔓', title: t('proFeatureUnlimited'), desc: t('proFeatureUnlimitedDesc') },
                 ].map(f => (
                   <div key={f.title} className="flex items-start gap-2 p-2 bg-slate-700/20 rounded-lg cursor-pointer hover:bg-slate-700/30 transition" onClick={() => setShowUpgradePopup(true)}>
                     <span className="text-base">{f.icon}</span>
