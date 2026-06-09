@@ -626,16 +626,22 @@ export default function App() {
     ].join('\n')
   }
 
-  const exportCommerceCard = (commerce: any, format: 'md' | 'txt') => {
-    const text = buildCommerceCardExport(commerce, format)
-    const filename = `${(commerce.productName || task?.title || 'commerce-card').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 80)}.${format}`
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+  const downloadUtf8TextFile = (text: string, filename: string) => {
+    // Add BOM so Windows Notepad/Excel-like viewers do not misread CJK text as ANSI.
+    const content = `\uFEFF${text.replace(/\n/g, '\r\n')}`
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' })
     const objectUrl = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = objectUrl
     a.download = filename
     a.click()
     URL.revokeObjectURL(objectUrl)
+  }
+
+  const exportCommerceCard = (commerce: any, format: 'md' | 'txt') => {
+    const text = buildCommerceCardExport(commerce, format)
+    const filename = `${(commerce.productName || task?.title || 'commerce-card').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 80)}.${format}`
+    downloadUtf8TextFile(text, filename)
   }
 
   const exportSelectedCommerceCards = (format: 'md' | 'txt') => {
@@ -648,13 +654,7 @@ export default function App() {
     const text = selectedItems
       .map(item => buildCommerceCardExport(getHistoryAnalysis(item), format, item.title || item.url || item.taskId))
       .join(separator)
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
-    const objectUrl = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = objectUrl
-    a.download = `orange-commerce-cards-${selectedItems.length}.${format}`
-    a.click()
-    URL.revokeObjectURL(objectUrl)
+    downloadUtf8TextFile(text, `orange-commerce-cards-${selectedItems.length}.${format}`)
   }
 
   const handleAuthSuccess = (token: string, user: any) => {
