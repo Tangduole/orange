@@ -24,10 +24,7 @@ jobs:
           username: root
           key: ${{ secrets.VULTR_SSH_PRIVATE_KEY }}
           port: 22
+          command_timeout: 10m
           script: |
-            cd /opt/orange/backend
-            git pull origin master
-            npm install --production
-            pm2 restart orange-backend || pm2 start ecosystem.config.js
-            pm2 save
-            pm2 logs orange-backend --lines 5 --nostream
+            set -e
+            bash /opt/orange/backend/backend/scripts/deploy.sh

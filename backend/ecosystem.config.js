@@ -2,7 +2,7 @@ module.exports = {
   apps: [{
     name: 'orange-backend',
     script: 'src/app.js',
-    cwd: '/opt/orange/backend',
+    cwd: '/opt/orange/backend/backend',
     instances: 1,
     exec_mode: 'fork',
     env_production: {
