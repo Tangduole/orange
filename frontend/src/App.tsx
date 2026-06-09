@@ -422,6 +422,9 @@ export default function App() {
   }, [authToken, fetchAiUsage])
   const [historySearch, setHistorySearch] = useState('')
   const [historyFilter, setHistoryFilter] = useState<'all' | 'completed' | 'error' | 'favorites'>('all')
+  const [historyPlatformFilter, setHistoryPlatformFilter] = useState('all')
+  const [historyTagFilter, setHistoryTagFilter] = useState('all')
+  const [historyAiOnly, setHistoryAiOnly] = useState(false)
   const [favorites, setFavorites] = useState<Set<string>>(() => new Set(readStoredJson<string[]>('orange_favorites', [])))
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set())
   const [editingMaterial, setEditingMaterial] = useState<HistoryItem | null>(null)
@@ -432,10 +435,16 @@ export default function App() {
   const [lexiconLoading, setLexiconLoading] = useState(false)
   const [lexiconMessage, setLexiconMessage] = useState('')
 
+  const historyPlatformOptions = Array.from(new Set(history.map(item => item.platform).filter(Boolean) as string[]))
+  const historyTagOptions = Array.from(new Set(history.flatMap(item => normalizeHistoryTags(item.tags)))).slice(0, 60)
+
   const filteredHistory = history.filter(item => {
     const isFav = item.isFavorite || favorites.has(item.taskId)
     if (historyFilter === 'favorites' && !isFav) return false
     if (historyFilter !== 'all' && historyFilter !== 'favorites' && item.status !== historyFilter) return false
+    if (historyPlatformFilter !== 'all' && item.platform !== historyPlatformFilter) return false
+    if (historyTagFilter !== 'all' && !normalizeHistoryTags(item.tags).includes(historyTagFilter)) return false
+    if (historyAiOnly && !getHistoryAnalysis(item)) return false
     if (historySearch) {
       const q = historySearch.toLowerCase()
       const haystack = [
@@ -576,21 +585,22 @@ export default function App() {
     return []
   }
 
-  const buildCommerceCardExport = (commerce: any, format: 'md' | 'txt' = 'md') => {
-    const title = commerce.productName || task?.title || t('aiCommerceCardTitle')
+  const buildCommerceCardExport = (commerce: any, format: 'md' | 'txt' = 'md', fallbackTitle?: string) => {
+    const title = commerce.productName || fallbackTitle || task?.title || t('aiCommerceCardTitle')
+    const section = (heading: string, items: string[]): [string, string[]] => [heading, items]
     const sections: Array<[string, string[]]> = [
-      [t('openingHook'), listify(commerce.openingHook)],
-      [t('aiSellingPoints'), listify(commerce.sellingPoints)],
-      [t('painPoints'), listify(commerce.painPoints)],
-      [t('conversionTriggers'), listify(commerce.conversionTriggers)],
-      [t('targetAudience'), listify(commerce.targetAudience)],
-      [t('pricePromotion'), listify(commerce.priceInfo)],
-      [t('contentStructure'), listify(commerce.contentStructure)],
-      [t('viralReason'), listify(commerce.viralReason)],
-      [t('platformFit'), listify(commerce.platformFit)],
-      [t('rewriteAngles'), listify(commerce.rewriteAngles)],
-      [t('aiScript'), listify(commerce.copyScript)],
-      [t('tags'), listify(commerce.tags).map(tag => `#${tag}`)]
+      section(t('openingHook'), listify(commerce.openingHook)),
+      section(t('aiSellingPoints'), listify(commerce.sellingPoints)),
+      section(t('painPoints'), listify(commerce.painPoints)),
+      section(t('conversionTriggers'), listify(commerce.conversionTriggers)),
+      section(t('targetAudience'), listify(commerce.targetAudience)),
+      section(t('pricePromotion'), listify(commerce.priceInfo)),
+      section(t('contentStructure'), listify(commerce.contentStructure)),
+      section(t('viralReason'), listify(commerce.viralReason)),
+      section(t('platformFit'), listify(commerce.platformFit)),
+      section(t('rewriteAngles'), listify(commerce.rewriteAngles)),
+      section(t('aiScript'), listify(commerce.copyScript)),
+      section(t('tags'), listify(commerce.tags).map(tag => `#${tag}`))
     ].filter(([, items]) => items.length > 0)
 
     if (format === 'txt') {
@@ -624,6 +634,25 @@ export default function App() {
     const a = document.createElement('a')
     a.href = objectUrl
     a.download = filename
+    a.click()
+    URL.revokeObjectURL(objectUrl)
+  }
+
+  const exportSelectedCommerceCards = (format: 'md' | 'txt') => {
+    const selectedItems = history.filter(item => selectedTasks.has(item.taskId) && getHistoryAnalysis(item))
+    if (selectedItems.length === 0) {
+      setError(t('noAiCardsToExport'))
+      return
+    }
+    const separator = format === 'md' ? '\n\n---\n\n' : '\n\n==============================\n\n'
+    const text = selectedItems
+      .map(item => buildCommerceCardExport(getHistoryAnalysis(item), format, item.title || item.url || item.taskId))
+      .join(separator)
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
+    const objectUrl = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = objectUrl
+    a.download = `orange-commerce-cards-${selectedItems.length}.${format}`
     a.click()
     URL.revokeObjectURL(objectUrl)
   }
@@ -2620,22 +2649,51 @@ export default function App() {
             </button>
             {showHistory && (
               <div className={`mt-2 rounded-2xl border overflow-hidden ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-light-surface border-light-border'}`}>
-                <div className={`flex gap-2 p-3 border-b items-center ${isDark ? 'border-slate-700/30' : 'border-light-border'}`}>
-                  {filteredHistory.length > 0 && <input type="checkbox" checked={selectedTasks.size === filteredHistory.length} onChange={toggleSelectAll} className={`w-3.5 h-3.5 rounded-full ${isDark ? 'border-slate-600' : 'border-light-border'}`} />}
-                  {selectedTasks.size > 0 && <button onClick={deleteSelected} className="px-3 py-1.5 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg text-xs">{t('clearAll')} ({selectedTasks.size})</button>}
-                  <div className="flex-1 relative">
-                    <input type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} placeholder={t('searchPlaceholder')} className={`w-full pl-8 pr-3 py-2 border rounded-lg text-sm placeholder:text-slate-300 ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`} />
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
+                <div className={`p-3 border-b space-y-2 ${isDark ? 'border-slate-700/30' : 'border-light-border'}`}>
+                  <div className="flex gap-2 items-center">
+                    {filteredHistory.length > 0 && <input type="checkbox" checked={selectedTasks.size === filteredHistory.length} onChange={toggleSelectAll} className={`w-3.5 h-3.5 rounded-full ${isDark ? 'border-slate-600' : 'border-light-border'}`} />}
+                    {selectedTasks.size > 0 && (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-[10px] text-slate-400">{t('selectedCount', { count: selectedTasks.size })}</span>
+                        <button onClick={() => exportSelectedCommerceCards('md')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">MD</button>
+                        <button onClick={() => exportSelectedCommerceCards('txt')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">TXT</button>
+                        <button onClick={deleteSelected} className="px-2 py-1 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg text-[10px]">{t('clearAll')}</button>
+                      </div>
+                    )}
+                    <div className="flex-1 relative">
+                      <input type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} placeholder={t('searchPlaceholder')} className={`w-full pl-8 pr-3 py-2 border rounded-lg text-sm placeholder:text-slate-300 ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`} />
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
+                    </div>
                   </div>
-                  <select value={historyFilter} onChange={(e) => setHistoryFilter(e.target.value as 'all' | 'completed' | 'error' | 'favorites')} className={`px-3 py-2 border rounded-lg text-sm ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`}>
-                    <option value="all">{t('filterAll')}</option>
-                    <option value="completed">{t('filterDone')}</option>
-                    <option value="error">{t('filterFailed')}</option>
-                    <option value="favorites">{t('filterFav')}</option>
-                  </select>
+                  <div className="flex flex-wrap gap-2 items-center">
+                    <select value={historyFilter} onChange={(e) => setHistoryFilter(e.target.value as 'all' | 'completed' | 'error' | 'favorites')} className={`px-2 py-1.5 border rounded-lg text-xs ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`}>
+                      <option value="all">{t('filterAll')}</option>
+                      <option value="completed">{t('filterDone')}</option>
+                      <option value="error">{t('filterFailed')}</option>
+                      <option value="favorites">{t('filterFav')}</option>
+                    </select>
+                    <select value={historyPlatformFilter} onChange={(e) => setHistoryPlatformFilter(e.target.value)} className={`px-2 py-1.5 border rounded-lg text-xs ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`}>
+                      <option value="all">{t('allPlatforms')}</option>
+                      {historyPlatformOptions.map(platform => (
+                        <option key={platform} value={platform}>{getPlatformLabel(platform)}</option>
+                      ))}
+                    </select>
+                    <select value={historyTagFilter} onChange={(e) => setHistoryTagFilter(e.target.value)} className={`px-2 py-1.5 border rounded-lg text-xs ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`}>
+                      <option value="all">{t('allTags')}</option>
+                      {historyTagOptions.map(tag => (
+                        <option key={tag} value={tag}>#{tag}</option>
+                      ))}
+                    </select>
+                    <button
+                      onClick={() => setHistoryAiOnly(v => !v)}
+                      className={`px-2 py-1.5 border rounded-lg text-xs transition ${historyAiOnly ? 'bg-purple-500/20 border-purple-500/40 text-purple-300' : isDark ? 'bg-slate-800/50 border-slate-700/50 text-slate-300' : 'bg-light-bg border-light-border text-light-text'}`}
+                    >
+                      {t('aiCardsOnly')}
+                    </button>
+                  </div>
                 </div>
                 <div className="max-h-60 overflow-y-auto">
-                  {filteredHistory.length === 0 ? <p className="py-8 text-center text-sm text-slate-500">{historySearch || historyFilter !== 'all' ? t('noResults') : t('noHistory')}</p> : filteredHistory.map(item => (
+                  {filteredHistory.length === 0 ? <p className="py-8 text-center text-sm text-slate-500">{historySearch || historyFilter !== 'all' || historyPlatformFilter !== 'all' || historyTagFilter !== 'all' || historyAiOnly ? t('noResults') : t('noHistory')}</p> : filteredHistory.map(item => (
                     <div key={item.taskId} className={`flex items-center gap-2 px-3 py-2 border-b border-slate-700/20 last:border-0 hover:bg-slate-900/60 transition ${selectedTasks.has(item.taskId) ? 'bg-orange/10' : ''}`}>
                       <input type="checkbox" checked={selectedTasks.has(item.taskId)} onChange={() => { const s = new Set(selectedTasks); selectedTasks.has(item.taskId) ? s.delete(item.taskId) : s.add(item.taskId); setSelectedTasks(s) }} className="w-3.5 h-3.5 rounded-full border-slate-600 shrink-0" />
                       {item.thumbnailUrl ? <button onClick={() => openSavedFile(item)} className="relative shrink-0 group"><img src={`${BASE_URL}${item.thumbnailUrl}`} alt="" className="w-12 h-9 object-cover rounded-lg" /><div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 transition"><Play className="w-4 h-4 text-white" /></div></button> : <div className="w-12 h-9 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0"><Video className="w-4 h-4 text-slate-500" /></div>}

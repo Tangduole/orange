@@ -356,5 +356,10 @@
   "lifetime": "终身",
   "once": "一次",
   "bestValue": "最划算",
-  "payOnceForever": "一次付费，永久使用"
+  "payOnceForever": "一次付费，永久使用",
+  "allPlatforms": "全部平台",
+  "allTags": "全部标签",
+  "aiCardsOnly": "仅 AI 素材卡",
+  "selectedCount": "已选 {{count}}",
+  "noAiCardsToExport": "请选择已有 AI 素材卡的历史记录"
 }

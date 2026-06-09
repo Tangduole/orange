@@ -356,5 +356,10 @@
   "lifetime": "평생",
   "once": "1회",
   "bestValue": "최고가치",
-  "payOnceForever": "한 번 결제, 평생 사용"
+  "payOnceForever": "한 번 결제, 평생 사용",
+  "allPlatforms": "모든 플랫폼",
+  "allTags": "모든 태그",
+  "aiCardsOnly": "AI 소재 카드만",
+  "selectedCount": "{{count}}개 선택됨",
+  "noAiCardsToExport": "AI 소재 카드가 있는 기록을 선택하세요"
 }

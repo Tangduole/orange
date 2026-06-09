@@ -356,5 +356,10 @@
   "lifetime": "Lifetime",
   "once": "Once",
   "bestValue": "Best Value",
-  "payOnceForever": "Pay once, use forever"
+  "payOnceForever": "Pay once, use forever",
+  "allPlatforms": "All platforms",
+  "allTags": "All tags",
+  "aiCardsOnly": "AI cards only",
+  "selectedCount": "{{count}} selected",
+  "noAiCardsToExport": "Select history items that already have AI material cards"
 }

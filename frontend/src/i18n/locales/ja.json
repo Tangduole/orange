@@ -356,5 +356,10 @@
   "lifetime": "永久",
   "once": "一回",
   "bestValue": "お得",
-  "payOnceForever": "一度の支払いで永続利用"
+  "payOnceForever": "一度の支払いで永続利用",
+  "allPlatforms": "すべてのプラットフォーム",
+  "allTags": "すべてのタグ",
+  "aiCardsOnly": "AI素材カードのみ",
+  "selectedCount": "{{count}}件選択中",
+  "noAiCardsToExport": "AI素材カードがある履歴を選択してください"
 }
