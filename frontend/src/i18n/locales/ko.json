@@ -382,7 +382,7 @@
   "platformPublishHint": "플랫폼을 선택하면 바로 게시할 제목, 캡션, 해시태그, 짧은 스크립트를 생성합니다.",
   "copyPack": "패키지 복사",
   "batchRewritePacks": "일괄 게시 패키지",
-  "noItemsNeedRewritePacks": "선택한 기록에 AI 소재 카드가 없거나 이 플랫폼 패키지가 이미 생성되었습니다",
+  "noItemsNeedRewritePacks": "선택한 기록에 AI 소재 카드가 없거나 선택한 플랫폼 패키지가 이미 생성되었습니다",
   "batchRewritePacksDone": "플랫폼 게시 패키지 {{count}}개를 생성했습니다",
   "rewriteStyleSeed": "추천",
   "rewriteStyleReview": "리뷰",

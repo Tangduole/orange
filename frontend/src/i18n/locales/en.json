@@ -382,7 +382,7 @@
   "platformPublishHint": "Choose a platform to generate a ready-to-post title, caption, hashtags, and short script.",
   "copyPack": "Copy pack",
   "batchRewritePacks": "Batch packs",
-  "noItemsNeedRewritePacks": "Selected items do not have AI cards, or this platform pack already exists",
+  "noItemsNeedRewritePacks": "Selected items do not have AI cards, or the selected platform packs already exist",
   "batchRewritePacksDone": "Generated {{count}} platform publish packs",
   "rewriteStyleSeed": "Seeding",
   "rewriteStyleReview": "Review",

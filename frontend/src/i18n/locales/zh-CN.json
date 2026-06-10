@@ -382,7 +382,7 @@
   "platformPublishHint": "选择平台，生成可直接发布的标题、文案、标签和口播。",
   "copyPack": "复制文案包",
   "batchRewritePacks": "批量发布包",
-  "noItemsNeedRewritePacks": "选中的记录都没有 AI 素材卡，或该平台发布包已生成",
+  "noItemsNeedRewritePacks": "选中的记录都没有 AI 素材卡，或所选平台发布包已生成",
   "batchRewritePacksDone": "已生成 {{count}} 个平台发布包",
   "rewriteStyleSeed": "种草",
   "rewriteStyleReview": "测评",

@@ -842,26 +842,29 @@ export default function App() {
       setShowUpgradePopup(true)
       return
     }
-    const key = `${platform}:${style}`
-    const selectedItems = history.filter(item => {
+    const platforms = platform === 'all' ? REWRITE_PLATFORMS.map(item => item.id) : [platform]
+    const jobs = history.flatMap(item => {
       const commerce = getHistoryAnalysis(item)
-      return selectedTasks.has(item.taskId) && commerce && !commerce.rewritePacks?.[key]
+      if (!selectedTasks.has(item.taskId) || !commerce) return []
+      return platforms
+        .filter(platformId => !commerce.rewritePacks?.[`${platformId}:${style}`])
+        .map(platformId => ({ item, platform: platformId }))
     })
-    if (selectedItems.length === 0) {
+    if (jobs.length === 0) {
       setError(t('noItemsNeedRewritePacks'))
       return
     }
 
-    setBatchRewriteLoadingKey(key)
+    setBatchRewriteLoadingKey(`${platform}:${style}`)
     setBatchCardMessage('')
-    setBatchCardProgress({ done: 0, total: selectedItems.length })
+    setBatchCardProgress({ done: 0, total: jobs.length })
     let success = 0
     try {
-      for (let i = 0; i < selectedItems.length; i++) {
-        const item = selectedItems[i]
+      for (let i = 0; i < jobs.length; i++) {
+        const { item, platform: platformId } = jobs[i]
         const r = await axios.post(`${API}/copywrite/rewrite`, {
           taskId: item.taskId,
-          platform,
+          platform: platformId,
           style,
           outputLanguage: getAiOutputLanguage(i18n.language)
         }, {
@@ -876,7 +879,7 @@ export default function App() {
             copywriteAnalysis: r.data.data.analysis,
           } : h))
         }
-        setBatchCardProgress({ done: i + 1, total: selectedItems.length })
+        setBatchCardProgress({ done: i + 1, total: jobs.length })
       }
       await fetchHistory()
       fetchAiUsage()
@@ -3078,6 +3081,13 @@ export default function App() {
                                 <option key={style.id} value={style.id}>{t(style.labelKey)}</option>
                               ))}
                             </select>
+                            <button
+                              onClick={() => generateSelectedRewritePacks('all', rewriteStyle)}
+                              disabled={!!batchRewriteLoadingKey}
+                              className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px] disabled:opacity-60"
+                            >
+                              {batchRewriteLoadingKey === `all:${rewriteStyle}` ? t('generatingAiCards', batchCardProgress) : t('allPlatforms')}
+                            </button>
                             {REWRITE_PLATFORMS.map(platform => {
                               const key = `${platform.id}:${rewriteStyle}`
                               return (
