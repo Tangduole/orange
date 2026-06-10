@@ -676,8 +676,13 @@ export default function App() {
     return match ? t(match.labelKey) : style
   }
 
+  const getRewritePlatformLabel = (platform = '') => {
+    const match = REWRITE_PLATFORMS.find(item => item.id === platform)
+    return match?.label || platform || t('platformPublishPack')
+  }
+
   const formatRewritePack = (pack: any) => [
-    `${pack.platform || t('platformPublishPack')} · ${getRewriteStyleLabel(pack.style || 'seed')}`,
+    `${getRewritePlatformLabel(pack.platform)} · ${getRewriteStyleLabel(pack.style || 'seed')}`,
     pack.title,
     pack.hook,
     pack.caption,
@@ -750,6 +755,39 @@ export default function App() {
 
   const toCsvCell = (value: any) => `"${String(value ?? '').replace(/\r?\n/g, ' / ').replace(/"/g, '""')}"`
 
+  const buildPublishPackCsv = (items: Array<{ item?: HistoryItem, commerce: any }>, style = rewriteStyle) => {
+    const headers = [
+      t('title'),
+      t('platform'),
+      t('platformPublishPack'),
+      'Style',
+      'Pack Title',
+      t('openingHook'),
+      'Caption',
+      t('aiScript'),
+      'CTA',
+      t('tags'),
+      'URL'
+    ]
+    const rows = items.flatMap(({ item, commerce }) => {
+      const materialTitle = item?.title || commerce.productName || ''
+      return getRewritePacks(commerce, style).map(pack => [
+        materialTitle,
+        item?.platform ? getPlatformLabel(item.platform) : '',
+        getRewritePlatformLabel(pack.platform),
+        getRewriteStyleLabel(pack.style || style),
+        pack.title || '',
+        pack.hook || '',
+        pack.caption || '',
+        pack.shortScript || '',
+        pack.cta || '',
+        listify(pack.hashtags).map(tag => `#${tag}`).join(' '),
+        item?.url || ''
+      ])
+    })
+    return [headers, ...rows].map(row => row.map(toCsvCell).join(',')).join('\n')
+  }
+
   const buildCommerceCardCsv = (items: Array<{ item?: HistoryItem, commerce: any }>) => {
     const headers = [
       t('title'),
@@ -804,7 +842,7 @@ export default function App() {
     URL.revokeObjectURL(objectUrl)
   }
 
-  const exportCommerceCard = (commerce: any, format: 'md' | 'txt' | 'csv' | 'pack') => {
+  const exportCommerceCard = (commerce: any, format: 'md' | 'txt' | 'csv' | 'pack' | 'packCsv') => {
     if (format === 'pack') {
       if (getRewritePacks(commerce, rewriteStyle).length === 0) {
         setError(t('noItemsNeedRewritePacks'))
@@ -812,6 +850,16 @@ export default function App() {
       }
       const text = buildPublishPackExport(commerce, 'md')
       const filename = `${(commerce.productName || task?.title || 'publish-packs').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 80)}-packs.md`
+      downloadUtf8TextFile(text, filename)
+      return
+    }
+    if (format === 'packCsv') {
+      if (getRewritePacks(commerce, rewriteStyle).length === 0) {
+        setError(t('noItemsNeedRewritePacks'))
+        return
+      }
+      const text = buildPublishPackCsv([{ commerce }], rewriteStyle)
+      const filename = `${(commerce.productName || task?.title || 'publish-packs').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 80)}-packs-${rewriteStyle}.csv`
       downloadUtf8TextFile(text, filename)
       return
     }
@@ -938,7 +986,7 @@ export default function App() {
     }
   }
 
-  const exportSelectedCommerceCards = (format: 'md' | 'txt' | 'csv' | 'pack') => {
+  const exportSelectedCommerceCards = (format: 'md' | 'txt' | 'csv' | 'pack' | 'packCsv') => {
     const selectedItems = history.filter(item => selectedTasks.has(item.taskId) && getHistoryAnalysis(item))
     if (selectedItems.length === 0) {
       setError(t('noAiCardsToExport'))
@@ -954,6 +1002,16 @@ export default function App() {
         .map(item => buildPublishPackExport(getHistoryAnalysis(item), 'md', item.title || item.url || item.taskId, rewriteStyle))
         .join('\n\n---\n\n')
       downloadUtf8TextFile(text, `orange-publish-packs-${itemsWithPacks.length}-${rewriteStyle}.md`)
+      return
+    }
+    if (format === 'packCsv') {
+      const itemsWithPacks = selectedItems.filter(item => getRewritePacks(getHistoryAnalysis(item), rewriteStyle).length > 0)
+      if (itemsWithPacks.length === 0) {
+        setError(t('noItemsNeedRewritePacks'))
+        return
+      }
+      const text = buildPublishPackCsv(itemsWithPacks.map(item => ({ item, commerce: getHistoryAnalysis(item) })), rewriteStyle)
+      downloadUtf8TextFile(text, `orange-publish-packs-${itemsWithPacks.length}-${rewriteStyle}.csv`)
       return
     }
     if (format === 'csv') {
@@ -2696,6 +2754,7 @@ export default function App() {
                           <button onClick={() => exportCommerceCard(commerce, 'txt')} className="text-[10px] text-purple-400 hover:text-purple-300">TXT</button>
                           <button onClick={() => exportCommerceCard(commerce, 'csv')} className="text-[10px] text-purple-400 hover:text-purple-300">CSV</button>
                           <button onClick={() => exportCommerceCard(commerce, 'pack')} className="text-[10px] text-orange hover:text-orange/80">PACK</button>
+                          <button onClick={() => exportCommerceCard(commerce, 'packCsv')} className="text-[10px] text-orange hover:text-orange/80">PACK CSV</button>
                           <button onClick={runCommerceCard} disabled={copywritingLoading} className="text-[10px] text-purple-400 hover:text-purple-300 disabled:opacity-50">
                             {copywritingLoading ? t('regenerating') : t('regenerate')}
                           </button>
@@ -2737,9 +2796,9 @@ export default function App() {
                             {(Object.values(commerce.rewritePacks) as any[]).map((pack, i) => (
                               <div key={`${pack.platform || 'platform'}-${i}`} className="p-2 rounded-lg bg-slate-950/50 border border-slate-800">
                                 <div className="flex items-center justify-between gap-2 mb-1">
-                                  <span className="text-[10px] text-orange">{pack.platform || t('platformPublishPack')} · {getRewriteStyleLabel(pack.style || 'seed')}</span>
+                                  <span className="text-[10px] text-orange">{getRewritePlatformLabel(pack.platform)} · {getRewriteStyleLabel(pack.style || 'seed')}</span>
                                   <button
-                                    onClick={() => clip([`${pack.platform || ''} · ${getRewriteStyleLabel(pack.style || 'seed')}`, pack.title, pack.caption, listify(pack.hashtags).map(tag => `#${tag}`).join(' '), pack.cta].filter(Boolean).join('\n'), `rewrite-${i}`)}
+                                    onClick={() => clip([`${getRewritePlatformLabel(pack.platform)} · ${getRewriteStyleLabel(pack.style || 'seed')}`, pack.title, pack.caption, listify(pack.hashtags).map(tag => `#${tag}`).join(' '), pack.cta].filter(Boolean).join('\n'), `rewrite-${i}`)}
                                     className="text-[10px] text-purple-400 hover:text-purple-300"
                                   >
                                     {copied === `rewrite-${i}` ? `✓ ${t('copied')}` : t('copyPack')}
@@ -3166,6 +3225,7 @@ export default function App() {
                         <button onClick={() => exportSelectedCommerceCards('txt')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">TXT</button>
                         <button onClick={() => exportSelectedCommerceCards('csv')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">CSV</button>
                         <button onClick={() => exportSelectedCommerceCards('pack')} className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px]">PACK</button>
+                        <button onClick={() => exportSelectedCommerceCards('packCsv')} className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px]">PACK CSV</button>
                         <button onClick={deleteSelected} className="px-2 py-1 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg text-[10px]">{t('clearAll')}</button>
                       </div>
                     )}
