@@ -184,6 +184,13 @@ const REWRITE_PLATFORMS = [
   { id: 'youtube_shorts', label: 'Shorts' },
 ]
 
+const REWRITE_STYLES = [
+  { id: 'seed', labelKey: 'rewriteStyleSeed' },
+  { id: 'review', labelKey: 'rewriteStyleReview' },
+  { id: 'promo', labelKey: 'rewriteStylePromo' },
+  { id: 'problem', labelKey: 'rewriteStyleProblem' },
+]
+
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
   const k = 1024;
@@ -265,6 +272,7 @@ export default function App() {
   const qualityManuallySet = useRef(false) // 防止 useEffect 自动选择覆盖用户手动选择
   const [copywritingLoading, setCopywritingLoading] = useState(false)
   const [copywritingResult, setCopywritingResult] = useState<any>(null)
+  const [rewriteStyle, setRewriteStyle] = useState('seed')
   const [rewriteLoadingKey, setRewriteLoadingKey] = useState('')
   const [batchCardGenerating, setBatchCardGenerating] = useState(false)
   const [batchRewriteLoadingKey, setBatchRewriteLoadingKey] = useState('')
@@ -647,8 +655,13 @@ export default function App() {
       : []
   )
 
+  const getRewriteStyleLabel = (style = 'seed') => {
+    const match = REWRITE_STYLES.find(item => item.id === style)
+    return match ? t(match.labelKey) : style
+  }
+
   const formatRewritePack = (pack: any) => [
-    pack.platform || t('platformPublishPack'),
+    `${pack.platform || t('platformPublishPack')} · ${getRewriteStyleLabel(pack.style || 'seed')}`,
     pack.title,
     pack.hook,
     pack.caption,
@@ -776,7 +789,7 @@ export default function App() {
     clip(tags, 'commerce-tags')
   }
 
-  const rewriteCommerceCard = async (commerce: any, platform: string) => {
+  const rewriteCommerceCard = async (commerce: any, platform: string, style = rewriteStyle) => {
     if (!task?.taskId) return
     if (!authToken) {
       setShowAuthModal(true)
@@ -786,13 +799,13 @@ export default function App() {
       setShowUpgradePopup(true)
       return
     }
-    const key = `${platform}:seed`
+    const key = `${platform}:${style}`
     setRewriteLoadingKey(key)
     try {
       const r = await axios.post(`${API}/copywrite/rewrite`, {
         taskId: task.taskId,
         platform,
-        style: 'seed',
+        style,
         outputLanguage: getAiOutputLanguage(i18n.language)
       }, {
         headers: getAuthHeaders(),
@@ -820,7 +833,7 @@ export default function App() {
     }
   }
 
-  const generateSelectedRewritePacks = async (platform: string) => {
+  const generateSelectedRewritePacks = async (platform: string, style = rewriteStyle) => {
     if (!authToken) {
       setShowAuthModal(true)
       return
@@ -829,7 +842,7 @@ export default function App() {
       setShowUpgradePopup(true)
       return
     }
-    const key = `${platform}:seed`
+    const key = `${platform}:${style}`
     const selectedItems = history.filter(item => {
       const commerce = getHistoryAnalysis(item)
       return selectedTasks.has(item.taskId) && commerce && !commerce.rewritePacks?.[key]
@@ -849,7 +862,7 @@ export default function App() {
         const r = await axios.post(`${API}/copywrite/rewrite`, {
           taskId: item.taskId,
           platform,
-          style: 'seed',
+          style,
           outputLanguage: getAiOutputLanguage(i18n.language)
         }, {
           headers: getAuthHeaders(),
@@ -2633,12 +2646,21 @@ export default function App() {
                         <div className="flex items-center justify-between gap-2 mb-2">
                           <p className="text-[10px] text-slate-400">🚀 {t('platformPublishPack')}</p>
                           <div className="flex flex-wrap gap-1 justify-end">
+                            <select
+                              value={rewriteStyle}
+                              onChange={(e) => setRewriteStyle(e.target.value)}
+                              className="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-950/70 border border-slate-700 text-slate-300"
+                            >
+                              {REWRITE_STYLES.map(style => (
+                                <option key={style.id} value={style.id}>{t(style.labelKey)}</option>
+                              ))}
+                            </select>
                             {REWRITE_PLATFORMS.map(platform => {
-                              const key = `${platform.id}:seed`
+                              const key = `${platform.id}:${rewriteStyle}`
                               return (
                                 <button
                                   key={platform.id}
-                                  onClick={() => rewriteCommerceCard(commerce, platform.id)}
+                                  onClick={() => rewriteCommerceCard(commerce, platform.id, rewriteStyle)}
                                   disabled={!!rewriteLoadingKey}
                                   className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 disabled:opacity-60"
                                 >
@@ -2653,9 +2675,9 @@ export default function App() {
                             {(Object.values(commerce.rewritePacks) as any[]).map((pack, i) => (
                               <div key={`${pack.platform || 'platform'}-${i}`} className="p-2 rounded-lg bg-slate-950/50 border border-slate-800">
                                 <div className="flex items-center justify-between gap-2 mb-1">
-                                  <span className="text-[10px] text-orange">{pack.platform || t('platformPublishPack')}</span>
+                                  <span className="text-[10px] text-orange">{pack.platform || t('platformPublishPack')} · {getRewriteStyleLabel(pack.style || 'seed')}</span>
                                   <button
-                                    onClick={() => clip([pack.title, pack.caption, listify(pack.hashtags).map(tag => `#${tag}`).join(' '), pack.cta].filter(Boolean).join('\n'), `rewrite-${i}`)}
+                                    onClick={() => clip([`${pack.platform || ''} · ${getRewriteStyleLabel(pack.style || 'seed')}`, pack.title, pack.caption, listify(pack.hashtags).map(tag => `#${tag}`).join(' '), pack.cta].filter(Boolean).join('\n'), `rewrite-${i}`)}
                                     className="text-[10px] text-purple-400 hover:text-purple-300"
                                   >
                                     {copied === `rewrite-${i}` ? `✓ ${t('copied')}` : t('copyPack')}
@@ -3046,12 +3068,22 @@ export default function App() {
                         {history.some(item => selectedTasks.has(item.taskId) && getHistoryAnalysis(item)) && (
                           <div className="flex items-center gap-1">
                             <span className="text-[10px] text-slate-500">{t('batchRewritePacks')}</span>
+                            <select
+                              value={rewriteStyle}
+                              onChange={(e) => setRewriteStyle(e.target.value)}
+                              disabled={!!batchRewriteLoadingKey}
+                              className="px-2 py-1 bg-slate-900/50 text-slate-300 border border-slate-700/50 rounded-lg text-[10px] disabled:opacity-60"
+                            >
+                              {REWRITE_STYLES.map(style => (
+                                <option key={style.id} value={style.id}>{t(style.labelKey)}</option>
+                              ))}
+                            </select>
                             {REWRITE_PLATFORMS.map(platform => {
-                              const key = `${platform.id}:seed`
+                              const key = `${platform.id}:${rewriteStyle}`
                               return (
                                 <button
                                   key={platform.id}
-                                  onClick={() => generateSelectedRewritePacks(platform.id)}
+                                  onClick={() => generateSelectedRewritePacks(platform.id, rewriteStyle)}
                                   disabled={!!batchRewriteLoadingKey}
                                   className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px] disabled:opacity-60"
                                 >

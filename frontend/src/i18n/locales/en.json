@@ -383,5 +383,9 @@
   "copyPack": "Copy pack",
   "batchRewritePacks": "Batch packs",
   "noItemsNeedRewritePacks": "Selected items do not have AI cards, or this platform pack already exists",
-  "batchRewritePacksDone": "Generated {{count}} platform publish packs"
+  "batchRewritePacksDone": "Generated {{count}} platform publish packs",
+  "rewriteStyleSeed": "Seeding",
+  "rewriteStyleReview": "Review",
+  "rewriteStylePromo": "Promo",
+  "rewriteStyleProblem": "Pain point"
 }

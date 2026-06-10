@@ -175,6 +175,17 @@ function platformDisplayName(platform = 'tiktok') {
   return names[key] || platform || 'TikTok';
 }
 
+function rewriteStyleInstruction(style = 'seed') {
+  const key = String(style || 'seed').toLowerCase();
+  const instructions = {
+    seed: 'Soft recommendation. Feel authentic, creator-led, useful, and low-pressure.',
+    review: 'Review and comparison. Emphasize real experience, pros/cons, details, and credibility.',
+    promo: 'Promotion and conversion. Highlight offer, urgency, benefits, and a clear call to action.',
+    problem: 'Problem-solution angle. Start with a specific pain point, then present the product as the practical fix.'
+  };
+  return instructions[key] || instructions.seed;
+}
+
 function buildRewritePrompt(analysis, platform = 'tiktok', style = 'seed', outputLanguage = 'zh') {
   const lang = normalizeOutputLanguage(outputLanguage);
   const languageNames = { zh: '简体中文', en: 'English', ja: '日本語', ko: '한국어' };
@@ -185,6 +196,12 @@ Output language: ${languageNames[lang]}.
 Preserve product names, brand names, model numbers, prices, and specifications in their original language.
 
 Style: ${style}
+Style direction: ${rewriteStyleInstruction(style)}
+
+Platform adaptation:
+- TikTok / Shorts: stronger opening hook, fast pacing, concise caption.
+- Douyin: direct selling point and conversion-oriented CTA.
+- Xiaohongshu: lifestyle tone, experience details, searchable keywords.
 
 Return JSON only:
 {
@@ -244,11 +261,17 @@ function buildMockRewrite(analysis, platform = 'tiktok', style = 'seed', outputL
       tags: ['커머스소재', '숏폼', '제품추천']
     }
   }[lang];
+  const styleLabel = {
+    seed: { zh: '种草', en: 'recommendation', ja: 'おすすめ', ko: '추천' },
+    review: { zh: '测评', en: 'review', ja: 'レビュー', ko: '리뷰' },
+    promo: { zh: '促销', en: 'promotion', ja: '販促', ko: '프로모션' },
+    problem: { zh: '痛点解决', en: 'problem-solution', ja: '悩み解決', ko: '문제 해결' }
+  }[String(style || 'seed').toLowerCase()]?.[lang] || style;
   return {
     platform,
     style,
-    title: localized.title,
-    caption: localized.caption,
+    title: `${localized.title} · ${styleLabel}`,
+    caption: `${localized.caption} (${styleLabel})`,
     hashtags: localized.tags,
     hook: localized.hook,
     shortScript: localized.script,

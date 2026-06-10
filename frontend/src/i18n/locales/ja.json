@@ -383,5 +383,9 @@
   "copyPack": "文案をコピー",
   "batchRewritePacks": "一括投稿文案",
   "noItemsNeedRewritePacks": "選択した履歴にAI素材カードがないか、このプラットフォーム文案はすでに生成済みです",
-  "batchRewritePacksDone": "{{count}}件のプラットフォーム投稿文案を生成しました"
+  "batchRewritePacksDone": "{{count}}件のプラットフォーム投稿文案を生成しました",
+  "rewriteStyleSeed": "おすすめ",
+  "rewriteStyleReview": "レビュー",
+  "rewriteStylePromo": "販促",
+  "rewriteStyleProblem": "悩み解決"
 }
