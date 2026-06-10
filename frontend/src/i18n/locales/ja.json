@@ -368,5 +368,7 @@
   "batchGenerateAiCards": "AI生成",
   "generatingAiCards": "生成中 {{done}}/{{total}}",
   "noItemsNeedAiCards": "選択した履歴はすでにAIカードがあります。または完了済みタスクではありません",
-  "batchAiCardsDone": "{{count}}件のAI素材カードを生成しました"
+  "batchAiCardsDone": "{{count}}件のAI素材カードを生成しました",
+  "copyCard": "カードをコピー",
+  "copyTags": "タグをコピー"
 }

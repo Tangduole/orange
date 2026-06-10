@@ -368,5 +368,7 @@
   "batchGenerateAiCards": "Generate AI",
   "generatingAiCards": "Generating {{done}}/{{total}}",
   "noItemsNeedAiCards": "Selected items already have AI cards, or are not completed tasks",
-  "batchAiCardsDone": "Generated {{count}} AI material cards"
+  "batchAiCardsDone": "Generated {{count}} AI material cards",
+  "copyCard": "Copy card",
+  "copyTags": "Copy tags"
 }

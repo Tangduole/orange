@@ -648,6 +648,19 @@ export default function App() {
     downloadUtf8TextFile(text, filename)
   }
 
+  const copyCommerceCard = (commerce: any, kind: 'card' | 'script' | 'tags') => {
+    if (kind === 'card') {
+      clip(buildCommerceCardExport(commerce, 'md'), 'commerce-card')
+      return
+    }
+    if (kind === 'script') {
+      clip(commerce.copyScript || '', 'commerce-script')
+      return
+    }
+    const tags = listify(commerce.tags).map(tag => `#${tag}`).join(' ')
+    clip(tags, 'commerce-tags')
+  }
+
   const exportSelectedCommerceCards = (format: 'md' | 'txt') => {
     const selectedItems = history.filter(item => selectedTasks.has(item.taskId) && getHistoryAnalysis(item))
     if (selectedItems.length === 0) {
@@ -2371,7 +2384,20 @@ export default function App() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-purple-300 font-medium">🤖 {t('aiCommerceCardTitle')}</span>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap justify-end">
+                          <button onClick={() => copyCommerceCard(commerce, 'card')} className="text-[10px] text-purple-400 hover:text-purple-300">
+                            {copied === 'commerce-card' ? `✓ ${t('copied')}` : t('copyCard')}
+                          </button>
+                          {commerce.copyScript && (
+                            <button onClick={() => copyCommerceCard(commerce, 'script')} className="text-[10px] text-purple-400 hover:text-purple-300">
+                              {copied === 'commerce-script' ? `✓ ${t('copied')}` : t('copyScript')}
+                            </button>
+                          )}
+                          {commerce.tags?.length > 0 && (
+                            <button onClick={() => copyCommerceCard(commerce, 'tags')} className="text-[10px] text-purple-400 hover:text-purple-300">
+                              {copied === 'commerce-tags' ? `✓ ${t('copied')}` : t('copyTags')}
+                            </button>
+                          )}
                           <button onClick={() => exportCommerceCard(commerce, 'md')} className="text-[10px] text-purple-400 hover:text-purple-300">MD</button>
                           <button onClick={() => exportCommerceCard(commerce, 'txt')} className="text-[10px] text-purple-400 hover:text-purple-300">TXT</button>
                           <button onClick={runCommerceCard} disabled={copywritingLoading} className="text-[10px] text-purple-400 hover:text-purple-300 disabled:opacity-50">
@@ -2468,10 +2494,10 @@ export default function App() {
                             {commerce.copyScript}
                           </p>
                           <button
-                            onClick={() => clip(commerce.copyScript, 'copywrite')}
+                            onClick={() => copyCommerceCard(commerce, 'script')}
                             className="mt-1 text-[10px] text-purple-400 hover:text-purple-300"
                           >
-                            {copied === 'copywrite' ? `✓ ${t('copied')}` : `📋 ${t('copyScript')}`}
+                            {copied === 'commerce-script' ? `✓ ${t('copied')}` : `📋 ${t('copyScript')}`}
                           </button>
                         </div>
                       )}

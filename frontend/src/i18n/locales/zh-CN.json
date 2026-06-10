@@ -368,5 +368,7 @@
   "batchGenerateAiCards": "生成 AI",
   "generatingAiCards": "生成中 {{done}}/{{total}}",
   "noItemsNeedAiCards": "选中的记录都已有 AI 素材卡，或不是已完成任务",
-  "batchAiCardsDone": "已生成 {{count}} 张 AI 素材卡"
+  "batchAiCardsDone": "已生成 {{count}} 张 AI 素材卡",
+  "copyCard": "复制卡片",
+  "copyTags": "复制标签"
 }
