@@ -360,6 +360,8 @@
   "allPlatforms": "All platforms",
   "allTags": "All tags",
   "aiCardsOnly": "AI cards only",
+  "publishPacksOnly": "Publish packs only",
+  "publishPacksTodoOnly": "Needs packs",
   "selectedCount": "{{count}} selected",
   "noAiCardsToExport": "Select history items that already have AI material cards",
   "extensionLinkReceived": "Link received from browser extension",

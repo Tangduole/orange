@@ -360,6 +360,8 @@
   "allPlatforms": "すべてのプラットフォーム",
   "allTags": "すべてのタグ",
   "aiCardsOnly": "AI素材カードのみ",
+  "publishPacksOnly": "投稿文案のみ",
+  "publishPacksTodoOnly": "投稿文案未完了",
   "selectedCount": "{{count}}件選択中",
   "noAiCardsToExport": "AI素材カードがある履歴を選択してください",
   "extensionLinkReceived": "ブラウザ拡張機能からリンクを受信しました",

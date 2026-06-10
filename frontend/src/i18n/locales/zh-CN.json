@@ -360,6 +360,8 @@
   "allPlatforms": "全部平台",
   "allTags": "全部标签",
   "aiCardsOnly": "仅 AI 素材卡",
+  "publishPacksOnly": "仅发布包",
+  "publishPacksTodoOnly": "待补发布包",
   "selectedCount": "已选 {{count}}",
   "noAiCardsToExport": "请选择已有 AI 素材卡的历史记录",
   "extensionLinkReceived": "已从浏览器插件接收链接",

@@ -154,6 +154,17 @@ const getAiOutputLanguage = (language: string) => {
 
 const getHistoryAnalysis = (item: HistoryItem) => item.copywriteAnalysis || item.aiAnalysis || null
 
+const getHistoryRewritePackCount = (item: HistoryItem) => {
+  const analysis = getHistoryAnalysis(item)
+  return analysis?.rewritePacks && typeof analysis.rewritePacks === 'object'
+    ? Object.keys(analysis.rewritePacks).length
+    : 0
+}
+
+const getRequiredRewritePackCount = () => REWRITE_PLATFORMS.length * REWRITE_STYLES.length
+
+const isHistoryRewritePackComplete = (item: HistoryItem) => getHistoryRewritePackCount(item) >= getRequiredRewritePackCount()
+
 const flattenAnalysisText = (value: any): string => {
   if (!value) return ''
   if (Array.isArray(value)) return value.map(flattenAnalysisText).join(' ')
@@ -446,6 +457,8 @@ export default function App() {
   const [historyPlatformFilter, setHistoryPlatformFilter] = useState('all')
   const [historyTagFilter, setHistoryTagFilter] = useState('all')
   const [historyAiOnly, setHistoryAiOnly] = useState(false)
+  const [historyPackOnly, setHistoryPackOnly] = useState(false)
+  const [historyPackTodoOnly, setHistoryPackTodoOnly] = useState(false)
   const [favorites, setFavorites] = useState<Set<string>>(() => new Set(readStoredJson<string[]>('orange_favorites', [])))
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set())
   const [editingMaterial, setEditingMaterial] = useState<HistoryItem | null>(null)
@@ -469,6 +482,8 @@ export default function App() {
     if (historyPlatformFilter !== 'all' && item.platform !== historyPlatformFilter) return false
     if (historyTagFilter !== 'all' && !normalizeHistoryTags(item.tags).includes(historyTagFilter)) return false
     if (historyAiOnly && !getHistoryAnalysis(item)) return false
+    if (historyPackOnly && getHistoryRewritePackCount(item) === 0) return false
+    if (historyPackTodoOnly && (!getHistoryAnalysis(item) || isHistoryRewritePackComplete(item))) return false
     if (historySearch) {
       const q = historySearch.toLowerCase()
       const haystack = [
@@ -3184,6 +3199,18 @@ export default function App() {
                     >
                       {t('aiCardsOnly')}
                     </button>
+                    <button
+                      onClick={() => setHistoryPackOnly(v => !v)}
+                      className={`px-2 py-1.5 border rounded-lg text-xs transition ${historyPackOnly ? 'bg-orange/20 border-orange/40 text-orange' : isDark ? 'bg-slate-800/50 border-slate-700/50 text-slate-300' : 'bg-light-bg border-light-border text-light-text'}`}
+                    >
+                      {t('publishPacksOnly')}
+                    </button>
+                    <button
+                      onClick={() => setHistoryPackTodoOnly(v => !v)}
+                      className={`px-2 py-1.5 border rounded-lg text-xs transition ${historyPackTodoOnly ? 'bg-yellow-500/20 border-yellow-500/40 text-yellow-300' : isDark ? 'bg-slate-800/50 border-slate-700/50 text-slate-300' : 'bg-light-bg border-light-border text-light-text'}`}
+                    >
+                      {t('publishPacksTodoOnly')}
+                    </button>
                     {(batchCardGenerating || batchRewriteLoadingKey || batchCardMessage) && (
                       <span className="text-[10px] text-orange">
                         {batchCardGenerating || batchRewriteLoadingKey ? t('generatingAiCards', batchCardProgress) : batchCardMessage}
@@ -3192,7 +3219,7 @@ export default function App() {
                   </div>
                 </div>
                 <div className="max-h-60 overflow-y-auto">
-                  {filteredHistory.length === 0 ? <p className="py-8 text-center text-sm text-slate-500">{historySearch || historyFilter !== 'all' || historyPlatformFilter !== 'all' || historyTagFilter !== 'all' || historyAiOnly ? t('noResults') : t('noHistory')}</p> : filteredHistory.map(item => (
+                  {filteredHistory.length === 0 ? <p className="py-8 text-center text-sm text-slate-500">{historySearch || historyFilter !== 'all' || historyPlatformFilter !== 'all' || historyTagFilter !== 'all' || historyAiOnly || historyPackOnly || historyPackTodoOnly ? t('noResults') : t('noHistory')}</p> : filteredHistory.map(item => (
                     <div key={item.taskId} className={`flex items-center gap-2 px-3 py-2 border-b border-slate-700/20 last:border-0 hover:bg-slate-900/60 transition ${selectedTasks.has(item.taskId) ? 'bg-orange/10' : ''}`}>
                       <input type="checkbox" checked={selectedTasks.has(item.taskId)} onChange={() => { const s = new Set(selectedTasks); selectedTasks.has(item.taskId) ? s.delete(item.taskId) : s.add(item.taskId); setSelectedTasks(s) }} className="w-3.5 h-3.5 rounded-full border-slate-600 shrink-0" />
                       {item.thumbnailUrl ? <button onClick={() => openSavedFile(item)} className="relative shrink-0 group"><img src={`${BASE_URL}${item.thumbnailUrl}`} alt="" className="w-12 h-9 object-cover rounded-lg" /><div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 transition"><Play className="w-4 h-4 text-white" /></div></button> : <div className="w-12 h-9 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0"><Video className="w-4 h-4 text-slate-500" /></div>}
@@ -3212,6 +3239,14 @@ export default function App() {
                             )}
                             {getHistoryAnalysis(item) && (
                               <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-300" title={t('aiCommerceCardTitle')}>AI</span>
+                            )}
+                            {getHistoryRewritePackCount(item) > 0 && (
+                              <span
+                                className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded-full ${isHistoryRewritePackComplete(item) ? 'bg-emerald-500/15 text-emerald-300' : 'bg-orange/15 text-orange'}`}
+                                title={t('platformPublishPack')}
+                              >
+                                PACK {getHistoryRewritePackCount(item)}/{getRequiredRewritePackCount()}
+                              </span>
                             )}
                           </div>
                           <span className="shrink-0 text-[10px] text-slate-500">{new Date(item.createdAt).toLocaleString(i18n.language === 'zh-CN' ? 'zh-CN' : i18n.language === 'ja' ? 'ja-JP' : i18n.language === 'ko' ? 'ko-KR' : 'en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>

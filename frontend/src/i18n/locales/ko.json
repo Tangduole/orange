@@ -360,6 +360,8 @@
   "allPlatforms": "모든 플랫폼",
   "allTags": "모든 태그",
   "aiCardsOnly": "AI 소재 카드만",
+  "publishPacksOnly": "게시 패키지만",
+  "publishPacksTodoOnly": "패키지 필요",
   "selectedCount": "{{count}}개 선택됨",
   "noAiCardsToExport": "AI 소재 카드가 있는 기록을 선택하세요",
   "extensionLinkReceived": "브라우저 확장 프로그램에서 링크를 받았습니다",
