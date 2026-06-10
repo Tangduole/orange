@@ -649,11 +649,12 @@ export default function App() {
     return []
   }
 
-  const getRewritePacks = (commerce: any): any[] => (
-    commerce?.rewritePacks && typeof commerce.rewritePacks === 'object'
-      ? Object.values(commerce.rewritePacks)
+  const getRewritePacks = (commerce: any, style?: string): any[] => {
+    const packs = commerce?.rewritePacks && typeof commerce.rewritePacks === 'object'
+      ? Object.values(commerce.rewritePacks) as any[]
       : []
-  )
+    return style ? packs.filter(pack => (pack?.style || 'seed') === style) : packs
+  }
 
   const getRewriteStyleLabel = (style = 'seed') => {
     const match = REWRITE_STYLES.find(item => item.id === style)
@@ -709,6 +710,26 @@ export default function App() {
         ...items.map(item => `- ${item}`),
         ''
       ])
+    ].join('\n')
+  }
+
+  const buildPublishPackExport = (commerce: any, format: 'md' | 'txt' = 'md', fallbackTitle?: string, style = rewriteStyle) => {
+    const packs = getRewritePacks(commerce, style)
+    const title = commerce.productName || fallbackTitle || task?.title || t('platformPublishPack')
+    if (format === 'txt') {
+      return [
+        `${t('platformPublishPack')}: ${title}`,
+        getRewriteStyleLabel(style),
+        '',
+        ...packs.map(formatRewritePack)
+      ].join('\n')
+    }
+    return [
+      `# ${title}`,
+      '',
+      `## ${t('platformPublishPack')} · ${getRewriteStyleLabel(style)}`,
+      '',
+      ...packs.map(pack => `- ${formatRewritePack(pack)}`)
     ].join('\n')
   }
 
@@ -768,7 +789,17 @@ export default function App() {
     URL.revokeObjectURL(objectUrl)
   }
 
-  const exportCommerceCard = (commerce: any, format: 'md' | 'txt' | 'csv') => {
+  const exportCommerceCard = (commerce: any, format: 'md' | 'txt' | 'csv' | 'pack') => {
+    if (format === 'pack') {
+      if (getRewritePacks(commerce, rewriteStyle).length === 0) {
+        setError(t('noItemsNeedRewritePacks'))
+        return
+      }
+      const text = buildPublishPackExport(commerce, 'md')
+      const filename = `${(commerce.productName || task?.title || 'publish-packs').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 80)}-packs.md`
+      downloadUtf8TextFile(text, filename)
+      return
+    }
     const text = format === 'csv'
       ? buildCommerceCardCsv([{ commerce }])
       : buildCommerceCardExport(commerce, format)
@@ -892,10 +923,22 @@ export default function App() {
     }
   }
 
-  const exportSelectedCommerceCards = (format: 'md' | 'txt' | 'csv') => {
+  const exportSelectedCommerceCards = (format: 'md' | 'txt' | 'csv' | 'pack') => {
     const selectedItems = history.filter(item => selectedTasks.has(item.taskId) && getHistoryAnalysis(item))
     if (selectedItems.length === 0) {
       setError(t('noAiCardsToExport'))
+      return
+    }
+    if (format === 'pack') {
+      const itemsWithPacks = selectedItems.filter(item => getRewritePacks(getHistoryAnalysis(item), rewriteStyle).length > 0)
+      if (itemsWithPacks.length === 0) {
+        setError(t('noItemsNeedRewritePacks'))
+        return
+      }
+      const text = itemsWithPacks
+        .map(item => buildPublishPackExport(getHistoryAnalysis(item), 'md', item.title || item.url || item.taskId, rewriteStyle))
+        .join('\n\n---\n\n')
+      downloadUtf8TextFile(text, `orange-publish-packs-${itemsWithPacks.length}-${rewriteStyle}.md`)
       return
     }
     if (format === 'csv') {
@@ -2637,6 +2680,7 @@ export default function App() {
                           <button onClick={() => exportCommerceCard(commerce, 'md')} className="text-[10px] text-purple-400 hover:text-purple-300">MD</button>
                           <button onClick={() => exportCommerceCard(commerce, 'txt')} className="text-[10px] text-purple-400 hover:text-purple-300">TXT</button>
                           <button onClick={() => exportCommerceCard(commerce, 'csv')} className="text-[10px] text-purple-400 hover:text-purple-300">CSV</button>
+                          <button onClick={() => exportCommerceCard(commerce, 'pack')} className="text-[10px] text-orange hover:text-orange/80">PACK</button>
                           <button onClick={runCommerceCard} disabled={copywritingLoading} className="text-[10px] text-purple-400 hover:text-purple-300 disabled:opacity-50">
                             {copywritingLoading ? t('regenerating') : t('regenerate')}
                           </button>
@@ -3106,6 +3150,7 @@ export default function App() {
                         <button onClick={() => exportSelectedCommerceCards('md')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">MD</button>
                         <button onClick={() => exportSelectedCommerceCards('txt')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">TXT</button>
                         <button onClick={() => exportSelectedCommerceCards('csv')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">CSV</button>
+                        <button onClick={() => exportSelectedCommerceCards('pack')} className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px]">PACK</button>
                         <button onClick={deleteSelected} className="px-2 py-1 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg text-[10px]">{t('clearAll')}</button>
                       </div>
                     )}
