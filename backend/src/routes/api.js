@@ -23,6 +23,7 @@ const {
   clearHistory,
   updateHistoryItem,
   extractCopywriteForTask,
+  rewriteCopywriteForTask,
   getAiUsageStatus,
   getAsrLexicon,
   updateAsrLexicon,
@@ -60,6 +61,7 @@ router.patch('/history/:taskId', auth.optional, updateHistoryItem);
 
 // AI 文案提取（Pro）
 router.post('/copywrite', downloadLimiter, auth.required, extractCopywriteForTask);
+router.post('/copywrite/rewrite', downloadLimiter, auth.required, rewriteCopywriteForTask);
 router.get('/ai/usage', auth.required, getAiUsageStatus);
 router.get('/asr/lexicon', auth.required, getAsrLexicon);
 router.put('/asr/lexicon', auth.required, updateAsrLexicon);

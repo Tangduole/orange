@@ -377,5 +377,8 @@
   "applyTags": "Apply tags",
   "enterTagsToApply": "Enter tags to add",
   "batchTagsFailed": "Failed to save batch tags",
-  "saving": "Saving..."
+  "saving": "Saving...",
+  "platformPublishPack": "Platform publish pack",
+  "platformPublishHint": "Choose a platform to generate a ready-to-post title, caption, hashtags, and short script.",
+  "copyPack": "Copy pack"
 }

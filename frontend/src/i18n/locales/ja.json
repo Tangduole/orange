@@ -377,5 +377,8 @@
   "applyTags": "タグを適用",
   "enterTagsToApply": "追加するタグを入力してください",
   "batchTagsFailed": "一括タグの保存に失敗しました",
-  "saving": "保存中..."
+  "saving": "保存中...",
+  "platformPublishPack": "プラットフォーム投稿文案",
+  "platformPublishHint": "プラットフォームを選ぶと、投稿用タイトル、本文、タグ、短い台本を生成します。",
+  "copyPack": "文案をコピー"
 }

@@ -177,6 +177,13 @@ const BATCH_QUALITY_OPTIONS = [
   { value: 'height<=2160', label: '4K', icon: '🎥', height: 2160 },
 ]
 
+const REWRITE_PLATFORMS = [
+  { id: 'tiktok', label: 'TikTok' },
+  { id: 'douyin', label: '抖音' },
+  { id: 'xiaohongshu', label: '小红书' },
+  { id: 'youtube_shorts', label: 'Shorts' },
+]
+
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
   const k = 1024;
@@ -258,6 +265,7 @@ export default function App() {
   const qualityManuallySet = useRef(false) // 防止 useEffect 自动选择覆盖用户手动选择
   const [copywritingLoading, setCopywritingLoading] = useState(false)
   const [copywritingResult, setCopywritingResult] = useState<any>(null)
+  const [rewriteLoadingKey, setRewriteLoadingKey] = useState('')
   const [batchCardGenerating, setBatchCardGenerating] = useState(false)
   const [batchCardProgress, setBatchCardProgress] = useState({ done: 0, total: 0 })
   const [batchCardMessage, setBatchCardMessage] = useState('')
@@ -702,6 +710,50 @@ export default function App() {
     }
     const tags = listify(commerce.tags).map(tag => `#${tag}`).join(' ')
     clip(tags, 'commerce-tags')
+  }
+
+  const rewriteCommerceCard = async (commerce: any, platform: string) => {
+    if (!task?.taskId) return
+    if (!authToken) {
+      setShowAuthModal(true)
+      return
+    }
+    if (!isVip) {
+      setShowUpgradePopup(true)
+      return
+    }
+    const key = `${platform}:seed`
+    setRewriteLoadingKey(key)
+    try {
+      const r = await axios.post(`${API}/copywrite/rewrite`, {
+        taskId: task.taskId,
+        platform,
+        style: 'seed',
+        outputLanguage: getAiOutputLanguage(i18n.language)
+      }, {
+        headers: getAuthHeaders(),
+        timeout: 120000,
+      })
+      if (r.data.code === 0) {
+        const nextAnalysis = r.data.data.analysis || {
+          ...commerce,
+          rewritePacks: {
+            ...(commerce.rewritePacks || {}),
+            [key]: r.data.data.pack
+          }
+        }
+        setTask(prev => prev ? { ...prev, copywriteAnalysis: nextAnalysis } : prev)
+        setCopywritingResult((prev: any) => prev?.taskId === task.taskId ? { ...prev, analysis: nextAnalysis } : prev)
+        fetchHistory()
+        fetchAiUsage()
+      } else {
+        setError(r.data.message)
+      }
+    } catch (e: any) {
+      setError(e.response?.data?.message || e.message)
+    } finally {
+      setRewriteLoadingKey('')
+    }
   }
 
   const exportSelectedCommerceCards = (format: 'md' | 'txt') => {
@@ -2451,6 +2503,57 @@ export default function App() {
                       {commerce.productName && (
                         <p className="text-xs text-slate-300">📦 <span className="text-white">{commerce.productName}</span></p>
                       )}
+                      <div className="p-2 rounded-lg bg-slate-900/50 border border-slate-700/50">
+                        <div className="flex items-center justify-between gap-2 mb-2">
+                          <p className="text-[10px] text-slate-400">🚀 {t('platformPublishPack')}</p>
+                          <div className="flex flex-wrap gap-1 justify-end">
+                            {REWRITE_PLATFORMS.map(platform => {
+                              const key = `${platform.id}:seed`
+                              return (
+                                <button
+                                  key={platform.id}
+                                  onClick={() => rewriteCommerceCard(commerce, platform.id)}
+                                  disabled={!!rewriteLoadingKey}
+                                  className="text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-300 hover:bg-purple-500/20 disabled:opacity-60"
+                                >
+                                  {rewriteLoadingKey === key ? t('generating') : platform.label}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                        {commerce.rewritePacks && Object.values(commerce.rewritePacks).length > 0 ? (
+                          <div className="space-y-2">
+                            {(Object.values(commerce.rewritePacks) as any[]).map((pack, i) => (
+                              <div key={`${pack.platform || 'platform'}-${i}`} className="p-2 rounded-lg bg-slate-950/50 border border-slate-800">
+                                <div className="flex items-center justify-between gap-2 mb-1">
+                                  <span className="text-[10px] text-orange">{pack.platform || t('platformPublishPack')}</span>
+                                  <button
+                                    onClick={() => clip([pack.title, pack.caption, listify(pack.hashtags).map(tag => `#${tag}`).join(' '), pack.cta].filter(Boolean).join('\n'), `rewrite-${i}`)}
+                                    className="text-[10px] text-purple-400 hover:text-purple-300"
+                                  >
+                                    {copied === `rewrite-${i}` ? `✓ ${t('copied')}` : t('copyPack')}
+                                  </button>
+                                </div>
+                                {pack.title && <p className="text-xs text-white font-medium">{pack.title}</p>}
+                                {pack.hook && <p className="text-[11px] text-slate-300 mt-1">🪝 {pack.hook}</p>}
+                                {pack.caption && <p className="text-[11px] text-slate-300 mt-1 whitespace-pre-wrap">{pack.caption}</p>}
+                                {pack.shortScript && <p className="text-[11px] text-slate-400 mt-1 whitespace-pre-wrap">🎙️ {pack.shortScript}</p>}
+                                {pack.cta && <p className="text-[11px] text-emerald-300 mt-1">{pack.cta}</p>}
+                                {pack.hashtags?.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {pack.hashtags.map((tag: string, idx: number) => (
+                                      <span key={idx} className="text-[10px] px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-300">#{tag}</span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-slate-500">{t('platformPublishHint')}</p>
+                        )}
+                      </div>
                       {commerce.openingHook && (
                         <p className="text-xs text-slate-300">🪝 <span className="text-slate-400">{t('openingHook')}：</span>{commerce.openingHook}</p>
                       )}

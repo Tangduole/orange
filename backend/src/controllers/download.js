@@ -158,6 +158,11 @@ async function generateCommerceCardForTask(taskId, user, outputLanguage = null) 
     err.statusCode = 403;
     throw err;
   }
+  if (task.status !== TASK_STATUS.COMPLETED) {
+    const err = new Error('任务尚未完成，无法分析文案');
+    err.statusCode = 400;
+    throw err;
+  }
   await getCopywriteUsageOrBlock(user, taskId);
 
   store.update(taskId, { commerceCardStatus: 'processing' });
@@ -2756,15 +2761,6 @@ async function extractCopywriteForTask(req, res) {
   const { taskId, outputLanguage = null } = req.body || {};
   if (!taskId) return res.json({ code: 400, message: '缺少 taskId' });
 
-  const task = store.get(taskId);
-  if (!task) return res.json({ code: 404, message: '任务不存在或文件已过期' });
-  if (!canAccessTask(req, task)) {
-    return res.status(403).json({ code: 403, message: '无权访问此任务' });
-  }
-  if (task.status !== TASK_STATUS.COMPLETED) {
-    return res.json({ code: 400, message: '任务尚未完成，无法分析文案' });
-  }
-
   try {
     const userDb = require('../userDb');
     if (req.user.email_verified !== 1) {
@@ -2778,6 +2774,75 @@ async function extractCopywriteForTask(req, res) {
   } catch (e) {
     logger.error(`[copywrite] ${taskId} failed:`, e.message);
     return res.status(e.statusCode || 500).json({ code: e.statusCode || 500, message: e.message || 'AI 文案提取失败', data: e.data });
+  }
+}
+
+async function rewriteCopywriteForTask(req, res) {
+  const { taskId, platform = 'tiktok', style = 'seed', outputLanguage = null } = req.body || {};
+  if (!taskId) return res.json({ code: 400, message: '缺少 taskId' });
+
+  try {
+    const userDb = require('../userDb');
+    if (req.user.email_verified !== 1) {
+      return res.status(403).json({ code: 403, message: '请先验证邮箱' });
+    }
+    if (!userDb.isVip(req.user)) {
+      return res.status(403).json({ code: 403, message: '平台发布文案包为 Pro 会员功能' });
+    }
+
+    let task = store.get(taskId);
+    if (!task) {
+      const historyItem = await userDb.getHistoryItem(req.user.id, null, taskId);
+      if (!historyItem) return res.status(404).json({ code: 404, message: '任务不存在或文件已过期' });
+      task = store.save({
+        taskId,
+        userId: req.user.id,
+        url: historyItem.url,
+        platform: historyItem.platform,
+        title: historyItem.title,
+        thumbnailUrl: historyItem.thumbnail_url,
+        duration: historyItem.duration,
+        status: TASK_STATUS.COMPLETED,
+        progress: 100,
+        tags: safeJsonArray(historyItem.tags),
+        copywriteAnalysis: safeJsonObject(historyItem.ai_analysis),
+        historySaved: true,
+        createdAt: Number(historyItem.created_at || Math.floor(Date.now() / 1000)) * 1000
+      });
+    } else if (!canAccessTask(req, task)) {
+      return res.status(403).json({ code: 403, message: '无权访问此任务' });
+    }
+
+    const analysis = task.copywriteAnalysis || task.aiAnalysis;
+    if (!analysis) return res.status(400).json({ code: 400, message: '请先生成 AI 素材卡' });
+
+    await getCopywriteUsageOrBlock(req.user, taskId);
+    const { rewriteCommerceCard } = require('../services/ai-copywrite');
+    const pack = await rewriteCommerceCard(analysis, platform, style, outputLanguage || task.outputLanguage || 'zh');
+    const rewritePacks = {
+      ...(analysis.rewritePacks || {}),
+      [`${platform}:${style}`]: pack
+    };
+    const nextAnalysis = { ...analysis, rewritePacks };
+
+    store.update(taskId, { copywriteAnalysis: nextAnalysis });
+    await userDb.updateHistoryMeta({
+      userId: req.user.id,
+      taskId,
+      aiAnalysis: nextAnalysis
+    });
+    await userDb.recordAiUsage({
+      userId: req.user.id,
+      taskId,
+      feature: 'copywrite',
+      inputChars: JSON.stringify(analysis).length,
+      outputItems: Array.isArray(pack.hashtags) ? pack.hashtags.length : 0
+    });
+
+    return res.json({ code: 0, data: { pack, analysis: nextAnalysis } });
+  } catch (e) {
+    logger.error(`[copywrite-rewrite] ${taskId} failed:`, e.message);
+    return res.status(e.statusCode || 500).json({ code: e.statusCode || 500, message: e.message || '平台发布文案包生成失败' });
   }
 }
 
@@ -3070,6 +3135,7 @@ module.exports = {
   clearHistory,
   updateHistoryItem,
   extractCopywriteForTask,
+  rewriteCopywriteForTask,
   getAiUsageStatus,
   getAsrLexicon,
   updateAsrLexicon,

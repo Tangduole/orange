@@ -164,6 +164,143 @@ async function analyzeWithAI(transcript, outputLanguage = 'zh') {
   }
 }
 
+function platformDisplayName(platform = 'tiktok') {
+  const key = String(platform || 'tiktok').toLowerCase();
+  const names = {
+    tiktok: 'TikTok',
+    douyin: '抖音',
+    xiaohongshu: '小红书',
+    youtube_shorts: 'YouTube Shorts'
+  };
+  return names[key] || platform || 'TikTok';
+}
+
+function buildRewritePrompt(analysis, platform = 'tiktok', style = 'seed', outputLanguage = 'zh') {
+  const lang = normalizeOutputLanguage(outputLanguage);
+  const languageNames = { zh: '简体中文', en: 'English', ja: '日本語', ko: '한국어' };
+  return `You are a short-video e-commerce copywriter.
+
+Rewrite the following AI material card into a publish-ready content pack for ${platformDisplayName(platform)}.
+Output language: ${languageNames[lang]}.
+Preserve product names, brand names, model numbers, prices, and specifications in their original language.
+
+Style: ${style}
+
+Return JSON only:
+{
+  "platform": "${platform}",
+  "style": "${style}",
+  "title": "",
+  "caption": "",
+  "hashtags": ["", ""],
+  "hook": "",
+  "shortScript": "",
+  "cta": ""
+}
+
+Material card:
+${JSON.stringify(analysis || {}, null, 2).slice(0, 5000)}`;
+}
+
+function buildMockRewrite(analysis, platform = 'tiktok', style = 'seed', outputLanguage = 'zh') {
+  const lang = normalizeOutputLanguage(outputLanguage);
+  const product = analysis?.productName || {
+    zh: '这款产品',
+    en: 'This product',
+    ja: 'この商品',
+    ko: '이 제품'
+  }[lang];
+  const localized = {
+    zh: {
+      title: `${product}，真实好用的短视频种草点`,
+      caption: `把${product}的核心卖点讲清楚：场景明确、痛点直接、适合快速发布测试。`,
+      hook: `你是不是也遇到过这个问题？${product}可能就是解决方案。`,
+      script: `开头先点出使用场景，再展示核心卖点，最后用一句行动号召引导收藏或下单。`,
+      cta: '想要同款可以先收藏，对比后再入手。',
+      tags: ['带货素材', '短视频', '好物推荐']
+    },
+    en: {
+      title: `${product}: a ready-to-test short video angle`,
+      caption: `Show the core value of ${product} with a clear use case, direct pain point, and publish-ready copy.`,
+      hook: `If you deal with this problem too, ${product} may be the simple fix.`,
+      script: `Open with the use case, show the key benefit, then close with a save-or-buy call to action.`,
+      cta: 'Save this before you compare your options.',
+      tags: ['ecommerce', 'shortvideo', 'productfinds']
+    },
+    ja: {
+      title: `${product}のショート動画向け訴求`,
+      caption: `${product}の価値を、利用シーン・悩み・すぐ使える販売文で伝えます。`,
+      hook: `同じ悩みがあるなら、${product}が解決策になるかもしれません。`,
+      script: `冒頭で利用シーンを見せ、主なメリットを伝え、保存や購入につながる一言で締めます。`,
+      cta: '比較する前に、まず保存しておきましょう。',
+      tags: ['販売素材', 'ショート動画', 'おすすめ商品']
+    },
+    ko: {
+      title: `${product} 숏폼 판매 포인트`,
+      caption: `${product}의 핵심 가치를 사용 장면, pain point, 바로 쓸 수 있는 문구로 전달합니다.`,
+      hook: `이런 고민이 있다면 ${product}가 간단한 해결책이 될 수 있습니다.`,
+      script: `사용 장면으로 시작하고 핵심 장점을 보여준 뒤 저장 또는 구매 CTA로 마무리합니다.`,
+      cta: '비교하기 전에 먼저 저장해두세요.',
+      tags: ['커머스소재', '숏폼', '제품추천']
+    }
+  }[lang];
+  return {
+    platform,
+    style,
+    title: localized.title,
+    caption: localized.caption,
+    hashtags: localized.tags,
+    hook: localized.hook,
+    shortScript: localized.script,
+    cta: localized.cta
+  };
+}
+
+async function rewriteCommerceCard(analysis, platform = 'tiktok', style = 'seed', outputLanguage = 'zh') {
+  if (!analysis || typeof analysis !== 'object') throw new Error('缺少 AI 素材卡');
+  if (!AI_API_KEY) {
+    if (useMockCopywrite()) return buildMockRewrite(analysis, platform, style, outputLanguage);
+    throw new Error('AI_API_KEY 未配置');
+  }
+
+  const prompt = buildRewritePrompt(analysis, platform, style, outputLanguage);
+  try {
+    const res = await axios.post(`${AI_API_URL}/chat/completions`, {
+      model: AI_MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.35,
+      max_tokens: 1400,
+    }, {
+      headers: {
+        'Authorization': `Bearer ${AI_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      timeout: 60000,
+    });
+
+    const content = res.data?.choices?.[0]?.message?.content || '';
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('AI 返回格式异常');
+    const parsed = JSON.parse(jsonMatch[0]);
+    return {
+      platform,
+      style,
+      title: parsed.title || '',
+      caption: parsed.caption || '',
+      hashtags: Array.isArray(parsed.hashtags) ? parsed.hashtags : [],
+      hook: parsed.hook || '',
+      shortScript: parsed.shortScript || '',
+      cta: parsed.cta || ''
+    };
+  } catch (e) {
+    if (e.response) {
+      logger.error(`[AI rewrite] API error: ${e.response.status} ${JSON.stringify(e.response.data).substring(0, 200)}`);
+      throw new Error(`AI API error: ${e.response.status}`);
+    }
+    throw e;
+  }
+}
+
 function buildMockAnalysis(transcript, outputLanguage = 'zh') {
   const lang = normalizeOutputLanguage(outputLanguage);
   const sample = transcript.replace(/\s+/g, ' ').trim().slice(0, 120);
@@ -295,4 +432,4 @@ async function extractCopywrite(taskId, platform = '', outputLanguage = 'zh') {
   return { transcript, analysis };
 }
 
-module.exports = { extractCopywrite, analyzeWithAI };
+module.exports = { extractCopywrite, analyzeWithAI, rewriteCommerceCard };

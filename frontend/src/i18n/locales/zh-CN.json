@@ -377,5 +377,8 @@
   "applyTags": "应用标签",
   "enterTagsToApply": "请输入要添加的标签",
   "batchTagsFailed": "批量标签保存失败",
-  "saving": "保存中..."
+  "saving": "保存中...",
+  "platformPublishPack": "平台发布文案包",
+  "platformPublishHint": "选择平台，生成可直接发布的标题、文案、标签和口播。",
+  "copyPack": "复制文案包"
 }
