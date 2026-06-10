@@ -370,5 +370,12 @@
   "noItemsNeedAiCards": "선택한 기록은 이미 AI 카드가 있거나 완료된 작업이 아닙니다",
   "batchAiCardsDone": "AI 소재 카드 {{count}}개를 생성했습니다",
   "copyCard": "카드 복사",
-  "copyTags": "태그 복사"
+  "copyTags": "태그 복사",
+  "batchTags": "일괄 태그",
+  "batchTagsHint": "선택한 소재 {{count}}개에 태그를 추가합니다. 기존 태그는 유지됩니다.",
+  "batchTagsPlaceholder": "숏폼, 커머스, 아이디어",
+  "applyTags": "태그 적용",
+  "enterTagsToApply": "추가할 태그를 입력하세요",
+  "batchTagsFailed": "일괄 태그 저장에 실패했습니다",
+  "saving": "저장 중..."
 }

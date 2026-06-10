@@ -370,5 +370,12 @@
   "noItemsNeedAiCards": "Selected items already have AI cards, or are not completed tasks",
   "batchAiCardsDone": "Generated {{count}} AI material cards",
   "copyCard": "Copy card",
-  "copyTags": "Copy tags"
+  "copyTags": "Copy tags",
+  "batchTags": "Batch tags",
+  "batchTagsHint": "Add tags to {{count}} selected materials. Existing tags will be kept.",
+  "batchTagsPlaceholder": "short video, commerce, idea",
+  "applyTags": "Apply tags",
+  "enterTagsToApply": "Enter tags to add",
+  "batchTagsFailed": "Failed to save batch tags",
+  "saving": "Saving..."
 }

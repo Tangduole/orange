@@ -370,5 +370,12 @@
   "noItemsNeedAiCards": "选中的记录都已有 AI 素材卡，或不是已完成任务",
   "batchAiCardsDone": "已生成 {{count}} 张 AI 素材卡",
   "copyCard": "复制卡片",
-  "copyTags": "复制标签"
+  "copyTags": "复制标签",
+  "batchTags": "批量标签",
+  "batchTagsHint": "将标签添加到已选 {{count}} 条素材，已有标签会保留。",
+  "batchTagsPlaceholder": "短视频, 带货, 选题",
+  "applyTags": "应用标签",
+  "enterTagsToApply": "请输入要添加的标签",
+  "batchTagsFailed": "批量标签保存失败",
+  "saving": "保存中..."
 }

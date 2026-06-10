@@ -434,6 +434,9 @@ export default function App() {
   const [editingMaterial, setEditingMaterial] = useState<HistoryItem | null>(null)
   const [materialTagsText, setMaterialTagsText] = useState('')
   const [materialNotes, setMaterialNotes] = useState('')
+  const [showBatchTagEditor, setShowBatchTagEditor] = useState(false)
+  const [batchTagsText, setBatchTagsText] = useState('')
+  const [batchTagsLoading, setBatchTagsLoading] = useState(false)
   const [showLexiconEditor, setShowLexiconEditor] = useState(false)
   const [lexiconText, setLexiconText] = useState('')
   const [lexiconLoading, setLexiconLoading] = useState(false)
@@ -487,13 +490,14 @@ export default function App() {
     setMaterialNotes(item.notes || '')
   }
 
+  const parseTagInput = (value: string) => value
+    .split(/[,，#\n]/)
+    .map(t => t.trim())
+    .filter(Boolean)
+
   const saveMaterialMeta = async () => {
     if (!editingMaterial) return
-    const tags = materialTagsText
-      .split(/[,，#\n]/)
-      .map(t => t.trim())
-      .filter(Boolean)
-      .slice(0, 20)
+    const tags = parseTagInput(materialTagsText).slice(0, 20)
     const notes = materialNotes.slice(0, 2000)
     const taskId = editingMaterial.taskId
 
@@ -504,6 +508,45 @@ export default function App() {
     } catch (e: any) {
       setError(e.response?.data?.message || '素材保存失败')
       fetchHistory()
+    }
+  }
+
+  const openBatchTagEditor = () => {
+    if (selectedTasks.size === 0) return
+    setBatchTagsText('')
+    setShowBatchTagEditor(true)
+  }
+
+  const saveBatchTags = async () => {
+    const tagsToAdd = parseTagInput(batchTagsText)
+    if (tagsToAdd.length === 0) {
+      setError(t('enterTagsToApply'))
+      return
+    }
+    const selectedItems = history.filter(item => selectedTasks.has(item.taskId))
+    if (selectedItems.length === 0) return
+
+    setBatchTagsLoading(true)
+    try {
+      const updates = selectedItems.map(item => {
+        const merged = Array.from(new Set([...normalizeHistoryTags(item.tags), ...tagsToAdd])).slice(0, 20)
+        return { taskId: item.taskId, tags: merged }
+      })
+      setHistory(prev => prev.map(item => {
+        const update = updates.find(u => u.taskId === item.taskId)
+        return update ? { ...item, tags: update.tags } : item
+      }))
+      await Promise.all(updates.map(update =>
+        axios.patch(`${API}/history/${update.taskId}`, { tags: update.tags }, { headers: getAuthHeaders() })
+      ))
+      setShowBatchTagEditor(false)
+      setBatchTagsText('')
+      setError('')
+    } catch (e: any) {
+      setError(e.response?.data?.message || t('batchTagsFailed'))
+      fetchHistory()
+    } finally {
+      setBatchTagsLoading(false)
     }
   }
 
@@ -2761,6 +2804,7 @@ export default function App() {
                     {selectedTasks.size > 0 && (
                       <div className="flex items-center gap-1.5 shrink-0">
                         <span className="text-[10px] text-slate-400">{t('selectedCount', { count: selectedTasks.size })}</span>
+                        <button onClick={openBatchTagEditor} className="px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-lg text-[10px]">{t('batchTags')}</button>
                         {history.some(item => selectedTasks.has(item.taskId) && item.status === 'completed' && !getHistoryAnalysis(item)) && (
                           <button
                             onClick={generateSelectedCommerceCards}
@@ -2860,6 +2904,31 @@ export default function App() {
               <div className="flex gap-3">
                 <button onClick={() => { setShowDupConfirm(false); setPendingDownload(null) }} className="flex-1 py-2 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition">{t("cancel")}</button>
                 <button onClick={() => { setShowDupConfirm(false); if (pendingDownload) pendingDownload() }} className="flex-1 py-2 px-4 rounded-xl bg-orange text-white hover:bg-orange-dark transition">{t("downloadAgain")}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showBatchTagEditor && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-800 rounded-2xl p-5 max-w-md w-full border border-slate-700">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-base font-bold text-white">{t('batchTags')}</h3>
+                <button onClick={() => setShowBatchTagEditor(false)} className="text-slate-400 hover:text-white"><X className="w-4 h-4" /></button>
+              </div>
+              <p className="text-xs text-slate-400 mb-3">{t('batchTagsHint', { count: selectedTasks.size })}</p>
+              <label className="block text-xs text-slate-300 mb-1">{t('tags')}</label>
+              <input
+                value={batchTagsText}
+                onChange={(e) => setBatchTagsText(e.target.value)}
+                placeholder={t('batchTagsPlaceholder')}
+                className="w-full px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-700 text-sm text-white placeholder:text-slate-500"
+              />
+              <div className="flex gap-3 mt-4">
+                <button onClick={() => setShowBatchTagEditor(false)} disabled={batchTagsLoading} className="flex-1 py-2 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition disabled:opacity-60">{t('cancel')}</button>
+                <button onClick={saveBatchTags} disabled={batchTagsLoading} className="flex-1 py-2 rounded-xl bg-orange text-white hover:bg-orange-dark transition disabled:opacity-60">
+                  {batchTagsLoading ? t('saving') : t('applyTags')}
+                </button>
               </div>
             </div>
           </div>

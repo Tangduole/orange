@@ -370,5 +370,12 @@
   "noItemsNeedAiCards": "選択した履歴はすでにAIカードがあります。または完了済みタスクではありません",
   "batchAiCardsDone": "{{count}}件のAI素材カードを生成しました",
   "copyCard": "カードをコピー",
-  "copyTags": "タグをコピー"
+  "copyTags": "タグをコピー",
+  "batchTags": "一括タグ",
+  "batchTagsHint": "選択した{{count}}件の素材にタグを追加します。既存のタグは保持されます。",
+  "batchTagsPlaceholder": "ショート動画, 販売, 企画",
+  "applyTags": "タグを適用",
+  "enterTagsToApply": "追加するタグを入力してください",
+  "batchTagsFailed": "一括タグの保存に失敗しました",
+  "saving": "保存中..."
 }
