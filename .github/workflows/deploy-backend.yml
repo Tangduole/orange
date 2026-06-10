@@ -29,6 +29,12 @@ jobs:
             set -e
             cd /root/orange-backend
             git pull origin master
-            cd backend && npm install --no-audit --no-fund
-            pm2 restart orange-backend --update-env
-            cd ../frontend && npm install --no-audit --no-fund && npm run build
+            cd backend
+            npm install --no-audit --no-fund
+            node --check src/app.js
+            node --check src/controllers/download.js
+            pm2 restart orange-backend --update-env || pm2 start ecosystem.config.js --update-env
+            pm2 save
+            sleep 5
+            pm2 logs orange-backend --lines 20 --nostream
+            curl -fsS http://127.0.0.1:3000/health
