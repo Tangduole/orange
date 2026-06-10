@@ -773,6 +773,16 @@ const userDb = {
     return result.rows;
   },
 
+  async getHistoryItem(userId, guestIp, taskId) {
+    if (!taskId) return null;
+    const ownerWhere = userId ? 'user_id = ?' : 'user_id IS NULL AND guest_ip = ?';
+    const result = await db.execute({
+      sql: `SELECT * FROM download_history WHERE task_id = ? AND ${ownerWhere} LIMIT 1`,
+      args: [taskId, userId || guestIp]
+    });
+    return result.rows[0] || null;
+  },
+
   async clearAllHistory() {
     await db.execute("DELETE FROM download_history");
   },

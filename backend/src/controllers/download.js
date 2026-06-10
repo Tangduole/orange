@@ -125,12 +125,36 @@ async function saveCopywriteResult({ taskId, task, user, transcript, analysis })
 }
 
 async function generateCommerceCardForTask(taskId, user, outputLanguage = null) {
-  const task = store.get(taskId);
-  if (!task) throw new Error('任务不存在或文件已过期');
   if (!user) throw new Error('请先登录');
   const userDb = require('../userDb');
   if (!userDb.isVip(user)) {
     const err = new Error('带货素材卡为 Pro 会员功能');
+    err.statusCode = 403;
+    throw err;
+  }
+
+  let task = store.get(taskId);
+  if (!task) {
+    const historyItem = await userDb.getHistoryItem(user.id, null, taskId);
+    if (!historyItem) throw new Error('任务不存在或文件已过期');
+    task = store.save({
+      taskId,
+      userId: user.id,
+      url: historyItem.url,
+      platform: historyItem.platform,
+      title: historyItem.title,
+      thumbnailUrl: historyItem.thumbnail_url,
+      duration: historyItem.duration,
+      status: TASK_STATUS.COMPLETED,
+      progress: 100,
+      tags: safeJsonArray(historyItem.tags),
+      notes: historyItem.notes || '',
+      copywriteAnalysis: safeJsonObject(historyItem.ai_analysis),
+      historySaved: true,
+      createdAt: Number(historyItem.created_at || Math.floor(Date.now() / 1000)) * 1000
+    });
+  } else if (task.userId !== user.id) {
+    const err = new Error('无权操作该任务');
     err.statusCode = 403;
     throw err;
   }

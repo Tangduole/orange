@@ -364,5 +364,9 @@
   "noAiCardsToExport": "请选择已有 AI 素材卡的历史记录",
   "extensionLinkReceived": "已从浏览器插件接收链接",
   "sharedLinkReceived": "已接收分享链接",
-  "sharedLinkHint": "确认下载内容和 AI 工具后即可开始"
+  "sharedLinkHint": "确认下载内容和 AI 工具后即可开始",
+  "batchGenerateAiCards": "生成 AI",
+  "generatingAiCards": "生成中 {{done}}/{{total}}",
+  "noItemsNeedAiCards": "选中的记录都已有 AI 素材卡，或不是已完成任务",
+  "batchAiCardsDone": "已生成 {{count}} 张 AI 素材卡"
 }

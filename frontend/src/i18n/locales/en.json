@@ -364,5 +364,9 @@
   "noAiCardsToExport": "Select history items that already have AI material cards",
   "extensionLinkReceived": "Link received from browser extension",
   "sharedLinkReceived": "Shared link received",
-  "sharedLinkHint": "Confirm download content and AI tools, then start"
+  "sharedLinkHint": "Confirm download content and AI tools, then start",
+  "batchGenerateAiCards": "Generate AI",
+  "generatingAiCards": "Generating {{done}}/{{total}}",
+  "noItemsNeedAiCards": "Selected items already have AI cards, or are not completed tasks",
+  "batchAiCardsDone": "Generated {{count}} AI material cards"
 }

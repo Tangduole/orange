@@ -364,5 +364,9 @@
   "noAiCardsToExport": "AI素材カードがある履歴を選択してください",
   "extensionLinkReceived": "ブラウザ拡張機能からリンクを受信しました",
   "sharedLinkReceived": "共有リンクを受信しました",
-  "sharedLinkHint": "ダウンロード内容とAIツールを確認して開始できます"
+  "sharedLinkHint": "ダウンロード内容とAIツールを確認して開始できます",
+  "batchGenerateAiCards": "AI生成",
+  "generatingAiCards": "生成中 {{done}}/{{total}}",
+  "noItemsNeedAiCards": "選択した履歴はすでにAIカードがあります。または完了済みタスクではありません",
+  "batchAiCardsDone": "{{count}}件のAI素材カードを生成しました"
 }

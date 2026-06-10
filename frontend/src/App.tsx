@@ -258,6 +258,9 @@ export default function App() {
   const qualityManuallySet = useRef(false) // 防止 useEffect 自动选择覆盖用户手动选择
   const [copywritingLoading, setCopywritingLoading] = useState(false)
   const [copywritingResult, setCopywritingResult] = useState<any>(null)
+  const [batchCardGenerating, setBatchCardGenerating] = useState(false)
+  const [batchCardProgress, setBatchCardProgress] = useState({ done: 0, total: 0 })
+  const [batchCardMessage, setBatchCardMessage] = useState('')
   const [aiUsage, setAiUsage] = useState<AiUsageStatus | null>(null)
 
   // Auth state
@@ -656,6 +659,61 @@ export default function App() {
       .map(item => buildCommerceCardExport(getHistoryAnalysis(item), format, item.title || item.url || item.taskId))
       .join(separator)
     downloadUtf8TextFile(text, `orange-commerce-cards-${selectedItems.length}.${format}`)
+  }
+
+  const generateSelectedCommerceCards = async () => {
+    if (!authToken) {
+      setShowAuthModal(true)
+      return
+    }
+    if (!isVip) {
+      setShowUpgradePopup(true)
+      return
+    }
+    const selectedItems = history.filter(item =>
+      selectedTasks.has(item.taskId) &&
+      item.status === 'completed' &&
+      !getHistoryAnalysis(item)
+    )
+    if (selectedItems.length === 0) {
+      setError(t('noItemsNeedAiCards'))
+      return
+    }
+
+    setBatchCardGenerating(true)
+    setBatchCardMessage('')
+    setBatchCardProgress({ done: 0, total: selectedItems.length })
+    let success = 0
+    try {
+      for (let i = 0; i < selectedItems.length; i++) {
+        const item = selectedItems[i]
+        const r = await axios.post(`${API}/copywrite`, {
+          taskId: item.taskId,
+          outputLanguage: getAiOutputLanguage(i18n.language)
+        }, {
+          headers: getAuthHeaders(),
+          timeout: 120000,
+        })
+        if (r.data.code === 0) {
+          success += 1
+          setHistory(prev => prev.map(h => h.taskId === item.taskId ? {
+            ...h,
+            aiAnalysis: r.data.data.analysis,
+            copywriteAnalysis: r.data.data.analysis,
+            tags: r.data.data.analysis?.tags || h.tags
+          } : h))
+        }
+        setBatchCardProgress({ done: i + 1, total: selectedItems.length })
+      }
+      await fetchHistory()
+      fetchAiUsage()
+      setBatchCardMessage(success > 0 ? t('batchAiCardsDone', { count: success }) : '')
+    } catch (e: any) {
+      await fetchHistory()
+      setError(e.response?.data?.message || e.message)
+    } finally {
+      setBatchCardGenerating(false)
+    }
   }
 
   const handleAuthSuccess = (token: string, user: any) => {
@@ -2677,6 +2735,15 @@ export default function App() {
                     {selectedTasks.size > 0 && (
                       <div className="flex items-center gap-1.5 shrink-0">
                         <span className="text-[10px] text-slate-400">{t('selectedCount', { count: selectedTasks.size })}</span>
+                        {history.some(item => selectedTasks.has(item.taskId) && item.status === 'completed' && !getHistoryAnalysis(item)) && (
+                          <button
+                            onClick={generateSelectedCommerceCards}
+                            disabled={batchCardGenerating}
+                            className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px] disabled:opacity-60"
+                          >
+                            {batchCardGenerating ? t('generatingAiCards', batchCardProgress) : t('batchGenerateAiCards')}
+                          </button>
+                        )}
                         <button onClick={() => exportSelectedCommerceCards('md')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">MD</button>
                         <button onClick={() => exportSelectedCommerceCards('txt')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">TXT</button>
                         <button onClick={deleteSelected} className="px-2 py-1 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg text-[10px]">{t('clearAll')}</button>
@@ -2712,6 +2779,11 @@ export default function App() {
                     >
                       {t('aiCardsOnly')}
                     </button>
+                    {(batchCardGenerating || batchCardMessage) && (
+                      <span className="text-[10px] text-orange">
+                        {batchCardGenerating ? t('generatingAiCards', batchCardProgress) : batchCardMessage}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="max-h-60 overflow-y-auto">
