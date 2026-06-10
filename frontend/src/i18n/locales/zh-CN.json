@@ -380,5 +380,8 @@
   "saving": "保存中...",
   "platformPublishPack": "平台发布文案包",
   "platformPublishHint": "选择平台，生成可直接发布的标题、文案、标签和口播。",
-  "copyPack": "复制文案包"
+  "copyPack": "复制文案包",
+  "batchRewritePacks": "批量发布包",
+  "noItemsNeedRewritePacks": "选中的记录都没有 AI 素材卡，或该平台发布包已生成",
+  "batchRewritePacksDone": "已生成 {{count}} 个平台发布包"
 }

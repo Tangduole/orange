@@ -380,5 +380,8 @@
   "saving": "保存中...",
   "platformPublishPack": "プラットフォーム投稿文案",
   "platformPublishHint": "プラットフォームを選ぶと、投稿用タイトル、本文、タグ、短い台本を生成します。",
-  "copyPack": "文案をコピー"
+  "copyPack": "文案をコピー",
+  "batchRewritePacks": "一括投稿文案",
+  "noItemsNeedRewritePacks": "選択した履歴にAI素材カードがないか、このプラットフォーム文案はすでに生成済みです",
+  "batchRewritePacksDone": "{{count}}件のプラットフォーム投稿文案を生成しました"
 }

@@ -267,6 +267,7 @@ export default function App() {
   const [copywritingResult, setCopywritingResult] = useState<any>(null)
   const [rewriteLoadingKey, setRewriteLoadingKey] = useState('')
   const [batchCardGenerating, setBatchCardGenerating] = useState(false)
+  const [batchRewriteLoadingKey, setBatchRewriteLoadingKey] = useState('')
   const [batchCardProgress, setBatchCardProgress] = useState({ done: 0, total: 0 })
   const [batchCardMessage, setBatchCardMessage] = useState('')
   const [aiUsage, setAiUsage] = useState<AiUsageStatus | null>(null)
@@ -640,6 +641,22 @@ export default function App() {
     return []
   }
 
+  const getRewritePacks = (commerce: any): any[] => (
+    commerce?.rewritePacks && typeof commerce.rewritePacks === 'object'
+      ? Object.values(commerce.rewritePacks)
+      : []
+  )
+
+  const formatRewritePack = (pack: any) => [
+    pack.platform || t('platformPublishPack'),
+    pack.title,
+    pack.hook,
+    pack.caption,
+    pack.shortScript,
+    pack.cta,
+    listify(pack.hashtags).map(tag => `#${tag}`).join(' ')
+  ].filter(Boolean).join(' | ')
+
   const buildCommerceCardExport = (commerce: any, format: 'md' | 'txt' = 'md', fallbackTitle?: string) => {
     const title = commerce.productName || fallbackTitle || task?.title || t('aiCommerceCardTitle')
     const section = (heading: string, items: string[]): [string, string[]] => [heading, items]
@@ -655,7 +672,8 @@ export default function App() {
       section(t('platformFit'), listify(commerce.platformFit)),
       section(t('rewriteAngles'), listify(commerce.rewriteAngles)),
       section(t('aiScript'), listify(commerce.copyScript)),
-      section(t('tags'), listify(commerce.tags).map(tag => `#${tag}`))
+      section(t('tags'), listify(commerce.tags).map(tag => `#${tag}`)),
+      section(t('platformPublishPack'), getRewritePacks(commerce).map(formatRewritePack))
     ].filter(([, items]) => items.length > 0)
 
     if (format === 'txt') {
@@ -681,6 +699,50 @@ export default function App() {
     ].join('\n')
   }
 
+  const toCsvCell = (value: any) => `"${String(value ?? '').replace(/\r?\n/g, ' / ').replace(/"/g, '""')}"`
+
+  const buildCommerceCardCsv = (items: Array<{ item?: HistoryItem, commerce: any }>) => {
+    const headers = [
+      t('title'),
+      t('platform'),
+      t('aiCommerceCardTitle'),
+      t('openingHook'),
+      t('aiSellingPoints'),
+      t('painPoints'),
+      t('conversionTriggers'),
+      t('targetAudience'),
+      t('pricePromotion'),
+      t('contentStructure'),
+      t('viralReason'),
+      t('platformFit'),
+      t('rewriteAngles'),
+      t('aiScript'),
+      t('tags'),
+      t('platformPublishPack'),
+      'URL'
+    ]
+    const rows = items.map(({ item, commerce }) => [
+      item?.title || commerce.productName || '',
+      item?.platform ? getPlatformLabel(item.platform) : '',
+      commerce.productName || '',
+      listify(commerce.openingHook).join(' | '),
+      listify(commerce.sellingPoints).join(' | '),
+      listify(commerce.painPoints).join(' | '),
+      listify(commerce.conversionTriggers).join(' | '),
+      listify(commerce.targetAudience).join(' | '),
+      listify(commerce.priceInfo).join(' | '),
+      listify(commerce.contentStructure).join(' | '),
+      listify(commerce.viralReason).join(' | '),
+      listify(commerce.platformFit).join(' | '),
+      listify(commerce.rewriteAngles).join(' | '),
+      listify(commerce.copyScript).join(' | '),
+      listify(commerce.tags).map(tag => `#${tag}`).join(' '),
+      getRewritePacks(commerce).map(formatRewritePack).join(' || '),
+      item?.url || ''
+    ])
+    return [headers, ...rows].map(row => row.map(toCsvCell).join(',')).join('\n')
+  }
+
   const downloadUtf8TextFile = (text: string, filename: string) => {
     // Add BOM so Windows Notepad/Excel-like viewers do not misread CJK text as ANSI.
     const content = `\uFEFF${text.replace(/\n/g, '\r\n')}`
@@ -693,8 +755,10 @@ export default function App() {
     URL.revokeObjectURL(objectUrl)
   }
 
-  const exportCommerceCard = (commerce: any, format: 'md' | 'txt') => {
-    const text = buildCommerceCardExport(commerce, format)
+  const exportCommerceCard = (commerce: any, format: 'md' | 'txt' | 'csv') => {
+    const text = format === 'csv'
+      ? buildCommerceCardCsv([{ commerce }])
+      : buildCommerceCardExport(commerce, format)
     const filename = `${(commerce.productName || task?.title || 'commerce-card').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 80)}.${format}`
     downloadUtf8TextFile(text, filename)
   }
@@ -756,10 +820,71 @@ export default function App() {
     }
   }
 
-  const exportSelectedCommerceCards = (format: 'md' | 'txt') => {
+  const generateSelectedRewritePacks = async (platform: string) => {
+    if (!authToken) {
+      setShowAuthModal(true)
+      return
+    }
+    if (!isVip) {
+      setShowUpgradePopup(true)
+      return
+    }
+    const key = `${platform}:seed`
+    const selectedItems = history.filter(item => {
+      const commerce = getHistoryAnalysis(item)
+      return selectedTasks.has(item.taskId) && commerce && !commerce.rewritePacks?.[key]
+    })
+    if (selectedItems.length === 0) {
+      setError(t('noItemsNeedRewritePacks'))
+      return
+    }
+
+    setBatchRewriteLoadingKey(key)
+    setBatchCardMessage('')
+    setBatchCardProgress({ done: 0, total: selectedItems.length })
+    let success = 0
+    try {
+      for (let i = 0; i < selectedItems.length; i++) {
+        const item = selectedItems[i]
+        const r = await axios.post(`${API}/copywrite/rewrite`, {
+          taskId: item.taskId,
+          platform,
+          style: 'seed',
+          outputLanguage: getAiOutputLanguage(i18n.language)
+        }, {
+          headers: getAuthHeaders(),
+          timeout: 120000,
+        })
+        if (r.data.code === 0) {
+          success += 1
+          setHistory(prev => prev.map(h => h.taskId === item.taskId ? {
+            ...h,
+            aiAnalysis: r.data.data.analysis,
+            copywriteAnalysis: r.data.data.analysis,
+          } : h))
+        }
+        setBatchCardProgress({ done: i + 1, total: selectedItems.length })
+      }
+      await fetchHistory()
+      fetchAiUsage()
+      setBatchCardMessage(success > 0 ? t('batchRewritePacksDone', { count: success }) : '')
+    } catch (e: any) {
+      await fetchHistory()
+      setError(e.response?.data?.message || e.message)
+    } finally {
+      setBatchRewriteLoadingKey('')
+    }
+  }
+
+  const exportSelectedCommerceCards = (format: 'md' | 'txt' | 'csv') => {
     const selectedItems = history.filter(item => selectedTasks.has(item.taskId) && getHistoryAnalysis(item))
     if (selectedItems.length === 0) {
       setError(t('noAiCardsToExport'))
+      return
+    }
+    if (format === 'csv') {
+      const text = buildCommerceCardCsv(selectedItems.map(item => ({ item, commerce: getHistoryAnalysis(item) })))
+      downloadUtf8TextFile(text, `orange-commerce-cards-${selectedItems.length}.csv`)
       return
     }
     const separator = format === 'md' ? '\n\n---\n\n' : '\n\n==============================\n\n'
@@ -2495,6 +2620,7 @@ export default function App() {
                           )}
                           <button onClick={() => exportCommerceCard(commerce, 'md')} className="text-[10px] text-purple-400 hover:text-purple-300">MD</button>
                           <button onClick={() => exportCommerceCard(commerce, 'txt')} className="text-[10px] text-purple-400 hover:text-purple-300">TXT</button>
+                          <button onClick={() => exportCommerceCard(commerce, 'csv')} className="text-[10px] text-purple-400 hover:text-purple-300">CSV</button>
                           <button onClick={runCommerceCard} disabled={copywritingLoading} className="text-[10px] text-purple-400 hover:text-purple-300 disabled:opacity-50">
                             {copywritingLoading ? t('regenerating') : t('regenerate')}
                           </button>
@@ -2917,8 +3043,27 @@ export default function App() {
                             {batchCardGenerating ? t('generatingAiCards', batchCardProgress) : t('batchGenerateAiCards')}
                           </button>
                         )}
+                        {history.some(item => selectedTasks.has(item.taskId) && getHistoryAnalysis(item)) && (
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] text-slate-500">{t('batchRewritePacks')}</span>
+                            {REWRITE_PLATFORMS.map(platform => {
+                              const key = `${platform.id}:seed`
+                              return (
+                                <button
+                                  key={platform.id}
+                                  onClick={() => generateSelectedRewritePacks(platform.id)}
+                                  disabled={!!batchRewriteLoadingKey}
+                                  className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px] disabled:opacity-60"
+                                >
+                                  {batchRewriteLoadingKey === key ? t('generatingAiCards', batchCardProgress) : platform.label}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
                         <button onClick={() => exportSelectedCommerceCards('md')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">MD</button>
                         <button onClick={() => exportSelectedCommerceCards('txt')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">TXT</button>
+                        <button onClick={() => exportSelectedCommerceCards('csv')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">CSV</button>
                         <button onClick={deleteSelected} className="px-2 py-1 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg text-[10px]">{t('clearAll')}</button>
                       </div>
                     )}
@@ -2952,9 +3097,9 @@ export default function App() {
                     >
                       {t('aiCardsOnly')}
                     </button>
-                    {(batchCardGenerating || batchCardMessage) && (
+                    {(batchCardGenerating || batchRewriteLoadingKey || batchCardMessage) && (
                       <span className="text-[10px] text-orange">
-                        {batchCardGenerating ? t('generatingAiCards', batchCardProgress) : batchCardMessage}
+                        {batchCardGenerating || batchRewriteLoadingKey ? t('generatingAiCards', batchCardProgress) : batchCardMessage}
                       </span>
                     )}
                   </div>
