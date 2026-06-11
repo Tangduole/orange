@@ -24,6 +24,22 @@
         margin: 0 0 12px;
         word-break: break-all;
       }
+      .platform {
+        display: inline-flex;
+        align-items: center;
+        border-radius: 999px;
+        padding: 3px 8px;
+        margin: 0 0 10px;
+        color: #fdba74;
+        background: rgba(249, 115, 22, 0.12);
+        border: 1px solid rgba(249, 115, 22, 0.25);
+        font-size: 11px;
+        font-weight: 600;
+      }
+      .actions {
+        display: grid;
+        gap: 8px;
+      }
       button {
         width: 100%;
         border: 0;
@@ -34,6 +50,11 @@
         font-weight: 600;
         cursor: pointer;
       }
+      button.secondary {
+        color: #fdba74;
+        background: rgba(249, 115, 22, 0.12);
+        border: 1px solid rgba(249, 115, 22, 0.25);
+      }
       button:disabled {
         opacity: 0.55;
         cursor: not-allowed;
@@ -42,8 +63,12 @@
   </head>
   <body>
     <h1>Send to Orange</h1>
+    <div id="platform" class="platform">Detecting platform...</div>
     <p id="url">Reading current tab...</p>
-    <button id="send" disabled>Open Downloader</button>
+    <div class="actions">
+      <button id="import" disabled>Open & Start</button>
+      <button id="send" class="secondary" disabled>Open Downloader</button>
+    </div>
     <script src="popup.js"></script>
   </body>
 </html>

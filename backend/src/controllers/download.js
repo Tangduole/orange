@@ -149,6 +149,7 @@ async function generateCommerceCardForTask(taskId, user, outputLanguage = null) 
       progress: 100,
       tags: safeJsonArray(historyItem.tags),
       notes: historyItem.notes || '',
+      groupName: historyItem.group_name || '',
       copywriteAnalysis: safeJsonObject(historyItem.ai_analysis),
       historySaved: true,
       createdAt: Number(historyItem.created_at || Math.floor(Date.now() / 1000)) * 1000
@@ -2537,6 +2538,7 @@ async function getHistory(req, res) {
         isFavorite: h.is_favorite === 1,
         tags: safeJsonArray(h.tags),
         notes: h.notes || '',
+        groupName: h.group_name || '',
         aiAnalysis: safeJsonObject(h.ai_analysis),
         status: 'completed',
         createdAt: h.created_at * 1000,
@@ -2732,7 +2734,7 @@ async function clearHistory(req, res) {
 
 async function updateHistoryItem(req, res) {
   const { taskId } = req.params;
-  const { isFavorite, tags, notes } = req.body || {};
+  const { isFavorite, tags, notes, groupName } = req.body || {};
   const task = store.get(taskId);
   if (task && !canAccessTask(req, task)) {
     return res.status(403).json({ code: 403, message: '无权修改此素材' });
@@ -2742,15 +2744,16 @@ async function updateHistoryItem(req, res) {
     const userDb = require('../userDb');
     const userId = req.user?.id || null;
     const guestIp = userId ? null : getClientIp(req);
-    await userDb.updateHistoryMeta({ userId, guestIp, taskId, isFavorite, tags, notes });
+    await userDb.updateHistoryMeta({ userId, guestIp, taskId, isFavorite, tags, notes, groupName });
     if (task) {
       const updates = {};
       if (typeof isFavorite === 'boolean') updates.isFavorite = isFavorite;
       if (Array.isArray(tags)) updates.tags = tags.slice(0, 20);
       if (typeof notes === 'string') updates.notes = notes.slice(0, 2000);
+      if (typeof groupName === 'string') updates.groupName = groupName.trim().slice(0, 80);
       store.update(taskId, updates);
     }
-    return res.json({ code: 0, data: { taskId, isFavorite, tags, notes } });
+    return res.json({ code: 0, data: { taskId, isFavorite, tags, notes, groupName } });
   } catch (e) {
     logger.error('[history] update meta failed:', e.message);
     return res.status(500).json({ code: 500, message: '素材更新失败' });
@@ -2805,6 +2808,8 @@ async function rewriteCopywriteForTask(req, res) {
         status: TASK_STATUS.COMPLETED,
         progress: 100,
         tags: safeJsonArray(historyItem.tags),
+        notes: historyItem.notes || '',
+        groupName: historyItem.group_name || '',
         copywriteAnalysis: safeJsonObject(historyItem.ai_analysis),
         historySaved: true,
         createdAt: Number(historyItem.created_at || Math.floor(Date.now() / 1000)) * 1000

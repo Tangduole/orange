@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Orange Downloader",
-  "version": "0.1.0",
-  "description": "Send the current page to Orange Downloader.",
+  "version": "0.2.0",
+  "description": "Send supported video pages to Orange Downloader with platform detection.",
   "permissions": ["activeTab", "tabs"],
   "action": {
     "default_title": "Send to Orange",

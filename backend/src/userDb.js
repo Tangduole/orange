@@ -159,6 +159,7 @@ async function initDb() {
         is_favorite INTEGER DEFAULT 0,
         tags TEXT,
         notes TEXT,
+        group_name TEXT,
         ai_analysis TEXT,
         created_at INTEGER NOT NULL
       )
@@ -168,6 +169,7 @@ async function initDb() {
       `ALTER TABLE download_history ADD COLUMN is_favorite INTEGER DEFAULT 0`,
       `ALTER TABLE download_history ADD COLUMN tags TEXT`,
       `ALTER TABLE download_history ADD COLUMN notes TEXT`,
+      `ALTER TABLE download_history ADD COLUMN group_name TEXT`,
       `ALTER TABLE download_history ADD COLUMN ai_analysis TEXT`,
     ]) {
       try { await db.execute({ sql: statement }); } catch (e) {}
@@ -795,7 +797,7 @@ const userDb = {
     }
   },
 
-  async updateHistoryMeta({ userId, guestIp, taskId, isFavorite, tags, notes, aiAnalysis }) {
+  async updateHistoryMeta({ userId, guestIp, taskId, isFavorite, tags, notes, groupName, aiAnalysis }) {
     const sets = [];
     const args = [];
     if (typeof isFavorite === 'boolean') {
@@ -809,6 +811,10 @@ const userDb = {
     if (typeof notes === 'string') {
       sets.push('notes = ?');
       args.push(notes.slice(0, 2000));
+    }
+    if (typeof groupName === 'string') {
+      sets.push('group_name = ?');
+      args.push(groupName.trim().slice(0, 80));
     }
     if (aiAnalysis !== undefined) {
       sets.push('ai_analysis = ?');

@@ -95,7 +95,7 @@ interface HistoryItem {
   taskId: string; status: string; title?: string
   platform?: string; thumbnailUrl?: string; createdAt: string | number
   url?: string; downloadUrl?: string; height?: number
-  isFavorite?: boolean; tags?: string[] | string; notes?: string
+  isFavorite?: boolean; tags?: string[] | string; notes?: string; groupName?: string
   aiAnalysis?: any; copywriteAnalysis?: any
 }
 interface AiUsageStatus {
@@ -276,6 +276,7 @@ export default function App() {
   const [qualitiesLoading, setQualitiesLoading] = useState(false)
   const [autoQuality, setAutoQuality] = useState<{label: string, height: number} | null>(null) // 自动选择的画质
   const [sharedEntrySource, setSharedEntrySource] = useState<'extension' | 'share' | ''>('')
+  const [sharedAutoStart, setSharedAutoStart] = useState(false)
     const [pendingUrl, setPendingUrl] = useState('')
   const [pendingQuality, setPendingQuality] = useState('')
   const [batchUrls, setBatchUrls] = useState('')
@@ -456,6 +457,7 @@ export default function App() {
   const [historySearch, setHistorySearch] = useState('')
   const [historyFilter, setHistoryFilter] = useState<'all' | 'completed' | 'error' | 'favorites'>('all')
   const [historyPlatformFilter, setHistoryPlatformFilter] = useState('all')
+  const [historyGroupFilter, setHistoryGroupFilter] = useState('all')
   const [historyTagFilter, setHistoryTagFilter] = useState('all')
   const [historyAiOnly, setHistoryAiOnly] = useState(false)
   const [historyPackOnly, setHistoryPackOnly] = useState(false)
@@ -465,15 +467,20 @@ export default function App() {
   const [editingMaterial, setEditingMaterial] = useState<HistoryItem | null>(null)
   const [materialTagsText, setMaterialTagsText] = useState('')
   const [materialNotes, setMaterialNotes] = useState('')
+  const [materialGroupName, setMaterialGroupName] = useState('')
   const [showBatchTagEditor, setShowBatchTagEditor] = useState(false)
   const [batchTagsText, setBatchTagsText] = useState('')
   const [batchTagsLoading, setBatchTagsLoading] = useState(false)
+  const [showBatchGroupEditor, setShowBatchGroupEditor] = useState(false)
+  const [batchGroupName, setBatchGroupName] = useState('')
+  const [batchGroupLoading, setBatchGroupLoading] = useState(false)
   const [showLexiconEditor, setShowLexiconEditor] = useState(false)
   const [lexiconText, setLexiconText] = useState('')
   const [lexiconLoading, setLexiconLoading] = useState(false)
   const [lexiconMessage, setLexiconMessage] = useState('')
 
   const historyPlatformOptions = Array.from(new Set(history.map(item => item.platform).filter(Boolean) as string[]))
+  const historyGroupOptions = Array.from(new Set(history.map(item => item.groupName?.trim()).filter(Boolean) as string[])).slice(0, 80)
   const historyTagOptions = Array.from(new Set(history.flatMap(item => normalizeHistoryTags(item.tags)))).slice(0, 60)
 
   const filteredHistory = history.filter(item => {
@@ -481,6 +488,7 @@ export default function App() {
     if (historyFilter === 'favorites' && !isFav) return false
     if (historyFilter !== 'all' && historyFilter !== 'favorites' && item.status !== historyFilter) return false
     if (historyPlatformFilter !== 'all' && item.platform !== historyPlatformFilter) return false
+    if (historyGroupFilter !== 'all' && (item.groupName || '') !== historyGroupFilter) return false
     if (historyTagFilter !== 'all' && !normalizeHistoryTags(item.tags).includes(historyTagFilter)) return false
     if (historyAiOnly && !getHistoryAnalysis(item)) return false
     if (historyPackOnly && getHistoryRewritePackCount(item) === 0) return false
@@ -492,6 +500,7 @@ export default function App() {
         item.url || '',
         item.platform || '',
         getPlatformLabel(item.platform || ''),
+        item.groupName || '',
         item.notes || '',
         normalizeHistoryTags(item.tags).join(' '),
         flattenAnalysisText(getHistoryAnalysis(item))
@@ -521,6 +530,7 @@ export default function App() {
     setEditingMaterial(item)
     setMaterialTagsText(normalizeHistoryTags(item.tags).join(', '))
     setMaterialNotes(item.notes || '')
+    setMaterialGroupName(item.groupName || '')
   }
 
   const parseTagInput = (value: string) => value
@@ -532,12 +542,13 @@ export default function App() {
     if (!editingMaterial) return
     const tags = parseTagInput(materialTagsText).slice(0, 20)
     const notes = materialNotes.slice(0, 2000)
+    const groupName = materialGroupName.trim().slice(0, 80)
     const taskId = editingMaterial.taskId
 
-    setHistory(prev => prev.map(item => item.taskId === taskId ? { ...item, tags, notes } : item))
+    setHistory(prev => prev.map(item => item.taskId === taskId ? { ...item, tags, notes, groupName } : item))
     setEditingMaterial(null)
     try {
-      await axios.patch(`${API}/history/${taskId}`, { tags, notes }, { headers: getAuthHeaders() })
+      await axios.patch(`${API}/history/${taskId}`, { tags, notes, groupName }, { headers: getAuthHeaders() })
     } catch (e: any) {
       setError(e.response?.data?.message || '素材保存失败')
       fetchHistory()
@@ -548,6 +559,12 @@ export default function App() {
     if (selectedTasks.size === 0) return
     setBatchTagsText('')
     setShowBatchTagEditor(true)
+  }
+
+  const openBatchGroupEditor = () => {
+    if (selectedTasks.size === 0) return
+    setBatchGroupName('')
+    setShowBatchGroupEditor(true)
   }
 
   const saveBatchTags = async () => {
@@ -580,6 +597,32 @@ export default function App() {
       fetchHistory()
     } finally {
       setBatchTagsLoading(false)
+    }
+  }
+
+  const saveBatchGroup = async () => {
+    const groupName = batchGroupName.trim().slice(0, 80)
+    if (!groupName) {
+      setError(t('enterMaterialGroup'))
+      return
+    }
+    const selectedItems = history.filter(item => selectedTasks.has(item.taskId))
+    if (selectedItems.length === 0) return
+
+    setBatchGroupLoading(true)
+    try {
+      setHistory(prev => prev.map(item => selectedTasks.has(item.taskId) ? { ...item, groupName } : item))
+      await Promise.all(selectedItems.map(item =>
+        axios.patch(`${API}/history/${item.taskId}`, { groupName }, { headers: getAuthHeaders() })
+      ))
+      setShowBatchGroupEditor(false)
+      setBatchGroupName('')
+      setError('')
+    } catch (e: any) {
+      setError(e.response?.data?.message || t('batchGroupFailed'))
+      fetchHistory()
+    } finally {
+      setBatchGroupLoading(false)
     }
   }
 
@@ -770,6 +813,7 @@ export default function App() {
     const headers = [
       t('title'),
       t('platform'),
+      t('materialGroup'),
       t('platformPublishPack'),
       'Style',
       'Pack Title',
@@ -785,6 +829,7 @@ export default function App() {
       return getRewritePacks(commerce, style).map(pack => [
         materialTitle,
         item?.platform ? getPlatformLabel(item.platform) : '',
+        item?.groupName || '',
         getRewritePlatformLabel(pack.platform),
         getRewriteStyleLabel(pack.style || style),
         pack.title || '',
@@ -803,6 +848,7 @@ export default function App() {
     const headers = [
       t('title'),
       t('platform'),
+      t('materialGroup'),
       t('aiCommerceCardTitle'),
       t('openingHook'),
       t('aiSellingPoints'),
@@ -822,6 +868,7 @@ export default function App() {
     const rows = items.map(({ item, commerce }) => [
       item?.title || commerce.productName || '',
       item?.platform ? getPlatformLabel(item.platform) : '',
+      item?.groupName || '',
       commerce.productName || '',
       listify(commerce.openingHook).join(' | '),
       listify(commerce.sellingPoints).join(' | '),
@@ -1540,13 +1587,18 @@ export default function App() {
     const params = new URLSearchParams(window.location.search)
     const sharedUrl = params.get('url')
     if (!sharedUrl) return
+    const sharedPlatform = params.get('platform')
+    const shouldAutoStart = params.get('autostart') === '1'
     setUrl(sharedUrl)
-    setDetected(detectPlatform(sharedUrl))
+    setDetected(sharedPlatform || detectPlatform(sharedUrl))
     setSharedEntrySource(params.get('source') === 'extension' ? 'extension' : 'share')
+    setSharedAutoStart(shouldAutoStart)
     fetchVideoQualities(sharedUrl).catch(() => {})
     const clean = new URL(window.location.href)
     clean.searchParams.delete('url')
     clean.searchParams.delete('source')
+    clean.searchParams.delete('platform')
+    clean.searchParams.delete('autostart')
     window.history.replaceState({}, '', clean.toString())
   }, [])
 
@@ -1819,7 +1871,14 @@ export default function App() {
     if (bytes < 1073741824) return `${(bytes / 1048576).toFixed(1)} MB`
     return `${(bytes / 1073741824).toFixed(2)} GB`
   }
-  const clearUrl = () => { setUrl(''); setDetected(''); setSharedEntrySource('') }
+
+  useEffect(() => {
+    if (!sharedAutoStart || !url || loading) return
+    setSharedAutoStart(false)
+    handleSubmit()
+  }, [sharedAutoStart, url, loading])
+
+  const clearUrl = () => { setUrl(''); setDetected(''); setSharedEntrySource(''); setSharedAutoStart(false) }
 
   const isWorking = (s: string) => ['pending', 'parsing', 'processing', 'downloading', 'asr'].includes(s)
   const statusLabel = (s: string) => ({ pending: t('pending'), parsing: t('parsing'), downloading: t('downloading'), asr: t('speechRecognition'), completed: t('completed'), error: t('failed') }[s] || s)
@@ -3197,6 +3256,7 @@ export default function App() {
                       <div className="flex items-center gap-1.5 shrink-0">
                         <span className="text-[10px] text-slate-400">{t('selectedCount', { count: selectedTasks.size })}</span>
                         <button onClick={openBatchTagEditor} className="px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-lg text-[10px]">{t('batchTags')}</button>
+                        <button onClick={openBatchGroupEditor} className="px-2 py-1 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px]">{t('batchGroup')}</button>
                         {history.some(item => selectedTasks.has(item.taskId) && item.status === 'completed' && !getHistoryAnalysis(item)) && (
                           <button
                             onClick={generateSelectedCommerceCards}
@@ -3274,6 +3334,12 @@ export default function App() {
                         <option key={platform} value={platform}>{getPlatformLabel(platform)}</option>
                       ))}
                     </select>
+                    <select value={historyGroupFilter} onChange={(e) => setHistoryGroupFilter(e.target.value)} className={`px-2 py-1.5 border rounded-lg text-xs ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`}>
+                      <option value="all">{t('allGroups')}</option>
+                      {historyGroupOptions.map(group => (
+                        <option key={group} value={group}>{group}</option>
+                      ))}
+                    </select>
                     <select value={historyTagFilter} onChange={(e) => setHistoryTagFilter(e.target.value)} className={`px-2 py-1.5 border rounded-lg text-xs ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`}>
                       <option value="all">{t('allTags')}</option>
                       {historyTagOptions.map(tag => (
@@ -3314,7 +3380,7 @@ export default function App() {
                   </div>
                 </div>
                 <div className="max-h-60 overflow-y-auto">
-                  {filteredHistory.length === 0 ? <p className="py-8 text-center text-sm text-slate-500">{historySearch || historyFilter !== 'all' || historyPlatformFilter !== 'all' || historyTagFilter !== 'all' || historyAiOnly || historyPackOnly || historyPackTodoOnly ? t('noResults') : t('noHistory')}</p> : filteredHistory.map(item => (
+                  {filteredHistory.length === 0 ? <p className="py-8 text-center text-sm text-slate-500">{historySearch || historyFilter !== 'all' || historyPlatformFilter !== 'all' || historyGroupFilter !== 'all' || historyTagFilter !== 'all' || historyAiOnly || historyPackOnly || historyPackTodoOnly ? t('noResults') : t('noHistory')}</p> : filteredHistory.map(item => (
                     <div key={item.taskId} className={`flex items-center gap-2 px-3 py-2 border-b border-slate-700/20 last:border-0 hover:bg-slate-900/60 transition ${selectedTasks.has(item.taskId) ? 'bg-orange/10' : ''}`}>
                       <input type="checkbox" checked={selectedTasks.has(item.taskId)} onChange={() => { const s = new Set(selectedTasks); selectedTasks.has(item.taskId) ? s.delete(item.taskId) : s.add(item.taskId); setSelectedTasks(s) }} className="w-3.5 h-3.5 rounded-full border-slate-600 shrink-0" />
                       {item.thumbnailUrl ? <button onClick={() => openSavedFile(item)} className="relative shrink-0 group"><img src={`${BASE_URL}${item.thumbnailUrl}`} alt="" className="w-12 h-9 object-cover rounded-lg" /><div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 transition"><Play className="w-4 h-4 text-white" /></div></button> : <div className="w-12 h-9 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0"><Video className="w-4 h-4 text-slate-500" /></div>}
@@ -3334,6 +3400,9 @@ export default function App() {
                             )}
                             {getHistoryAnalysis(item) && (
                               <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-300" title={t('aiCommerceCardTitle')}>AI</span>
+                            )}
+                            {item.groupName && (
+                              <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300" title={t('materialGroup')}>{item.groupName}</span>
                             )}
                             {getHistoryAnalysis(item) && (
                               <span
@@ -3407,6 +3476,31 @@ export default function App() {
           </div>
         )}
 
+        {showBatchGroupEditor && (
+          <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-800 rounded-2xl p-5 max-w-md w-full border border-slate-700">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-base font-bold text-white">{t('batchGroup')}</h3>
+                <button onClick={() => setShowBatchGroupEditor(false)} className="text-slate-400 hover:text-white"><X className="w-4 h-4" /></button>
+              </div>
+              <p className="text-xs text-slate-400 mb-3">{t('batchGroupHint', { count: selectedTasks.size })}</p>
+              <label className="block text-xs text-slate-300 mb-1">{t('materialGroup')}</label>
+              <input
+                value={batchGroupName}
+                onChange={(e) => setBatchGroupName(e.target.value)}
+                placeholder={t('materialGroupPlaceholder')}
+                className="w-full px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-700 text-sm text-white placeholder:text-slate-500"
+              />
+              <div className="flex gap-3 mt-4">
+                <button onClick={() => setShowBatchGroupEditor(false)} disabled={batchGroupLoading} className="flex-1 py-2 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition disabled:opacity-60">{t('cancel')}</button>
+                <button onClick={saveBatchGroup} disabled={batchGroupLoading} className="flex-1 py-2 rounded-xl bg-orange text-white hover:bg-orange-dark transition disabled:opacity-60">
+                  {batchGroupLoading ? t('saving') : t('applyGroup')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {editingMaterial && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className="bg-slate-800 rounded-2xl p-5 max-w-md w-full border border-slate-700">
@@ -3415,6 +3509,13 @@ export default function App() {
                 <button onClick={() => setEditingMaterial(null)} className="text-slate-400 hover:text-white"><X className="w-4 h-4" /></button>
               </div>
               <p className="text-xs text-slate-400 mb-3 truncate">{editingMaterial.title || editingMaterial.url || editingMaterial.taskId}</p>
+              <label className="block text-xs text-slate-300 mb-1">{t('materialGroup')}</label>
+              <input
+                value={materialGroupName}
+                onChange={(e) => setMaterialGroupName(e.target.value)}
+                placeholder={t('materialGroupPlaceholder')}
+                className="w-full px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-700 text-sm text-white placeholder:text-slate-500 mb-3"
+              />
               <label className="block text-xs text-slate-300 mb-1">标签（逗号或 # 分隔）</label>
               <input
                 value={materialTagsText}
