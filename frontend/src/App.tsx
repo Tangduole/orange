@@ -681,6 +681,16 @@ export default function App() {
     return match?.label || platform || t('platformPublishPack')
   }
 
+  const getMissingRewritePackLabels = (item: HistoryItem) => {
+    const analysis = getHistoryAnalysis(item)
+    const packs = analysis?.rewritePacks && typeof analysis.rewritePacks === 'object' ? analysis.rewritePacks : {}
+    return REWRITE_STYLES.flatMap(style =>
+      REWRITE_PLATFORMS
+        .filter(platform => !packs[`${platform.id}:${style.id}`])
+        .map(platform => `${platform.label} · ${t(style.labelKey)}`)
+    )
+  }
+
   const formatRewritePack = (pack: any) => [
     `${getRewritePlatformLabel(pack.platform)} · ${getRewriteStyleLabel(pack.style || 'seed')}`,
     pack.title,
@@ -937,12 +947,15 @@ export default function App() {
       return
     }
     const platforms = platform === 'all' ? REWRITE_PLATFORMS.map(item => item.id) : [platform]
+    const styles = style === 'all' ? REWRITE_STYLES.map(item => item.id) : [style]
     const jobs = history.flatMap(item => {
       const commerce = getHistoryAnalysis(item)
       if (!selectedTasks.has(item.taskId) || !commerce) return []
-      return platforms
-        .filter(platformId => !commerce.rewritePacks?.[`${platformId}:${style}`])
-        .map(platformId => ({ item, platform: platformId }))
+      return styles.flatMap(styleId =>
+        platforms
+          .filter(platformId => !commerce.rewritePacks?.[`${platformId}:${styleId}`])
+          .map(platformId => ({ item, platform: platformId, style: styleId }))
+      )
     })
     if (jobs.length === 0) {
       setError(t('noItemsNeedRewritePacks'))
@@ -955,11 +968,11 @@ export default function App() {
     let success = 0
     try {
       for (let i = 0; i < jobs.length; i++) {
-        const { item, platform: platformId } = jobs[i]
+        const { item, platform: platformId, style: styleId } = jobs[i]
         const r = await axios.post(`${API}/copywrite/rewrite`, {
           taskId: item.taskId,
           platform: platformId,
-          style,
+          style: styleId,
           outputLanguage: getAiOutputLanguage(i18n.language)
         }, {
           headers: getAuthHeaders(),
@@ -1727,6 +1740,12 @@ export default function App() {
     selectedTasks.size === filteredHistory.length
       ? setSelectedTasks(new Set())
       : setSelectedTasks(new Set(filteredHistory.map(item => item.taskId)))
+  }
+  const selectPackTodoItems = () => {
+    const packTodoIds = filteredHistory
+      .filter(item => getHistoryAnalysis(item) && !isHistoryRewritePackComplete(item))
+      .map(item => item.taskId)
+    setSelectedTasks(new Set(packTodoIds))
   }
   const retryTask = async (item: HistoryItem) => {
     if (!item.url) return
@@ -3206,6 +3225,13 @@ export default function App() {
                             >
                               {batchRewriteLoadingKey === `all:${rewriteStyle}` ? t('generatingAiCards', batchCardProgress) : t('allPlatforms')}
                             </button>
+                            <button
+                              onClick={() => generateSelectedRewritePacks('all', 'all')}
+                              disabled={!!batchRewriteLoadingKey}
+                              className="px-2 py-1 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px] disabled:opacity-60"
+                            >
+                              {batchRewriteLoadingKey === 'all:all' ? t('generatingAiCards', batchCardProgress) : t('completePublishPacks')}
+                            </button>
                             {REWRITE_PLATFORMS.map(platform => {
                               const key = `${platform.id}:${rewriteStyle}`
                               return (
@@ -3271,6 +3297,14 @@ export default function App() {
                     >
                       {t('publishPacksTodoOnly')}
                     </button>
+                    {filteredHistory.some(item => getHistoryAnalysis(item) && !isHistoryRewritePackComplete(item)) && (
+                      <button
+                        onClick={selectPackTodoItems}
+                        className="px-2 py-1.5 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs transition"
+                      >
+                        {t('selectPublishPackTodos')}
+                      </button>
+                    )}
                     {(batchCardGenerating || batchRewriteLoadingKey || batchCardMessage) && (
                       <span className="text-[10px] text-orange">
                         {batchCardGenerating || batchRewriteLoadingKey ? t('generatingAiCards', batchCardProgress) : batchCardMessage}
@@ -3300,12 +3334,20 @@ export default function App() {
                             {getHistoryAnalysis(item) && (
                               <span className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-300" title={t('aiCommerceCardTitle')}>AI</span>
                             )}
-                            {getHistoryRewritePackCount(item) > 0 && (
+                            {getHistoryAnalysis(item) && (
                               <span
                                 className={`shrink-0 text-[10px] px-1.5 py-0.5 rounded-full ${isHistoryRewritePackComplete(item) ? 'bg-emerald-500/15 text-emerald-300' : 'bg-orange/15 text-orange'}`}
-                                title={t('platformPublishPack')}
+                                title={getMissingRewritePackLabels(item).length > 0 ? getMissingRewritePackLabels(item).slice(0, 12).join('\n') : t('platformPublishPack')}
                               >
                                 PACK {getHistoryRewritePackCount(item)}/{getRequiredRewritePackCount()}
+                              </span>
+                            )}
+                            {getHistoryAnalysis(item) && !isHistoryRewritePackComplete(item) && (
+                              <span
+                                className="shrink-0 text-[10px] px-1.5 py-0.5 rounded-full bg-yellow-500/15 text-yellow-300"
+                                title={getMissingRewritePackLabels(item).slice(0, 12).join('\n')}
+                              >
+                                {t('missingPublishPacks', { count: getRequiredRewritePackCount() - getHistoryRewritePackCount(item) })}
                               </span>
                             )}
                           </div>
