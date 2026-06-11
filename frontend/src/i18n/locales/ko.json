@@ -391,5 +391,6 @@
   "rewriteStyleSeed": "추천",
   "rewriteStyleReview": "리뷰",
   "rewriteStylePromo": "프로모션",
-  "rewriteStyleProblem": "문제 해결"
+  "rewriteStyleProblem": "문제 해결",
+  "rewriteStyleLive": "라이브 멘트"
 }

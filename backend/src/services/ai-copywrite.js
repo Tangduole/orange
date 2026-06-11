@@ -181,7 +181,8 @@ function rewriteStyleInstruction(style = 'seed') {
     seed: 'Soft recommendation. Feel authentic, creator-led, useful, and low-pressure.',
     review: 'Review and comparison. Emphasize real experience, pros/cons, details, and credibility.',
     promo: 'Promotion and conversion. Highlight offer, urgency, benefits, and a clear call to action.',
-    problem: 'Problem-solution angle. Start with a specific pain point, then present the product as the practical fix.'
+    problem: 'Problem-solution angle. Start with a specific pain point, then present the product as the practical fix.',
+    live: 'Live commerce host script. Use energetic spoken rhythm, repeat the key benefit, create interaction cues, and close with a clear order-now CTA.'
   };
   return instructions[key] || instructions.seed;
 }
@@ -265,7 +266,8 @@ function buildMockRewrite(analysis, platform = 'tiktok', style = 'seed', outputL
     seed: { zh: '种草', en: 'recommendation', ja: 'おすすめ', ko: '추천' },
     review: { zh: '测评', en: 'review', ja: 'レビュー', ko: '리뷰' },
     promo: { zh: '促销', en: 'promotion', ja: '販促', ko: '프로모션' },
-    problem: { zh: '痛点解决', en: 'problem-solution', ja: '悩み解決', ko: '문제 해결' }
+    problem: { zh: '痛点解决', en: 'problem-solution', ja: '悩み解決', ko: '문제 해결' },
+    live: { zh: '直播口播', en: 'live pitch', ja: 'ライブ口上', ko: '라이브 멘트' }
   }[String(style || 'seed').toLowerCase()]?.[lang] || style;
   return {
     platform,

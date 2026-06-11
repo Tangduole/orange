@@ -391,5 +391,6 @@
   "rewriteStyleSeed": "Seeding",
   "rewriteStyleReview": "Review",
   "rewriteStylePromo": "Promo",
-  "rewriteStyleProblem": "Pain point"
+  "rewriteStyleProblem": "Pain point",
+  "rewriteStyleLive": "Live pitch"
 }

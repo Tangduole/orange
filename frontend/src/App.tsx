@@ -200,6 +200,7 @@ const REWRITE_STYLES = [
   { id: 'review', labelKey: 'rewriteStyleReview' },
   { id: 'promo', labelKey: 'rewriteStylePromo' },
   { id: 'problem', labelKey: 'rewriteStyleProblem' },
+  { id: 'live', labelKey: 'rewriteStyleLive' },
 ]
 
 function formatBytes(bytes: number): string {
