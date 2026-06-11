@@ -510,6 +510,30 @@ export default function App() {
     return true
   })
 
+  const materialStats = (() => {
+    const platformCounts = new Map<string, number>()
+    let aiCards = 0
+    let publishPacks = 0
+    let favoritesCount = 0
+    history.forEach(item => {
+      if (item.platform) platformCounts.set(item.platform, (platformCounts.get(item.platform) || 0) + 1)
+      if (getHistoryAnalysis(item)) aiCards += 1
+      publishPacks += getHistoryRewritePackCount(item)
+      if (item.isFavorite || favorites.has(item.taskId)) favoritesCount += 1
+    })
+    const topPlatform = Array.from(platformCounts.entries()).sort((a, b) => b[1] - a[1])[0]
+    const topPlatformMeta = topPlatform ? PLATFORMS.find(platform => platform.id === topPlatform[0]) : null
+    return {
+      total: historyTotal || history.length,
+      aiCards,
+      publishPacks,
+      groups: historyGroupOptions.length,
+      favorites: favoritesCount,
+      topPlatform: topPlatformMeta ? t(topPlatformMeta.labelKey as any) || topPlatformMeta.labelFallback : topPlatform?.[0] || t('none'),
+      topPlatformCount: topPlatform?.[1] || 0
+    }
+  })()
+
   const toggleFavorite = async (taskId: string) => {
     const nf = new Set(favorites)
     const nextFavorite = !nf.has(taskId)
@@ -2490,6 +2514,7 @@ export default function App() {
             {!isVip && remainingDownloads === 0 && (
               <div className="mb-3 p-3 bg-gradient-to-r from-orange/20 to-orange-light/20 rounded-xl border border-orange-500/40 text-center">
                 <p className="text-sm text-white mb-1">{t('dailyDownloadsExhausted')}</p>
+                <p className="text-[11px] text-slate-300 mb-1">{t('upgradeLimitHint')}</p>
                 <button onClick={() => setShowUpgradePopup(true)} className="text-orange hover:text-orange font-semibold text-sm">
                   ⭐ {t('upgradeToProUnlimited')} →
                 </button>
@@ -3249,6 +3274,29 @@ export default function App() {
             </button>
             {showHistory && (
               <div className={`mt-2 rounded-2xl border overflow-hidden ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-light-surface border-light-border'}`}>
+                {history.length > 0 && (
+                  <div className={`p-3 border-b ${isDark ? 'border-slate-700/30 bg-slate-950/30' : 'border-light-border bg-light-bg'}`}>
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <p className="text-xs font-semibold text-slate-300">📊 {t('materialDashboard')}</p>
+                      <span className="text-[10px] text-slate-500">{t('dashboardFromHistory')}</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                      {[
+                        { label: t('dashboardDownloads'), value: materialStats.total, color: 'text-orange' },
+                        { label: t('dashboardAiCards'), value: materialStats.aiCards, color: 'text-purple-300' },
+                        { label: t('dashboardPublishPacks'), value: materialStats.publishPacks, color: 'text-emerald-300' },
+                        { label: t('dashboardGroups'), value: materialStats.groups, color: 'text-cyan-300' },
+                        { label: t('dashboardFavorites'), value: materialStats.favorites, color: 'text-yellow-300' },
+                        { label: t('dashboardTopPlatform'), value: `${materialStats.topPlatform}${materialStats.topPlatformCount ? ` · ${materialStats.topPlatformCount}` : ''}`, color: 'text-slate-200' },
+                      ].map(stat => (
+                        <div key={stat.label} className={`rounded-xl px-3 py-2 border ${isDark ? 'bg-slate-800/45 border-slate-700/40' : 'bg-light-surface border-light-border'}`}>
+                          <p className="text-[10px] text-slate-500">{stat.label}</p>
+                          <p className={`mt-0.5 font-bold ${stat.color}`}>{stat.value}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className={`p-3 border-b space-y-2 ${isDark ? 'border-slate-700/30' : 'border-light-border'}`}>
                   <div className="flex gap-2 items-center">
                     {filteredHistory.length > 0 && <input type="checkbox" checked={selectedTasks.size === filteredHistory.length} onChange={toggleSelectAll} className={`w-3.5 h-3.5 rounded-full ${isDark ? 'border-slate-600' : 'border-light-border'}`} />}
@@ -3584,17 +3632,17 @@ export default function App() {
         {/* Upgrade Popup */}
         {showUpgradePopup && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-slate-800 rounded-2xl w-full max-w-sm p-6 border border-orange/30 shadow-2xl relative overflow-hidden">
+            <div className="bg-slate-800 rounded-2xl w-full max-w-md p-6 border border-orange/30 shadow-2xl relative overflow-hidden">
               <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-orange to-orange-light" />
               <button onClick={() => setShowUpgradePopup(false)} className="absolute top-3 right-3 text-slate-400 hover:text-white">
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
               </button>
               <div className="text-center mb-5">
-                <p className="text-4xl mb-2">⚡</p>
-                <h3 className="text-xl font-bold text-white">{t('dailyLimitReached')}</h3>
-                <p className="text-slate-400 text-sm mt-2">{t('upgradeForUnlimited')}</p>
+                <p className="text-4xl mb-2">🚀</p>
+                <h3 className="text-xl font-bold text-white">{t('upgradeWorkbenchTitle')}</h3>
+                <p className="text-slate-400 text-sm mt-2">{t('upgradeWorkbenchDesc')}</p>
               </div>
-              <div className="grid grid-cols-2 gap-3 mb-5">
+              <div className="grid grid-cols-2 gap-3 mb-4">
                 <div className="p-3 bg-slate-700/30 rounded-xl text-center">
                   <p className="text-slate-400 text-xs">{t('free')}</p>
                   <p className="text-lg font-bold text-white">3/{t('dailyShort')}</p>
@@ -3603,6 +3651,19 @@ export default function App() {
                   <p className="text-orange text-xs">⭐ Pro</p>
                   <p className="text-lg font-bold text-orange">{t('unlimited')}</p>
                 </div>
+              </div>
+              <div className="space-y-2 mb-5">
+                {[
+                  { icon: '🤖', text: t('upgradeBenefitAiCards') },
+                  { icon: '📣', text: t('upgradeBenefitPublishPacks') },
+                  { icon: '📁', text: t('upgradeBenefitWorkbench') },
+                  { icon: '⚡', text: t('upgradeBenefitBatch') },
+                ].map(item => (
+                  <div key={item.text} className="flex items-center gap-2 p-2 rounded-xl bg-slate-700/25 text-xs text-slate-300">
+                    <span>{item.icon}</span>
+                    <span>{item.text}</span>
+                  </div>
+                ))}
               </div>
               <button
                 onClick={() => { setShowUpgradePopup(false); setShowSubscription(true) }}
