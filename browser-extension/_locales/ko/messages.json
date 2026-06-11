@@ -1,0 +1,99 @@
+{
+  "extensionName": {
+    "message": "Orange Downloader"
+  },
+  "extensionDescription": {
+    "message": "지원되는 영상 페이지를 Orange Downloader로 보내고 플랫폼 감지와 계정 상태를 표시합니다."
+  },
+  "actionTitle": {
+    "message": "Orange로 보내기"
+  },
+  "checkingAccount": {
+    "message": "계정 확인 중..."
+  },
+  "syncAfterLogin": {
+    "message": "로그인 후 Orange를 한 번 열면 상태가 동기화됩니다."
+  },
+  "notSignedIn": {
+    "message": "로그인 안 됨"
+  },
+  "signInHint": {
+    "message": "Orange에 로그인하면 여기에서 Pro 상태를 동기화할 수 있습니다."
+  },
+  "sessionExpired": {
+    "message": "세션이 만료되었습니다. Orange에 다시 로그인하세요."
+  },
+  "orangeAccount": {
+    "message": "Orange 계정"
+  },
+  "accountSynced": {
+    "message": "계정 동기화됨"
+  },
+  "openRefreshHint": {
+    "message": "Orange를 열어 계정 상태를 새로고침하세요."
+  },
+  "unlimitedUnlocked": {
+    "message": "무제한 다운로드가 활성화되었습니다."
+  },
+  "freeDownloadsLeft": {
+    "message": "오늘 무료 다운로드 $remaining$/$limit$회 남음.",
+    "placeholders": {
+      "remaining": { "content": "$1" },
+      "limit": { "content": "$2" }
+    }
+  },
+  "freeAccountSynced": {
+    "message": "무료 계정이 동기화되었습니다."
+  },
+  "openMaterialWorkbench": {
+    "message": "소재 워크벤치 열기"
+  },
+  "upgradeToPro": {
+    "message": "Pro로 업그레이드"
+  },
+  "signInToOrange": {
+    "message": "Orange 로그인"
+  },
+  "openOrange": {
+    "message": "Orange 열기"
+  },
+  "openAndStart": {
+    "message": "열고 시작"
+  },
+  "openDownloader": {
+    "message": "다운로더 열기"
+  },
+  "detectingPlatform": {
+    "message": "플랫폼 감지 중..."
+  },
+  "readingCurrentTab": {
+    "message": "현재 탭 읽는 중..."
+  },
+  "cannotSendPage": {
+    "message": "이 페이지는 보낼 수 없습니다."
+  },
+  "unsupportedPage": {
+    "message": "지원되지 않는 페이지"
+  },
+  "unknownPlatform": {
+    "message": "알 수 없는 플랫폼"
+  },
+  "unableReadTab": {
+    "message": "현재 탭을 읽을 수 없습니다."
+  },
+  "unavailable": {
+    "message": "사용 불가"
+  },
+  "guestBadge": {
+    "message": "Guest"
+  },
+  "freeBadge": {
+    "message": "Free"
+  },
+  "proBadge": {
+    "message": "Pro"
+  },
+  "limitBadge": {
+    "message": "Limit"
+  }
+}

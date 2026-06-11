@@ -126,6 +126,14 @@ export const api = {
     return data.data;
   },
 
+  async getAdminMetrics(token: string) {
+    const data = await apiFetch(`${API_BASE}/api/auth/admin/metrics`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (data.code !== 0) throw new Error(data.message);
+    return data.data;
+  },
+
   // 获取用户使用量（下载次数等）
   async getUsage(token: string) {
     const data = await apiFetch(`${API_BASE}/api/subscribe/status`, {

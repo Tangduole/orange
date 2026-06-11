@@ -850,6 +850,91 @@ const userDb = {
     return result.rows || [];
   },
 
+  async getAdminMetrics() {
+    const nowUnix = Math.floor(Date.now() / 1000);
+    const dayStart = new Date();
+    dayStart.setHours(0, 0, 0, 0);
+    const todayUnix = Math.floor(dayStart.getTime() / 1000);
+    const sevenDaysAgoUnix = nowUnix - 7 * 24 * 60 * 60;
+    const sevenDaysAgoMs = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
+    const firstNumber = async (sql, args = []) => {
+      const result = await db.execute({ sql, args });
+      const row = result.rows?.[0] || {};
+      const value = Object.values(row)[0] || 0;
+      return Number(value) || 0;
+    };
+
+    const [
+      totalUsers,
+      proUsers,
+      verifiedUsers,
+      newUsers7d,
+      totalDownloads,
+      downloadsToday,
+      downloads7d,
+      aiRequestsTotal,
+      aiRequests7d,
+      aiOutputItemsTotal,
+      aiCards,
+      materialGroups,
+      favorites
+    ] = await Promise.all([
+      firstNumber('SELECT COUNT(*) as value FROM users'),
+      firstNumber(`SELECT COUNT(*) as value FROM users WHERE tier = 'pro' AND subscription_status IN ('active', 'past_due', 'lifetime')`),
+      firstNumber('SELECT COUNT(*) as value FROM users WHERE email_verified = 1'),
+      firstNumber('SELECT COUNT(*) as value FROM users WHERE created_at >= ?', [sevenDaysAgoMs]),
+      firstNumber('SELECT COUNT(*) as value FROM download_history'),
+      firstNumber('SELECT COUNT(*) as value FROM download_history WHERE created_at >= ?', [todayUnix]),
+      firstNumber('SELECT COUNT(*) as value FROM download_history WHERE created_at >= ?', [sevenDaysAgoUnix]),
+      firstNumber('SELECT COUNT(*) as value FROM ai_usage'),
+      firstNumber('SELECT COUNT(*) as value FROM ai_usage WHERE created_at >= ?', [sevenDaysAgoUnix]),
+      firstNumber('SELECT COALESCE(SUM(output_items), 0) as value FROM ai_usage'),
+      firstNumber(`SELECT COUNT(*) as value FROM download_history WHERE ai_analysis IS NOT NULL AND ai_analysis != ''`),
+      firstNumber(`SELECT COUNT(DISTINCT group_name) as value FROM download_history WHERE group_name IS NOT NULL AND group_name != ''`),
+      firstNumber('SELECT COUNT(*) as value FROM download_history WHERE is_favorite = 1')
+    ]);
+
+    const topPlatformsResult = await db.execute({
+      sql: `SELECT platform, COUNT(*) as count
+            FROM download_history
+            WHERE platform IS NOT NULL AND platform != ''
+            GROUP BY platform
+            ORDER BY count DESC
+            LIMIT 6`
+    });
+
+    return {
+      users: {
+        total: totalUsers,
+        pro: proUsers,
+        free: Math.max(totalUsers - proUsers, 0),
+        verified: verifiedUsers,
+        new7d: newUsers7d
+      },
+      downloads: {
+        total: totalDownloads,
+        today: downloadsToday,
+        last7d: downloads7d
+      },
+      ai: {
+        requests: aiRequestsTotal,
+        requests7d: aiRequests7d,
+        outputItems: aiOutputItemsTotal
+      },
+      materials: {
+        aiCards,
+        groups: materialGroups,
+        favorites
+      },
+      topPlatforms: (topPlatformsResult.rows || []).map(row => ({
+        platform: row.platform,
+        count: Number(row.count) || 0
+      })),
+      generatedAt: Date.now()
+    };
+  },
+
   async getAsrLexicon(userId, language = 'auto') {
     if (!userId) return [];
     await ensureAsrLexiconTable();

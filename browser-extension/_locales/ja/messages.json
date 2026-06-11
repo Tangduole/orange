@@ -1,0 +1,99 @@
+{
+  "extensionName": {
+    "message": "Orange Downloader"
+  },
+  "extensionDescription": {
+    "message": "対応する動画ページをOrange Downloaderへ送り、プラットフォーム検出とアカウント状態を表示します。"
+  },
+  "actionTitle": {
+    "message": "Orangeへ送信"
+  },
+  "checkingAccount": {
+    "message": "アカウントを確認中..."
+  },
+  "syncAfterLogin": {
+    "message": "ログイン後にOrangeを一度開くと状態を同期できます。"
+  },
+  "notSignedIn": {
+    "message": "未ログイン"
+  },
+  "signInHint": {
+    "message": "OrangeにログインするとPro状態をここに同期できます。"
+  },
+  "sessionExpired": {
+    "message": "セッションが期限切れです。Orangeに再ログインしてください。"
+  },
+  "orangeAccount": {
+    "message": "Orangeアカウント"
+  },
+  "accountSynced": {
+    "message": "アカウント同期済み"
+  },
+  "openRefreshHint": {
+    "message": "Orangeを開いてアカウント状態を更新してください。"
+  },
+  "unlimitedUnlocked": {
+    "message": "無制限ダウンロードが有効です。"
+  },
+  "freeDownloadsLeft": {
+    "message": "本日の無料ダウンロード残り $remaining$/$limit$ 回。",
+    "placeholders": {
+      "remaining": { "content": "$1" },
+      "limit": { "content": "$2" }
+    }
+  },
+  "freeAccountSynced": {
+    "message": "無料アカウントを同期しました。"
+  },
+  "openMaterialWorkbench": {
+    "message": "素材ワークベンチを開く"
+  },
+  "upgradeToPro": {
+    "message": "Proにアップグレード"
+  },
+  "signInToOrange": {
+    "message": "Orangeにログイン"
+  },
+  "openOrange": {
+    "message": "Orangeを開く"
+  },
+  "openAndStart": {
+    "message": "開いて開始"
+  },
+  "openDownloader": {
+    "message": "ダウンローダーを開く"
+  },
+  "detectingPlatform": {
+    "message": "プラットフォームを検出中..."
+  },
+  "readingCurrentTab": {
+    "message": "現在のタブを読み込み中..."
+  },
+  "cannotSendPage": {
+    "message": "このページは送信できません。"
+  },
+  "unsupportedPage": {
+    "message": "非対応ページ"
+  },
+  "unknownPlatform": {
+    "message": "不明なプラットフォーム"
+  },
+  "unableReadTab": {
+    "message": "現在のタブを読み取れません。"
+  },
+  "unavailable": {
+    "message": "利用不可"
+  },
+  "guestBadge": {
+    "message": "Guest"
+  },
+  "freeBadge": {
+    "message": "Free"
+  },
+  "proBadge": {
+    "message": "Pro"
+  },
+  "limitBadge": {
+    "message": "Limit"
+  }
+}

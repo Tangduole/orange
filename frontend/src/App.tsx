@@ -300,6 +300,10 @@ export default function App() {
   const [showSubscription, setShowSubscription] = useState(false)
   const [showReferral, setShowReferral] = useState(false)
   const [showUpgradePopup, setShowUpgradePopup] = useState(false)
+  const [showAdminDashboard, setShowAdminDashboard] = useState(false)
+  const [adminMetrics, setAdminMetrics] = useState<any>(null)
+  const [adminMetricsLoading, setAdminMetricsLoading] = useState(false)
+  const [adminMetricsError, setAdminMetricsError] = useState('')
 
   // 全局 401 拦截：token 过期自动弹出登录框
   useEffect(() => {
@@ -347,6 +351,21 @@ export default function App() {
       console.error('[AI] getAiUsage failed:', err)
     }
   }, [authToken])
+
+  const openAdminDashboard = async () => {
+    if (!authToken) return
+    setShowUserMenu(false)
+    setShowAdminDashboard(true)
+    setAdminMetricsLoading(true)
+    setAdminMetricsError('')
+    try {
+      setAdminMetrics(await api.getAdminMetrics(authToken))
+    } catch (e: any) {
+      setAdminMetricsError(e.message || t('adminMetricsFailed'))
+    } finally {
+      setAdminMetricsLoading(false)
+    }
+  }
   const changeLanguage = (lng: string) => {
     i18n.changeLanguage(lng)
     localStorage.setItem('orange_language', lng)
@@ -425,6 +444,10 @@ export default function App() {
   // Check VIP status and remaining downloads
   useEffect(() => {
     if (authToken) {
+      api.getMe(authToken).then(user => {
+        setAuthUser(user)
+        localStorage.setItem('orange_user', JSON.stringify(user))
+      }).catch(() => {})
       api.getSubscriptionStatus(authToken).then(status => {
         // 同时检查 tier 和 subscriptionStatus，防止过期账号仍显示 VIP
         const isPro = status?.tier === 'pro' && status?.subscriptionStatus === 'active';
@@ -2038,6 +2061,11 @@ export default function App() {
                           <button onClick={() => { setShowUserMenu(false); setShowReferral(true) }} className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700/50 transition flex items-center gap-2">
                             <span>🎁</span> {t('referral')}
                           </button>
+                          {authUser?.isAdmin && (
+                            <button onClick={openAdminDashboard} className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700/50 transition flex items-center gap-2">
+                              <span>📈</span> {t('adminDashboard')}
+                            </button>
+                          )}
                           <button onClick={() => { setShowUserMenu(false); openLexiconEditor() }} className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700/50 transition flex items-center gap-2">
                             <span>📝</span> ASR 专有词库
                           </button>
@@ -3643,6 +3671,63 @@ export default function App() {
         </footer>
         <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} onSuccess={handleAuthSuccess} onForgotPassword={() => { setShowAuthModal(false); setShowResetPwd(true); }} />
         {authToken && <ReferralModal token={authToken} isOpen={showReferral} onClose={() => setShowReferral(false)} />}
+
+        {showAdminDashboard && (
+          <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div className="bg-slate-800 rounded-2xl w-full max-w-2xl border border-slate-700 shadow-2xl overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700">
+                <div>
+                  <h3 className="text-lg font-bold text-white">📈 {t('adminDashboard')}</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">{t('adminDashboardHint')}</p>
+                </div>
+                <button onClick={() => setShowAdminDashboard(false)} className="text-slate-400 hover:text-white">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-5">
+                {adminMetricsLoading ? (
+                  <div className="py-10 flex items-center justify-center text-slate-400 text-sm">
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" /> {t('loading')}
+                  </div>
+                ) : adminMetricsError ? (
+                  <div className="rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm p-3">{adminMetricsError}</div>
+                ) : adminMetrics ? (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      {[
+                        { label: t('adminUsers'), value: adminMetrics.users?.total || 0, sub: t('adminNewUsers7d', { count: adminMetrics.users?.new7d || 0 }) },
+                        { label: t('adminProUsers'), value: adminMetrics.users?.pro || 0, sub: t('adminVerifiedUsers', { count: adminMetrics.users?.verified || 0 }) },
+                        { label: t('adminDownloads'), value: adminMetrics.downloads?.total || 0, sub: t('adminDownloadsToday', { count: adminMetrics.downloads?.today || 0 }) },
+                        { label: t('adminAiRequests'), value: adminMetrics.ai?.requests || 0, sub: t('adminAiRequests7d', { count: adminMetrics.ai?.requests7d || 0 }) },
+                        { label: t('adminAiCards'), value: adminMetrics.materials?.aiCards || 0, sub: t('adminFavorites', { count: adminMetrics.materials?.favorites || 0 }) },
+                        { label: t('adminGroups'), value: adminMetrics.materials?.groups || 0, sub: t('adminOutputItems', { count: adminMetrics.ai?.outputItems || 0 }) },
+                        { label: t('adminDownloads7d'), value: adminMetrics.downloads?.last7d || 0, sub: t('adminFreeUsers', { count: adminMetrics.users?.free || 0 }) },
+                      ].map(card => (
+                        <div key={card.label} className="rounded-xl bg-slate-900/60 border border-slate-700/60 p-3">
+                          <p className="text-[11px] text-slate-400">{card.label}</p>
+                          <p className="text-xl font-bold text-orange mt-1">{card.value}</p>
+                          <p className="text-[10px] text-slate-500 mt-1">{card.sub}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="rounded-xl bg-slate-900/60 border border-slate-700/60 p-3">
+                      <p className="text-xs text-slate-300 font-semibold mb-2">{t('adminTopPlatforms')}</p>
+                      <div className="flex flex-wrap gap-2">
+                        {(adminMetrics.topPlatforms || []).length === 0 ? (
+                          <span className="text-xs text-slate-500">{t('none')}</span>
+                        ) : adminMetrics.topPlatforms.map((item: any) => (
+                          <span key={item.platform} className="px-2 py-1 rounded-full bg-orange/10 text-orange border border-orange/20 text-xs">
+                            {getPlatformLabel(item.platform) || item.platform} · {item.count}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Upgrade Popup */}
         {showUpgradePopup && (

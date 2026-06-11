@@ -14,6 +14,21 @@ const loginAttempts = new Map();
 const LOGIN_LIMIT = 5;
 const LOGIN_WINDOW = 5 * 60 * 1000; // 5分钟
 
+function isAdminEmail(email) {
+  const admins = String(process.env.ADMIN_EMAILS || '')
+    .split(',')
+    .map(item => item.trim().toLowerCase())
+    .filter(Boolean);
+  return !!email && admins.includes(String(email).toLowerCase());
+}
+
+function requireAdmin(req, res, next) {
+  if (!isAdminEmail(req.user?.email)) {
+    return res.status(403).json({ code: 403, message: 'Admin access required' });
+  }
+  next();
+}
+
 function checkLoginRateLimit(ip) {
   const now = Date.now();
   const record = loginAttempts.get(ip);
@@ -160,7 +175,8 @@ router.post('/login', authLimiter, async (req, res) => {
         email: user.email,
         tier: user.tier,
         subscriptionStatus: user.subscription_status,
-        emailVerified: true
+        emailVerified: true,
+        isAdmin: isAdminEmail(user.email)
       }
     }
   });
@@ -181,9 +197,24 @@ router.get('/me', auth.required, async (req, res) => {
       tier: req.user.tier,
       subscriptionStatus: req.user.subscription_status,
       subscriptionEndsAt: req.user.subscription_ends_at,
+      isAdmin: isAdminEmail(req.user.email),
       usage
     }
   });
+});
+
+/**
+ * GET /api/auth/admin/metrics
+ * 管理员运营数据概览
+ */
+router.get('/admin/metrics', auth.required, requireAdmin, async (req, res) => {
+  try {
+    const metrics = await userDb.getAdminMetrics();
+    res.json({ code: 0, data: metrics });
+  } catch (e) {
+    logger.error('[auth] admin metrics error:', e.message);
+    res.status(500).json({ code: 500, message: 'Failed to load admin metrics' });
+  }
 });
 
 // 忘记密码 - 发送重置邮件（严格限制）

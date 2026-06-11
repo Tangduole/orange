@@ -39,8 +39,13 @@ The account card also shows a contextual shortcut: sign in for guests, upgrade f
 
 If the token expires, the popup clears the synced state and asks the user to sign in again.
 
+## Localization
+
+Chrome extension i18n files are included under `_locales/` for English, Simplified Chinese, Japanese, and Korean. Manifest text and popup UI copy use `chrome.i18n`.
+
 ## Production Notes
 
 - Replace `ORANGE_URL` in `popup.js` if deploying to another domain.
-- Add extension icons before publishing to the Chrome Web Store.
+- Extension icons are included under `icons/` and wired in `manifest.json`.
+- Use `STORE_LISTING.md` for store copy, permissions justification, privacy summary, and manual QA.
 - The content script only runs on Orange domains to sync account state; it does not inject scripts into video pages or collect browsing data.

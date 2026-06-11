@@ -1,0 +1,99 @@
+{
+  "extensionName": {
+    "message": "Orange Downloader"
+  },
+  "extensionDescription": {
+    "message": "Send supported video pages to Orange Downloader with platform detection and account status."
+  },
+  "actionTitle": {
+    "message": "Send to Orange"
+  },
+  "checkingAccount": {
+    "message": "Checking account..."
+  },
+  "syncAfterLogin": {
+    "message": "Open Orange once after login to sync status."
+  },
+  "notSignedIn": {
+    "message": "Not signed in"
+  },
+  "signInHint": {
+    "message": "Sign in on Orange to sync Pro status here."
+  },
+  "sessionExpired": {
+    "message": "Your session expired. Sign in on Orange again."
+  },
+  "orangeAccount": {
+    "message": "Orange account"
+  },
+  "accountSynced": {
+    "message": "Account synced"
+  },
+  "openRefreshHint": {
+    "message": "Open Orange to refresh account status."
+  },
+  "unlimitedUnlocked": {
+    "message": "Unlimited downloads unlocked."
+  },
+  "freeDownloadsLeft": {
+    "message": "$remaining$/$limit$ free downloads left today.",
+    "placeholders": {
+      "remaining": { "content": "$1" },
+      "limit": { "content": "$2" }
+    }
+  },
+  "freeAccountSynced": {
+    "message": "Free account synced."
+  },
+  "openMaterialWorkbench": {
+    "message": "Open Material Workbench"
+  },
+  "upgradeToPro": {
+    "message": "Upgrade to Pro"
+  },
+  "signInToOrange": {
+    "message": "Sign in to Orange"
+  },
+  "openOrange": {
+    "message": "Open Orange"
+  },
+  "openAndStart": {
+    "message": "Open & Start"
+  },
+  "openDownloader": {
+    "message": "Open Downloader"
+  },
+  "detectingPlatform": {
+    "message": "Detecting platform..."
+  },
+  "readingCurrentTab": {
+    "message": "Reading current tab..."
+  },
+  "cannotSendPage": {
+    "message": "This page cannot be sent."
+  },
+  "unsupportedPage": {
+    "message": "Unsupported page"
+  },
+  "unknownPlatform": {
+    "message": "Unknown platform"
+  },
+  "unableReadTab": {
+    "message": "Unable to read current tab."
+  },
+  "unavailable": {
+    "message": "Unavailable"
+  },
+  "guestBadge": {
+    "message": "Guest"
+  },
+  "freeBadge": {
+    "message": "Free"
+  },
+  "proBadge": {
+    "message": "Pro"
+  },
+  "limitBadge": {
+    "message": "Limit"
+  }
+}

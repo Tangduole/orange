@@ -1,6 +1,18 @@
 const ORANGE_URL = "https://www.orangedl.com";
 const API_BASE = "https://api.orangedl.com";
 
+function t(key, substitutions) {
+  return chrome.i18n.getMessage(key, substitutions) || key;
+}
+
+function localizeStaticText() {
+  document.querySelectorAll("[data-i18n]").forEach((el) => {
+    const key = el.getAttribute("data-i18n");
+    if (key) el.textContent = t(key);
+  });
+  document.title = t("extensionName");
+}
+
 async function getActiveTab() {
   const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
   return tabs[0];
@@ -16,7 +28,7 @@ function detectPlatform(pageUrl) {
     if (host.includes("instagram.com")) return { id: "instagram", label: "Instagram" };
     if (host.includes("twitter.com") || host.includes("x.com")) return { id: "x", label: "X" };
   } catch {}
-  return { id: "unknown", label: "Unknown platform" };
+  return { id: "unknown", label: t("unknownPlatform") };
 }
 
 function buildTargetUrl(pageUrl, platform, autostart = false) {
@@ -62,9 +74,9 @@ async function refreshAccountStatus() {
   if (!auth || !auth.token || isTokenExpired(auth.token)) {
     await chrome.storage.local.remove("orangeAuth");
     setAccountStatus({
-      title: "Not signed in",
-      hint: "Sign in on Orange to sync Pro status here.",
-      badge: "Guest"
+      title: t("notSignedIn"),
+      hint: t("signInHint"),
+      badge: t("guestBadge")
     });
     return { status: "guest" };
   }
@@ -77,9 +89,9 @@ async function refreshAccountStatus() {
     if (res.status === 401 || data.code === 401) {
       await chrome.storage.local.remove("orangeAuth");
       setAccountStatus({
-        title: "Not signed in",
-        hint: "Your session expired. Sign in on Orange again.",
-        badge: "Guest"
+        title: t("notSignedIn"),
+        hint: t("sessionExpired"),
+        badge: t("guestBadge")
       });
       return { status: "guest" };
     }
@@ -91,10 +103,10 @@ async function refreshAccountStatus() {
     const remaining = typeof usage.remaining === "number" ? usage.remaining : null;
     const dailyLimit = typeof usage.dailyLimit === "number" ? usage.dailyLimit : null;
     const quotaText = isPro
-      ? "Unlimited downloads unlocked."
+      ? t("unlimitedUnlocked")
       : remaining !== null && dailyLimit !== null
-        ? `${remaining}/${dailyLimit} free downloads left today.`
-        : "Free account synced.";
+        ? t("freeDownloadsLeft", [String(remaining), String(dailyLimit)])
+        : t("freeAccountSynced");
 
     await chrome.storage.local.set({
       orangeAuth: {
@@ -105,18 +117,18 @@ async function refreshAccountStatus() {
     });
 
     setAccountStatus({
-      title: user.email || "Orange account",
+      title: user.email || t("orangeAccount"),
       hint: quotaText,
-      badge: isPro ? "Pro" : remaining === 0 ? "Limit" : "Free",
+      badge: isPro ? t("proBadge") : remaining === 0 ? t("limitBadge") : t("freeBadge"),
       badgeClass: isPro ? "pro" : remaining === 0 ? "out" : "free"
     });
     return { status: isPro ? "pro" : remaining === 0 ? "limit" : "free" };
   } catch {
     const cachedStatus = auth.user?.tier === "pro" ? "pro" : "free";
     setAccountStatus({
-      title: auth.user?.email || "Account synced",
-      hint: "Open Orange to refresh account status.",
-      badge: cachedStatus === "pro" ? "Pro" : "Free",
+      title: auth.user?.email || t("accountSynced"),
+      hint: t("openRefreshHint"),
+      badge: cachedStatus === "pro" ? t("proBadge") : t("freeBadge"),
       badgeClass: cachedStatus === "pro" ? "pro" : "free"
     });
     return { status: cachedStatus };
@@ -125,15 +137,17 @@ async function refreshAccountStatus() {
 
 function getAccountAction(status) {
   if (status === "pro") {
-    return { label: "Open Material Workbench", action: "workbench" };
+    return { label: t("openMaterialWorkbench"), action: "workbench" };
   }
   if (status === "free" || status === "limit") {
-    return { label: "Upgrade to Pro", action: "upgrade" };
+    return { label: t("upgradeToPro"), action: "upgrade" };
   }
-  return { label: "Sign in to Orange", action: "login" };
+  return { label: t("signInToOrange"), action: "login" };
 }
 
 document.addEventListener("DOMContentLoaded", async () => {
+  localizeStaticText();
+
   const urlEl = document.getElementById("url");
   const platformEl = document.getElementById("platform");
   const sendBtn = document.getElementById("send");
@@ -152,8 +166,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     const tab = await getActiveTab();
     const pageUrl = tab && tab.url ? tab.url : "";
     if (!/^https?:\/\//i.test(pageUrl)) {
-      urlEl.textContent = "This page cannot be sent.";
-      platformEl.textContent = "Unsupported page";
+      urlEl.textContent = t("cannotSendPage");
+      platformEl.textContent = t("unsupportedPage");
       return;
     }
 
@@ -171,7 +185,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       window.close();
     });
   } catch (e) {
-    urlEl.textContent = "Unable to read current tab.";
-    platformEl.textContent = "Unavailable";
+    urlEl.textContent = t("unableReadTab");
+    platformEl.textContent = t("unavailable");
   }
 });

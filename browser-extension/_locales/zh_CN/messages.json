@@ -1,0 +1,99 @@
+{
+  "extensionName": {
+    "message": "Orange Downloader"
+  },
+  "extensionDescription": {
+    "message": "将支持的视频页面一键发送到 Orange Downloader，并显示平台识别和账号状态。"
+  },
+  "actionTitle": {
+    "message": "发送到 Orange"
+  },
+  "checkingAccount": {
+    "message": "正在检查账号..."
+  },
+  "syncAfterLogin": {
+    "message": "登录后打开一次 Orange 即可同步状态。"
+  },
+  "notSignedIn": {
+    "message": "未登录"
+  },
+  "signInHint": {
+    "message": "在 Orange 登录后可在这里同步 Pro 状态。"
+  },
+  "sessionExpired": {
+    "message": "登录状态已过期，请重新登录 Orange。"
+  },
+  "orangeAccount": {
+    "message": "Orange 账号"
+  },
+  "accountSynced": {
+    "message": "账号已同步"
+  },
+  "openRefreshHint": {
+    "message": "打开 Orange 刷新账号状态。"
+  },
+  "unlimitedUnlocked": {
+    "message": "已解锁无限下载。"
+  },
+  "freeDownloadsLeft": {
+    "message": "今日免费剩余 $remaining$/$limit$ 次。",
+    "placeholders": {
+      "remaining": { "content": "$1" },
+      "limit": { "content": "$2" }
+    }
+  },
+  "freeAccountSynced": {
+    "message": "免费账号已同步。"
+  },
+  "openMaterialWorkbench": {
+    "message": "打开素材工作台"
+  },
+  "upgradeToPro": {
+    "message": "升级 Pro"
+  },
+  "signInToOrange": {
+    "message": "登录 Orange"
+  },
+  "openOrange": {
+    "message": "打开 Orange"
+  },
+  "openAndStart": {
+    "message": "打开并开始"
+  },
+  "openDownloader": {
+    "message": "打开下载器"
+  },
+  "detectingPlatform": {
+    "message": "正在识别平台..."
+  },
+  "readingCurrentTab": {
+    "message": "正在读取当前标签页..."
+  },
+  "cannotSendPage": {
+    "message": "当前页面无法发送。"
+  },
+  "unsupportedPage": {
+    "message": "不支持的页面"
+  },
+  "unknownPlatform": {
+    "message": "未知平台"
+  },
+  "unableReadTab": {
+    "message": "无法读取当前标签页。"
+  },
+  "unavailable": {
+    "message": "不可用"
+  },
+  "guestBadge": {
+    "message": "游客"
+  },
+  "freeBadge": {
+    "message": "Free"
+  },
+  "proBadge": {
+    "message": "Pro"
+  },
+  "limitBadge": {
+    "message": "已限额"
+  }
+}
