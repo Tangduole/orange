@@ -1,9 +1,21 @@
 {
   "manifest_version": 3,
   "name": "Orange Downloader",
-  "version": "0.2.0",
-  "description": "Send supported video pages to Orange Downloader with platform detection.",
-  "permissions": ["activeTab", "tabs"],
+  "version": "0.3.0",
+  "description": "Send supported video pages to Orange Downloader with platform detection and account status.",
+  "permissions": ["activeTab", "tabs", "storage"],
+  "host_permissions": [
+    "https://www.orangedl.com/*",
+    "https://orangedl.com/*",
+    "https://api.orangedl.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://www.orangedl.com/*", "https://orangedl.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
   "action": {
     "default_title": "Send to Orange",
     "default_popup": "popup.html"

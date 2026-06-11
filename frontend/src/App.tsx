@@ -1609,20 +1609,35 @@ export default function App() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
+    const extensionAction = params.get('action')
     const sharedUrl = params.get('url')
-    if (!sharedUrl) return
-    const sharedPlatform = params.get('platform')
-    const shouldAutoStart = params.get('autostart') === '1'
-    setUrl(sharedUrl)
-    setDetected(sharedPlatform || detectPlatform(sharedUrl))
-    setSharedEntrySource(params.get('source') === 'extension' ? 'extension' : 'share')
-    setSharedAutoStart(shouldAutoStart)
-    fetchVideoQualities(sharedUrl).catch(() => {})
+    if (!sharedUrl && !extensionAction) return
+
+    if (extensionAction === 'login' && !authToken) {
+      setShowAuthModal(true)
+    } else if (extensionAction === 'upgrade') {
+      if (authToken) setShowSubscription(true)
+      else setShowAuthModal(true)
+    } else if (extensionAction === 'workbench') {
+      setShowHistory(true)
+    }
+
+    if (sharedUrl) {
+      const sharedPlatform = params.get('platform')
+      const shouldAutoStart = params.get('autostart') === '1'
+      setUrl(sharedUrl)
+      setDetected(sharedPlatform || detectPlatform(sharedUrl))
+      setSharedEntrySource(params.get('source') === 'extension' ? 'extension' : 'share')
+      setSharedAutoStart(shouldAutoStart)
+      fetchVideoQualities(sharedUrl).catch(() => {})
+    }
+
     const clean = new URL(window.location.href)
     clean.searchParams.delete('url')
     clean.searchParams.delete('source')
     clean.searchParams.delete('platform')
     clean.searchParams.delete('autostart')
+    clean.searchParams.delete('action')
     window.history.replaceState({}, '', clean.toString())
   }, [])
 

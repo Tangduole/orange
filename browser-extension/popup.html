@@ -36,6 +36,55 @@
         font-size: 11px;
         font-weight: 600;
       }
+      .account {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        border-radius: 12px;
+        padding: 9px 10px;
+        margin: 0 0 12px;
+        background: rgba(15, 23, 42, 0.75);
+        border: 1px solid rgba(148, 163, 184, 0.22);
+      }
+      .account strong {
+        display: block;
+        color: #e2e8f0;
+        font-size: 12px;
+        line-height: 1.3;
+      }
+      .account span {
+        display: block;
+        color: #94a3b8;
+        font-size: 11px;
+        line-height: 1.3;
+      }
+      .badge {
+        flex: 0 0 auto;
+        border-radius: 999px;
+        padding: 3px 8px;
+        color: #c4b5fd;
+        background: rgba(139, 92, 246, 0.14);
+        border: 1px solid rgba(139, 92, 246, 0.28);
+        font-size: 10px;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+      .badge.pro {
+        color: #86efac;
+        background: rgba(34, 197, 94, 0.14);
+        border-color: rgba(34, 197, 94, 0.28);
+      }
+      .badge.free {
+        color: #fdba74;
+        background: rgba(249, 115, 22, 0.14);
+        border-color: rgba(249, 115, 22, 0.28);
+      }
+      .badge.out {
+        color: #fca5a5;
+        background: rgba(239, 68, 68, 0.14);
+        border-color: rgba(239, 68, 68, 0.28);
+      }
       .actions {
         display: grid;
         gap: 8px;
@@ -55,6 +104,11 @@
         background: rgba(249, 115, 22, 0.12);
         border: 1px solid rgba(249, 115, 22, 0.25);
       }
+      button.tertiary {
+        color: #cbd5e1;
+        background: rgba(148, 163, 184, 0.1);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+      }
       button:disabled {
         opacity: 0.55;
         cursor: not-allowed;
@@ -63,9 +117,17 @@
   </head>
   <body>
     <h1>Send to Orange</h1>
+    <div id="account" class="account">
+      <div>
+        <strong id="accountTitle">Checking account...</strong>
+        <span id="accountHint">Open Orange once after login to sync status.</span>
+      </div>
+      <div id="accountBadge" class="badge">...</div>
+    </div>
     <div id="platform" class="platform">Detecting platform...</div>
     <p id="url">Reading current tab...</p>
     <div class="actions">
+      <button id="accountAction" class="tertiary">Open Orange</button>
       <button id="import" disabled>Open & Start</button>
       <button id="send" class="secondary" disabled>Open Downloader</button>
     </div>
