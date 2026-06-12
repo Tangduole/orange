@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
-    "smoke": "node scripts/smoke-commercial-flow.js"
+    "smoke": "node scripts/smoke-commercial-flow.js",
+    "check:syntax": "node scripts/check-syntax.js"
   },
   "keywords": [
     "video",

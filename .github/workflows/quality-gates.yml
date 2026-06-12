@@ -1,0 +1,61 @@
+name: Quality Gates
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Install backend dependencies
+        working-directory: backend
+        run: npm ci
+      - name: Backend syntax check
+        working-directory: backend
+        run: npm run check:syntax
+      - name: Backend commercial smoke
+        working-directory: backend
+        run: npm run smoke
+        env:
+          NODE_ENV: test
+          JWT_SECRET: ci_smoke_secret_for_quality_gates
+          DEV_COPYWRITE_MOCK: "1"
+          LOCAL_DB_PATH: ./data/ci-smoke.db
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
+
+  browser-extension:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Validate extension manifest and locales
+        run: node browser-extension/scripts/validate.js

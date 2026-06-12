@@ -857,12 +857,41 @@ const userDb = {
     const todayUnix = Math.floor(dayStart.getTime() / 1000);
     const sevenDaysAgoUnix = nowUnix - 7 * 24 * 60 * 60;
     const sevenDaysAgoMs = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const thirtyDaysAgoUnix = nowUnix - 30 * 24 * 60 * 60;
+    const thirtyDaysAgoMs = Date.now() - 30 * 24 * 60 * 60 * 1000;
 
     const firstNumber = async (sql, args = []) => {
       const result = await db.execute({ sql, args });
       const row = result.rows?.[0] || {};
       const value = Object.values(row)[0] || 0;
       return Number(value) || 0;
+    };
+
+    const makeDaySeries = (days) => {
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      start.setDate(start.getDate() - days + 1);
+      return Array.from({ length: days }, (_, index) => {
+        const date = new Date(start);
+        date.setDate(start.getDate() + index);
+        return {
+          date: date.toISOString().slice(0, 10),
+          count: 0
+        };
+      });
+    };
+
+    const mergeDayRows = (days, rows = []) => {
+      const series = makeDaySeries(days);
+      const index = new Map(series.map((item, position) => [item.date, position]));
+      rows.forEach(row => {
+        const date = String(row.date || '');
+        const position = index.get(date);
+        if (position !== undefined) {
+          series[position].count = Number(row.count) || 0;
+        }
+      });
+      return series;
     };
 
     const [
@@ -895,14 +924,56 @@ const userDb = {
       firstNumber('SELECT COUNT(*) as value FROM download_history WHERE is_favorite = 1')
     ]);
 
-    const topPlatformsResult = await db.execute({
-      sql: `SELECT platform, COUNT(*) as count
-            FROM download_history
-            WHERE platform IS NOT NULL AND platform != ''
-            GROUP BY platform
-            ORDER BY count DESC
-            LIMIT 6`
-    });
+    const [
+      topPlatformsResult,
+      downloadTrendResult,
+      userTrendResult,
+      aiFeatureResult,
+      platform7dResult
+    ] = await Promise.all([
+      db.execute({
+        sql: `SELECT platform, COUNT(*) as count
+              FROM download_history
+              WHERE platform IS NOT NULL AND platform != ''
+              GROUP BY platform
+              ORDER BY count DESC
+              LIMIT 6`
+      }),
+      db.execute({
+        sql: `SELECT date(created_at, 'unixepoch') as date, COUNT(*) as count
+              FROM download_history
+              WHERE created_at >= ?
+              GROUP BY date
+              ORDER BY date ASC`,
+        args: [thirtyDaysAgoUnix]
+      }),
+      db.execute({
+        sql: `SELECT date(created_at / 1000, 'unixepoch') as date, COUNT(*) as count
+              FROM users
+              WHERE created_at >= ?
+              GROUP BY date
+              ORDER BY date ASC`,
+        args: [thirtyDaysAgoMs]
+      }),
+      db.execute({
+        sql: `SELECT feature, COUNT(*) as requests, COALESCE(SUM(input_chars), 0) as input_chars, COALESCE(SUM(output_items), 0) as output_items
+              FROM ai_usage
+              WHERE created_at >= ?
+              GROUP BY feature
+              ORDER BY requests DESC
+              LIMIT 12`,
+        args: [sevenDaysAgoUnix]
+      }),
+      db.execute({
+        sql: `SELECT platform, COUNT(*) as count
+              FROM download_history
+              WHERE created_at >= ? AND platform IS NOT NULL AND platform != ''
+              GROUP BY platform
+              ORDER BY count DESC
+              LIMIT 8`,
+        args: [sevenDaysAgoUnix]
+      })
+    ]);
 
     return {
       users: {
@@ -928,6 +999,20 @@ const userDb = {
         favorites
       },
       topPlatforms: (topPlatformsResult.rows || []).map(row => ({
+        platform: row.platform,
+        count: Number(row.count) || 0
+      })),
+      trends: {
+        downloads30d: mergeDayRows(30, downloadTrendResult.rows),
+        newUsers30d: mergeDayRows(30, userTrendResult.rows)
+      },
+      aiBreakdown: (aiFeatureResult.rows || []).map(row => ({
+        feature: row.feature || 'unknown',
+        requests: Number(row.requests) || 0,
+        inputChars: Number(row.input_chars) || 0,
+        outputItems: Number(row.output_items) || 0
+      })),
+      platform7d: (platform7dResult.rows || []).map(row => ({
         platform: row.platform,
         count: Number(row.count) || 0
       })),

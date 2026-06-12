@@ -491,29 +491,50 @@ export default function App() {
   const [materialTagsText, setMaterialTagsText] = useState('')
   const [materialNotes, setMaterialNotes] = useState('')
   const [materialGroupName, setMaterialGroupName] = useState('')
+  const [showWorkbenchManager, setShowWorkbenchManager] = useState(false)
   const [showBatchTagEditor, setShowBatchTagEditor] = useState(false)
+  const [batchTagMode, setBatchTagMode] = useState<'add' | 'remove'>('add')
   const [batchTagsText, setBatchTagsText] = useState('')
   const [batchTagsLoading, setBatchTagsLoading] = useState(false)
   const [showBatchGroupEditor, setShowBatchGroupEditor] = useState(false)
   const [batchGroupName, setBatchGroupName] = useState('')
   const [batchGroupLoading, setBatchGroupLoading] = useState(false)
+  const [renamingGroupName, setRenamingGroupName] = useState('')
+  const [renameGroupText, setRenameGroupText] = useState('')
+  const [groupRenameLoading, setGroupRenameLoading] = useState(false)
   const [showLexiconEditor, setShowLexiconEditor] = useState(false)
   const [lexiconText, setLexiconText] = useState('')
   const [lexiconLoading, setLexiconLoading] = useState(false)
   const [lexiconMessage, setLexiconMessage] = useState('')
 
   const historyPlatformOptions = Array.from(new Set(history.map(item => item.platform).filter(Boolean) as string[]))
-  const historyGroupOptions = Array.from(new Set(history.map(item => item.groupName?.trim()).filter(Boolean) as string[])).slice(0, 80)
-  const historyTagOptions = Array.from(new Set(history.flatMap(item => normalizeHistoryTags(item.tags)))).slice(0, 60)
-  const popularHistoryTags = (() => {
+  const historyGroupStats = (() => {
+    const counts = new Map<string, number>()
+    let ungrouped = 0
+    history.forEach(item => {
+      const group = item.groupName?.trim()
+      if (group) counts.set(group, (counts.get(group) || 0) + 1)
+      else ungrouped += 1
+    })
+    return {
+      groups: Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 80).map(([group, count]) => ({ group, count })),
+      ungrouped
+    }
+  })()
+  const historyGroupOptions = historyGroupStats.groups.map(item => item.group)
+  const historyTagStats = (() => {
     const counts = new Map<string, number>()
     history.forEach(item => {
       normalizeHistoryTags(item.tags).forEach(tag => counts.set(tag, (counts.get(tag) || 0) + 1))
     })
     return Array.from(counts.entries())
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .slice(0, 12)
+      .slice(0, 80)
       .map(([tag, count]) => ({ tag, count }))
+  })()
+  const historyTagOptions = historyTagStats.slice(0, 60).map(item => item.tag)
+  const popularHistoryTags = (() => {
+    return historyTagStats.slice(0, 12)
   })()
 
   const filteredHistory = history.filter(item => {
@@ -521,7 +542,8 @@ export default function App() {
     if (historyFilter === 'favorites' && !isFav) return false
     if (historyFilter !== 'all' && historyFilter !== 'favorites' && item.status !== historyFilter) return false
     if (historyPlatformFilter !== 'all' && item.platform !== historyPlatformFilter) return false
-    if (historyGroupFilter !== 'all' && (item.groupName || '') !== historyGroupFilter) return false
+    if (historyGroupFilter === '__ungrouped' && item.groupName?.trim()) return false
+    if (historyGroupFilter !== 'all' && historyGroupFilter !== '__ungrouped' && (item.groupName || '') !== historyGroupFilter) return false
     if (historyTagFilter !== 'all' && !normalizeHistoryTags(item.tags).includes(historyTagFilter)) return false
     if (historyAiOnly && !getHistoryAnalysis(item)) return false
     if (historyPackOnly && getHistoryRewritePackCount(item) === 0) return false
@@ -616,8 +638,9 @@ export default function App() {
     }
   }
 
-  const openBatchTagEditor = () => {
+  const openBatchTagEditor = (mode: 'add' | 'remove' = 'add') => {
     if (selectedTasks.size === 0) return
+    setBatchTagMode(mode)
     setBatchTagsText('')
     setShowBatchTagEditor(true)
   }
@@ -629,9 +652,9 @@ export default function App() {
   }
 
   const saveBatchTags = async () => {
-    const tagsToAdd = parseTagInput(batchTagsText)
-    if (tagsToAdd.length === 0) {
-      setError(t('enterTagsToApply'))
+    const inputTags = parseTagInput(batchTagsText)
+    if (inputTags.length === 0) {
+      setError(batchTagMode === 'remove' ? t('enterTagsToRemove') : t('enterTagsToApply'))
       return
     }
     const selectedItems = history.filter(item => selectedTasks.has(item.taskId))
@@ -640,8 +663,11 @@ export default function App() {
     setBatchTagsLoading(true)
     try {
       const updates = selectedItems.map(item => {
-        const merged = Array.from(new Set([...normalizeHistoryTags(item.tags), ...tagsToAdd])).slice(0, 20)
-        return { taskId: item.taskId, tags: merged }
+        const currentTags = normalizeHistoryTags(item.tags)
+        const tags = batchTagMode === 'remove'
+          ? currentTags.filter(tag => !inputTags.includes(tag))
+          : Array.from(new Set([...currentTags, ...inputTags])).slice(0, 20)
+        return { taskId: item.taskId, tags }
       })
       setHistory(prev => prev.map(item => {
         const update = updates.find(u => u.taskId === item.taskId)
@@ -654,10 +680,48 @@ export default function App() {
       setBatchTagsText('')
       setError('')
     } catch (e: any) {
-      setError(e.response?.data?.message || t('batchTagsFailed'))
+      setError(e.response?.data?.message || (batchTagMode === 'remove' ? t('batchRemoveTagsFailed') : t('batchTagsFailed')))
       fetchHistory()
     } finally {
       setBatchTagsLoading(false)
+    }
+  }
+
+  const startRenameGroup = (group: string) => {
+    setRenamingGroupName(group)
+    setRenameGroupText(group)
+  }
+
+  const renameGroup = async () => {
+    const oldName = renamingGroupName.trim()
+    const newName = renameGroupText.trim().slice(0, 80)
+    if (!oldName) return
+    if (!newName) {
+      setError(t('enterMaterialGroup'))
+      return
+    }
+    if (oldName === newName) {
+      setRenamingGroupName('')
+      return
+    }
+    const groupItems = history.filter(item => (item.groupName || '').trim() === oldName)
+    if (groupItems.length === 0) return
+
+    setGroupRenameLoading(true)
+    try {
+      setHistory(prev => prev.map(item => (item.groupName || '').trim() === oldName ? { ...item, groupName: newName } : item))
+      await Promise.all(groupItems.map(item =>
+        axios.patch(`${API}/history/${item.taskId}`, { groupName: newName }, { headers: getAuthHeaders() })
+      ))
+      if (historyGroupFilter === oldName) setHistoryGroupFilter(newName)
+      setRenamingGroupName('')
+      setRenameGroupText('')
+      setError('')
+    } catch (e: any) {
+      setError(e.response?.data?.message || t('renameGroupFailed'))
+      fetchHistory()
+    } finally {
+      setGroupRenameLoading(false)
     }
   }
 
@@ -1976,6 +2040,21 @@ export default function App() {
     const p = PLATFORMS.find(p => p.id === id)
     return p ? t(p.labelKey as any) || p.labelFallback : ''
   }
+  const formatAdminDate = (date: string) => {
+    if (!date) return ''
+    const [, month, day] = date.split('-')
+    return month && day ? `${month}/${day}` : date
+  }
+  const formatAdminGeneratedAt = (value?: number) => {
+    if (!value) return ''
+    return new Date(value).toLocaleString(
+      i18n.language === 'zh-CN' ? 'zh-CN' : i18n.language === 'ja' ? 'ja-JP' : i18n.language === 'ko' ? 'ko-KR' : 'en-US',
+      { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }
+    )
+  }
+  const sumAdminSeries = (items: Array<{ count?: number }> = []) => items.reduce((sum, item) => sum + (Number(item.count) || 0), 0)
+  const maxAdminCount = (items: Array<{ count?: number }> = []) => Math.max(1, ...items.map(item => Number(item.count) || 0))
+  const adminBarWidth = (count: number, max: number) => `${Math.max(6, Math.round(((Number(count) || 0) / Math.max(max, 1)) * 100))}%`
 
   if (showSubscription && authToken) {
     return <SubscriptionPage token={authToken} onBack={() => setShowSubscription(false)} onLogout={handleLogout} />
@@ -2181,6 +2260,25 @@ export default function App() {
                       className="shrink-0 px-3 py-1.5 rounded-lg bg-orange text-white text-xs font-medium hover:bg-orange-dark transition disabled:opacity-60"
                     >
                       {loading ? t('processing') : t('startDownload')}
+                    </button>
+                  </div>
+                )}
+                {!url && !sharedEntrySource && (
+                  <div className="mt-3 rounded-xl border border-orange/20 bg-orange/5 p-3">
+                    <p className="text-xs font-semibold text-orange mb-1">{t('emptyUrlGuideTitle')}</p>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">{t('emptyUrlGuideDesc')}</p>
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {PLATFORMS.slice(0, 6).map(platform => (
+                        <span key={platform.id} className="px-2 py-1 rounded-full bg-slate-900/50 border border-slate-700/50 text-[10px] text-slate-300">
+                          {platform.icon} {t(platform.labelKey as any) || platform.labelFallback}
+                        </span>
+                      ))}
+                    </div>
+                    <button
+                      onClick={() => window.open('https://chromewebstore.google.com/', '_blank', 'noopener,noreferrer')}
+                      className="mt-3 w-full px-3 py-2 rounded-xl bg-slate-900/60 border border-slate-700/60 text-xs text-slate-300 hover:text-orange hover:border-orange/30 transition"
+                    >
+                      {t('browserExtensionCta')}
                     </button>
                   </div>
                 )}
@@ -3335,7 +3433,15 @@ export default function App() {
                   <div className={`p-3 border-b ${isDark ? 'border-slate-700/30 bg-slate-950/30' : 'border-light-border bg-light-bg'}`}>
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <p className="text-xs font-semibold text-slate-300">📊 {t('materialDashboard')}</p>
-                      <span className="text-[10px] text-slate-500">{t('dashboardFromHistory')}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-slate-500">{t('dashboardFromHistory')}</span>
+                        <button
+                          onClick={() => setShowWorkbenchManager(v => !v)}
+                          className={`px-2 py-1 rounded-lg border text-[10px] transition ${showWorkbenchManager ? 'bg-orange/15 border-orange/30 text-orange' : 'bg-slate-800/60 border-slate-700/60 text-slate-300 hover:text-orange'}`}
+                        >
+                          {t('workbenchManager')}
+                        </button>
+                      </div>
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
                       {[
@@ -3352,6 +3458,75 @@ export default function App() {
                         </div>
                       ))}
                     </div>
+                    {showWorkbenchManager && (
+                      <div className="grid md:grid-cols-2 gap-3 mt-3">
+                        <div className="rounded-xl bg-slate-900/60 border border-slate-700/60 p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-xs text-slate-300 font-semibold">{t('tagManager')}</p>
+                            <span className="text-[10px] text-slate-500">{t('tagCount', { count: historyTagStats.length })}</span>
+                          </div>
+                          {historyTagStats.length === 0 ? (
+                            <p className="text-xs text-slate-500">{t('none')}</p>
+                          ) : (
+                            <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                              {historyTagStats.map(({ tag, count }) => (
+                                <button
+                                  key={tag}
+                                  onClick={() => setHistoryTagFilter(tag)}
+                                  className={`px-2 py-1 rounded-full border text-[10px] transition ${historyTagFilter === tag ? 'bg-purple-500/20 border-purple-500/40 text-purple-300' : 'bg-slate-800/50 border-slate-700/50 text-slate-300 hover:text-purple-300'}`}
+                                >
+                                  #{tag} · {count}
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <div className="rounded-xl bg-slate-900/60 border border-slate-700/60 p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-xs text-slate-300 font-semibold">{t('groupSidebar')}</p>
+                            <button
+                              onClick={() => setHistoryGroupFilter('all')}
+                              className="text-[10px] text-slate-500 hover:text-orange"
+                            >
+                              {t('filterAll')}
+                            </button>
+                          </div>
+                          <div className="space-y-1.5 max-h-32 overflow-y-auto">
+                            <button
+                              onClick={() => setHistoryGroupFilter('__ungrouped')}
+                              className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs transition ${historyGroupFilter === '__ungrouped' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-slate-800/45 text-slate-300 hover:text-emerald-300'}`}
+                            >
+                              <span>{t('ungrouped')}</span>
+                              <span>{historyGroupStats.ungrouped}</span>
+                            </button>
+                            {historyGroupStats.groups.map(({ group, count }) => (
+                              <div key={group} className={`rounded-lg px-2 py-1.5 ${historyGroupFilter === group ? 'bg-emerald-500/15' : 'bg-slate-800/45'}`}>
+                                {renamingGroupName === group ? (
+                                  <div className="flex items-center gap-1">
+                                    <input
+                                      value={renameGroupText}
+                                      onChange={(e) => setRenameGroupText(e.target.value)}
+                                      className="min-w-0 flex-1 px-2 py-1 rounded bg-slate-950 border border-slate-700 text-xs text-white"
+                                      autoFocus
+                                    />
+                                    <button onClick={renameGroup} disabled={groupRenameLoading} className="text-[10px] text-orange disabled:opacity-50">{t('save')}</button>
+                                    <button onClick={() => setRenamingGroupName('')} disabled={groupRenameLoading} className="text-[10px] text-slate-500 disabled:opacity-50">{t('cancel')}</button>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <button onClick={() => setHistoryGroupFilter(group)} className="flex-1 min-w-0 text-left text-xs text-slate-300 hover:text-emerald-300 truncate">
+                                      {group}
+                                    </button>
+                                    <span className="text-[10px] text-emerald-300">{count}</span>
+                                    <button onClick={() => startRenameGroup(group)} className="text-[10px] text-slate-500 hover:text-orange">{t('rename')}</button>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
                 <div className={`p-3 border-b space-y-2 ${isDark ? 'border-slate-700/30' : 'border-light-border'}`}>
@@ -3360,7 +3535,8 @@ export default function App() {
                     {selectedTasks.size > 0 && (
                       <div className="flex items-center gap-1.5 shrink-0">
                         <span className="text-[10px] text-slate-400">{t('selectedCount', { count: selectedTasks.size })}</span>
-                        <button onClick={openBatchTagEditor} className="px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-lg text-[10px]">{t('batchTags')}</button>
+                        <button onClick={() => openBatchTagEditor('add')} className="px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-lg text-[10px]">{t('batchTags')}</button>
+                        <button onClick={() => openBatchTagEditor('remove')} className="px-2 py-1 bg-red-500/15 text-red-300 border border-red-500/30 rounded-lg text-[10px]">{t('batchRemoveTags')}</button>
                         <button onClick={openBatchGroupEditor} className="px-2 py-1 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px]">{t('batchGroup')}</button>
                         {history.some(item => selectedTasks.has(item.taskId) && item.status === 'completed' && !getHistoryAnalysis(item)) && (
                           <button
@@ -3441,6 +3617,7 @@ export default function App() {
                     </select>
                     <select value={historyGroupFilter} onChange={(e) => setHistoryGroupFilter(e.target.value)} className={`px-2 py-1.5 border rounded-lg text-xs ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`}>
                       <option value="all">{t('allGroups')}</option>
+                      <option value="__ungrouped">{t('ungrouped')}</option>
                       {historyGroupOptions.map(group => (
                         <option key={group} value={group}>{group}</option>
                       ))}
@@ -3574,10 +3751,10 @@ export default function App() {
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className="bg-slate-800 rounded-2xl p-5 max-w-md w-full border border-slate-700">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-base font-bold text-white">{t('batchTags')}</h3>
+                <h3 className="text-base font-bold text-white">{batchTagMode === 'remove' ? t('batchRemoveTags') : t('batchTags')}</h3>
                 <button onClick={() => setShowBatchTagEditor(false)} className="text-slate-400 hover:text-white"><X className="w-4 h-4" /></button>
               </div>
-              <p className="text-xs text-slate-400 mb-3">{t('batchTagsHint', { count: selectedTasks.size })}</p>
+              <p className="text-xs text-slate-400 mb-3">{t(batchTagMode === 'remove' ? 'batchRemoveTagsHint' : 'batchTagsHint', { count: selectedTasks.size })}</p>
               <label className="block text-xs text-slate-300 mb-1">{t('tags')}</label>
               <input
                 value={batchTagsText}
@@ -3604,8 +3781,8 @@ export default function App() {
               )}
               <div className="flex gap-3 mt-4">
                 <button onClick={() => setShowBatchTagEditor(false)} disabled={batchTagsLoading} className="flex-1 py-2 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition disabled:opacity-60">{t('cancel')}</button>
-                <button onClick={saveBatchTags} disabled={batchTagsLoading} className="flex-1 py-2 rounded-xl bg-orange text-white hover:bg-orange-dark transition disabled:opacity-60">
-                  {batchTagsLoading ? t('saving') : t('applyTags')}
+                <button onClick={saveBatchTags} disabled={batchTagsLoading} className={`flex-1 py-2 rounded-xl text-white transition disabled:opacity-60 ${batchTagMode === 'remove' ? 'bg-red-500 hover:bg-red-600' : 'bg-orange hover:bg-orange-dark'}`}>
+                  {batchTagsLoading ? t('saving') : t(batchTagMode === 'remove' ? 'removeTags' : 'applyTags')}
                 </button>
               </div>
             </div>
@@ -3641,7 +3818,7 @@ export default function App() {
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className="bg-slate-800 rounded-2xl p-5 max-w-md w-full border border-slate-700">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-base font-bold text-white">编辑素材</h3>
+                <h3 className="text-base font-bold text-white">{t('editMaterial')}</h3>
                 <button onClick={() => setEditingMaterial(null)} className="text-slate-400 hover:text-white"><X className="w-4 h-4" /></button>
               </div>
               <p className="text-xs text-slate-400 mb-3 truncate">{editingMaterial.title || editingMaterial.url || editingMaterial.taskId}</p>
@@ -3736,17 +3913,29 @@ export default function App() {
 
         {showAdminDashboard && (
           <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-slate-800 rounded-2xl w-full max-w-2xl border border-slate-700 shadow-2xl overflow-hidden">
+            <div className="bg-slate-800 rounded-2xl w-full max-w-4xl border border-slate-700 shadow-2xl overflow-hidden">
               <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700">
                 <div>
                   <h3 className="text-lg font-bold text-white">📈 {t('adminDashboard')}</h3>
-                  <p className="text-xs text-slate-400 mt-0.5">{t('adminDashboardHint')}</p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {t('adminDashboardHint')}
+                    {adminMetrics?.generatedAt ? ` · ${t('adminGeneratedAt', { time: formatAdminGeneratedAt(adminMetrics.generatedAt) })}` : ''}
+                  </p>
                 </div>
-                <button onClick={() => setShowAdminDashboard(false)} className="text-slate-400 hover:text-white">
-                  <X className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={openAdminDashboard}
+                    disabled={adminMetricsLoading}
+                    className="px-3 py-1.5 rounded-lg bg-orange/15 text-orange border border-orange/30 text-xs hover:bg-orange/25 transition disabled:opacity-60"
+                  >
+                    {adminMetricsLoading ? t('loading') : t('refresh')}
+                  </button>
+                  <button onClick={() => setShowAdminDashboard(false)} className="text-slate-400 hover:text-white">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
-              <div className="p-5">
+              <div className="p-5 max-h-[78vh] overflow-y-auto">
                 {adminMetricsLoading ? (
                   <div className="py-10 flex items-center justify-center text-slate-400 text-sm">
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" /> {t('loading')}
@@ -3754,37 +3943,143 @@ export default function App() {
                 ) : adminMetricsError ? (
                   <div className="rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm p-3">{adminMetricsError}</div>
                 ) : adminMetrics ? (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {[
-                        { label: t('adminUsers'), value: adminMetrics.users?.total || 0, sub: t('adminNewUsers7d', { count: adminMetrics.users?.new7d || 0 }) },
-                        { label: t('adminProUsers'), value: adminMetrics.users?.pro || 0, sub: t('adminVerifiedUsers', { count: adminMetrics.users?.verified || 0 }) },
-                        { label: t('adminDownloads'), value: adminMetrics.downloads?.total || 0, sub: t('adminDownloadsToday', { count: adminMetrics.downloads?.today || 0 }) },
-                        { label: t('adminAiRequests'), value: adminMetrics.ai?.requests || 0, sub: t('adminAiRequests7d', { count: adminMetrics.ai?.requests7d || 0 }) },
-                        { label: t('adminAiCards'), value: adminMetrics.materials?.aiCards || 0, sub: t('adminFavorites', { count: adminMetrics.materials?.favorites || 0 }) },
-                        { label: t('adminGroups'), value: adminMetrics.materials?.groups || 0, sub: t('adminOutputItems', { count: adminMetrics.ai?.outputItems || 0 }) },
-                        { label: t('adminDownloads7d'), value: adminMetrics.downloads?.last7d || 0, sub: t('adminFreeUsers', { count: adminMetrics.users?.free || 0 }) },
-                      ].map(card => (
-                        <div key={card.label} className="rounded-xl bg-slate-900/60 border border-slate-700/60 p-3">
-                          <p className="text-[11px] text-slate-400">{card.label}</p>
-                          <p className="text-xl font-bold text-orange mt-1">{card.value}</p>
-                          <p className="text-[10px] text-slate-500 mt-1">{card.sub}</p>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="rounded-xl bg-slate-900/60 border border-slate-700/60 p-3">
-                      <p className="text-xs text-slate-300 font-semibold mb-2">{t('adminTopPlatforms')}</p>
-                      <div className="flex flex-wrap gap-2">
-                        {(adminMetrics.topPlatforms || []).length === 0 ? (
-                          <span className="text-xs text-slate-500">{t('none')}</span>
-                        ) : adminMetrics.topPlatforms.map((item: any) => (
-                          <span key={item.platform} className="px-2 py-1 rounded-full bg-orange/10 text-orange border border-orange/20 text-xs">
-                            {getPlatformLabel(item.platform) || item.platform} · {item.count}
-                          </span>
-                        ))}
+                  (() => {
+                    const downloadsTrend = adminMetrics.trends?.downloads30d || []
+                    const usersTrend = adminMetrics.trends?.newUsers30d || []
+                    const platform7d = adminMetrics.platform7d || []
+                    const aiBreakdown = adminMetrics.aiBreakdown || []
+                    const maxDownloads = maxAdminCount(downloadsTrend)
+                    const maxUsers = maxAdminCount(usersTrend)
+                    const maxPlatforms = maxAdminCount(platform7d)
+                    const maxAi = maxAdminCount(aiBreakdown.map((item: any) => ({ count: item.requests })))
+                    return (
+                      <div className="space-y-4">
+                        <section>
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-xs text-slate-300 font-semibold">{t('adminOverview')}</p>
+                            <span className="text-[10px] text-slate-500">{t('adminReadOnly')}</span>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            {[
+                              { label: t('adminUsers'), value: adminMetrics.users?.total || 0, sub: t('adminNewUsers7d', { count: adminMetrics.users?.new7d || 0 }) },
+                              { label: t('adminProUsers'), value: adminMetrics.users?.pro || 0, sub: t('adminVerifiedUsers', { count: adminMetrics.users?.verified || 0 }) },
+                              { label: t('adminDownloads'), value: adminMetrics.downloads?.total || 0, sub: t('adminDownloadsToday', { count: adminMetrics.downloads?.today || 0 }) },
+                              { label: t('adminAiRequests'), value: adminMetrics.ai?.requests || 0, sub: t('adminAiRequests7d', { count: adminMetrics.ai?.requests7d || 0 }) },
+                              { label: t('adminAiCards'), value: adminMetrics.materials?.aiCards || 0, sub: t('adminFavorites', { count: adminMetrics.materials?.favorites || 0 }) },
+                              { label: t('adminGroups'), value: adminMetrics.materials?.groups || 0, sub: t('adminOutputItems', { count: adminMetrics.ai?.outputItems || 0 }) },
+                              { label: t('adminDownloads7d'), value: adminMetrics.downloads?.last7d || 0, sub: t('adminFreeUsers', { count: adminMetrics.users?.free || 0 }) },
+                              { label: t('adminVerifiedUsers', { count: adminMetrics.users?.verified || 0 }), value: `${Math.round(((adminMetrics.users?.verified || 0) / Math.max(adminMetrics.users?.total || 1, 1)) * 100)}%`, sub: t('adminVerifiedRate') },
+                            ].map(card => (
+                              <div key={card.label} className="rounded-xl bg-slate-900/60 border border-slate-700/60 p-3">
+                                <p className="text-[11px] text-slate-400">{card.label}</p>
+                                <p className="text-xl font-bold text-orange mt-1">{card.value}</p>
+                                <p className="text-[10px] text-slate-500 mt-1">{card.sub}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </section>
+
+                        <section className="grid lg:grid-cols-2 gap-3">
+                          <div className="rounded-xl bg-slate-900/60 border border-slate-700/60 p-3">
+                            <div className="flex items-center justify-between mb-3">
+                              <p className="text-xs text-slate-300 font-semibold">{t('adminDownloadTrend30d')}</p>
+                              <span className="text-[10px] text-slate-500">{t('adminTrendTotal', { count: sumAdminSeries(downloadsTrend) })}</span>
+                            </div>
+                            <div className="flex items-end gap-1 h-28">
+                              {downloadsTrend.map((item: any, index: number) => (
+                                <div key={item.date} className="flex-1 flex flex-col items-center gap-1">
+                                  <div className="w-full flex items-end h-20">
+                                    <div
+                                      title={`${item.date}: ${item.count}`}
+                                      className="w-full min-h-[4px] rounded-t bg-orange/70"
+                                      style={{ height: adminBarWidth(item.count, maxDownloads) }}
+                                    />
+                                  </div>
+                                  {index % 5 === 0 && <span className="text-[9px] text-slate-600">{formatAdminDate(item.date)}</span>}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="rounded-xl bg-slate-900/60 border border-slate-700/60 p-3">
+                            <div className="flex items-center justify-between mb-3">
+                              <p className="text-xs text-slate-300 font-semibold">{t('adminUserTrend30d')}</p>
+                              <span className="text-[10px] text-slate-500">{t('adminTrendTotal', { count: sumAdminSeries(usersTrend) })}</span>
+                            </div>
+                            <div className="flex items-end gap-1 h-28">
+                              {usersTrend.map((item: any, index: number) => (
+                                <div key={item.date} className="flex-1 flex flex-col items-center gap-1">
+                                  <div className="w-full flex items-end h-20">
+                                    <div
+                                      title={`${item.date}: ${item.count}`}
+                                      className="w-full min-h-[4px] rounded-t bg-cyan-400/70"
+                                      style={{ height: adminBarWidth(item.count, maxUsers) }}
+                                    />
+                                  </div>
+                                  {index % 5 === 0 && <span className="text-[9px] text-slate-600">{formatAdminDate(item.date)}</span>}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </section>
+
+                        <section className="grid lg:grid-cols-2 gap-3">
+                          <div className="rounded-xl bg-slate-900/60 border border-slate-700/60 p-3">
+                            <p className="text-xs text-slate-300 font-semibold mb-3">{t('adminPlatformTrend7d')}</p>
+                            {platform7d.length === 0 ? (
+                              <span className="text-xs text-slate-500">{t('none')}</span>
+                            ) : (
+                              <div className="space-y-2">
+                                {platform7d.map((item: any) => (
+                                  <div key={item.platform}>
+                                    <div className="flex items-center justify-between text-[11px] mb-1">
+                                      <span className="text-slate-300">{getPlatformLabel(item.platform) || item.platform}</span>
+                                      <span className="text-orange">{item.count}</span>
+                                    </div>
+                                    <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
+                                      <div className="h-full rounded-full bg-orange/70" style={{ width: adminBarWidth(item.count, maxPlatforms) }} />
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div className="rounded-xl bg-slate-900/60 border border-slate-700/60 p-3">
+                            <p className="text-xs text-slate-300 font-semibold mb-3">{t('adminAiBreakdown7d')}</p>
+                            {aiBreakdown.length === 0 ? (
+                              <span className="text-xs text-slate-500">{t('none')}</span>
+                            ) : (
+                              <div className="space-y-2">
+                                {aiBreakdown.map((item: any) => (
+                                  <div key={item.feature}>
+                                    <div className="flex items-center justify-between text-[11px] mb-1">
+                                      <span className="text-slate-300">{item.feature}</span>
+                                      <span className="text-purple-300">{t('adminAiBreakdownMeta', { requests: item.requests, outputs: item.outputItems })}</span>
+                                    </div>
+                                    <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
+                                      <div className="h-full rounded-full bg-purple-400/70" style={{ width: adminBarWidth(item.requests, maxAi) }} />
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </section>
+
+                        <section className="rounded-xl bg-slate-900/60 border border-slate-700/60 p-3">
+                          <p className="text-xs text-slate-300 font-semibold mb-2">{t('adminTopPlatforms')}</p>
+                          <div className="flex flex-wrap gap-2">
+                            {(adminMetrics.topPlatforms || []).length === 0 ? (
+                              <span className="text-xs text-slate-500">{t('none')}</span>
+                            ) : adminMetrics.topPlatforms.map((item: any) => (
+                              <span key={item.platform} className="px-2 py-1 rounded-full bg-orange/10 text-orange border border-orange/20 text-xs">
+                                {getPlatformLabel(item.platform) || item.platform} · {item.count}
+                              </span>
+                            ))}
+                          </div>
+                        </section>
                       </div>
-                    </div>
-                  </div>
+                    )
+                  })()
                 ) : null}
               </div>
             </div>

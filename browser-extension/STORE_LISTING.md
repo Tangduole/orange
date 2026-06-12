@@ -2,11 +2,11 @@
 
 ## Short Description
 
-Send TikTok, YouTube, Instagram, X, Douyin, and Xiaohongshu video pages to Orange Downloader with one click.
+Send short video pages to Orange for material collection, AI commerce breakdowns, and platform publish packs.
 
 ## Full Description
 
-Orange Downloader helps creators, editors, and e-commerce operators collect short video material faster.
+Orange Downloader helps creators, editors, and e-commerce operators turn short videos into reusable selling materials: collect the source video, generate AI material cards, organize by campaign, and prepare publish-ready copy for multiple platforms.
 
 With the browser extension, you can:
 
@@ -15,6 +15,7 @@ With the browser extension, you can:
 - Open and start the import flow immediately.
 - See synced account status: Guest, Free, Pro, or daily limit reached.
 - Jump directly to login, upgrade, or the material workbench.
+- Use Orange Pro to generate AI material cards, viral breakdowns, and platform publish packs after import.
 
 The extension only runs its account sync script on Orange domains. It does not inject scripts into TikTok, YouTube, Instagram, X, Douyin, Xiaohongshu, or other video pages.
 

@@ -1,7 +1,7 @@
 {
   "name": "Orange Downloader",
   "short_name": "Orange",
-  "description": "多平台高清视频下载 + 语音转文字（YouTube / X / TikTok / Instagram / 抖音 / 小红书 / 微信视频号 / Bilibili）",
+  "description": "短视频素材采集、AI 带货拆解、多平台发布包（YouTube / X / TikTok / Instagram / 抖音 / 小红书 / 微信视频号 / Bilibili）",
   "start_url": "/?source=pwa",
   "scope": "/",
   "display": "standalone",
@@ -47,7 +47,7 @@
     {
       "name": "粘贴并下载 / Paste & Download",
       "short_name": "Paste",
-      "description": "从剪贴板粘贴 URL 并立即开始下载",
+      "description": "从剪贴板粘贴短视频 URL，并开始采集素材",
       "url": "/?action=paste",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }

@@ -45,7 +45,7 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
       return;
     }
     if (plan === 'pro_lifetime') {
-      setError('终身会员请联系管理员开通（support@orangedl.com）');
+      setError(t('lifetimeContactSupport'));
       setUpgrading('');
       setShowLifetimeConfirm(false);
       return;
@@ -160,7 +160,7 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
 
       <main className="max-w-5xl mx-auto px-4 py-8">
         <h1 className="text-3xl font-bold text-center mb-2">{t('memberSubscribe')}</h1>
-        <p className="text-slate-400 text-center mb-8">{t('unlockUnlimitedDownload')}</p>
+        <p className="text-slate-400 text-center mb-8">{t('unlockMaterialWorkbench')}</p>
 
         {error && (
           <div className="mb-6 p-4 bg-red-500/20 border border-red-500/50 rounded-xl text-red-400 text-center">
@@ -246,7 +246,7 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              终身
+              {t('lifetime')}
               <span className="absolute -top-2 -right-2 px-1.5 py-0.5 bg-amber-500 text-white text-[10px] font-bold rounded-full">
                 🔥
               </span>
@@ -341,15 +341,15 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
         {showLifetimeConfirm && (
           <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
             <div className="bg-slate-800 rounded-2xl p-6 max-w-sm w-full border border-amber-500/50">
-              <h3 className="text-lg font-bold text-amber-400 mb-4">🔥 终身会员</h3>
+              <h3 className="text-lg font-bold text-amber-400 mb-4">🔥 {t('lifetime')}</h3>
               <p className="text-slate-300 text-sm mb-4">
-                $99 一次付费，永久使用。请联系管理员开通（support@orangedl.com）
+                {t('lifetimeContactSupport')}
               </p>
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowLifetimeConfirm(false)}
                   className="flex-1 py-2.5 px-4 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition"
-                >关闭</button>
+                >{t('close')}</button>
               </div>
             </div>
           </div>
