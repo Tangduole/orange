@@ -3518,6 +3518,7 @@ export default function App() {
                         <span className="text-[10px] text-slate-500">{t('dashboardFromHistory')}</span>
                         <button
                           onClick={() => setShowWorkbenchManager(v => !v)}
+                          data-testid="workbench-toggle"
                           className={`px-2 py-1 rounded-lg border text-[10px] transition ${showWorkbenchManager ? 'bg-orange/15 border-orange/30 text-orange' : 'bg-slate-800/60 border-slate-700/60 text-slate-300 hover:text-orange'}`}
                         >
                           {t('workbenchManager')}
@@ -3554,6 +3555,7 @@ export default function App() {
                                 <button
                                   key={tag}
                                   onClick={() => toggleHistoryTagFilter(tag)}
+                                  data-testid={`tag-chip-${tag}`}
                                   className={`px-2 py-1 rounded-full border text-[10px] transition ${historyTagFilter === tag ? 'bg-purple-500/20 border-purple-500/40 text-purple-300' : 'bg-slate-800/50 border-slate-700/50 text-slate-300 hover:text-purple-300'}`}
                                 >
                                   #{tag} · {count}
@@ -3616,9 +3618,9 @@ export default function App() {
                     {selectedTasks.size > 0 && (
                       <div className="flex items-center gap-1.5 shrink-0">
                         <span className="text-[10px] text-slate-400">{t('selectedCount', { count: selectedTasks.size })}</span>
-                        <button onClick={() => openBatchTagEditor('add')} className="px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-lg text-[10px]">{t('batchTags')}</button>
-                        <button onClick={() => openBatchTagEditor('remove')} className="px-2 py-1 bg-red-500/15 text-red-300 border border-red-500/30 rounded-lg text-[10px]">{t('batchRemoveTags')}</button>
-                        <button onClick={openBatchGroupEditor} className="px-2 py-1 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px]">{t('batchGroup')}</button>
+                        <button onClick={() => openBatchTagEditor('add')} data-testid="batch-tags-button" className="px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-lg text-[10px]">{t('batchTags')}</button>
+                        <button onClick={() => openBatchTagEditor('remove')} data-testid="batch-remove-tags-button" className="px-2 py-1 bg-red-500/15 text-red-300 border border-red-500/30 rounded-lg text-[10px]">{t('batchRemoveTags')}</button>
+                        <button onClick={openBatchGroupEditor} data-testid="batch-group-button" className="px-2 py-1 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px]">{t('batchGroup')}</button>
                         {history.some(item => selectedTasks.has(item.taskId) && item.status === 'completed' && !getHistoryAnalysis(item)) && (
                           <button
                             onClick={generateSelectedCommerceCards}
@@ -3679,7 +3681,7 @@ export default function App() {
                       </div>
                     )}
                     <div className="flex-1 relative">
-                      <input type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} placeholder={t('searchPlaceholder')} className={`w-full pl-8 pr-3 py-2 border rounded-lg text-sm placeholder:text-slate-300 ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`} />
+                      <input type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} placeholder={t('searchPlaceholder')} data-testid="history-search-input" className={`w-full pl-8 pr-3 py-2 border rounded-lg text-sm placeholder:text-slate-300 ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`} />
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
                     </div>
                   </div>
@@ -3812,7 +3814,7 @@ export default function App() {
               </div>
               {historyHasMore && (
                 <div className="py-2 text-center">
-                  <button onClick={loadMoreHistory} disabled={historyLoadingMore} className="w-full py-2.5 rounded-xl text-sm font-medium bg-slate-700/30 text-slate-300 hover:bg-slate-700/50 disabled:opacity-50 transition">
+                  <button onClick={loadMoreHistory} disabled={historyLoadingMore} data-testid="load-more-button" className="w-full py-2.5 rounded-xl text-sm font-medium bg-slate-700/30 text-slate-300 hover:bg-slate-700/50 disabled:opacity-50 transition">
                     {historyLoadingMore ? <><Loader2 className="w-4 h-4 inline animate-spin mr-2" />{t('loading')}</> : t('loadMore')}
                   </button>
                 </div>
