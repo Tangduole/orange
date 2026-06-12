@@ -470,5 +470,6 @@
   "emptyUrlGuideTitle": "粘贴短视频链接，开始沉淀素材库",
   "emptyUrlGuideDesc": "支持主流短视频平台。下载后可生成 AI 素材卡、爆款拆解、标签分组和发布包。",
   "browserExtensionCta": "安装浏览器插件，一键发送当前页面到素材工作台",
-  "lifetimeContactSupport": "$99 一次付费，永久使用。请联系管理员开通（support@orangedl.com）"
+  "lifetimeContactSupport": "$99 一次付费，永久使用。请联系管理员开通（support@orangedl.com）",
+  "loadMore": "加载更多"
 }

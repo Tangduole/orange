@@ -470,5 +470,6 @@
   "emptyUrlGuideTitle": "숏폼 링크를 붙여넣고 소재함을 만들어 보세요",
   "emptyUrlGuideDesc": "주요 숏폼 플랫폼을 지원합니다. 가져온 뒤 AI 소재 카드, 바이럴 분석, 태그, 그룹, 게시 패키지를 생성할 수 있습니다.",
   "browserExtensionCta": "브라우저 확장 프로그램을 설치해 현재 페이지를 소재 워크벤치로 보내기",
-  "lifetimeContactSupport": "$99 1회 결제로 평생 이용할 수 있습니다. 활성화는 지원팀에 문의하세요(support@orangedl.com)."
+  "lifetimeContactSupport": "$99 1회 결제로 평생 이용할 수 있습니다. 활성화는 지원팀에 문의하세요(support@orangedl.com).",
+  "loadMore": "더 불러오기"
 }

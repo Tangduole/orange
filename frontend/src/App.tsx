@@ -260,6 +260,11 @@ export default function App() {
   const [task, setTask] = useState<Task | null>(null)
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [historyTotal, setHistoryTotal] = useState(0)
+  const [historyPage, setHistoryPage] = useState(1)
+  const [historyPageSize] = useState(50)
+  const [historyHasMore, setHistoryHasMore] = useState(false)
+  const [historyMeta, setHistoryMeta] = useState<any>(null)
+  const [historyLoadingMore, setHistoryLoadingMore] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showDupConfirm, setShowDupConfirm] = useState(false)
   const [dupUrl, setDupUrl] = useState('')
@@ -510,6 +515,13 @@ export default function App() {
 
   const historyPlatformOptions = Array.from(new Set(history.map(item => item.platform).filter(Boolean) as string[]))
   const historyGroupStats = (() => {
+    // 优先服务端 meta
+    if (historyMeta?.groups?.length > 0) {
+      return {
+        groups: historyMeta.groups.slice(0, 80).map((g: any) => ({ group: g.group, count: g.count })),
+        ungrouped: historyMeta.ungroupedCount || 0
+      };
+    }
     const counts = new Map<string, number>()
     let ungrouped = 0
     history.forEach(item => {
@@ -524,6 +536,10 @@ export default function App() {
   })()
   const historyGroupOptions = historyGroupStats.groups.map(item => item.group)
   const historyTagStats = (() => {
+    // 优先服务端 meta
+    if (historyMeta?.tags?.length > 0) {
+      return historyMeta.tags.slice(0, 80).map((t: any) => ({ tag: t.tag, count: t.count }));
+    }
     const counts = new Map<string, number>()
     history.forEach(item => {
       normalizeHistoryTags(item.tags).forEach(tag => counts.set(tag, (counts.get(tag) || 0) + 1))
@@ -567,6 +583,21 @@ export default function App() {
   })
 
   const materialStats = (() => {
+    // 优先使用服务端 meta，回退到客户端计算
+    if (historyMeta) {
+      const topPlatform = (historyMeta.platforms || [])[0];
+      const topPlatformMeta = topPlatform ? PLATFORMS.find(p => p.id === topPlatform.platform) : null;
+      return {
+        total: historyMeta.total || historyTotal || history.length,
+        aiCards: historyMeta.aiCardsCount || 0,
+        publishPacks: historyMeta.publishPacksCount || 0,
+        groups: (historyMeta.groups || []).length,
+        favorites: historyMeta.favoritesCount || 0,
+        topPlatform: topPlatformMeta ? t(topPlatformMeta.labelKey as any) || topPlatformMeta.labelFallback : topPlatform?.platform || t('none'),
+        topPlatformCount: topPlatform?.count || 0,
+      };
+    }
+    // 客户端计算（兜底）
     const platformCounts = new Map<string, number>()
     let aiCards = 0
     let publishPacks = 0
@@ -1574,24 +1605,60 @@ export default function App() {
     return clearAutoDownload
   }, [task?.status, task?.downloadUrl, task?.taskId, authToken])
 
-  const fetchHistory = useCallback(async () => {
-    try { 
-      const r = await axios.get(`${API}/history`, { headers: getAuthHeaders() }); 
-      const data = r.data.data || {};
-      const tasks = Array.isArray(data.tasks) ? data.tasks : (Array.isArray(data) ? data : [])
-      setHistory(tasks)
-      const serverFavorites = tasks.filter((item: HistoryItem) => item.isFavorite).map((item: HistoryItem) => item.taskId)
-      if (serverFavorites.length > 0) {
-        setFavorites(prev => {
-          const merged = new Set([...prev, ...serverFavorites])
-          localStorage.setItem('orange_favorites', JSON.stringify([...merged]))
-          return merged
-        })
+  const fetchHistory = useCallback(async (append = false) => {
+    try {
+      const params: any = { pageSize: historyPageSize };
+      const hasFilters = historySearch || historyPlatformFilter !== 'all' || historyGroupFilter !== 'all' || historyTagFilter !== 'all' || historyAiOnly || historyPackOnly || historyPackTodoOnly;
+      
+      if (hasFilters) {
+        params.page = append ? historyPage : 1;
+        if (historySearch) params.search = historySearch;
+        if (historyPlatformFilter !== 'all') params.platform = historyPlatformFilter;
+        if (historyGroupFilter !== 'all') params.group = historyGroupFilter;
+        if (historyTagFilter !== 'all') params.tag = historyTagFilter;
+        if (historyAiOnly) params.aiOnly = '1';
+        if (historyPackOnly || historyPackTodoOnly) params.publishPackOnly = '1';
       }
-      setHistoryTotal(data.total || 0) 
+      
+      const r = await axios.get(`${API}/history`, { headers: getAuthHeaders(), params }); 
+      const data = r.data.data || {};
+      const tasks = Array.isArray(data.tasks) ? data.tasks : [];
+      
+      if (append) {
+        setHistory(prev => [...prev, ...tasks]);
+      } else {
+        setHistory(tasks);
+        setHistoryPage(1);
+      }
+      
+      const serverFavorites = tasks.filter((item: HistoryItem) => item.isFavorite).map((item: HistoryItem) => item.taskId);
+      if (serverFavorites.length > 0) {
+        setFavorites(prev => { const merged = new Set([...prev, ...serverFavorites]); localStorage.setItem('orange_favorites', JSON.stringify([...merged])); return merged; });
+      }
+      setHistoryTotal(data.total ?? tasks.length);
+      setHistoryHasMore(data.hasMore ?? false);
+      if (!append) setHistoryPage(1);
     } catch {}
+  }, [authToken, historySearch, historyPlatformFilter, historyGroupFilter, historyTagFilter, historyAiOnly, historyPackOnly, historyPackTodoOnly, historyPage, historyPageSize])
   }, [authToken])
   useEffect(() => { fetchHistory() }, [fetchHistory])
+
+  // 独立加载 meta（不受筛选影响，始终显示全量统计）
+  const fetchHistoryMeta = useCallback(async () => {
+    try {
+      const r = await axios.get(`${API}/history/meta`, { headers: getAuthHeaders() });
+      if (r.data?.data) setHistoryMeta(r.data.data);
+    } catch {}
+  }, [authToken])
+  useEffect(() => { fetchHistoryMeta() }, [fetchHistoryMeta])
+
+  const loadMoreHistory = async () => {
+    if (historyLoadingMore) return;
+    setHistoryLoadingMore(true);
+    setHistoryPage(p => p + 1);
+    await fetchHistory(true);
+    setHistoryLoadingMore(false);
+  }
 
   const handleUrlChange = (value: string) => {
     // 检测是否有嵌入文字的Link
@@ -3743,6 +3810,13 @@ export default function App() {
                   ))}
                 </div>
               </div>
+              {historyHasMore && (
+                <div className="py-2 text-center">
+                  <button onClick={loadMoreHistory} disabled={historyLoadingMore} className="w-full py-2.5 rounded-xl text-sm font-medium bg-slate-700/30 text-slate-300 hover:bg-slate-700/50 disabled:opacity-50 transition">
+                    {historyLoadingMore ? <><Loader2 className="w-4 h-4 inline animate-spin mr-2" />{t('loading')}</> : t('loadMore')}
+                  </button>
+                </div>
+              )}
             )}
           </div>
         </main>
