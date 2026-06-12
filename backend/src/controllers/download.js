@@ -836,7 +836,7 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
     if (tLang && text) {
       try {
         logger.info(`[ASR] ${taskId} translating: ${asrLanguage === 'auto' ? 'zh' : asrLanguage} -> ${tLang}, textLen=${text.length}`);
-        // DeepSeek 翻译（支持长文本，质量好）→ M2M-100 兜底
+        // M2M-100 翻译（免费优先）→ DeepSeek 兜底
         const { translateWithDeepSeek, translateSubtitleSegments } = require('../services/summarize');
         if (asrSegments.length > 0) {
           translatedSegments = await translateSubtitleSegments(
@@ -846,9 +846,9 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
             correctionContext
           ) || [];
         }
-        let raw = await translateWithDeepSeek(text, asrLanguage === 'auto' ? 'zh' : asrLanguage, tLang);
-        if (!raw) {
-          raw = await asr.translateText(text, asrLanguage === 'auto' ? 'zh' : asrLanguage, tLang);
+        let raw = await asr.translateText(text, asrLanguage === 'auto' ? 'zh' : asrLanguage, tLang);
+        if (!raw || raw === text) {
+          raw = await translateWithDeepSeek(text, asrLanguage === 'auto' ? 'zh' : asrLanguage, tLang);
         }
         translatedText = raw || translatedSegments.filter(Boolean).join('\n');
       } catch (e) {
@@ -1437,8 +1437,8 @@ async function processDouyin(taskId, url, needAsr, options = ['video'], quality 
             const translatedSegments = asrSegments.length > 0
               ? (await summarize.translateSubtitleSegments(asrSegments, asrLanguage === 'auto' ? 'zh' : asrLanguage, task.targetLang, correctionContext) || [])
               : [];
-            const translated = await summarize.translateWithDeepSeek(text, asrLanguage === 'auto' ? 'zh' : asrLanguage, task.targetLang)
-              || await asr.translateText(text, asrLanguage === 'auto' ? 'zh' : asrLanguage, task.targetLang)
+            const translated = await asr.translateText(text, asrLanguage === 'auto' ? 'zh' : asrLanguage, task.targetLang)
+              || await summarize.translateWithDeepSeek(text, asrLanguage === 'auto' ? 'zh' : asrLanguage, task.targetLang)
               || translatedSegments.filter(Boolean).join('\n');
             if (translated) {
               update.translatedText = translated;
