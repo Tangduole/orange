@@ -471,5 +471,7 @@
   "emptyUrlGuideDesc": "主要ショート動画プラットフォームに対応。取り込み後、AI素材カード、バズ分析、タグ、グループ、投稿文案を生成できます。",
   "browserExtensionCta": "ブラウザ拡張機能をインストールして現在のページを素材ワークベンチへ送信",
   "lifetimeContactSupport": "$99の一括払いで永続利用できます。開通はサポートへお問い合わせください（support@orangedl.com）。",
-  "loadMore": "もっと読み込む"
+  "loadMore": "もっと読み込む",
+  "adminUsersTab": "ユーザー",
+  "adminAiUsageTab": "AI使用量"
 }

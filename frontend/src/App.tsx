@@ -309,6 +309,16 @@ export default function App() {
   const [adminMetrics, setAdminMetrics] = useState<any>(null)
   const [adminMetricsLoading, setAdminMetricsLoading] = useState(false)
   const [adminMetricsError, setAdminMetricsError] = useState('')
+  const [adminTab, setAdminTab] = useState<'overview' | 'users' | 'ai'>('overview')
+  const [adminUsers, setAdminUsers] = useState<any[]>([])
+  const [adminUsersTotal, setAdminUsersTotal] = useState(0)
+  const [adminUsersLoading, setAdminUsersLoading] = useState(false)
+  const [adminUserSearch, setAdminUserSearch] = useState('')
+  const [adminUserTier, setAdminUserTier] = useState('')
+  const [adminUserPage, setAdminUserPage] = useState(1)
+  const [adminAiUsage, setAdminAiUsage] = useState<any[]>([])
+  const [adminAiUsageTotal, setAdminAiUsageTotal] = useState(0)
+  const [adminAiUsageLoading, setAdminAiUsageLoading] = useState(false)
 
   // 全局 401 拦截：token 过期自动弹出登录框
   useEffect(() => {
@@ -372,6 +382,22 @@ export default function App() {
       setAdminMetricsLoading(false)
     }
   }
+  const fetchAdminUsers = async () => {
+    setAdminUsersLoading(true);
+    try {
+      const r = await axios.get(`${API_BASE}/api/auth/admin/users`, { headers: getAuthHeaders(), params: { search: adminUserSearch, tier: adminUserTier, page: adminUserPage } });
+      if (r.data?.data) { setAdminUsers(r.data.data.items || []); setAdminUsersTotal(r.data.data.total || 0); }
+    } catch {} finally { setAdminUsersLoading(false); }
+  };
+  const fetchAdminAiUsage = async () => {
+    setAdminAiUsageLoading(true);
+    try {
+      const r = await axios.get(`${API_BASE}/api/auth/admin/ai-usage`, { headers: getAuthHeaders() });
+      if (r.data?.data) { setAdminAiUsage(r.data.data.items || []); setAdminAiUsageTotal(r.data.data.total || 0); }
+    } catch {} finally { setAdminAiUsageLoading(false); }
+  };
+  useEffect(() => { if (adminTab === 'users') fetchAdminUsers(); }, [adminTab, adminUserSearch, adminUserTier, adminUserPage]);
+  useEffect(() => { if (adminTab === 'ai') fetchAdminAiUsage(); }, [adminTab]);
   const changeLanguage = (lng: string) => {
     i18n.changeLanguage(lng)
     localStorage.setItem('orange_language', lng)
@@ -4025,6 +4051,18 @@ export default function App() {
                   </button>
                 </div>
               </div>
+              {/* Admin tabs */}
+              <div className="flex gap-2 border-b border-slate-700/50 pb-2">
+                {(['overview', 'users', 'ai'] as const).map(tab => (
+                  <button key={tab} onClick={() => setAdminTab(tab)} className={`px-3 py-1.5 rounded-lg text-xs transition ${adminTab === tab ? 'bg-orange/20 text-orange' : 'text-slate-400 hover:text-white'}`}>
+                    {tab === 'overview' ? t('adminOverview') : tab === 'users' ? t('adminUsersTab') : t('adminAiUsageTab')}
+                  </button>
+                ))}
+                <div className="ml-auto flex gap-2">
+                  {adminTab === 'users' && <a href={`${API_BASE}/api/auth/admin/export/users.csv`} download className="px-2 py-1.5 rounded-lg bg-slate-700/50 text-slate-300 text-[10px] hover:bg-slate-600 transition">📥 CSV</a>}
+                  {adminTab === 'ai' && <a href={`${API_BASE}/api/auth/admin/export/ai-usage.csv`} download className="px-2 py-1.5 rounded-lg bg-slate-700/50 text-slate-300 text-[10px] hover:bg-slate-600 transition">📥 CSV</a>}
+                </div>
+              </div>
               <div className="p-5 max-h-[78vh] overflow-y-auto">
                 {adminMetricsLoading ? (
                   <div className="py-10 flex items-center justify-center text-slate-400 text-sm">
@@ -4173,6 +4211,44 @@ export default function App() {
                 ) : null}
               </div>
             </div>
+            {/* Users tab */}
+            {adminTab === 'users' && (
+              <div className="rounded-xl bg-slate-900/60 border border-slate-700/60 p-3">
+                <div className="flex gap-2 mb-3">
+                  <input type="text" value={adminUserSearch} onChange={e => { setAdminUserSearch(e.target.value); setAdminUserPage(1); }} placeholder="搜索邮箱..." className="flex-1 px-2 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/50 text-white text-xs" />
+                  <select value={adminUserTier} onChange={e => { setAdminUserTier(e.target.value); setAdminUserPage(1); }} className="px-2 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/50 text-white text-xs">
+                    <option value="">全部</option><option value="pro">Pro</option><option value="free">Free</option>
+                  </select>
+                </div>
+                {adminUsersLoading ? <p className="text-slate-400 text-xs py-4 text-center">{t('loading')}</p> : (
+                  <div className="space-y-1 max-h-60 overflow-y-auto">
+                    {adminUsers.map((u: any) => (
+                      <div key={u.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-800/30 text-xs">
+                        <span className="text-slate-300 truncate flex-1">{u.email}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] ml-2 ${u.tier === 'pro' ? 'bg-yellow-500/15 text-yellow-400' : 'bg-slate-700/50 text-slate-400'}`}>{u.tier}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="text-[10px] text-slate-500 mt-2">共 {adminUsersTotal} 用户</p>
+              </div>
+            )}
+            {/* AI Usage tab */}
+            {adminTab === 'ai' && (
+              <div className="rounded-xl bg-slate-900/60 border border-slate-700/60 p-3">
+                {adminAiUsageLoading ? <p className="text-slate-400 text-xs py-4 text-center">{t('loading')}</p> : (
+                  <div className="space-y-1 max-h-60 overflow-y-auto">
+                    {adminAiUsage.map((item: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-slate-800/30 text-xs">
+                        <span className="text-slate-300 truncate flex-1">{(item.title || item.task_id)}</span>
+                        <span className="text-slate-500 ml-2">{item.output_chars ? (item.output_chars > 1000 ? (item.output_chars/1000).toFixed(0)+'k' : item.output_chars) + ' chars' : ''}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <p className="text-[10px] text-slate-500 mt-2">共 {adminAiUsageTotal} 条</p>
+              </div>
+            )}
           </div>
         )}
 

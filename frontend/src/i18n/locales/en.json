@@ -471,5 +471,7 @@
   "emptyUrlGuideDesc": "Supports major short-video platforms. After import, generate AI material cards, viral breakdowns, tags, groups, and publish packs.",
   "browserExtensionCta": "Install the browser extension to send the current page to the material workbench",
   "lifetimeContactSupport": "$99 one-time payment for lifetime access. Contact support to activate it (support@orangedl.com).",
-  "loadMore": "Load More"
+  "loadMore": "Load More",
+  "adminUsersTab": "Users",
+  "adminAiUsageTab": "AI Usage"
 }

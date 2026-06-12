@@ -441,7 +441,7 @@
   "adminFavorites": "{{count}} 个收藏",
   "adminOutputItems": "{{count}} 个 AI 输出",
   "adminTopPlatforms": "热门平台",
-  "adminOverview": "概览",
+  "adminOverview": "总览",
   "adminReadOnly": "只读指标",
   "adminGeneratedAt": "生成于 {{time}}",
   "adminVerifiedRate": "邮箱验证率",
@@ -471,5 +471,7 @@
   "emptyUrlGuideDesc": "支持主流短视频平台。下载后可生成 AI 素材卡、爆款拆解、标签分组和发布包。",
   "browserExtensionCta": "安装浏览器插件，一键发送当前页面到素材工作台",
   "lifetimeContactSupport": "$99 一次付费，永久使用。请联系管理员开通（support@orangedl.com）",
-  "loadMore": "加载更多"
+  "loadMore": "加载更多",
+  "adminUsersTab": "用户",
+  "adminAiUsageTab": "AI用量"
 }

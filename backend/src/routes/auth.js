@@ -217,6 +217,71 @@ router.get('/admin/metrics', auth.required, requireAdmin, async (req, res) => {
   }
 });
 
+// 管理员用户列表
+router.get('/admin/users', auth.required, requireAdmin, async (req, res) => {
+  try {
+    const { page = 1, pageSize = 50, search, tier, subscriptionStatus } = req.query;
+    const conditions = []; const args = [];
+    if (search) { conditions.push('email LIKE ?'); args.push(`%${search}%`); }
+    if (tier) { conditions.push('tier = ?'); args.push(tier); }
+    if (subscriptionStatus) { conditions.push('subscription_status = ?'); args.push(subscriptionStatus); }
+    const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
+    const offset = (parseInt(page) - 1) * parseInt(pageSize);
+    const [items, count] = await Promise.all([
+      userDb.db.execute({ sql: `SELECT id, email, tier, subscription_status, email_verified, created_at, subscription_ends_at FROM users ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`, args: [...args, parseInt(pageSize), offset] }),
+      userDb.db.execute({ sql: `SELECT COUNT(*) as cnt FROM users ${where}`, args }),
+    ]);
+    res.json({ code: 0, data: { items: items.rows, total: count.rows[0]?.cnt || 0, page: parseInt(page), pageSize: parseInt(pageSize) } });
+  } catch (e) {
+    logger.error('[admin] users error:', e.message);
+    res.status(500).json({ code: 500, message: 'Failed to load users' });
+  }
+});
+
+// 管理员 AI 用量查询
+router.get('/admin/ai-usage', auth.required, requireAdmin, async (req, res) => {
+  try {
+    const { feature, since, page = 1, pageSize = 50 } = req.query;
+    const conditions = []; const args = [];
+    if (feature) { conditions.push('ai_analysis LIKE ?'); args.push(`%${feature}%`); }
+    if (since) { conditions.push('created_at >= ?'); args.push(Math.floor(new Date(since).getTime() / 1000)); }
+    const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
+    const offset = (parseInt(page) - 1) * parseInt(pageSize);
+    const sql = `SELECT task_id, url, title, LENGTH(ai_analysis) as output_chars, created_at FROM download_history ${where} AND ai_analysis IS NOT NULL AND ai_analysis != '' ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+    const [items, count] = await Promise.all([
+      userDb.db.execute({ sql, args: [...args, parseInt(pageSize), offset] }),
+      userDb.db.execute({ sql: `SELECT COUNT(*) as cnt FROM download_history ${where}`, args }),
+    ]);
+    res.json({ code: 0, data: { items: items.rows, total: count.rows[0]?.cnt || 0, page: parseInt(page), pageSize: parseInt(pageSize) } });
+  } catch (e) {
+    logger.error('[admin] ai-usage error:', e.message);
+    res.status(500).json({ code: 500, message: 'Failed to load AI usage' });
+  }
+});
+
+// CSV 导出
+function csvEscape(val) { const s = String(val ?? ''); return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g, '""') + '"' : s; }
+
+router.get('/admin/export/users.csv', auth.required, requireAdmin, async (req, res) => {
+  try {
+    const r = await userDb.db.execute('SELECT email, tier, subscription_status, email_verified, created_at, subscription_ends_at FROM users ORDER BY created_at DESC');
+    let csv = 'email,tier,subscription_status,email_verified,created_at,subscription_ends_at\n';
+    for (const row of r.rows) csv += [row.email, row.tier, row.subscription_status, row.email_verified, row.created_at, row.subscription_ends_at].map(csvEscape).join(',') + '\n';
+    res.setHeader('Content-Type', 'text/csv'); res.setHeader('Content-Disposition', 'attachment; filename=users.csv');
+    res.send(csv);
+  } catch (e) { res.status(500).json({ code: 500 }); }
+});
+
+router.get('/admin/export/ai-usage.csv', auth.required, requireAdmin, async (req, res) => {
+  try {
+    const r = await userDb.db.execute("SELECT task_id, title, LENGTH(ai_analysis) as output_chars, created_at FROM download_history WHERE ai_analysis IS NOT NULL AND ai_analysis != '' ORDER BY created_at DESC LIMIT 5000");
+    let csv = 'task_id,title,output_chars,created_at\n';
+    for (const row of r.rows) csv += [row.task_id, row.title, row.output_chars, row.created_at].map(csvEscape).join(',') + '\n';
+    res.setHeader('Content-Type', 'text/csv'); res.setHeader('Content-Disposition', 'attachment; filename=ai-usage.csv');
+    res.send(csv);
+  } catch (e) { res.status(500).json({ code: 500 }); }
+});
+
 // 忘记密码 - 发送重置邮件（严格限制）
 router.post('/forgot-password', strictLimiter, async (req, res) => {
   try {
