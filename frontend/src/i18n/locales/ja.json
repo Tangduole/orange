@@ -435,5 +435,10 @@
   "adminGroups": "グループ",
   "adminFavorites": "お気に入り {{count}}件",
   "adminOutputItems": "AI出力 {{count}}件",
-  "adminTopPlatforms": "人気プラットフォーム"
+  "adminTopPlatforms": "人気プラットフォーム",
+  "popularTags": "よく使うタグ",
+  "quickAddPopularTags": "よく使うタグを追加",
+  "materialTagsLabel": "タグ（カンマまたは # 区切り）",
+  "materialNotes": "メモ",
+  "materialNotesPlaceholder": "用途、アイデア、クライアント要件を記録..."
 }

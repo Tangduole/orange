@@ -209,7 +209,7 @@
   "resetPassword": "重置密码",
   "resetting": "重置中...",
   "retry": "重试",
-  "save": "省",
+  "save": "保存",
   "saveAllImages": "保存全部",
   "saveCover": "保存封面",
   "saveLocation": "保存位置",
@@ -435,5 +435,10 @@
   "adminGroups": "分组",
   "adminFavorites": "{{count}} 个收藏",
   "adminOutputItems": "{{count}} 个 AI 输出",
-  "adminTopPlatforms": "热门平台"
+  "adminTopPlatforms": "热门平台",
+  "popularTags": "常用标签",
+  "quickAddPopularTags": "快速添加常用标签",
+  "materialTagsLabel": "标签（逗号或 # 分隔）",
+  "materialNotes": "备注",
+  "materialNotesPlaceholder": "记录用途、灵感或客户需求..."
 }

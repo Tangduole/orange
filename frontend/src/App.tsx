@@ -505,6 +505,16 @@ export default function App() {
   const historyPlatformOptions = Array.from(new Set(history.map(item => item.platform).filter(Boolean) as string[]))
   const historyGroupOptions = Array.from(new Set(history.map(item => item.groupName?.trim()).filter(Boolean) as string[])).slice(0, 80)
   const historyTagOptions = Array.from(new Set(history.flatMap(item => normalizeHistoryTags(item.tags)))).slice(0, 60)
+  const popularHistoryTags = (() => {
+    const counts = new Map<string, number>()
+    history.forEach(item => {
+      normalizeHistoryTags(item.tags).forEach(tag => counts.set(tag, (counts.get(tag) || 0) + 1))
+    })
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 12)
+      .map(([tag, count]) => ({ tag, count }))
+  })()
 
   const filteredHistory = history.filter(item => {
     const isFav = item.isFavorite || favorites.has(item.taskId)
@@ -584,6 +594,10 @@ export default function App() {
     .split(/[,，#\n]/)
     .map(t => t.trim())
     .filter(Boolean)
+
+  const appendTagsToInput = (value: string, tagsToAdd: string[]) => {
+    return Array.from(new Set([...parseTagInput(value), ...tagsToAdd])).slice(0, 20).join(', ')
+  }
 
   const saveMaterialMeta = async () => {
     if (!editingMaterial) return
@@ -3469,6 +3483,20 @@ export default function App() {
                       </span>
                     )}
                   </div>
+                  {popularHistoryTags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 items-center">
+                      <span className="text-[10px] text-slate-500">{t('popularTags')}</span>
+                      {popularHistoryTags.slice(0, 8).map(({ tag, count }) => (
+                        <button
+                          key={tag}
+                          onClick={() => setHistoryTagFilter(tag)}
+                          className={`px-2 py-1 rounded-full border text-[10px] transition ${historyTagFilter === tag ? 'bg-purple-500/20 border-purple-500/40 text-purple-300' : isDark ? 'bg-slate-800/40 border-slate-700/50 text-slate-300 hover:text-purple-300' : 'bg-light-bg border-light-border text-light-textSecondary'}`}
+                        >
+                          #{tag} · {count}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div className="max-h-60 overflow-y-auto">
                   {filteredHistory.length === 0 ? <p className="py-8 text-center text-sm text-slate-500">{historySearch || historyFilter !== 'all' || historyPlatformFilter !== 'all' || historyGroupFilter !== 'all' || historyTagFilter !== 'all' || historyAiOnly || historyPackOnly || historyPackTodoOnly ? t('noResults') : t('noHistory')}</p> : filteredHistory.map(item => (
@@ -3557,6 +3585,23 @@ export default function App() {
                 placeholder={t('batchTagsPlaceholder')}
                 className="w-full px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-700 text-sm text-white placeholder:text-slate-500"
               />
+              {popularHistoryTags.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-[10px] text-slate-500 mb-1">{t('quickAddPopularTags')}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {popularHistoryTags.map(({ tag, count }) => (
+                      <button
+                        key={tag}
+                        onClick={() => setBatchTagsText(prev => appendTagsToInput(prev, [tag]))}
+                        type="button"
+                        className="px-2 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300 text-[10px] hover:bg-purple-500/20 transition"
+                      >
+                        #{tag} · {count}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="flex gap-3 mt-4">
                 <button onClick={() => setShowBatchTagEditor(false)} disabled={batchTagsLoading} className="flex-1 py-2 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition disabled:opacity-60">{t('cancel')}</button>
                 <button onClick={saveBatchTags} disabled={batchTagsLoading} className="flex-1 py-2 rounded-xl bg-orange text-white hover:bg-orange-dark transition disabled:opacity-60">
@@ -3607,24 +3652,41 @@ export default function App() {
                 placeholder={t('materialGroupPlaceholder')}
                 className="w-full px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-700 text-sm text-white placeholder:text-slate-500 mb-3"
               />
-              <label className="block text-xs text-slate-300 mb-1">标签（逗号或 # 分隔）</label>
+              <label className="block text-xs text-slate-300 mb-1">{t('materialTagsLabel')}</label>
               <input
                 value={materialTagsText}
                 onChange={(e) => setMaterialTagsText(e.target.value)}
-                placeholder="短视频, 带货, 选题"
+                placeholder={t('batchTagsPlaceholder')}
                 className="w-full px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-700 text-sm text-white placeholder:text-slate-500 mb-3"
               />
-              <label className="block text-xs text-slate-300 mb-1">备注</label>
+              {popularHistoryTags.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-[10px] text-slate-500 mb-1">{t('quickAddPopularTags')}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {popularHistoryTags.map(({ tag, count }) => (
+                      <button
+                        key={tag}
+                        onClick={() => setMaterialTagsText(prev => appendTagsToInput(prev, [tag]))}
+                        type="button"
+                        className="px-2 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-300 text-[10px] hover:bg-purple-500/20 transition"
+                      >
+                        #{tag} · {count}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <label className="block text-xs text-slate-300 mb-1">{t('materialNotes')}</label>
               <textarea
                 value={materialNotes}
                 onChange={(e) => setMaterialNotes(e.target.value)}
-                placeholder="记录用途、灵感或客户需求..."
+                placeholder={t('materialNotesPlaceholder')}
                 rows={4}
                 className="w-full px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-700 text-sm text-white placeholder:text-slate-500 resize-none"
               />
               <div className="flex gap-3 mt-4">
-                <button onClick={() => setEditingMaterial(null)} className="flex-1 py-2 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition">取消</button>
-                <button onClick={saveMaterialMeta} className="flex-1 py-2 rounded-xl bg-orange text-white hover:bg-orange-dark transition">保存</button>
+                <button onClick={() => setEditingMaterial(null)} className="flex-1 py-2 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition">{t('cancel')}</button>
+                <button onClick={saveMaterialMeta} className="flex-1 py-2 rounded-xl bg-orange text-white hover:bg-orange-dark transition">{t('save')}</button>
               </div>
             </div>
           </div>

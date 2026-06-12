@@ -435,5 +435,10 @@
   "adminGroups": "Groups",
   "adminFavorites": "{{count}} favorites",
   "adminOutputItems": "{{count}} AI outputs",
-  "adminTopPlatforms": "Top platforms"
+  "adminTopPlatforms": "Top platforms",
+  "popularTags": "Popular tags",
+  "quickAddPopularTags": "Quick add popular tags",
+  "materialTagsLabel": "Tags (comma or # separated)",
+  "materialNotes": "Notes",
+  "materialNotesPlaceholder": "Record usage, ideas, or client requirements..."
 }
