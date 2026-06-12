@@ -12,7 +12,7 @@ export async function initNotifications(): Promise<boolean> {
   if (typeof window === 'undefined' || !('Notification' in window)) return false
   if (Notification.permission === 'granted') return true
   if (Notification.permission === 'denied') return false
-  if (permissionAsked) return Notification.permission === 'granted'
+  if (permissionAsked) return false
   permissionAsked = true
   try {
     const result = await Notification.requestPermission()

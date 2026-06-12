@@ -137,7 +137,7 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
+    <div data-testid="subscription-page" className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white">
       {/* Header */}
       <header className="p-4 flex items-center justify-between">
         <button 

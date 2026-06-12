@@ -52,8 +52,10 @@ async function apiFetch(url: string, options?: RequestInit): Promise<any> {
 }
 
 interface AuthResponse {
-  token: string;
-  user: {
+  token?: string;
+  needsEmailVerification?: boolean;
+  email?: string;
+  user?: {
     id: string;
     email: string;
     tier: string;
@@ -89,8 +91,9 @@ interface AiUsageResponse {
 }
 
 interface SubscribeResponse {
-  checkoutUrl: string;
-  checkoutId: string;
+  checkoutUrl?: string;
+  checkoutId?: string;
+  lifetime?: boolean;
 }
 
 export const api = {

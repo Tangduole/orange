@@ -245,7 +245,7 @@ export default function App() {
     const lock = () => {
       try {
         if (screen.orientation && 'lock' in screen.orientation) {
-          screen.orientation.lock('portrait-primary').catch(() => {})
+          ;(screen.orientation.lock as (orientation: string) => Promise<void>)('portrait-primary').catch(() => {})
         }
       } catch {}
     }
@@ -327,6 +327,7 @@ export default function App() {
   const [resetPwdStep, setResetPwdStep] = useState(!!_urlResetToken) // false=Send邮件, true=Settings新Password
   const [resetPwdToken, setResetPwdToken] = useState(_urlResetToken)
   const [resetPwd, setResetPwd] = useState('')
+  const [resetPwdConfirm, setResetPwdConfirm] = useState('')
   const [subbedDownloading, setSubbedDownloading] = useState(false)
   const [resetPwdMsg, setResetPwdMsg] = useState('')
   const [resetPwdLoading, setResetPwdLoading] = useState(false)
@@ -619,6 +620,9 @@ export default function App() {
 
   const appendTagsToInput = (value: string, tagsToAdd: string[]) => {
     return Array.from(new Set([...parseTagInput(value), ...tagsToAdd])).slice(0, 20).join(', ')
+  }
+  const toggleHistoryTagFilter = (tag: string) => {
+    setHistoryTagFilter(current => current === tag ? 'all' : tag)
   }
 
   const saveMaterialMeta = async () => {
@@ -1545,6 +1549,7 @@ export default function App() {
         setRemainingDownloads(Math.max(0, remainingDownloads - 1))
       }
       // 延迟 500ms 后AutoDownload
+      const downloadUrl = task.downloadUrl
       autoDownloadTimer.current = setTimeout(() => {
         setDownloading(true)
         // iOS Safari: 不触发自动下载，让用户通过 inline video 长按保存
@@ -1553,7 +1558,7 @@ export default function App() {
           setDownloading(false)
           return
         }
-        shareFile(task.downloadUrl, task.title || 'video').finally(() => {
+        shareFile(downloadUrl, task.title || 'video').finally(() => {
           setDownloading(false)
           // DownloadCompleted后重新获取Use量
           if (authToken) {
@@ -1739,7 +1744,9 @@ export default function App() {
     clean.searchParams.delete('platform')
     clean.searchParams.delete('autostart')
     clean.searchParams.delete('action')
-    window.history.replaceState({}, '', clean.toString())
+    window.setTimeout(() => {
+      window.history.replaceState({}, '', clean.toString())
+    }, 0)
   }, [])
 
   const handleSubmit = async () => {
@@ -2081,7 +2088,7 @@ export default function App() {
 
       <div className="relative">
         {/* Header */}
-        <header className="max-w-2xl mx-auto px-6 pt-12 sm:pt-20 pb-6 sm:pb-10 text-center">
+        <header data-testid="app-header" className="max-w-2xl mx-auto px-6 pt-12 sm:pt-20 pb-6 sm:pb-10 text-center">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden shadow-lg shadow-orange/25 flex-shrink-0">
               <img src="/logo.png" alt="Orange" className="w-full h-full object-cover" />
@@ -2103,6 +2110,7 @@ export default function App() {
               <div className="relative">
                 <button
                   onClick={() => setShowLangMenu(!showLangMenu)}
+                  data-testid="language-menu-button"
                   className={`px-2 py-1 rounded-lg text-xs font-bold transition ${isDark ? 'text-slate-300 hover:text-orange' : 'text-light-textSecondary hover:text-orange-500'}`}
                   title={t('language')}
                 >
@@ -2176,7 +2184,7 @@ export default function App() {
                   )}
                 </>
               ) : (
-                <button onClick={() => setShowAuthModal(true)} className={`p-2 rounded-lg transition ${isDark ? 'text-slate-300 hover:text-orange' : 'text-slate-600 hover:text-orange-500'}`} title="Login">
+                <button onClick={() => setShowAuthModal(true)} data-testid="login-button" className={`p-2 rounded-lg transition ${isDark ? 'text-slate-300 hover:text-orange' : 'text-slate-600 hover:text-orange-500'}`} title="Login">
                   <User className="w-5 h-5" />
                 </button>
               )}
@@ -2223,6 +2231,7 @@ export default function App() {
                   </button>
                   <input
                     type="url"
+                    data-testid="url-input"
                     value={url}
                     onChange={(e) => handleUrlChange(e.target.value)}
                     onPaste={handleSinglePaste}
@@ -2778,11 +2787,14 @@ export default function App() {
               {task.title && !isWorking(task.status) && (
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center gap-2 flex-wrap">
-                    {task.quality && (
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${task.height >= 720 ? 'bg-gradient-to-r from-yellow-500/20 to-orange/20 text-yellow-400 border border-yellow-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
-                        🎬 {task.quality} {task.height >= 720 ? '⭐' : '✓'}
-                      </span>
-                    )}
+                    {task.quality && (() => {
+                      const height = task.height || 0
+                      return (
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${height >= 720 ? 'bg-gradient-to-r from-yellow-500/20 to-orange/20 text-yellow-400 border border-yellow-500/30' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'}`}>
+                          🎬 {task.quality} {height >= 720 ? '⭐' : '✓'}
+                        </span>
+                      )
+                    })()}
                     <p className="text-sm text-slate-300">{task.title}</p>
                   </div>
                   {/* Quality调整提示 */}
@@ -2807,11 +2819,11 @@ export default function App() {
               )}
 
               {/* 图文笔记 - 图片网格 + 批量下载 */}
-              {task.isNote && task.imageFiles?.length > 0 && (
+              {task.isNote && (task.imageFiles?.length || 0) > 0 && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
                     <p className="text-xs text-slate-300">
-                      🖼️ {t('totalImages', { count: task.imageFiles.length })}
+                      🖼️ {t('totalImages', { count: task.imageFiles!.length })}
                     </p>
                     <button
                       onClick={async () => {
@@ -2831,7 +2843,7 @@ export default function App() {
                     </button>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    {task.imageFiles.map(img => {
+                    {task.imageFiles!.map(img => {
                       const fullUrl = img.url.startsWith('http') ? img.url : `${BASE_URL}${img.url}`;
                       const dimLabel = (img as any).width ? `${(img as any).width}×${(img as any).height}` : '';
                       return (
@@ -2883,7 +2895,7 @@ export default function App() {
                       clearAutoDownload()  // 取消AutoDownload
                       autoDownloaded.current = true  // Mark为已Process
                       setDownloading(true)
-                      await shareFile(task.downloadUrl, task.title || 'video', 'video')
+                      await shareFile(task.downloadUrl!, task.title || 'video', 'video')
                       setDownloading(false)
                     }}
                     disabled={downloading}
@@ -2918,7 +2930,7 @@ export default function App() {
                     clearAutoDownload()
                     autoDownloaded.current = true
                     setDownloading(true)
-                    await shareFile(task.coverUrl, (task.title || 'video') + '_cover', 'image')
+                    await shareFile(task.coverUrl!, (task.title || 'video') + '_cover', 'image')
                     setDownloading(false)
                   }}
                   disabled={downloading}
@@ -3215,9 +3227,9 @@ export default function App() {
               )}
 
               {/* Subtitle */}
-              {task.status === 'completed' && task.subtitleFiles?.length > 0 && (
+              {task.status === 'completed' && (task.subtitleFiles?.length || 0) > 0 && (
                 <div className="flex gap-2 flex-wrap">
-                  {task.subtitleFiles.map(s => (
+                  {task.subtitleFiles!.map(s => (
                     <a key={s.filename} href={`${BASE_URL}${s.url}`} download={s.filename} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs bg-slate-700/30 border border-slate-700/60 text-slate-300 hover:text-white transition-all">
                       <Languages className="w-3 h-3" />{s.filename}
                     </a>
@@ -3290,7 +3302,8 @@ export default function App() {
                   onClick={async () => {
                     setSubbedDownloading(true)
                     try {
-                      const fullUrl = task.subbedVideoUrl!.startsWith('http') ? task.subbedVideoUrl : `${BASE_URL}${task.subbedVideoUrl}`
+                      const subbedVideoUrl = task.subbedVideoUrl!
+                      const fullUrl = subbedVideoUrl.startsWith('http') ? subbedVideoUrl : `${BASE_URL}${subbedVideoUrl}`
                       const a = document.createElement('a')
                       a.href = fullUrl
                       a.download = (task.title || 'subbed') + '_subbed.mp4'
@@ -3415,6 +3428,7 @@ export default function App() {
           {/* // Download History - Enhanced */}
           <div className="mt-5">
             <button onClick={() => setShowHistory(!showHistory)}
+              data-testid="history-toggle"
               className={`w-full flex items-center justify-between px-5 py-3 rounded-2xl border text-sm transition ${isDark ? 'bg-slate-900/60 border-slate-700/60 text-slate-300 hover:text-slate-300' : 'bg-light-surface border-light-border text-light-textSecondary hover:text-light-text'}`}>
               <span className="flex items-center gap-2">
                 <Clock className="w-5 h-5" /> {t('downloadHistory')}
@@ -3428,7 +3442,7 @@ export default function App() {
               </span>
             </button>
             {showHistory && (
-              <div className={`mt-2 rounded-2xl border overflow-hidden ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-light-surface border-light-border'}`}>
+              <div data-testid="history-panel" className={`mt-2 rounded-2xl border overflow-hidden ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-light-surface border-light-border'}`}>
                 {history.length > 0 && (
                   <div className={`p-3 border-b ${isDark ? 'border-slate-700/30 bg-slate-950/30' : 'border-light-border bg-light-bg'}`}>
                     <div className="flex items-center justify-between gap-2 mb-2">
@@ -3472,7 +3486,7 @@ export default function App() {
                               {historyTagStats.map(({ tag, count }) => (
                                 <button
                                   key={tag}
-                                  onClick={() => setHistoryTagFilter(tag)}
+                                  onClick={() => toggleHistoryTagFilter(tag)}
                                   className={`px-2 py-1 rounded-full border text-[10px] transition ${historyTagFilter === tag ? 'bg-purple-500/20 border-purple-500/40 text-purple-300' : 'bg-slate-800/50 border-slate-700/50 text-slate-300 hover:text-purple-300'}`}
                                 >
                                   #{tag} · {count}
@@ -3666,7 +3680,7 @@ export default function App() {
                       {popularHistoryTags.slice(0, 8).map(({ tag, count }) => (
                         <button
                           key={tag}
-                          onClick={() => setHistoryTagFilter(tag)}
+                          onClick={() => toggleHistoryTagFilter(tag)}
                           className={`px-2 py-1 rounded-full border text-[10px] transition ${historyTagFilter === tag ? 'bg-purple-500/20 border-purple-500/40 text-purple-300' : isDark ? 'bg-slate-800/40 border-slate-700/50 text-slate-300 hover:text-purple-300' : 'bg-light-bg border-light-border text-light-textSecondary'}`}
                         >
                           #{tag} · {count}

@@ -45,9 +45,18 @@ jobs:
       - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
+      - name: Typecheck frontend
+        working-directory: frontend
+        run: npm run typecheck
       - name: Build frontend
         working-directory: frontend
         run: npm run build
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Run frontend E2E smoke tests
+        working-directory: frontend
+        run: npm run test:e2e
 
   browser-extension:
     runs-on: ubuntu-latest

@@ -46,6 +46,9 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
         setConfirmPassword('');
         return;
       }
+      if (!data.token || !data.user) {
+        throw new Error(t('operationFailed'));
+      }
       
       api.saveToken(data.token);
       localStorage.setItem('orange_user', JSON.stringify(data.user));
@@ -59,7 +62,7 @@ export default function AuthModal({ isOpen, onClose, onSuccess, onForgotPassword
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div data-testid="auth-modal" className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl border border-slate-700">
         {/* Header with Tab Switcher */}
         <div className="flex justify-between items-center mb-6">
