@@ -775,6 +775,94 @@ const userDb = {
     return result.rows;
   },
 
+  /**
+   * 素材工作台服务端聚合统计
+   */
+  async getHistoryMeta(userId, guestIp) {
+    if (!userId && !guestIp) return { tags: [], groups: [], platforms: [], favoritesCount: 0, aiCardsCount: 0, publishPacksCount: 0, total: 0 };
+    const ownerCol = userId ? 'user_id' : 'guest_ip';
+    const ownerVal = userId || guestIp;
+
+    const [tagRows, groupRows, platformRows, countRow, favCount, aiCount, packCount] = await Promise.all([
+      db.execute({ sql: `SELECT tags FROM download_history WHERE ${ownerCol} = ? AND tags IS NOT NULL AND tags != ''`, args: [ownerVal] }),
+      db.execute({ sql: `SELECT group_name, COUNT(*) as cnt FROM download_history WHERE ${ownerCol} = ? AND group_name IS NOT NULL AND group_name != '' GROUP BY group_name ORDER BY cnt DESC`, args: [ownerVal] }),
+      db.execute({ sql: `SELECT platform, COUNT(*) as cnt FROM download_history WHERE ${ownerCol} = ? AND platform IS NOT NULL GROUP BY platform ORDER BY cnt DESC`, args: [ownerVal] }),
+      db.execute({ sql: `SELECT COUNT(*) as cnt FROM download_history WHERE ${ownerCol} = ?`, args: [ownerVal] }),
+      db.execute({ sql: `SELECT COUNT(*) as cnt FROM download_history WHERE ${ownerCol} = ? AND is_favorite = 1`, args: [ownerVal] }),
+      db.execute({ sql: `SELECT COUNT(*) as cnt FROM download_history WHERE ${ownerCol} = ? AND ai_analysis IS NOT NULL AND ai_analysis != ''`, args: [ownerVal] }),
+      db.execute({ sql: `SELECT COUNT(*) as cnt FROM download_history WHERE ${ownerCol} = ? AND group_name IS NOT NULL AND group_name != ''`, args: [ownerVal] }),
+    ]);
+
+    // 聚合标签（tags 可能是 JSON string）
+    const tagMap = new Map();
+    for (const row of tagRows.rows) {
+      try {
+        let parsed = row.tags;
+        if (typeof parsed === 'string') parsed = JSON.parse(parsed);
+        if (Array.isArray(parsed)) {
+          for (const t of parsed) {
+            const k = String(t).trim();
+            if (k) tagMap.set(k, (tagMap.get(k) || 0) + 1);
+          }
+        }
+      } catch { /* skip invalid tag row */ }
+    }
+    const tags = [...tagMap.entries()].map(([tag, count]) => ({ tag, count })).sort((a, b) => b.count - a.count);
+
+    const groups = groupRows.rows.map(r => ({ group: r.group_name, count: r.cnt }));
+    const ungroupedCount = Math.max(0, (countRow.rows[0]?.cnt || 0) - (packCount.rows[0]?.cnt || 0));
+    const platforms = platformRows.rows.map(r => ({ platform: r.platform, count: r.cnt }));
+
+    return {
+      tags,
+      groups,
+      ungroupedCount,
+      platforms,
+      favoritesCount: favCount.rows[0]?.cnt || 0,
+      aiCardsCount: aiCount.rows[0]?.cnt || 0,
+      publishPacksCount: packCount.rows[0]?.cnt || 0,
+      total: countRow.rows[0]?.cnt || 0,
+    };
+  },
+
+  /**
+   * 分页历史查询（支持搜索、筛选）
+   */
+  async getHistoryPage(userId, guestIp, filters = {}) {
+    if (!userId && !guestIp) return { items: [], total: 0, page: 1, pageSize: 50, hasMore: false };
+    const ownerCol = userId ? 'user_id' : 'guest_ip';
+    const ownerVal = userId || guestIp;
+
+    const { page = 1, pageSize = 50, search, status, platform, group, tag, favorite, aiOnly, publishPackOnly, needsPublishPack } = filters;
+    const conditions = [`${ownerCol} = ?`];
+    const args = [ownerVal];
+
+    if (search) { conditions.push('(title LIKE ? OR url LIKE ? OR platform LIKE ? OR group_name LIKE ? OR notes LIKE ? OR tags LIKE ?)'); const s = `%${search}%`; args.push(s, s, s, s, s, s); }
+    if (platform) { conditions.push('platform = ?'); args.push(platform); }
+    if (group) { conditions.push('group_name = ?'); args.push(group); }
+    if (tag) { conditions.push('tags LIKE ?'); args.push(`%${tag}%`); }
+    if (favorite) { conditions.push('is_favorite = 1'); }
+    if (aiOnly) { conditions.push("ai_analysis IS NOT NULL AND ai_analysis != ''"); }
+    if (publishPackOnly || needsPublishPack) { conditions.push("group_name IS NOT NULL AND group_name != ''"); }
+
+    const where = conditions.join(' AND ');
+    const offset = (page - 1) * pageSize;
+
+    const [itemsRes, countRes] = await Promise.all([
+      db.execute({ sql: `SELECT * FROM download_history WHERE ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`, args: [...args, pageSize, offset] }),
+      db.execute({ sql: `SELECT COUNT(*) as cnt FROM download_history WHERE ${where}`, args }),
+    ]);
+
+    const total = countRes.rows[0]?.cnt || 0;
+    return {
+      items: itemsRes.rows,
+      total,
+      page,
+      pageSize,
+      hasMore: offset + pageSize < total,
+    };
+  },
+
   async getHistoryItem(userId, guestIp, taskId) {
     if (!taskId) return null;
     const ownerWhere = userId ? 'user_id = ?' : 'user_id IS NULL AND guest_ip = ?';

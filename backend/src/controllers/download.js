@@ -2499,14 +2499,50 @@ function getStatus(req, res) {
  * 获取历史记录
  */
 async function getHistory(req, res) {
-  const { limit = 50, offset = 0 } = req.query;
+  const { limit = 50, offset = 0, page, pageSize, search, status, platform, group, tag, favorite, aiOnly, publishPackOnly, needsPublishPack } = req.query;
 
-  // 用户身份由 auth.optional 中间件设置
   const isGuest = !req.user;
   const userId = req.user ? req.user.id : null;
   const guestIp = isGuest ? (getClientIp(req)) : null;
 
-  // 过滤任务（游客按 guestIp 过滤）
+  // 有筛选条件时使用服务端分页
+  const hasFilters = search || platform || group || tag || favorite || aiOnly || publishPackOnly || needsPublishPack || page;
+  if (hasFilters) {
+    try {
+      const userDb = require('../userDb');
+      const result = await userDb.getHistoryPage(userId, guestIp, {
+        page: parseInt(page) || 1,
+        pageSize: parseInt(pageSize) || parseInt(limit) || 50,
+        search, platform, group, tag,
+        favorite: favorite === '1' || favorite === 'true',
+        aiOnly: aiOnly === '1' || aiOnly === 'true',
+        publishPackOnly: publishPackOnly === '1' || publishPackOnly === 'true',
+        needsPublishPack: needsPublishPack === '1' || needsPublishPack === 'true',
+      });
+      const items = (result.items || []).map(h => ({
+        taskId: h.task_id,
+        url: h.url,
+        platform: h.platform,
+        title: h.title,
+        thumbnailUrl: h.thumbnail_url,
+        duration: h.duration,
+        isFavorite: h.is_favorite === 1,
+        tags: safeJsonArray(h.tags),
+        notes: h.notes || '',
+        groupName: h.group_name || '',
+        aiAnalysis: safeJsonObject(h.ai_analysis),
+        createdAt: h.created_at * 1000,
+        status: 'completed',
+        fromDb: true,
+      }));
+      return res.json({ code: 0, data: { tasks: items, total: result.total, page: result.page, pageSize: result.pageSize, hasMore: result.hasMore } });
+    } catch (e) {
+      logger.error('[history] Server-side pagination failed:', e.message);
+      // 失败回退到原有逻辑
+    }
+  }
+
+  // 原有逻辑：内存 + DB 合并
   const allTasks = store.list().filter(task => {
     if (isGuest) {
       return !task.userId && task.guestIp === guestIp;
@@ -2570,6 +2606,24 @@ function safeJsonArray(value) {
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
+  }
+}
+
+/**
+ * 素材工作台服务端聚合统计
+ */
+async function getHistoryMeta(req, res) {
+  const isGuest = !req.user;
+  const userId = req.user ? req.user.id : null;
+  const guestIp = isGuest ? getClientIp(req) : null;
+
+  try {
+    const userDb = require('../userDb');
+    const meta = await userDb.getHistoryMeta(userId, guestIp);
+    res.json({ code: 0, data: meta });
+  } catch (e) {
+    logger.error('[history-meta] Failed:', e.message);
+    res.json({ code: 500, message: 'Failed to load history meta' });
   }
 }
 
@@ -3134,6 +3188,7 @@ module.exports = {
   getInfo,
   getStatus,
   getHistory,
+  getHistoryMeta,
   getSystemStatus,
   getAdminStats,
   deleteTask,

@@ -17,6 +17,7 @@ const {
   getInfo,
   getStatus,
   getHistory,
+  getHistoryMeta,
   getSystemStatus,
   getAdminStats,
   deleteTask,
@@ -57,6 +58,7 @@ router.get('/status/:taskId', auth.optional, getStatus);
 
 // 获取历史记录
 router.get('/history', auth.optional, getHistory);
+router.get('/history/meta', auth.optional, getHistoryMeta);
 router.patch('/history/:taskId', auth.optional, updateHistoryItem);
 
 // AI 文案提取（Pro）
