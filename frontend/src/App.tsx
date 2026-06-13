@@ -587,30 +587,6 @@ export default function App() {
     return true
   })
 
-  const materialStats = (() => {
-    const platformCounts = new Map<string, number>()
-    let aiCards = 0
-    let publishPacks = 0
-    let favoritesCount = 0
-    history.forEach(item => {
-      if (item.platform) platformCounts.set(item.platform, (platformCounts.get(item.platform) || 0) + 1)
-      if (getHistoryAnalysis(item)) aiCards += 1
-      publishPacks += getHistoryRewritePackCount(item)
-      if (item.isFavorite || favorites.has(item.taskId)) favoritesCount += 1
-    })
-    const topPlatform = Array.from(platformCounts.entries()).sort((a, b) => b[1] - a[1])[0]
-    const topPlatformMeta = topPlatform ? PLATFORMS.find(platform => platform.id === topPlatform[0]) : null
-    return {
-      total: historyTotal || history.length,
-      aiCards,
-      publishPacks,
-      groups: historyGroupOptions.length,
-      favorites: favoritesCount,
-      topPlatform: topPlatformMeta ? t(topPlatformMeta.labelKey as any) || topPlatformMeta.labelFallback : topPlatform?.[0] || t('none'),
-      topPlatformCount: topPlatform?.[1] || 0
-    }
-  })()
-
   const toggleFavorite = async (taskId: string) => {
     const nf = new Set(favorites)
     const nextFavorite = !nf.has(taskId)
@@ -3499,21 +3475,6 @@ export default function App() {
                           {t('workbenchManager')}
                         </button>
                       </div>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
-                      {[
-                        { label: t('dashboardDownloads'), value: materialStats.total, color: 'text-orange' },
-                        { label: t('dashboardAiCards'), value: materialStats.aiCards, color: 'text-purple-300' },
-                        { label: t('dashboardPublishPacks'), value: materialStats.publishPacks, color: 'text-emerald-300' },
-                        { label: t('dashboardGroups'), value: materialStats.groups, color: 'text-cyan-300' },
-                        { label: t('dashboardFavorites'), value: materialStats.favorites, color: 'text-yellow-300' },
-                        { label: t('dashboardTopPlatform'), value: `${materialStats.topPlatform}${materialStats.topPlatformCount ? ` · ${materialStats.topPlatformCount}` : ''}`, color: 'text-slate-200' },
-                      ].map(stat => (
-                        <div key={stat.label} className={`rounded-xl px-3 py-2 border ${isDark ? 'bg-slate-800/45 border-slate-700/40' : 'bg-light-surface border-light-border'}`}>
-                          <p className="text-[10px] text-slate-500">{stat.label}</p>
-                          <p className={`mt-0.5 font-bold ${stat.color}`}>{stat.value}</p>
-                        </div>
-                      ))}
                     </div>
                     {showWorkbenchManager && (
                       <div className="grid md:grid-cols-2 gap-3 mt-3">
