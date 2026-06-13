@@ -2293,7 +2293,7 @@ export default function App() {
                     </button>
                   </div>
                 )}
-                {!url && !sharedEntrySource && (
+                {!url && !sharedEntrySource && !/Mobi|Android/i.test(navigator.userAgent) && (
                   <div className="mt-3 rounded-xl border border-orange/20 bg-orange/5 p-3">
                     <p className="text-xs font-semibold text-orange mb-1">{t('emptyUrlGuideTitle')}</p>
                     <p className="text-[11px] text-slate-400 leading-relaxed">{t('emptyUrlGuideDesc')}</p>
