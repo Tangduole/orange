@@ -3837,13 +3837,13 @@ export default function App() {
                   ))}
                 </div>
               </div>
-              {historyHasMore && (
+              {historyHasMore ? (
                 <div className="py-2 text-center">
                   <button onClick={loadMoreHistory} disabled={historyLoadingMore} data-testid="load-more-button" className="w-full py-2.5 rounded-xl text-sm font-medium bg-slate-700/30 text-slate-300 hover:bg-slate-700/50 disabled:opacity-50 transition">
                     {historyLoadingMore ? <><Loader2 className="w-4 h-4 inline animate-spin mr-2" />{t('loading')}</> : t('loadMore')}
                   </button>
                 </div>
-              )}
+              ) : null}
             )}
           </div>
         </main>
