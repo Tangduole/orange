@@ -260,11 +260,6 @@ export default function App() {
   const [task, setTask] = useState<Task | null>(null)
   const [history, setHistory] = useState<HistoryItem[]>([])
   const [historyTotal, setHistoryTotal] = useState(0)
-  const [historyPage, setHistoryPage] = useState(1)
-  const [historyPageSize] = useState(50)
-  const [historyHasMore, setHistoryHasMore] = useState(false)
-  const [historyMeta, setHistoryMeta] = useState<any>(null)
-  const [historyLoadingMore, setHistoryLoadingMore] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showDupConfirm, setShowDupConfirm] = useState(false)
   const [dupUrl, setDupUrl] = useState('')
@@ -309,16 +304,7 @@ export default function App() {
   const [adminMetrics, setAdminMetrics] = useState<any>(null)
   const [adminMetricsLoading, setAdminMetricsLoading] = useState(false)
   const [adminMetricsError, setAdminMetricsError] = useState('')
-  const [adminTab, setAdminTab] = useState<'overview' | 'users' | 'ai'>('overview')
-  const [adminUsers, setAdminUsers] = useState<any[]>([])
-  const [adminUsersTotal, setAdminUsersTotal] = useState(0)
-  const [adminUsersLoading, setAdminUsersLoading] = useState(false)
-  const [adminUserSearch, setAdminUserSearch] = useState('')
-  const [adminUserTier, setAdminUserTier] = useState('')
-  const [adminUserPage, setAdminUserPage] = useState(1)
-  const [adminAiUsage, setAdminAiUsage] = useState<any[]>([])
-  const [adminAiUsageTotal, setAdminAiUsageTotal] = useState(0)
-  const [adminAiUsageLoading, setAdminAiUsageLoading] = useState(false)
+  const [adminTab, setAdminTab] = useState('overview')
 
   // 全局 401 拦截：token 过期自动弹出登录框
   useEffect(() => {
@@ -382,22 +368,6 @@ export default function App() {
       setAdminMetricsLoading(false)
     }
   }
-  const fetchAdminUsers = async () => {
-    setAdminUsersLoading(true);
-    try {
-      const r = await axios.get(`${API_BASE}/api/auth/admin/users`, { headers: getAuthHeaders(), params: { search: adminUserSearch, tier: adminUserTier, page: adminUserPage } });
-      if (r.data?.data) { setAdminUsers(r.data.data.items || []); setAdminUsersTotal(r.data.data.total || 0); }
-    } catch {} finally { setAdminUsersLoading(false); }
-  };
-  const fetchAdminAiUsage = async () => {
-    setAdminAiUsageLoading(true);
-    try {
-      const r = await axios.get(`${API_BASE}/api/auth/admin/ai-usage`, { headers: getAuthHeaders() });
-      if (r.data?.data) { setAdminAiUsage(r.data.data.items || []); setAdminAiUsageTotal(r.data.data.total || 0); }
-    } catch {} finally { setAdminAiUsageLoading(false); }
-  };
-  useEffect(() => { if (adminTab === 'users') fetchAdminUsers(); }, [adminTab, adminUserSearch, adminUserTier, adminUserPage]);
-  useEffect(() => { if (adminTab === 'ai') fetchAdminAiUsage(); }, [adminTab]);
   const changeLanguage = (lng: string) => {
     i18n.changeLanguage(lng)
     localStorage.setItem('orange_language', lng)
@@ -541,13 +511,6 @@ export default function App() {
 
   const historyPlatformOptions = Array.from(new Set(history.map(item => item.platform).filter(Boolean) as string[]))
   const historyGroupStats = (() => {
-    // 优先服务端 meta
-    if (historyMeta?.groups?.length > 0) {
-      return {
-        groups: historyMeta.groups.slice(0, 80).map((g: any) => ({ group: g.group, count: g.count })),
-        ungrouped: historyMeta.ungroupedCount || 0
-      };
-    }
     const counts = new Map<string, number>()
     let ungrouped = 0
     history.forEach(item => {
@@ -562,10 +525,6 @@ export default function App() {
   })()
   const historyGroupOptions = historyGroupStats.groups.map(item => item.group)
   const historyTagStats = (() => {
-    // 优先服务端 meta
-    if (historyMeta?.tags?.length > 0) {
-      return historyMeta.tags.slice(0, 80).map((t: any) => ({ tag: t.tag, count: t.count }));
-    }
     const counts = new Map<string, number>()
     history.forEach(item => {
       normalizeHistoryTags(item.tags).forEach(tag => counts.set(tag, (counts.get(tag) || 0) + 1))
@@ -609,21 +568,6 @@ export default function App() {
   })
 
   const materialStats = (() => {
-    // 优先使用服务端 meta，回退到客户端计算
-    if (historyMeta) {
-      const topPlatform = (historyMeta.platforms || [])[0];
-      const topPlatformMeta = topPlatform ? PLATFORMS.find(p => p.id === topPlatform.platform) : null;
-      return {
-        total: historyMeta.total || historyTotal || history.length,
-        aiCards: historyMeta.aiCardsCount || 0,
-        publishPacks: historyMeta.publishPacksCount || 0,
-        groups: (historyMeta.groups || []).length,
-        favorites: historyMeta.favoritesCount || 0,
-        topPlatform: topPlatformMeta ? t(topPlatformMeta.labelKey as any) || topPlatformMeta.labelFallback : topPlatform?.platform || t('none'),
-        topPlatformCount: topPlatform?.count || 0,
-      };
-    }
-    // 客户端计算（兜底）
     const platformCounts = new Map<string, number>()
     let aiCards = 0
     let publishPacks = 0
@@ -1631,59 +1575,24 @@ export default function App() {
     return clearAutoDownload
   }, [task?.status, task?.downloadUrl, task?.taskId, authToken])
 
-  const fetchHistory = useCallback(async (append = false) => {
-    try {
-      const params: any = { pageSize: historyPageSize };
-      const hasFilters = historySearch || historyPlatformFilter !== 'all' || historyGroupFilter !== 'all' || historyTagFilter !== 'all' || historyAiOnly || historyPackOnly || historyPackTodoOnly;
-      
-      if (hasFilters) {
-        params.page = append ? historyPage : 1;
-        if (historySearch) params.search = historySearch;
-        if (historyPlatformFilter !== 'all') params.platform = historyPlatformFilter;
-        if (historyGroupFilter !== 'all') params.group = historyGroupFilter;
-        if (historyTagFilter !== 'all') params.tag = historyTagFilter;
-        if (historyAiOnly) params.aiOnly = '1';
-        if (historyPackOnly || historyPackTodoOnly) params.publishPackOnly = '1';
-      }
-      
-      const r = await axios.get(`${API}/history`, { headers: getAuthHeaders(), params }); 
+  const fetchHistory = useCallback(async () => {
+    try { 
+      const r = await axios.get(`${API}/history`, { headers: getAuthHeaders() }); 
       const data = r.data.data || {};
-      const tasks = Array.isArray(data.tasks) ? data.tasks : [];
-      
-      if (append) {
-        setHistory(prev => [...prev, ...tasks]);
-      } else {
-        setHistory(tasks);
-        setHistoryPage(1);
-      }
-      
-      const serverFavorites = tasks.filter((item: HistoryItem) => item.isFavorite).map((item: HistoryItem) => item.taskId);
+      const tasks = Array.isArray(data.tasks) ? data.tasks : (Array.isArray(data) ? data : [])
+      setHistory(tasks)
+      const serverFavorites = tasks.filter((item: HistoryItem) => item.isFavorite).map((item: HistoryItem) => item.taskId)
       if (serverFavorites.length > 0) {
-        setFavorites(prev => { const merged = new Set([...prev, ...serverFavorites]); localStorage.setItem('orange_favorites', JSON.stringify([...merged])); return merged; });
+        setFavorites(prev => {
+          const merged = new Set([...prev, ...serverFavorites])
+          localStorage.setItem('orange_favorites', JSON.stringify([...merged]))
+          return merged
+        })
       }
-      setHistoryTotal(data.total ?? tasks.length);
-      setHistoryHasMore(data.hasMore ?? false);
-      if (!append) setHistoryPage(1);
-    } catch {}
-  }, [authToken, historySearch, historyPlatformFilter, historyGroupFilter, historyTagFilter, historyAiOnly, historyPackOnly, historyPackTodoOnly, historyPage, historyPageSize])
-  useEffect(() => { fetchHistory() }, [fetchHistory])
-
-  // 独立加载 meta（不受筛选影响，始终显示全量统计）
-  const fetchHistoryMeta = useCallback(async () => {
-    try {
-      const r = await axios.get(`${API}/history/meta`, { headers: getAuthHeaders() });
-      if (r.data?.data) setHistoryMeta(r.data.data);
+      setHistoryTotal(data.total || 0) 
     } catch {}
   }, [authToken])
-  useEffect(() => { fetchHistoryMeta() }, [fetchHistoryMeta])
-
-  const loadMoreHistory = async () => {
-    if (historyLoadingMore) return;
-    setHistoryLoadingMore(true);
-    setHistoryPage(p => p + 1);
-    await fetchHistory(true);
-    setHistoryLoadingMore(false);
-  }
+  useEffect(() => { fetchHistory() }, [fetchHistory])
 
   const handleUrlChange = (value: string) => {
     // 检测是否有嵌入文字的Link
@@ -3543,7 +3452,6 @@ export default function App() {
                         <span className="text-[10px] text-slate-500">{t('dashboardFromHistory')}</span>
                         <button
                           onClick={() => setShowWorkbenchManager(v => !v)}
-                          data-testid="workbench-toggle"
                           className={`px-2 py-1 rounded-lg border text-[10px] transition ${showWorkbenchManager ? 'bg-orange/15 border-orange/30 text-orange' : 'bg-slate-800/60 border-slate-700/60 text-slate-300 hover:text-orange'}`}
                         >
                           {t('workbenchManager')}
@@ -3580,7 +3488,6 @@ export default function App() {
                                 <button
                                   key={tag}
                                   onClick={() => toggleHistoryTagFilter(tag)}
-                                  data-testid={`tag-chip-${tag}`}
                                   className={`px-2 py-1 rounded-full border text-[10px] transition ${historyTagFilter === tag ? 'bg-purple-500/20 border-purple-500/40 text-purple-300' : 'bg-slate-800/50 border-slate-700/50 text-slate-300 hover:text-purple-300'}`}
                                 >
                                   #{tag} · {count}
@@ -3643,9 +3550,9 @@ export default function App() {
                     {selectedTasks.size > 0 && (
                       <div className="flex items-center gap-1.5 shrink-0">
                         <span className="text-[10px] text-slate-400">{t('selectedCount', { count: selectedTasks.size })}</span>
-                        <button onClick={() => openBatchTagEditor('add')} data-testid="batch-tags-button" className="px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-lg text-[10px]">{t('batchTags')}</button>
-                        <button onClick={() => openBatchTagEditor('remove')} data-testid="batch-remove-tags-button" className="px-2 py-1 bg-red-500/15 text-red-300 border border-red-500/30 rounded-lg text-[10px]">{t('batchRemoveTags')}</button>
-                        <button onClick={openBatchGroupEditor} data-testid="batch-group-button" className="px-2 py-1 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px]">{t('batchGroup')}</button>
+                        <button onClick={() => openBatchTagEditor('add')} className="px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-lg text-[10px]">{t('batchTags')}</button>
+                        <button onClick={() => openBatchTagEditor('remove')} className="px-2 py-1 bg-red-500/15 text-red-300 border border-red-500/30 rounded-lg text-[10px]">{t('batchRemoveTags')}</button>
+                        <button onClick={openBatchGroupEditor} className="px-2 py-1 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px]">{t('batchGroup')}</button>
                         {history.some(item => selectedTasks.has(item.taskId) && item.status === 'completed' && !getHistoryAnalysis(item)) && (
                           <button
                             onClick={generateSelectedCommerceCards}
@@ -3706,7 +3613,7 @@ export default function App() {
                       </div>
                     )}
                     <div className="flex-1 relative">
-                      <input type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} placeholder={t('searchPlaceholder')} data-testid="history-search-input" className={`w-full pl-8 pr-3 py-2 border rounded-lg text-sm placeholder:text-slate-300 ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`} />
+                      <input type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} placeholder={t('searchPlaceholder')} className={`w-full pl-8 pr-3 py-2 border rounded-lg text-sm placeholder:text-slate-300 ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`} />
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
                     </div>
                   </div>
@@ -3837,13 +3744,6 @@ export default function App() {
                   ))}
                 </div>
               </div>
-              {historyHasMore ? (
-                <div className="py-2 text-center">
-                  <button onClick={loadMoreHistory} disabled={historyLoadingMore} data-testid="load-more-button" className="w-full py-2.5 rounded-xl text-sm font-medium bg-slate-700/30 text-slate-300 hover:bg-slate-700/50 disabled:opacity-50 transition">
-                    {historyLoadingMore ? <><Loader2 className="w-4 h-4 inline animate-spin mr-2" />{t('loading')}</> : t('loadMore')}
-                  </button>
-                </div>
-              ) : null}
             )}
           </div>
         </main>
@@ -4050,17 +3950,12 @@ export default function App() {
                   </button>
                 </div>
               </div>
-              {/* Admin tabs */}
-              <div className="flex gap-2 border-b border-slate-700/50 pb-2">
-                {(['overview', 'users', 'ai'] as const).map(tab => (
-                  <button key={tab} onClick={() => setAdminTab(tab)} className={`px-3 py-1.5 rounded-lg text-xs transition ${adminTab === tab ? 'bg-orange/20 text-orange' : 'text-slate-400 hover:text-white'}`}>
-                    {tab === 'overview' ? t('adminOverview') : tab === 'users' ? t('adminUsersTab') : t('adminAiUsageTab')}
+              <div className="flex gap-2 border-b border-slate-700/50 pb-2 mb-3">
+                {['overview','users','ai'].map(tab => (
+                  <button key={tab} onClick={() => setAdminTab(tab)} className={`px-3 py-1.5 rounded-lg text-xs transition ${(adminTab||'overview')===tab ? 'bg-orange/20 text-orange' : 'text-slate-400 hover:text-white'}`}>
+                    {tab==='overview'?t('adminOverview'):tab==='users'?t('adminUsersTab'):t('adminAiUsageTab')}
                   </button>
                 ))}
-                <div className="ml-auto flex gap-2">
-                  {adminTab === 'users' && <a href={`${API_BASE}/api/auth/admin/export/users.csv`} download className="px-2 py-1.5 rounded-lg bg-slate-700/50 text-slate-300 text-[10px] hover:bg-slate-600 transition">📥 CSV</a>}
-                  {adminTab === 'ai' && <a href={`${API_BASE}/api/auth/admin/export/ai-usage.csv`} download className="px-2 py-1.5 rounded-lg bg-slate-700/50 text-slate-300 text-[10px] hover:bg-slate-600 transition">📥 CSV</a>}
-                </div>
               </div>
               <div className="p-5 max-h-[78vh] overflow-y-auto">
                 {adminMetricsLoading ? (
@@ -4210,44 +4105,6 @@ export default function App() {
                 ) : null}
               </div>
             </div>
-            {/* Users tab */}
-            {adminTab === 'users' && (
-              <div className="rounded-xl bg-slate-900/60 border border-slate-700/60 p-3">
-                <div className="flex gap-2 mb-3">
-                  <input type="text" value={adminUserSearch} onChange={e => { setAdminUserSearch(e.target.value); setAdminUserPage(1); }} placeholder="搜索邮箱..." className="flex-1 px-2 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/50 text-white text-xs" />
-                  <select value={adminUserTier} onChange={e => { setAdminUserTier(e.target.value); setAdminUserPage(1); }} className="px-2 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/50 text-white text-xs">
-                    <option value="">全部</option><option value="pro">Pro</option><option value="free">Free</option>
-                  </select>
-                </div>
-                {adminUsersLoading ? <p className="text-slate-400 text-xs py-4 text-center">{t('loading')}</p> : (
-                  <div className="space-y-1 max-h-60 overflow-y-auto">
-                    {adminUsers.map((u: any) => (
-                      <div key={u.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-800/30 text-xs">
-                        <span className="text-slate-300 truncate flex-1">{u.email}</span>
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] ml-2 ${u.tier === 'pro' ? 'bg-yellow-500/15 text-yellow-400' : 'bg-slate-700/50 text-slate-400'}`}>{u.tier}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <p className="text-[10px] text-slate-500 mt-2">共 {adminUsersTotal} 用户</p>
-              </div>
-            )}
-            {/* AI Usage tab */}
-            {adminTab === 'ai' && (
-              <div className="rounded-xl bg-slate-900/60 border border-slate-700/60 p-3">
-                {adminAiUsageLoading ? <p className="text-slate-400 text-xs py-4 text-center">{t('loading')}</p> : (
-                  <div className="space-y-1 max-h-60 overflow-y-auto">
-                    {adminAiUsage.map((item: any, i: number) => (
-                      <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-slate-800/30 text-xs">
-                        <span className="text-slate-300 truncate flex-1">{(item.title || item.task_id)}</span>
-                        <span className="text-slate-500 ml-2">{item.output_chars ? (item.output_chars > 1000 ? (item.output_chars/1000).toFixed(0)+'k' : item.output_chars) + ' chars' : ''}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <p className="text-[10px] text-slate-500 mt-2">共 {adminAiUsageTotal} 条</p>
-              </div>
-            )}
           </div>
         )}
 
