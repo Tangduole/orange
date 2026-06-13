@@ -3465,16 +3465,13 @@ export default function App() {
                 {history.length > 0 && (
                   <div className={`p-3 border-b ${isDark ? 'border-slate-700/30 bg-slate-950/30' : 'border-light-border bg-light-bg'}`}>
                     <div className="flex items-center justify-between gap-2 mb-2">
-                      <p className="text-xs font-semibold text-slate-300">📊 {t('materialDashboard')}</p>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-slate-500">{t('dashboardFromHistory')}</span>
-                        <button
-                          onClick={() => setShowWorkbenchManager(v => !v)}
-                          className={`px-2 py-1 rounded-lg border text-[10px] transition ${showWorkbenchManager ? 'bg-orange/15 border-orange/30 text-orange' : 'bg-slate-800/60 border-slate-700/60 text-slate-300 hover:text-orange'}`}
-                        >
-                          {t('workbenchManager')}
-                        </button>
-                      </div>
+                      <p className="text-xs text-slate-500">{historyTotal} {t('items')}</p>
+                      <button
+                        onClick={() => setShowWorkbenchManager(v => !v)}
+                        className={`px-2 py-1 rounded-lg border text-[10px] transition ${showWorkbenchManager ? 'bg-orange/15 border-orange/30 text-orange' : 'bg-slate-800/60 border-slate-700/60 text-slate-300 hover:text-orange'}`}
+                      >
+                        {showWorkbenchManager ? t('close') : t('workbenchManager')}
+                      </button>
                     </div>
                     {showWorkbenchManager && (
                       <div className="grid md:grid-cols-2 gap-3 mt-3">
