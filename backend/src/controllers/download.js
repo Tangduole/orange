@@ -439,8 +439,8 @@ async function createDownload(req, res) {
         const userDb = require('../userDb');
         const todayOriginal = await userDb.getTodayOriginalDownloads(userId);
         if (todayOriginal >= 30) {
-          quality = `bestvideo[height<=${QUALITY.HD_THRESHOLD}]+bestaudio/best[height<=${QUALITY.HD_THRESHOLD}]`;
-          logger.info(`[task] User ${userId} exceeded daily original limit (30), downgrading to 720p`);
+          quality = `bestvideo[height<=1080]+bestaudio/best[height<=1080]`;
+          logger.info(`[task] User ${userId} exceeded daily original limit (30), downgrading to 1080p`);
         }
       }
     }
