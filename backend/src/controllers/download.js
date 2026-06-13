@@ -431,6 +431,21 @@ async function createDownload(req, res) {
     }
     // ========== 画质VIP限制检查结束 ==========
 
+    // ========== Pro 原画每日限流（30次/天，防滥用） ==========
+    if (isVip && quality) {
+      const hMatch = quality.match(/height<=(\d+)/i);
+      const qHeight = hMatch ? parseInt(hMatch[1]) : 0;
+      if (qHeight >= 1440 || qHeight >= 99999) {
+        const userDb = require('../userDb');
+        const todayOriginal = await userDb.getTodayOriginalDownloads(userId);
+        if (todayOriginal >= 30) {
+          quality = `bestvideo[height<=${QUALITY.HD_THRESHOLD}]+bestaudio/best[height<=${QUALITY.HD_THRESHOLD}]`;
+          logger.info(`[task] User ${userId} exceeded daily original limit (30), downgrading to 720p`);
+        }
+      }
+    }
+    // ========== 原画限流结束 ==========
+
     // ========== 免费用户画质强制限制 720p ==========
     // 对所有平台生效：非VIP用户下载画质不得超过720p（除非使用了HD试用）
     const FREE_MAX_HEIGHT = QUALITY.HD_THRESHOLD; // 720

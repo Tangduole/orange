@@ -927,6 +927,20 @@ const userDb = {
     });
   },
 
+  /**
+   * 获取用户今日原画下载次数
+   */
+  async getTodayOriginalDownloads(userId) {
+    if (!userId) return 0;
+    const today = new Date().toISOString().split('T')[0];
+    const startOfDay = Math.floor(new Date(today).getTime() / 1000);
+    const r = await db.execute({
+      sql: `SELECT COUNT(*) as cnt FROM download_history WHERE user_id = ? AND created_at >= ?`,
+      args: [userId, startOfDay]
+    });
+    return r.rows[0]?.cnt || 0;
+  },
+
   async getAiUsage(userId, sinceUnix = 0) {
     const result = await db.execute({
       sql: `SELECT feature, COUNT(*) as requests, SUM(input_chars) as input_chars, SUM(output_items) as output_items
