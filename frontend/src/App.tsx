@@ -3446,6 +3446,28 @@ export default function App() {
             </div>
           )}
 
+          {/* Pro 功能展示 — VIP 已解锁 */}
+          {isVip && (
+            <div className="mt-4 bg-gradient-to-r from-amber-500/5 to-orange/5 rounded-2xl p-4 border border-amber-500/20">
+              <p className="text-xs text-amber-400 mb-3">⭐ Pro 已解锁</p>
+              <div className="grid grid-cols-3 gap-2 text-[10px]">
+                {[
+                  { icon: '🎬', text: t('proFeatureOriginal4K') },
+                  { icon: '📦', text: t('proFeatureBatch') },
+                  { icon: '🤖', text: t('proFeatureAiCopy') },
+                  { icon: '📊', text: t('proFeatureAiSummary') },
+                  { icon: '🌐', text: t('proFeatureTranslatedSubtitle') },
+                  { icon: '∞', text: t('proFeatureUnlimited') },
+                ].map(f => (
+                  <div key={f.text} className="flex items-center gap-1.5 p-1.5">
+                    <span className="text-sm">{f.icon}</span>
+                    <span className="text-slate-300">{f.text}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* // Download History - Enhanced */}
           <div className="mt-5">
             <button onClick={() => setShowHistory(!showHistory)}
