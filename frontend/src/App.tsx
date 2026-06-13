@@ -1666,7 +1666,6 @@ export default function App() {
       if (!append) setHistoryPage(1);
     } catch {}
   }, [authToken, historySearch, historyPlatformFilter, historyGroupFilter, historyTagFilter, historyAiOnly, historyPackOnly, historyPackTodoOnly, historyPage, historyPageSize])
-  }, [authToken])
   useEffect(() => { fetchHistory() }, [fetchHistory])
 
   // 独立加载 meta（不受筛选影响，始终显示全量统计）
