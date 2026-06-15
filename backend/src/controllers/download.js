@@ -1684,7 +1684,11 @@ async function processHongguo(taskId, url, needAsr, options = ['video']) {
         downloadedBytes: downloaded || 0,
         totalBytes: total || 0
       });
-    }, { Referer: 'https://www.novelquickapp.com/' }, { timeoutMs: 120000 });
+    }, {
+      Referer: url,
+      Origin: 'https://www.novelquickapp.com',
+      Accept: 'video/*,*/*;q=0.8'
+    }, { timeoutMs: 120000 });
 
     const update = {
       status: TASK_STATUS.COMPLETED,
