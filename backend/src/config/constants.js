@@ -94,6 +94,7 @@ module.exports = {
     XIAOHONGSHU: 'xiaohongshu',
     BILIBILI: 'bilibili',
     KUAISHOU: 'kuaishou',
+    HONGGUO: 'hongguo',
     AUTO: 'auto'
   },
 

@@ -16,6 +16,7 @@ const ALLOWED_PLATFORMS = new Set([
   'bilibili',
   'kuaishou',
   'xiaohongshu',
+  'hongguo',
   'instagram',
   'wechat',
   'auto'
@@ -39,6 +40,7 @@ function extractUrl(text) {
     'youtube.com', 'youtu.be',
     'bilibili.com', 'b23.tv',
     'kuaishou.com',
+    'novelquickapp.com',
     'instagram.com',
     'xiaohongshu.com', 'xhslink.com',
     'channels.weixin.qq.com', 'finder.weixin.qq.com'
@@ -144,6 +146,11 @@ function validateUrl(url, platform) {
       case 'kuaishou':
         if (!hostMatches(hostname, ['kuaishou.com'])) {
           return { valid: false, message: '快手链接格式不正确' };
+        }
+        break;
+      case 'hongguo':
+        if (!hostMatches(hostname, ['novelquickapp.com'])) {
+          return { valid: false, message: '红果短剧链接格式不正确' };
         }
         break;
       case 'instagram':

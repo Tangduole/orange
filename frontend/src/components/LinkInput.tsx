@@ -17,6 +17,7 @@ export default function LinkInput({ value, onChange, platform, onClear }: LinkIn
     youtube: '📺',
     x: '🐦',
     instagram: '📷',
+    hongguo: '🍅',
     twitter: '🐦',
   };
 
@@ -26,6 +27,7 @@ export default function LinkInput({ value, onChange, platform, onClear }: LinkIn
     youtube: 'platform_youtube',
     x: 'platform_x',
     instagram: 'platform_instagram',
+    hongguo: 'platform_hongguo',
     twitter: 'platform_x',
   };
 

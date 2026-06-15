@@ -61,6 +61,7 @@ function detectPlatform(url) {
   if (hostMatches(host, ['instagram.com', 'instagr.am'])) return 'instagram';
   if (hostMatches(host, ['bilibili.com', 'b23.tv'])) return 'bilibili';
   if (hostMatches(host, ['kuaishou.com', 'v.kuaishou.com'])) return 'kuaishou';
+  if (hostMatches(host, ['novelquickapp.com'])) return 'hongguo';
   if (hostMatches(host, ['facebook.com', 'fb.watch', 'fb.gg'])) return 'facebook';
   if (hostMatches(host, ['weixin.qq.com', 'channels.weixin.qq.com', 'finder.weixin.qq.com'])) return 'wechat';
   if (hostMatches(host, ['tumblr.com'])) return 'tumblr';

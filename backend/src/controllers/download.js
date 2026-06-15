@@ -590,6 +590,16 @@ async function createDownload(req, res) {
       return res.json({ code: RESPONSE_CODE.SUCCESS, data: { taskId, status: TASK_STATUS.ERROR, platform: PLATFORM.KUAISHOU, message: '快手平台暂不支持' } });
     }
 
+    // 红果短剧:分享页 HTML 内含 MP4 直链
+    const { isHongguoUrl } = require('../services/hongguo');
+    if (isHongguoUrl(url)) {
+      processHongguo(taskId, url, wantsAsr, normalizedOptions).catch(err => {
+        logger.error(`[task] ${taskId} hongguo failed:`, err);
+        store.update(taskId, { status: TASK_STATUS.ERROR, progress: 0, error: err.message });
+      });
+      return res.json({ code: RESPONSE_CODE.SUCCESS, data: { taskId, status: TASK_STATUS.PENDING, platform: PLATFORM.HONGGUO } });
+    }
+
     // Instagram 链接:走 TikHub API
     if (/instagram\.com|instagr\.am/i.test(url)) {
       processInstagram(taskId, url, wantsAsr, normalizedOptions, safeQuality).catch(err => {
@@ -1632,6 +1642,86 @@ async function processX(taskId, url, needAsr, options = ['video']) {
   } catch (error) {
     logger.error(`[task] ${taskId} x failed:`, error);
     store.update(taskId, { status: TASK_STATUS.ERROR, error: error.message || 'X/Twitter 下载失败' });
+  } finally {
+    taskLock.release(taskId);
+  }
+}
+
+/**
+ * 处理红果短剧下载（分享页 HTML 内直接包含 MP4 play_url）
+ */
+async function processHongguo(taskId, url, needAsr, options = ['video']) {
+  if (!taskLock.tryAcquire(taskId)) {
+    logger.warn(`[task] ${taskId} is already being processed`);
+    store.update(taskId, {
+      status: TASK_STATUS.ERROR,
+      error: 'Task is already in progress'
+    });
+    return;
+  }
+
+  try {
+    const rawOptions = Array.isArray(options) ? options : [options];
+    const normalizedOptions = rawOptions.map(o => o === 'asr' || o === 'audio_only' ? 'audio' : o);
+    const wantsVideo = normalizedOptions.includes('video') || needAsr;
+    const wantsAudioOnly = rawOptions.includes('audio_only') || (normalizedOptions.includes('audio') && !wantsVideo);
+    if (wantsAudioOnly && !wantsVideo) {
+      throw new Error('红果短剧暂不支持仅音频下载');
+    }
+
+    store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
+    const { parseHongguo } = require('../services/hongguo');
+    const { downloadFile } = require('../services/tikhub');
+    const { DOWNLOAD_DIR } = require('../services/yt-dlp');
+    const info = await parseHongguo(url);
+    const outputPath = path.join(DOWNLOAD_DIR, `${taskId}.mp4`);
+
+    store.update(taskId, { status: TASK_STATUS.DOWNLOADING, progress: 10 });
+    await downloadFile(info.videoUrl, outputPath, (percent, downloaded, total) => {
+      store.update(taskId, {
+        status: percent < 95 ? TASK_STATUS.DOWNLOADING : TASK_STATUS.PROCESSING,
+        progress: percent,
+        downloadedBytes: downloaded || 0,
+        totalBytes: total || 0
+      });
+    }, { Referer: 'https://www.novelquickapp.com/' }, { timeoutMs: 120000 });
+
+    const update = {
+      status: TASK_STATUS.COMPLETED,
+      width: 0,
+      height: 0,
+      quality: 'source',
+      progress: 100,
+      title: info.title || '红果短剧',
+      platform: PLATFORM.HONGGUO,
+      filePath: outputPath,
+      ext: 'mp4',
+      downloadUrl: `/download/${path.basename(outputPath)}`
+    };
+    fileRefManager.addRef(path.basename(outputPath));
+    store.update(taskId, update);
+
+    if (needAsr && outputPath) {
+      const task = store.get(taskId);
+      const asrResult = await handleAsr(taskId, outputPath, task?.asrLanguage || 'zh');
+      if (asrResult?.text) {
+        const asrUpdate = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl };
+        if (asrResult.rawText && asrResult.rawText !== asrResult.text) asrUpdate.asrRawText = asrResult.rawText;
+        if (asrResult.summary) asrUpdate.summaryText = asrResult.summary;
+        if (asrResult.translatedText) {
+          asrUpdate.translatedText = asrResult.translatedText;
+          asrUpdate.translatedTxtUrl = asrResult.translatedTxtUrl;
+        }
+        if (asrResult.subbedVideoUrl) asrUpdate.subbedVideoUrl = asrResult.subbedVideoUrl;
+        store.update(taskId, asrUpdate);
+      }
+    }
+
+    await finalizeTask(taskId);
+    logger.info(`[task] ${taskId} hongguo completed`);
+  } catch (error) {
+    logger.error(`[task] ${taskId} hongguo failed:`, error);
+    store.update(taskId, { status: TASK_STATUS.ERROR, error: error.message || '红果短剧下载失败' });
   } finally {
     taskLock.release(taskId);
   }
