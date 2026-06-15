@@ -517,6 +517,7 @@ export default function App() {
     }
   }, [authToken, fetchAiUsage])
   const [historySearch, setHistorySearch] = useState('')
+  const [debouncedHistorySearch, setDebouncedHistorySearch] = useState('')
   const [historyFilter, setHistoryFilter] = useState<'all' | 'completed' | 'error' | 'favorites'>('all')
   const [historyPlatformFilter, setHistoryPlatformFilter] = useState('all')
   const [historyGroupFilter, setHistoryGroupFilter] = useState('all')
@@ -542,9 +543,15 @@ export default function App() {
   const [renameGroupText, setRenameGroupText] = useState('')
   const [groupRenameLoading, setGroupRenameLoading] = useState(false)
   const [showLexiconEditor, setShowLexiconEditor] = useState(false)
-  const [lexiconText, setLexiconText] = useState('')
+  const [lexiconTerms, setLexiconTerms] = useState<string[]>([])
+  const [newLexiconTerm, setNewLexiconTerm] = useState('')
   const [lexiconLoading, setLexiconLoading] = useState(false)
   const [lexiconMessage, setLexiconMessage] = useState('')
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedHistorySearch(historySearch.trim()), 300)
+    return () => clearTimeout(timer)
+  }, [historySearch])
 
   const historyPlatformOptions = historyMeta?.platforms?.length
     ? historyMeta.platforms.map(item => item.platform).filter(Boolean)
@@ -811,30 +818,53 @@ export default function App() {
     setLexiconLoading(true)
     try {
       const data = await api.getAsrLexicon(authToken)
-      setLexiconText((data.terms || []).join('\n'))
+      setLexiconTerms(Array.isArray(data.terms) ? data.terms : [])
+      setNewLexiconTerm('')
     } catch (e: any) {
-      setLexiconMessage(e.message || '词库读取失败')
+      setLexiconMessage(e.message || t('lexiconLoadFailed'))
     } finally {
       setLexiconLoading(false)
     }
   }
 
+  const normalizeLexiconTerm = (value: string) => value.trim().replace(/\s*=\s*/g, '=')
+
+  const addLexiconTerm = () => {
+    const term = normalizeLexiconTerm(newLexiconTerm)
+    const [wrong, correct] = term.split('=').map(item => item.trim())
+    if (!wrong || !correct) {
+      setLexiconMessage(t('addLexiconHint'))
+      return
+    }
+    setLexiconTerms(prev => Array.from(new Set([...prev, term])).slice(0, 200))
+    setNewLexiconTerm('')
+    setLexiconMessage('')
+  }
+
+  const removeLexiconTerm = (term: string) => {
+    setLexiconTerms(prev => prev.filter(item => item !== term))
+    setLexiconMessage('')
+  }
+
   const saveLexicon = async () => {
     if (!authToken) return
-    const terms = Array.from(new Set(
-      lexiconText
-        .split(/[,，#\n]/)
-        .map(item => item.trim())
-        .filter(item => item.length >= 2)
-    )).slice(0, 200)
+    const pendingTerm = normalizeLexiconTerm(newLexiconTerm)
+    const terms = Array.from(new Set([
+      ...lexiconTerms,
+      ...(pendingTerm ? [pendingTerm] : [])
+    ].filter(term => {
+      const [wrong, correct] = term.split('=').map(item => item.trim())
+      return Boolean(wrong && correct)
+    }))).slice(0, 200)
     setLexiconLoading(true)
     setLexiconMessage('')
     try {
       const data = await api.updateAsrLexicon(authToken, terms)
-      setLexiconText((data.terms || terms).join('\n'))
-      setLexiconMessage(`已保存 ${data.terms?.length ?? terms.length} 个专有词`)
+      setLexiconTerms(data.terms || terms)
+      setNewLexiconTerm('')
+      setLexiconMessage(t('lexiconSaved', { count: data.terms?.length ?? terms.length }))
     } catch (e: any) {
-      setLexiconMessage(e.message || '词库保存失败')
+      setLexiconMessage(e.message || t('lexiconSaveFailed'))
     } finally {
       setLexiconLoading(false)
     }
@@ -1635,7 +1665,7 @@ export default function App() {
       const params = {
         page,
         pageSize: historyPageSize,
-        search: historySearch || undefined,
+        search: debouncedHistorySearch || undefined,
         status: historyFilter !== 'all' && historyFilter !== 'favorites' ? historyFilter : undefined,
         platform: historyPlatformFilter !== 'all' ? historyPlatformFilter : undefined,
         group: historyGroupFilter !== 'all' ? historyGroupFilter : undefined,
@@ -1666,7 +1696,7 @@ export default function App() {
     } finally {
       setHistoryLoading(false)
     }
-  }, [authToken, historyAiOnly, historyFilter, historyGroupFilter, historyPageSize, historyPackOnly, historyPackTodoOnly, historyPlatformFilter, historySearch, historyTagFilter])
+  }, [authToken, debouncedHistorySearch, historyAiOnly, historyFilter, historyGroupFilter, historyPageSize, historyPackOnly, historyPackTodoOnly, historyPlatformFilter, historyTagFilter])
 
   useEffect(() => { fetchHistory(1, false) }, [fetchHistory])
   useEffect(() => { fetchHistoryMeta() }, [fetchHistoryMeta])
@@ -2219,6 +2249,7 @@ export default function App() {
                   {/* 头像按钮 */}
                   <button 
                     onClick={() => setShowUserMenu(!showUserMenu)}
+                    data-testid="user-menu-button"
                     className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold cursor-pointer ${authUser?.tier === 'pro' ? (isDark ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/50' : 'bg-amber-100 text-amber-700 border border-amber-300') : isDark ? 'bg-slate-700/50 text-slate-300 border border-slate-600/50' : 'bg-slate-200 text-slate-700 border border-slate-300'}`}
                   >
                     {(authUser?.email || 'U').charAt(0).toUpperCase()}
@@ -2245,8 +2276,8 @@ export default function App() {
                               <span>📈</span> {t('adminDashboard')}
                             </button>
                           )}
-                          <button onClick={() => { setShowUserMenu(false); openLexiconEditor() }} className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700/50 transition flex items-center gap-2">
-                            <span>📝</span> ASR 专有词库
+                          <button onClick={() => { setShowUserMenu(false); openLexiconEditor() }} data-testid="asr-lexicon-menu-button" className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700/50 transition flex items-center gap-2">
+                            <span>📖</span> {t('asrLexicon')}
                           </button>
                           <button onClick={() => { setShowUserMenu(false); setShowResetPwd(true) }} className="w-full px-3 py-2 text-left text-sm text-slate-300 hover:bg-slate-700/50 transition flex items-center gap-2">
                             <span>🔑</span> {t('changePassword')}
@@ -4004,25 +4035,51 @@ export default function App() {
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className="bg-slate-800 rounded-2xl p-5 max-w-md w-full border border-slate-700">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-base font-bold text-white">ASR 专有词库</h3>
+                <h3 className="text-base font-bold text-white">📖 {t('asrLexicon')}</h3>
                 <button onClick={() => setShowLexiconEditor(false)} className="text-slate-400 hover:text-white"><X className="w-4 h-4" /></button>
               </div>
               <p className="text-xs text-slate-400 mb-3">
-                添加品牌名、产品名、行业词。语音转文字会优先参考这些词，减少同音错别字。
+                {t('asrLexiconDesc')}
               </p>
-              <textarea
-                value={lexiconText}
-                onChange={(e) => setLexiconText(e.target.value)}
-                placeholder="磁吸&#10;仿真&#10;MagSafe&#10;品牌名&#10;产品型号"
-                rows={8}
-                className="w-full px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-700 text-sm text-white placeholder:text-slate-500 resize-none"
-              />
-              <p className="mt-2 text-[11px] text-slate-500">支持逗号、# 或换行分隔，最多保存 200 个词。</p>
+              <div className="flex gap-2">
+                <input
+                  value={newLexiconTerm}
+                  onChange={(e) => setNewLexiconTerm(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      addLexiconTerm()
+                    }
+                  }}
+                  placeholder={t('addLexiconHint')}
+                  className="min-w-0 flex-1 px-3 py-2 rounded-lg bg-slate-900/80 border border-slate-700 text-sm text-white placeholder:text-slate-500"
+                />
+                <button onClick={addLexiconTerm} disabled={lexiconLoading} className="px-3 py-2 rounded-lg bg-slate-700 text-slate-200 hover:bg-slate-600 text-sm transition disabled:opacity-50">
+                  {t('add')}
+                </button>
+              </div>
+              <div className="mt-3 max-h-48 overflow-y-auto rounded-xl border border-slate-700/60 bg-slate-900/50">
+                {lexiconLoading ? (
+                  <p className="p-3 text-xs text-slate-400">{t('loading')}</p>
+                ) : lexiconTerms.length === 0 ? (
+                  <p className="p-3 text-xs text-slate-500">{t('lexiconEmpty')}</p>
+                ) : (
+                  lexiconTerms.map(term => (
+                    <div key={term} className="flex items-center gap-2 px-3 py-2 border-b border-slate-700/40 last:border-0">
+                      <span className="min-w-0 flex-1 truncate text-sm text-slate-200">{term}</span>
+                      <button onClick={() => removeLexiconTerm(term)} disabled={lexiconLoading} className="text-xs text-red-300 hover:text-red-200 disabled:opacity-50">
+                        {t('delete')}
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+              <p className="mt-2 text-[11px] text-slate-500">{t('lexiconLimitHint')}</p>
               {lexiconMessage && <p className="mt-2 text-xs text-orange">{lexiconMessage}</p>}
               <div className="flex gap-3 mt-4">
-                <button onClick={() => setShowLexiconEditor(false)} className="flex-1 py-2 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition">关闭</button>
+                <button onClick={() => setShowLexiconEditor(false)} className="flex-1 py-2 rounded-xl bg-slate-700 text-slate-300 hover:bg-slate-600 transition">{t('close')}</button>
                 <button onClick={saveLexicon} disabled={lexiconLoading} className="flex-1 py-2 rounded-xl bg-orange text-white hover:bg-orange-dark transition disabled:opacity-50">
-                  {lexiconLoading ? '保存中...' : '保存词库'}
+                  {lexiconLoading ? t('saving') : t('saveLexicon')}
                 </button>
               </div>
             </div>
@@ -4222,9 +4279,67 @@ export default function App() {
               </div>
             </div>
             {/* Users tab */}
-            {adminTab === 'users' && <div className="rounded-xl bg-slate-900/60 border border-slate-700/60 p-3 mt-3"><div className="flex gap-2 mb-3"><input value={adminUserSearch} onChange={e=>setAdminUserSearch(e.target.value)} placeholder="搜索邮箱..." className="flex-1 px-2 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/50 text-white text-xs" /><select value={adminUserTier} onChange={e=>setAdminUserTier(e.target.value)} className="px-2 py-1.5 rounded-lg bg-slate-800/50 border border-slate-700/50 text-white text-xs"><option value="">全部</option><option value="pro">Pro</option><option value="free">Free</option></select></div><div className="space-y-1 max-h-60 overflow-y-auto">{adminUsers.map((u:any)=><div key={u.id} className="flex items-center justify-between p-2 rounded-lg bg-slate-800/30 text-xs"><span className="text-slate-300 truncate flex-1">{u.email}</span><span className={`px-2 py-0.5 rounded-full text-[10px] ml-2 ${u.tier==='pro'?'bg-yellow-500/15 text-yellow-400':'bg-slate-700/50 text-slate-400'}`}>{u.tier}</span></div>)}</div><p className="text-[10px] text-slate-500 mt-2">共 {adminUsersTotal} 用户 · <a href={`${API_BASE}/api/auth/admin/export/users.csv`} className="text-orange hover:underline">CSV导出</a></p></div>}
+            {adminTab === 'users' && (
+              <div className="rounded-xl bg-slate-900/60 border border-slate-700/60 p-3 mt-3">
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 mb-3">
+                  <input
+                    value={adminUserSearch}
+                    onChange={e => setAdminUserSearch(e.target.value)}
+                    placeholder="搜索邮箱..."
+                    className="w-full min-w-0 px-2 py-2 rounded-lg bg-slate-800/50 border border-slate-700/50 text-white text-xs"
+                  />
+                  <select
+                    value={adminUserTier}
+                    onChange={e => setAdminUserTier(e.target.value)}
+                    className="w-full sm:w-28 px-2 py-2 rounded-lg bg-slate-800/50 border border-slate-700/50 text-white text-xs"
+                  >
+                    <option value="">全部</option>
+                    <option value="pro">Pro</option>
+                    <option value="free">Free</option>
+                  </select>
+                </div>
+                <div className="space-y-2 max-h-[52vh] sm:max-h-60 overflow-y-auto">
+                  {adminUsers.map((u: any) => (
+                    <div key={u.id} className="p-3 rounded-xl bg-slate-800/30 text-xs">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                        <span className="text-slate-300 break-all leading-5">{u.email}</span>
+                        <span className={`self-start sm:self-auto shrink-0 px-2 py-0.5 rounded-full text-[10px] ${u.tier === 'pro' ? 'bg-yellow-500/15 text-yellow-400' : 'bg-slate-700/50 text-slate-400'}`}>
+                          {u.tier}
+                        </span>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] text-slate-500">
+                        {u.subscription_status && <span className="px-2 py-0.5 rounded-full bg-slate-900/60">{u.subscription_status}</span>}
+                        {typeof u.email_verified !== 'undefined' && <span className="px-2 py-0.5 rounded-full bg-slate-900/60">{u.email_verified ? 'verified' : 'unverified'}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-slate-500 mt-2">
+                  共 {adminUsersTotal} 用户 · <a href={`${API_BASE}/api/auth/admin/export/users.csv`} className="text-orange hover:underline">CSV导出</a>
+                </p>
+              </div>
+            )}
             {/* AI Usage tab */}
-            {adminTab === 'ai' && <div className="rounded-xl bg-slate-900/60 border border-slate-700/60 p-3 mt-3"><div className="space-y-1 max-h-60 overflow-y-auto">{adminAiUsage.map((item:any,i:number)=><div key={i} className="flex items-center justify-between p-2 rounded-lg bg-slate-800/30 text-xs"><span className="text-slate-300 truncate flex-1">{item.title||item.task_id}</span><span className="text-slate-500 ml-2">{item.output_chars?(item.output_chars>1000?(item.output_chars/1000).toFixed(0)+'k':item.output_chars)+' chars':''}</span></div>)}</div><p className="text-[10px] text-slate-500 mt-2">共 {adminAiUsageTotal} 条 · <a href={`${API_BASE}/api/auth/admin/export/ai-usage.csv`} className="text-orange hover:underline">CSV导出</a></p></div>}
+            {adminTab === 'ai' && (
+              <div className="rounded-xl bg-slate-900/60 border border-slate-700/60 p-3 mt-3">
+                <div className="space-y-2 max-h-[52vh] sm:max-h-60 overflow-y-auto">
+                  {adminAiUsage.map((item: any, i: number) => (
+                    <div key={i} className="p-3 rounded-xl bg-slate-800/30 text-xs">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                        <span className="text-slate-300 break-words leading-5">{item.title || item.task_id}</span>
+                        <span className="self-start sm:self-auto shrink-0 text-slate-500">
+                          {item.output_chars ? (item.output_chars > 1000 ? (item.output_chars / 1000).toFixed(0) + 'k' : item.output_chars) + ' chars' : ''}
+                        </span>
+                      </div>
+                      {item.url && <p className="mt-1 text-[10px] text-slate-600 break-all">{item.url}</p>}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-slate-500 mt-2">
+                  共 {adminAiUsageTotal} 条 · <a href={`${API_BASE}/api/auth/admin/export/ai-usage.csv`} className="text-orange hover:underline">CSV导出</a>
+                </p>
+              </div>
+            )}
           </div>
         )}
 

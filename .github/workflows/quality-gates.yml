@@ -66,5 +66,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
+          cache-dependency-path: browser-extension/package-lock.json
+      - name: Install extension dependencies
+        working-directory: browser-extension
+        run: npm ci
       - name: Validate extension manifest and locales
-        run: node browser-extension/scripts/validate.js
+        working-directory: browser-extension
+        run: npm run validate
+      - name: Package extension
+        working-directory: browser-extension
+        run: npm run package

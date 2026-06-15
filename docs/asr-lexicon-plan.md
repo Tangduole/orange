@@ -1,54 +1,36 @@
-# ASR 自定义纠错词库 - 实现方案
+# ASR 自定义纠错词库 - 已实现说明
 
 ## 目标
 用户可添加「ASR 常错词 → 正确词」映射。纠错时，词库中的词强制替换，解决"牛展→牛腱"这类 AI 也分不出的同音词。
 
-## 后端（已完成，无需改动）
+## 后端
 - `GET /api/asr/lexicon` — 返回用户词库 `[{term: "牛展=牛腱"}, ...]`  
 - `PUT /api/asr/lexicon` — 保存词库 `{terms: ["牛展=牛腱", "六一=六一"]}`  
 - `buildAsrCorrectionContext` 已自动读取词库传给 DeepSeek
+- 带 `=` 的词条会解析为强制纠错映射，例如 `牛展=牛腱` 会进入 `ASR纠错映射（必须按此替换）`
+- 不带 `=` 的词条仍作为用户专有词传入上下文
 
-## 前端需要做的
+## 前端
 
-### 1. 在用户菜单里加一个入口
-在头像下拉菜单中（`showUserMenu` 区域），加一行：
-```
-📖 ASR 纠错词库
-```
-点击打开词库编辑弹窗。
+已在用户菜单和 AI 工具区域提供入口：
 
-### 2. 词库编辑弹窗
-一个 Modal 弹窗，包含：
-- **添加输入框**：一个 input + 添加按钮，格式 `错误词=正确词`（如 `牛展=牛腱`）
-- **词条列表**：每行显示一个映射 + 删除按钮
-- **保存按钮**：调 `PUT /api/asr/lexicon` 保存
-- **加载**：弹窗打开时调 `GET /api/asr/lexicon` 加载现有词库
+- 用户菜单：`📖 ASR 纠错词库`
+- AI 工具区：`ASR 纠错词库`
 
-### 3. 关键逻辑
-```tsx
-// 状态
-const [asrLexicon, setAsrLexicon] = useState<string[]>([])
-const [newLexiconTerm, setNewLexiconTerm] = useState('')
+弹窗能力：
 
-// 加载
-const loadLexicon = async () => {
-  const r = await axios.get(`${API}/asr/lexicon`, { headers: getAuthHeaders() })
-  setAsrLexicon(r.data.data?.terms || [])
-}
+- 打开时调用 `GET /api/asr/lexicon` 加载已有词条
+- 输入框按 `错误词=正确词` 添加单条映射
+- 列表支持逐条删除
+- 保存时调用 `PUT /api/asr/lexicon`
+- 已接入中、英、日、韩 i18n
 
-// 保存
-const saveLexicon = async () => {
-  await axios.put(`${API}/asr/lexicon`, { terms: asrLexicon }, { headers: getAuthHeaders() })
-}
-```
+## 测试
 
-### 4. i18n
-需要加这些 key（四语言）：
-- `asrLexicon`: "纠错词库" / "ASR Lexicon" / "ASR辞書" / "ASR 어휘"
-- `addLexiconHint`: "格式：错误词=正确词" / "Format: wrong=correct"
-- `saveLexicon`: "保存词库"
+- `frontend/tests/e2e/asr-lexicon.spec.ts` 覆盖打开弹窗、添加、删除、保存。
 
-## 注意
+## 后续可优化
+
 - 词库保存的是 `错误词=正确词` 的字符串数组，不是 JSON 对象
-- `buildAsrCorrectionContext` 已自动解析这种格式
-- 弹窗用小 Modal 就行，不要做太复杂
+- 后续如果需要区分不同 ASR 语言，可在 UI 中暴露 `language` 选择
+- 如果词条超过 200 条，可增加搜索和分组

@@ -78,7 +78,15 @@ async function buildAsrCorrectionContext(task, language = 'auto') {
       const userDb = require('../userDb');
       const rows = await userDb.getAsrLexicon(task.userId, language || 'auto');
       const terms = rows.map(row => row.term).filter(Boolean).slice(0, 80);
-      if (terms.length) parts.push(`用户专有词：${terms.join('、')}`);
+      const replacements = [];
+      const customTerms = [];
+      for (const term of terms) {
+        const [wrong, correct] = term.split('=').map(item => item.trim());
+        if (wrong && correct) replacements.push(`${wrong} => ${correct}`);
+        else customTerms.push(term);
+      }
+      if (customTerms.length) parts.push(`用户专有词：${customTerms.join('、')}`);
+      if (replacements.length) parts.push(`ASR纠错映射（必须按此替换）：${replacements.join('；')}`);
     } catch (e) {
       logger.warn('[ASR] load lexicon failed:', e.message);
     }
