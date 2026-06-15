@@ -2528,7 +2528,7 @@ async function getHistory(req, res) {
       const result = await userDb.getHistoryPage(userId, guestIp, {
         page: parseInt(page) || 1,
         pageSize: parseInt(pageSize) || parseInt(limit) || 50,
-        search, platform, group, tag,
+        search, status, platform, group, tag,
         favorite: favorite === '1' || favorite === 'true',
         aiOnly: aiOnly === '1' || aiOnly === 'true',
         publishPackOnly: publishPackOnly === '1' || publishPackOnly === 'true',

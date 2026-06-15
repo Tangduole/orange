@@ -1,0 +1,12 @@
+{
+  "name": "orange-browser-extension",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "validate": "node scripts/validate.js",
+    "package": "node scripts/package.js"
+  },
+  "dependencies": {
+    "jszip": "^3.10.1"
+  }
+}

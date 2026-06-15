@@ -98,6 +98,18 @@ interface HistoryItem {
   isFavorite?: boolean; tags?: string[] | string; notes?: string; groupName?: string
   aiAnalysis?: any; copywriteAnalysis?: any
 }
+interface HistoryMeta {
+  tags: Array<{ tag: string; count: number }>
+  groups: Array<{ group: string; count: number }>
+  platforms: Array<{ platform: string; count: number }>
+  favoritesCount: number
+  aiCardsCount: number
+  publishPacksCount: number
+  publishPackItemsCount?: number
+  needsPublishPackCount?: number
+  ungroupedCount: number
+  total: number
+}
 interface AiUsageStatus {
   copywrite: {
     used: number
@@ -259,7 +271,12 @@ export default function App() {
   const [selectedAiTools, setSelectedAiTools] = useState<Set<string>>(new Set())
   const [task, setTask] = useState<Task | null>(null)
   const [history, setHistory] = useState<HistoryItem[]>([])
+  const [historyMeta, setHistoryMeta] = useState<HistoryMeta | null>(null)
   const [historyTotal, setHistoryTotal] = useState(0)
+  const [historyPage, setHistoryPage] = useState(1)
+  const [historyPageSize] = useState(50)
+  const [historyHasMore, setHistoryHasMore] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showDupConfirm, setShowDupConfirm] = useState(false)
   const [dupUrl, setDupUrl] = useState('')
@@ -529,7 +546,9 @@ export default function App() {
   const [lexiconLoading, setLexiconLoading] = useState(false)
   const [lexiconMessage, setLexiconMessage] = useState('')
 
-  const historyPlatformOptions = Array.from(new Set(history.map(item => item.platform).filter(Boolean) as string[]))
+  const historyPlatformOptions = historyMeta?.platforms?.length
+    ? historyMeta.platforms.map(item => item.platform).filter(Boolean)
+    : Array.from(new Set(history.map(item => item.platform).filter(Boolean) as string[]))
   const historyGroupStats = (() => {
     const counts = new Map<string, number>()
     let ungrouped = 0
@@ -539,8 +558,10 @@ export default function App() {
       else ungrouped += 1
     })
     return {
-      groups: Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 80).map(([group, count]) => ({ group, count })),
-      ungrouped
+      groups: historyMeta?.groups?.length
+        ? historyMeta.groups
+        : Array.from(counts.entries()).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 80).map(([group, count]) => ({ group, count })),
+      ungrouped: historyMeta ? historyMeta.ungroupedCount : ungrouped
     }
   })()
   const historyGroupOptions = historyGroupStats.groups.map(item => item.group)
@@ -549,6 +570,7 @@ export default function App() {
     history.forEach(item => {
       normalizeHistoryTags(item.tags).forEach(tag => counts.set(tag, (counts.get(tag) || 0) + 1))
     })
+    if (historyMeta?.tags?.length) return historyMeta.tags
     return Array.from(counts.entries())
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
       .slice(0, 80)
@@ -598,16 +620,19 @@ export default function App() {
       publishPacks += getHistoryRewritePackCount(item)
       if (item.isFavorite || favorites.has(item.taskId)) favoritesCount += 1
     })
+    const serverTopPlatform = historyMeta?.platforms?.[0]
     const topPlatform = Array.from(platformCounts.entries()).sort((a, b) => b[1] - a[1])[0]
-    const topPlatformMeta = topPlatform ? PLATFORMS.find(platform => platform.id === topPlatform[0]) : null
+    const topPlatformId = serverTopPlatform?.platform || topPlatform?.[0]
+    const topPlatformMeta = topPlatformId ? PLATFORMS.find(platform => platform.id === topPlatformId) : null
     return {
-      total: historyTotal || history.length,
-      aiCards,
-      publishPacks,
+      total: historyMeta?.total ?? (historyTotal || history.length),
+      aiCards: historyMeta?.aiCardsCount ?? aiCards,
+      publishPacks: historyMeta?.publishPacksCount ?? publishPacks,
+      needsPublishPack: historyMeta?.needsPublishPackCount ?? history.filter(item => getHistoryAnalysis(item) && getHistoryRewritePackCount(item) === 0).length,
       groups: historyGroupOptions.length,
-      favorites: favoritesCount,
-      topPlatform: topPlatformMeta ? t(topPlatformMeta.labelKey as any) || topPlatformMeta.labelFallback : topPlatform?.[0] || t('none'),
-      topPlatformCount: topPlatform?.[1] || 0
+      favorites: historyMeta?.favoritesCount ?? favoritesCount,
+      topPlatform: topPlatformMeta ? t(topPlatformMeta.labelKey as any) || topPlatformMeta.labelFallback : topPlatformId || t('none'),
+      topPlatformCount: serverTopPlatform?.count || topPlatform?.[1] || 0
     }
   })()
 
@@ -1595,12 +1620,39 @@ export default function App() {
     return clearAutoDownload
   }, [task?.status, task?.downloadUrl, task?.taskId, authToken])
 
-  const fetchHistory = useCallback(async () => {
-    try { 
-      const r = await axios.get(`${API}/history`, { headers: getAuthHeaders() }); 
-      const data = r.data.data || {};
+  const fetchHistoryMeta = useCallback(async () => {
+    try {
+      const r = await axios.get(`${API}/history/meta`, { headers: getAuthHeaders() })
+      setHistoryMeta(r.data.data || null)
+    } catch {
+      setHistoryMeta(null)
+    }
+  }, [authToken])
+
+  const fetchHistory = useCallback(async (page = 1, append = false) => {
+    setHistoryLoading(true)
+    try {
+      const params = {
+        page,
+        pageSize: historyPageSize,
+        search: historySearch || undefined,
+        status: historyFilter !== 'all' && historyFilter !== 'favorites' ? historyFilter : undefined,
+        platform: historyPlatformFilter !== 'all' ? historyPlatformFilter : undefined,
+        group: historyGroupFilter !== 'all' ? historyGroupFilter : undefined,
+        tag: historyTagFilter !== 'all' ? historyTagFilter : undefined,
+        favorite: historyFilter === 'favorites' ? 1 : undefined,
+        aiOnly: historyAiOnly ? 1 : undefined,
+        publishPackOnly: historyPackOnly ? 1 : undefined,
+        needsPublishPack: historyPackTodoOnly ? 1 : undefined,
+      }
+      const r = await axios.get(`${API}/history`, { headers: getAuthHeaders(), params })
+      const data = r.data.data || {}
       const tasks = Array.isArray(data.tasks) ? data.tasks : (Array.isArray(data) ? data : [])
-      setHistory(tasks)
+      setHistory(prev => append ? [...prev, ...tasks] : tasks)
+      setHistoryPage(data.page || page)
+      setHistoryHasMore(Boolean(data.hasMore))
+      const total = typeof data.total === 'number' ? data.total : tasks.length
+      setHistoryTotal(total)
       const serverFavorites = tasks.filter((item: HistoryItem) => item.isFavorite).map((item: HistoryItem) => item.taskId)
       if (serverFavorites.length > 0) {
         setFavorites(prev => {
@@ -1609,10 +1661,15 @@ export default function App() {
           return merged
         })
       }
-      setHistoryTotal(data.total || 0) 
-    } catch {}
-  }, [authToken])
-  useEffect(() => { fetchHistory() }, [fetchHistory])
+    } catch {
+      setHistoryHasMore(false)
+    } finally {
+      setHistoryLoading(false)
+    }
+  }, [authToken, historyAiOnly, historyFilter, historyGroupFilter, historyPageSize, historyPackOnly, historyPackTodoOnly, historyPlatformFilter, historySearch, historyTagFilter])
+
+  useEffect(() => { fetchHistory(1, false) }, [fetchHistory])
+  useEffect(() => { fetchHistoryMeta() }, [fetchHistoryMeta])
 
   const handleUrlChange = (value: string) => {
     // 检测是否有嵌入文字的Link
@@ -3494,25 +3551,28 @@ export default function App() {
                         <span className="text-[10px] text-slate-500">{t('dashboardFromHistory')}</span>
                         <button
                           onClick={() => setShowWorkbenchManager(v => !v)}
+                          data-testid="workbench-toggle"
                           className={`px-2 py-1 rounded-lg border text-[10px] transition ${showWorkbenchManager ? 'bg-orange/15 border-orange/30 text-orange' : 'bg-slate-800/60 border-slate-700/60 text-slate-300 hover:text-orange'}`}
                         >
                           {t('workbenchManager')}
                         </button>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+                    <div className="flex flex-wrap gap-1.5 text-xs">
                       {[
-                        { label: t('dashboardDownloads'), value: materialStats.total, color: 'text-orange' },
-                        { label: t('dashboardAiCards'), value: materialStats.aiCards, color: 'text-purple-300' },
-                        { label: t('dashboardPublishPacks'), value: materialStats.publishPacks, color: 'text-emerald-300' },
-                        { label: t('dashboardGroups'), value: materialStats.groups, color: 'text-cyan-300' },
-                        { label: t('dashboardFavorites'), value: materialStats.favorites, color: 'text-yellow-300' },
-                        { label: t('dashboardTopPlatform'), value: `${materialStats.topPlatform}${materialStats.topPlatformCount ? ` · ${materialStats.topPlatformCount}` : ''}`, color: 'text-slate-200' },
+                        { label: t('dashboardDownloads'), value: materialStats.total, color: 'text-orange', onClick: () => {} },
+                        { label: t('dashboardAiCards'), value: materialStats.aiCards, color: 'text-purple-300', onClick: () => setHistoryAiOnly(v => !v) },
+                        { label: t('dashboardNeedsPublishPack'), value: materialStats.needsPublishPack, color: 'text-yellow-300', onClick: () => setHistoryPackTodoOnly(v => !v) },
+                        { label: t('dashboardFavorites'), value: materialStats.favorites, color: 'text-yellow-300', onClick: () => setHistoryFilter(historyFilter === 'favorites' ? 'all' : 'favorites') },
+                        { label: t('dashboardTopPlatform'), value: `${materialStats.topPlatform}${materialStats.topPlatformCount ? ` · ${materialStats.topPlatformCount}` : ''}`, color: 'text-slate-200', onClick: () => {
+                          const topPlatform = historyMeta?.platforms?.[0]?.platform
+                          if (topPlatform) setHistoryPlatformFilter(historyPlatformFilter === topPlatform ? 'all' : topPlatform)
+                        } },
                       ].map(stat => (
-                        <div key={stat.label} className={`rounded-xl px-3 py-2 border ${isDark ? 'bg-slate-800/45 border-slate-700/40' : 'bg-light-surface border-light-border'}`}>
-                          <p className="text-[10px] text-slate-500">{stat.label}</p>
-                          <p className={`mt-0.5 font-bold ${stat.color}`}>{stat.value}</p>
-                        </div>
+                        <button key={stat.label} onClick={stat.onClick} className={`rounded-full px-2.5 py-1 border text-left transition ${isDark ? 'bg-slate-800/45 border-slate-700/40 hover:border-orange/30' : 'bg-light-surface border-light-border'}`}>
+                          <span className="text-[10px] text-slate-500">{stat.label}</span>
+                          <span className={`ml-1 font-bold ${stat.color}`}>{stat.value}</span>
+                        </button>
                       ))}
                     </div>
                     {showWorkbenchManager && (
@@ -3530,6 +3590,7 @@ export default function App() {
                                 <button
                                   key={tag}
                                   onClick={() => toggleHistoryTagFilter(tag)}
+                                  data-testid={`tag-chip-${tag}`}
                                   className={`px-2 py-1 rounded-full border text-[10px] transition ${historyTagFilter === tag ? 'bg-purple-500/20 border-purple-500/40 text-purple-300' : 'bg-slate-800/50 border-slate-700/50 text-slate-300 hover:text-purple-300'}`}
                                 >
                                   #{tag} · {count}
@@ -3592,9 +3653,9 @@ export default function App() {
                     {selectedTasks.size > 0 && (
                       <div className="flex items-center gap-1.5 shrink-0">
                         <span className="text-[10px] text-slate-400">{t('selectedCount', { count: selectedTasks.size })}</span>
-                        <button onClick={() => openBatchTagEditor('add')} className="px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-lg text-[10px]">{t('batchTags')}</button>
+                        <button onClick={() => openBatchTagEditor('add')} data-testid="batch-tags-button" className="px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-lg text-[10px]">{t('batchTags')}</button>
                         <button onClick={() => openBatchTagEditor('remove')} className="px-2 py-1 bg-red-500/15 text-red-300 border border-red-500/30 rounded-lg text-[10px]">{t('batchRemoveTags')}</button>
-                        <button onClick={openBatchGroupEditor} className="px-2 py-1 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px]">{t('batchGroup')}</button>
+                        <button onClick={openBatchGroupEditor} data-testid="batch-group-button" className="px-2 py-1 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px]">{t('batchGroup')}</button>
                         {history.some(item => selectedTasks.has(item.taskId) && item.status === 'completed' && !getHistoryAnalysis(item)) && (
                           <button
                             onClick={generateSelectedCommerceCards}
@@ -3655,7 +3716,7 @@ export default function App() {
                       </div>
                     )}
                     <div className="flex-1 relative">
-                      <input type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} placeholder={t('searchPlaceholder')} className={`w-full pl-8 pr-3 py-2 border rounded-lg text-sm placeholder:text-slate-300 ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`} />
+                      <input type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} data-testid="history-search-input" placeholder={t('searchPlaceholder')} className={`w-full pl-8 pr-3 py-2 border rounded-lg text-sm placeholder:text-slate-300 ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`} />
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
                     </div>
                   </div>
@@ -3724,6 +3785,7 @@ export default function App() {
                         <button
                           key={tag}
                           onClick={() => toggleHistoryTagFilter(tag)}
+                          data-testid={`tag-chip-${tag}`}
                           className={`px-2 py-1 rounded-full border text-[10px] transition ${historyTagFilter === tag ? 'bg-purple-500/20 border-purple-500/40 text-purple-300' : isDark ? 'bg-slate-800/40 border-slate-700/50 text-slate-300 hover:text-purple-300' : 'bg-light-bg border-light-border text-light-textSecondary'}`}
                         >
                           #{tag} · {count}
@@ -3784,6 +3846,18 @@ export default function App() {
                       <button onClick={() => del(item.taskId)} className="p-1 text-slate-500 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   ))}
+                  {historyHasMore && (
+                    <div className="p-3 border-t border-slate-700/20">
+                      <button
+                        onClick={() => fetchHistory(historyPage + 1, true)}
+                        disabled={historyLoading}
+                        data-testid="load-more-button"
+                        className="w-full py-2 rounded-xl bg-slate-800/60 text-slate-300 border border-slate-700/50 text-xs hover:text-orange hover:border-orange/30 transition disabled:opacity-60"
+                      >
+                        {historyLoading ? t('loading') : t('loadMore')}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

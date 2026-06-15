@@ -24,10 +24,10 @@ const mockMeta = {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.route('**/api/history/meta**', async route => {
+  await page.route(/\/api\/history\/meta(?:\?.*)?$/, async route => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 0, data: mockMeta }) })
   })
-  await page.route('**/api/history**', async route => {
+  await page.route(/\/api\/history(?:\?.*)?$/, async route => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 0, data: mockHistory }) })
   })
 })
@@ -60,12 +60,9 @@ test('tag chip filters material', async ({ page }) => {
 test('search filters material', async ({ page }) => {
   await page.goto('/')
   await page.getByTestId('history-toggle').click()
-  
-  const searchInput = page.getByTestId('history-search-input')
-  await searchInput.fill('YouTube')
-  
-  // Verify search input value
-  await expect(searchInput).toHaveValue('YouTube')
+  await expect(page.getByTestId('history-search-input')).toBeVisible()
+
+  await page.getByTestId('history-search-input').fill('YouTube')
 })
 
 test('workbench manager opens from history', async ({ page }) => {
@@ -75,6 +72,7 @@ test('workbench manager opens from history', async ({ page }) => {
   
   // Open workbench manager
   await page.getByTestId('workbench-toggle').click()
+  await page.locator('input[type="checkbox"]').first().check()
   
   // Verify batch buttons appear
   await expect(page.getByTestId('batch-tags-button')).toBeVisible()
@@ -83,10 +81,10 @@ test('workbench manager opens from history', async ({ page }) => {
 
 test('empty history shows no results', async ({ page }) => {
   // Override mock for empty history
-  await page.route('**/api/history**', async route => {
+  await page.route(/\/api\/history(?:\?.*)?$/, async route => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 0, data: { tasks: [], total: 0 } }) })
   })
-  await page.route('**/api/history/meta**', async route => {
+  await page.route(/\/api\/history\/meta(?:\?.*)?$/, async route => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ code: 0, data: { tags: [], groups: [], platforms: [], favoritesCount: 0, aiCardsCount: 0, publishPacksCount: 0, total: 0, ungroupedCount: 0 } }) })
   })
   

@@ -62,6 +62,22 @@ const db = createClient({
   authToken: process.env.TURSO_AUTH_TOKEN,
 });
 
+function parseAiAnalysis(value) {
+  if (!value) return null;
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function getRewritePackCount(value) {
+  const analysis = parseAiAnalysis(value);
+  const packs = analysis?.rewritePacks;
+  return packs && typeof packs === 'object' ? Object.keys(packs).length : 0;
+}
+
 // 免费用户每日下载次数限制
 const FREE_DAILY_LIMIT = 3;
 let asrLexiconReady = false;
@@ -779,18 +795,17 @@ const userDb = {
    * 素材工作台服务端聚合统计
    */
   async getHistoryMeta(userId, guestIp) {
-    if (!userId && !guestIp) return { tags: [], groups: [], platforms: [], favoritesCount: 0, aiCardsCount: 0, publishPacksCount: 0, total: 0 };
+    if (!userId && !guestIp) return { tags: [], groups: [], platforms: [], favoritesCount: 0, aiCardsCount: 0, publishPacksCount: 0, publishPackItemsCount: 0, needsPublishPackCount: 0, total: 0 };
     const ownerCol = userId ? 'user_id' : 'guest_ip';
     const ownerVal = userId || guestIp;
 
-    const [tagRows, groupRows, platformRows, countRow, favCount, aiCount, packCount] = await Promise.all([
+    const [tagRows, groupRows, platformRows, countRow, favCount, aiRows] = await Promise.all([
       db.execute({ sql: `SELECT tags FROM download_history WHERE ${ownerCol} = ? AND tags IS NOT NULL AND tags != ''`, args: [ownerVal] }),
       db.execute({ sql: `SELECT group_name, COUNT(*) as cnt FROM download_history WHERE ${ownerCol} = ? AND group_name IS NOT NULL AND group_name != '' GROUP BY group_name ORDER BY cnt DESC`, args: [ownerVal] }),
       db.execute({ sql: `SELECT platform, COUNT(*) as cnt FROM download_history WHERE ${ownerCol} = ? AND platform IS NOT NULL GROUP BY platform ORDER BY cnt DESC`, args: [ownerVal] }),
       db.execute({ sql: `SELECT COUNT(*) as cnt FROM download_history WHERE ${ownerCol} = ?`, args: [ownerVal] }),
       db.execute({ sql: `SELECT COUNT(*) as cnt FROM download_history WHERE ${ownerCol} = ? AND is_favorite = 1`, args: [ownerVal] }),
-      db.execute({ sql: `SELECT COUNT(*) as cnt FROM download_history WHERE ${ownerCol} = ? AND ai_analysis IS NOT NULL AND ai_analysis != ''`, args: [ownerVal] }),
-      db.execute({ sql: `SELECT COUNT(*) as cnt FROM download_history WHERE ${ownerCol} = ? AND group_name IS NOT NULL AND group_name != ''`, args: [ownerVal] }),
+      db.execute({ sql: `SELECT ai_analysis FROM download_history WHERE ${ownerCol} = ? AND ai_analysis IS NOT NULL AND ai_analysis != ''`, args: [ownerVal] }),
     ]);
 
     // 聚合标签（tags 可能是 JSON string）
@@ -810,8 +825,13 @@ const userDb = {
     const tags = [...tagMap.entries()].map(([tag, count]) => ({ tag, count })).sort((a, b) => b.count - a.count);
 
     const groups = groupRows.rows.map(r => ({ group: r.group_name, count: r.cnt }));
-    const ungroupedCount = Math.max(0, (countRow.rows[0]?.cnt || 0) - (packCount.rows[0]?.cnt || 0));
+    const groupedCount = groups.reduce((sum, item) => sum + (Number(item.count) || 0), 0);
+    const ungroupedCount = Math.max(0, (countRow.rows[0]?.cnt || 0) - groupedCount);
     const platforms = platformRows.rows.map(r => ({ platform: r.platform, count: r.cnt }));
+    const aiCardsCount = aiRows.rows.length;
+    const publishPackItemsCount = aiRows.rows.filter(row => getRewritePackCount(row.ai_analysis) > 0).length;
+    const publishPacksCount = aiRows.rows.reduce((sum, row) => sum + getRewritePackCount(row.ai_analysis), 0);
+    const needsPublishPackCount = aiRows.rows.filter(row => getRewritePackCount(row.ai_analysis) === 0).length;
 
     return {
       tags,
@@ -819,8 +839,10 @@ const userDb = {
       ungroupedCount,
       platforms,
       favoritesCount: favCount.rows[0]?.cnt || 0,
-      aiCardsCount: aiCount.rows[0]?.cnt || 0,
-      publishPacksCount: packCount.rows[0]?.cnt || 0,
+      aiCardsCount,
+      publishPacksCount,
+      publishPackItemsCount,
+      needsPublishPackCount,
       total: countRow.rows[0]?.cnt || 0,
     };
   },
@@ -839,17 +861,43 @@ const userDb = {
 
     if (search) { conditions.push('(title LIKE ? OR url LIKE ? OR platform LIKE ? OR group_name LIKE ? OR notes LIKE ? OR tags LIKE ?)'); const s = `%${search}%`; args.push(s, s, s, s, s, s); }
     if (platform) { conditions.push('platform = ?'); args.push(platform); }
-    if (group) { conditions.push('group_name = ?'); args.push(group); }
+    if (group === '__ungrouped') {
+      conditions.push("(group_name IS NULL OR group_name = '')");
+    } else if (group) {
+      conditions.push('group_name = ?');
+      args.push(group);
+    }
     if (tag) { conditions.push('tags LIKE ?'); args.push(`%${tag}%`); }
     if (favorite) { conditions.push('is_favorite = 1'); }
-    if (aiOnly) { conditions.push("ai_analysis IS NOT NULL AND ai_analysis != ''"); }
-    if (publishPackOnly || needsPublishPack) { conditions.push("group_name IS NOT NULL AND group_name != ''"); }
+    if (aiOnly || publishPackOnly || needsPublishPack) { conditions.push("ai_analysis IS NOT NULL AND ai_analysis != ''"); }
 
     const where = conditions.join(' AND ');
-    const offset = (page - 1) * pageSize;
+    const safePage = Math.max(1, Number(page) || 1);
+    const safePageSize = Math.min(100, Math.max(1, Number(pageSize) || 50));
+    const offset = (safePage - 1) * safePageSize;
+
+    if (publishPackOnly || needsPublishPack) {
+      const rowsRes = await db.execute({
+        sql: `SELECT * FROM download_history WHERE ${where} ORDER BY created_at DESC`,
+        args
+      });
+      const filtered = rowsRes.rows.filter(row => {
+        const packCount = getRewritePackCount(row.ai_analysis);
+        if (publishPackOnly && packCount === 0) return false;
+        if (needsPublishPack && packCount > 0) return false;
+        return true;
+      });
+      return {
+        items: filtered.slice(offset, offset + safePageSize),
+        total: filtered.length,
+        page: safePage,
+        pageSize: safePageSize,
+        hasMore: offset + safePageSize < filtered.length,
+      };
+    }
 
     const [itemsRes, countRes] = await Promise.all([
-      db.execute({ sql: `SELECT * FROM download_history WHERE ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`, args: [...args, pageSize, offset] }),
+      db.execute({ sql: `SELECT * FROM download_history WHERE ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`, args: [...args, safePageSize, offset] }),
       db.execute({ sql: `SELECT COUNT(*) as cnt FROM download_history WHERE ${where}`, args }),
     ]);
 
@@ -857,9 +905,9 @@ const userDb = {
     return {
       items: itemsRes.rows,
       total,
-      page,
-      pageSize,
-      hasMore: offset + pageSize < total,
+      page: safePage,
+      pageSize: safePageSize,
+      hasMore: offset + safePageSize < total,
     };
   },
 

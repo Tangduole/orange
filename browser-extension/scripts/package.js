@@ -8,7 +8,7 @@
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
-const { createWriteStream } = require('fs');
+const JSZip = require('jszip');
 
 const EXT_DIR = path.join(__dirname, '..');
 const OUT = path.join(EXT_DIR, 'browser-extension-release.zip');
@@ -24,26 +24,46 @@ try {
   process.exit(1);
 }
 
-// Create zip
-const { execSync: exec } = require('child_process');
 const exclude = [
   'scripts',
   'STORE_LISTING.md',
   'README.md',
   'QA_CHECKLIST.md',
-  '*.zip',
-  '*.md',
+  'package.json',
+  'package-lock.json',
   'node_modules',
   '.git',
 ];
-const excludeArgs = exclude.map(e => `-x "${e}"`).join(' ');
 
-try {
+function shouldExclude(relativePath) {
+  const normalized = relativePath.replace(/\\/g, '/');
+  if (normalized.endsWith('.zip')) return true;
+  if (normalized.endsWith('.md')) return true;
+  return exclude.some(item => normalized === item || normalized.startsWith(`${item}/`));
+}
+
+function addDirectory(zip, dir, base = '') {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const relativePath = path.posix.join(base, entry.name);
+    if (shouldExclude(relativePath)) continue;
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      addDirectory(zip, fullPath, relativePath);
+    } else if (entry.isFile()) {
+      zip.file(relativePath, fs.readFileSync(fullPath));
+    }
+  }
+}
+
+(async () => {
   if (fs.existsSync(OUT)) fs.unlinkSync(OUT);
-  exec(`cd "${EXT_DIR}" && zip -r "${OUT}" . ${excludeArgs}`, { stdio: 'inherit' });
+  const zip = new JSZip();
+  addDirectory(zip, EXT_DIR);
+  const content = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+  fs.writeFileSync(OUT, content);
   const size = (fs.statSync(OUT).size / 1024).toFixed(1);
   console.log(`✅ Release package created: browser-extension-release.zip (${size} KB)`);
-} catch (e) {
+})().catch((e) => {
   console.error('❌ Packaging failed:', e.message);
   process.exit(1);
-}
+});

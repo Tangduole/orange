@@ -242,17 +242,19 @@ router.get('/admin/users', auth.required, requireAdmin, async (req, res) => {
 router.get('/admin/ai-usage', auth.required, requireAdmin, async (req, res) => {
   try {
     const { feature, since, page = 1, pageSize = 50 } = req.query;
-    const conditions = []; const args = [];
+    const conditions = ["ai_analysis IS NOT NULL AND ai_analysis != ''"]; const args = [];
     if (feature) { conditions.push('ai_analysis LIKE ?'); args.push(`%${feature}%`); }
     if (since) { conditions.push('created_at >= ?'); args.push(Math.floor(new Date(since).getTime() / 1000)); }
-    const where = conditions.length ? 'WHERE ' + conditions.join(' AND ') : '';
-    const offset = (parseInt(page) - 1) * parseInt(pageSize);
-    const sql = `SELECT task_id, url, title, LENGTH(ai_analysis) as output_chars, created_at FROM download_history ${where} AND ai_analysis IS NOT NULL AND ai_analysis != '' ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+    const where = 'WHERE ' + conditions.join(' AND ');
+    const safePage = Math.max(1, parseInt(page) || 1);
+    const safePageSize = Math.min(100, Math.max(1, parseInt(pageSize) || 50));
+    const offset = (safePage - 1) * safePageSize;
+    const sql = `SELECT task_id, url, title, LENGTH(ai_analysis) as output_chars, created_at FROM download_history ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`;
     const [items, count] = await Promise.all([
-      userDb.db.execute({ sql, args: [...args, parseInt(pageSize), offset] }),
+      userDb.db.execute({ sql, args: [...args, safePageSize, offset] }),
       userDb.db.execute({ sql: `SELECT COUNT(*) as cnt FROM download_history ${where}`, args }),
     ]);
-    res.json({ code: 0, data: { items: items.rows, total: count.rows[0]?.cnt || 0, page: parseInt(page), pageSize: parseInt(pageSize) } });
+    res.json({ code: 0, data: { items: items.rows, total: count.rows[0]?.cnt || 0, page: safePage, pageSize: safePageSize } });
   } catch (e) {
     logger.error('[admin] ai-usage error:', e.message);
     res.status(500).json({ code: 500, message: 'Failed to load AI usage' });
