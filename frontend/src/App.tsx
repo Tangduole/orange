@@ -36,6 +36,24 @@ const isIOS = () => {
   } catch { return false }
 }
 
+const sanitizeFilename = (value: string, fallback = 'orange-download') => {
+  const cleaned = (value || fallback)
+    .replace(/[\\/:*?"<>|]+/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[. ]+$/g, '')
+  return (cleaned || fallback).slice(0, 120)
+}
+
+const inferDownloadExtension = (url: string, fileType: 'video' | 'audio' | 'image') => {
+  const path = url.split('?')[0] || ''
+  const match = path.match(/\.(mp4|mov|m4v|webm|mp3|m4a|wav|jpg|jpeg|png|webp|gif|srt|vtt)$/i)
+  if (match) return match[0].toLowerCase()
+  if (fileType === 'audio') return '.mp3'
+  if (fileType === 'image') return '.jpg'
+  return '.mp4'
+}
+
 /**
  * 触发文件下载（PWA + 浏览器通用）
  *
@@ -49,11 +67,13 @@ const isIOS = () => {
 const shareFile = async (
   url: string,
   title: string,
-  _fileType: 'video' | 'audio' | 'image' = 'video',
+  fileType: 'video' | 'audio' | 'image' = 'video',
 ) => {
   // 下载用相对路径（保持同源，<a download> 才能生效命名）
   const fullUrl = url.startsWith('http') ? url : url
-  const filename = (title || 'orange-download').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 120)
+  const base = sanitizeFilename(title, 'orange-download')
+  const ext = inferDownloadExtension(fullUrl, fileType)
+  const filename = base.toLowerCase().endsWith(ext) ? base : `${base}${ext}`
 
   try {
     const a = document.createElement('a')
@@ -1095,6 +1115,50 @@ export default function App() {
     return [headers, ...rows].map(row => row.map(toCsvCell).join(',')).join('\n')
   }
 
+  const getHistoryExportContext = () => {
+    if (historyGroupFilter !== 'all') return historyGroupFilter === '__ungrouped' ? t('ungrouped') : historyGroupFilter
+    if (historyTagFilter !== 'all') return historyTagFilter
+    if (historyPlatformFilter !== 'all') return getPlatformLabel(historyPlatformFilter)
+    return 'materials'
+  }
+
+  const buildHistoryMetadataCsv = (items: HistoryItem[]) => {
+    const headers = [
+      'Task ID',
+      t('title'),
+      t('platform'),
+      t('materialGroup'),
+      t('tags'),
+      t('materialNotes'),
+      'Status',
+      t('dashboardFavorites'),
+      t('aiCommerceCardTitle'),
+      t('platformPublishPack'),
+      'Created At',
+      'Source URL',
+      'Download URL'
+    ]
+    const rows = items.map(item => {
+      const analysis = getHistoryAnalysis(item)
+      return [
+        item.taskId,
+        item.title || '',
+        item.platform ? getPlatformLabel(item.platform) : '',
+        item.groupName || '',
+        normalizeHistoryTags(item.tags).map(tag => `#${tag}`).join(' '),
+        item.notes || '',
+        item.status || '',
+        item.isFavorite ? 'Y' : '',
+        analysis ? 'Y' : '',
+        getHistoryRewritePackCount(item),
+        item.createdAt ? new Date(item.createdAt).toLocaleString() : '',
+        item.url || '',
+        item.downloadUrl ? `${BASE_URL}${item.downloadUrl}` : ''
+      ]
+    })
+    return [headers, ...rows].map(row => row.map(toCsvCell).join(',')).join('\n')
+  }
+
   const downloadUtf8TextFile = (text: string, filename: string) => {
     // Add BOM so Windows Notepad/Excel-like viewers do not misread CJK text as ANSI.
     const content = `\uFEFF${text.replace(/\n/g, '\r\n')}`
@@ -1269,7 +1333,7 @@ export default function App() {
       const text = itemsWithPacks
         .map(item => buildPublishPackExport(getHistoryAnalysis(item), 'md', item.title || item.url || item.taskId, rewriteStyle))
         .join('\n\n---\n\n')
-      downloadUtf8TextFile(text, `orange-publish-packs-${itemsWithPacks.length}-${rewriteStyle}.md`)
+      downloadUtf8TextFile(text, `${sanitizeFilename(getHistoryExportContext(), 'materials')}-publish-packs-${itemsWithPacks.length}-${rewriteStyle}.md`)
       return
     }
     if (format === 'packCsv') {
@@ -1279,19 +1343,43 @@ export default function App() {
         return
       }
       const text = buildPublishPackCsv(itemsWithPacks.map(item => ({ item, commerce: getHistoryAnalysis(item) })), rewriteStyle)
-      downloadUtf8TextFile(text, `orange-publish-packs-${itemsWithPacks.length}-${rewriteStyle}.csv`)
+      downloadUtf8TextFile(text, `${sanitizeFilename(getHistoryExportContext(), 'materials')}-publish-packs-${itemsWithPacks.length}-${rewriteStyle}.csv`)
       return
     }
     if (format === 'csv') {
       const text = buildCommerceCardCsv(selectedItems.map(item => ({ item, commerce: getHistoryAnalysis(item) })))
-      downloadUtf8TextFile(text, `orange-commerce-cards-${selectedItems.length}.csv`)
+      downloadUtf8TextFile(text, `${sanitizeFilename(getHistoryExportContext(), 'materials')}-commerce-cards-${selectedItems.length}.csv`)
       return
     }
     const separator = format === 'md' ? '\n\n---\n\n' : '\n\n==============================\n\n'
     const text = selectedItems
       .map(item => buildCommerceCardExport(getHistoryAnalysis(item), format, item.title || item.url || item.taskId))
       .join(separator)
-    downloadUtf8TextFile(text, `orange-commerce-cards-${selectedItems.length}.${format}`)
+    downloadUtf8TextFile(text, `${sanitizeFilename(getHistoryExportContext(), 'materials')}-commerce-cards-${selectedItems.length}.${format}`)
+  }
+
+  const exportSelectedHistoryMetadata = () => {
+    const selectedItems = history.filter(item => selectedTasks.has(item.taskId))
+    if (selectedItems.length === 0) {
+      setError(t('noMaterialsToExport'))
+      return
+    }
+    const date = new Date().toISOString().slice(0, 10)
+    const filename = `${sanitizeFilename(getHistoryExportContext(), 'materials')}-${selectedItems.length}-${date}.csv`
+    downloadUtf8TextFile(buildHistoryMetadataCsv(selectedItems), filename)
+  }
+
+  const downloadSelectedHistoryFiles = async () => {
+    const selectedItems = history.filter(item => selectedTasks.has(item.taskId) && item.downloadUrl)
+    if (selectedItems.length === 0) {
+      setError(t('noDownloadableMaterials'))
+      return
+    }
+    setBatchCardMessage(t('batchDownloadFilesStarted', { count: selectedItems.length }))
+    for (const item of selectedItems) {
+      await shareFile(item.downloadUrl!, item.title || item.taskId || 'video', 'video')
+      await new Promise(resolve => setTimeout(resolve, 250))
+    }
   }
 
   const generateSelectedCommerceCards = async () => {
@@ -3686,6 +3774,9 @@ export default function App() {
                     {selectedTasks.size > 0 && (
                       <div className="flex items-center gap-1.5 shrink-0">
                         <span className="text-[10px] text-slate-400">{t('selectedCount', { count: selectedTasks.size })}</span>
+                        {history.some(item => selectedTasks.has(item.taskId) && item.downloadUrl) && (
+                          <button onClick={downloadSelectedHistoryFiles} className="px-2 py-1 bg-green-500/15 text-green-300 border border-green-500/30 rounded-lg text-[10px]">{t('saveSelectedFiles')}</button>
+                        )}
                         <button onClick={() => openBatchTagEditor('add')} data-testid="batch-tags-button" className="px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-lg text-[10px]">{t('batchTags')}</button>
                         <button onClick={() => openBatchTagEditor('remove')} className="px-2 py-1 bg-red-500/15 text-red-300 border border-red-500/30 rounded-lg text-[10px]">{t('batchRemoveTags')}</button>
                         <button onClick={openBatchGroupEditor} data-testid="batch-group-button" className="px-2 py-1 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px]">{t('batchGroup')}</button>
@@ -3743,6 +3834,7 @@ export default function App() {
                         <button onClick={() => exportSelectedCommerceCards('md')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">MD</button>
                         <button onClick={() => exportSelectedCommerceCards('txt')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">TXT</button>
                         <button onClick={() => exportSelectedCommerceCards('csv')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">CSV</button>
+                        <button onClick={exportSelectedHistoryMetadata} className="px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-lg text-[10px]">{t('exportMaterialCsv')}</button>
                         <button onClick={() => exportSelectedCommerceCards('pack')} className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px]">PACK</button>
                         <button onClick={() => exportSelectedCommerceCards('packCsv')} className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px]">PACK CSV</button>
                         <button onClick={deleteSelected} className="px-2 py-1 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg text-[10px]">{t('clearAll')}</button>
