@@ -611,8 +611,8 @@ async function createDownload(req, res) {
 
     // Bilibili 已在上面 TikHub 分支处理，此处不再重复
 
-    // 其他平台:走 yt-dlp
-    processDownload(taskId, url, wantsAsr, normalizedOptions, safeQuality).catch(err => {
+    // 其他/隐藏兼容平台:优先尝试 HTML 内嵌视频直链,失败再走 yt-dlp
+    processUnknownDownload(taskId, url, wantsAsr, normalizedOptions, safeQuality).catch(err => {
       logger.error(`[task] ${taskId} failed:`, err);
       store.update(taskId, {
         status: TASK_STATUS.ERROR,
@@ -1729,6 +1729,110 @@ async function processHongguo(taskId, url, needAsr, options = ['video']) {
   } finally {
     taskLock.release(taskId);
   }
+}
+
+async function processHtmlVideo(taskId, url, needAsr, options = ['video'], info) {
+  if (!taskLock.tryAcquire(taskId)) {
+    logger.warn(`[task] ${taskId} is already being processed`);
+    store.update(taskId, {
+      status: TASK_STATUS.ERROR,
+      error: 'Task is already in progress'
+    });
+    return;
+  }
+
+  try {
+    const rawOptions = Array.isArray(options) ? options : [options];
+    const normalizedOptions = rawOptions.map(o => o === 'asr' || o === 'audio_only' ? 'audio' : o);
+    const wantsVideo = normalizedOptions.includes('video') || needAsr || normalizedOptions.includes('copywriting');
+    const wantsAudioOnly = rawOptions.includes('audio_only') || (normalizedOptions.includes('audio') && !wantsVideo);
+    if (wantsAudioOnly && !wantsVideo) {
+      throw new Error('该网页直链暂不支持仅音频下载');
+    }
+
+    const { downloadFile } = require('../services/tikhub');
+    const { DOWNLOAD_DIR } = require('../services/yt-dlp');
+    const videoPath = new URL(info.videoUrl).pathname;
+    const extMatch = videoPath.match(/\.(mp4|m4v|mov|webm)$/i);
+    const ext = extMatch ? extMatch[1].toLowerCase() : 'mp4';
+    const outputPath = path.join(DOWNLOAD_DIR, `${taskId}.${ext}`);
+
+    store.update(taskId, { status: TASK_STATUS.DOWNLOADING, progress: 10 });
+    await downloadFile(info.videoUrl, outputPath, (percent, downloaded, total) => {
+      store.update(taskId, {
+        status: percent < 95 ? TASK_STATUS.DOWNLOADING : TASK_STATUS.PROCESSING,
+        progress: percent,
+        downloadedBytes: downloaded || 0,
+        totalBytes: total || 0
+      });
+    }, {
+      Referer: url,
+      Origin: new URL(url).origin,
+      Accept: 'video/*,*/*;q=0.8'
+    }, { timeoutMs: 120000 });
+
+    const update = {
+      status: TASK_STATUS.COMPLETED,
+      width: 0,
+      height: 0,
+      quality: 'source',
+      progress: 100,
+      title: info.title || '网页视频',
+      platform: PLATFORM.AUTO,
+      filePath: outputPath,
+      ext,
+      downloadUrl: `/download/${path.basename(outputPath)}`
+    };
+    fileRefManager.addRef(path.basename(outputPath));
+    store.update(taskId, update);
+
+    if (needAsr && outputPath) {
+      const task = store.get(taskId);
+      const asrResult = await handleAsr(taskId, outputPath, task?.asrLanguage || 'zh');
+      if (asrResult?.text) {
+        const asrUpdate = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl };
+        if (asrResult.rawText && asrResult.rawText !== asrResult.text) asrUpdate.asrRawText = asrResult.rawText;
+        if (asrResult.summary) asrUpdate.summaryText = asrResult.summary;
+        if (asrResult.translatedText) {
+          asrUpdate.translatedText = asrResult.translatedText;
+          asrUpdate.translatedTxtUrl = asrResult.translatedTxtUrl;
+        }
+        if (asrResult.subbedVideoUrl) asrUpdate.subbedVideoUrl = asrResult.subbedVideoUrl;
+        store.update(taskId, asrUpdate);
+      }
+    }
+
+    await finalizeTask(taskId);
+    logger.info(`[task] ${taskId} html-video completed`);
+  } catch (error) {
+    logger.error(`[task] ${taskId} html-video failed:`, error);
+    store.update(taskId, { status: TASK_STATUS.ERROR, error: error.message || '网页视频下载失败' });
+  } finally {
+    taskLock.release(taskId);
+  }
+}
+
+async function processUnknownDownload(taskId, url, needAsr, options = ['video'], quality = null) {
+  const rawOptions = Array.isArray(options) ? options : [options];
+  const normalizedOptions = rawOptions.map(o => o === 'asr' || o === 'audio_only' ? 'audio' : o);
+  const canUseHtmlVideo =
+    normalizedOptions.includes('video') ||
+    normalizedOptions.includes('copywriting') ||
+    needAsr;
+
+  if (canUseHtmlVideo) {
+    try {
+      store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
+      const { parseHtmlVideo } = require('../services/html-video');
+      const info = await parseHtmlVideo(url);
+      logger.info(`[task] ${taskId} using hidden html-video fallback`);
+      return processHtmlVideo(taskId, url, needAsr, options, info);
+    } catch (error) {
+      logger.info(`[task] ${taskId} html-video fallback skipped: ${error.message}`);
+    }
+  }
+
+  return processDownload(taskId, url, needAsr, options, quality);
 }
 
 /**
@@ -3259,7 +3363,7 @@ async function processBatchQueue(batchId, tasks, opts) {
           store.update(t.taskId, { status: 'error', error: err.message });
         }).finally(done);
       } else {
-        processDownload(t.taskId, t.url, needAsr, options, quality).catch(err => {
+        processUnknownDownload(t.taskId, t.url, needAsr, options, quality).catch(err => {
           store.update(t.taskId, { status: 'error', error: err.message });
         }).finally(done);
       }
