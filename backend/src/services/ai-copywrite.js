@@ -61,7 +61,19 @@ function normalizeOutputLanguage(language = 'zh') {
   return 'zh';
 }
 
-function buildAnalysisPrompt(transcript, outputLanguage = 'zh') {
+function industryInstruction(industry = 'general') {
+  const key = String(industry || 'general').toLowerCase();
+  const map = {
+    drama: 'Industry focus: short-drama promotion. Emphasize episode hook, conflict, cliffhanger, audience retention, and follow-up CTA.',
+    ecommerce: 'Industry focus: cross-border or product e-commerce. Emphasize product benefits, objections, proof, offer framing, and conversion CTA.',
+    xiaohongshu: 'Industry focus: Xiaohongshu seeding. Emphasize lifestyle scene, authentic experience, searchable keywords, and soft recommendation.',
+    local: 'Industry focus: local services. Emphasize location, trust, booking trigger, before/after scene, and immediate action.',
+    live: 'Industry focus: live commerce. Emphasize spoken rhythm, urgency, interaction cues, repeated key benefit, and order-now CTA.'
+  };
+  return map[key] || 'Industry focus: general short-video material analysis.';
+}
+
+function buildAnalysisPrompt(transcript, outputLanguage = 'zh', industry = 'general') {
   const lang = normalizeOutputLanguage(outputLanguage);
   const languageNames = {
     zh: '简体中文',
@@ -89,6 +101,7 @@ Requirements:
 5. A ready-to-use e-commerce sales script, within 200 ${lang === 'en' ? 'words' : 'characters'}.
 6. Keyword tags, 5-8 items.
 7. Viral content breakdown: opening hook, customer pain points, conversion triggers, content structure, reasons it may perform well, platform fit, and rewrite angles.
+8. ${industryInstruction(industry)}
 
 Return JSON only, without markdown or extra text:
 {
@@ -111,13 +124,13 @@ Video transcript:
 ${transcript.substring(0, 4000)}`;
 }
 
-async function analyzeWithAI(transcript, outputLanguage = 'zh') {
+async function analyzeWithAI(transcript, outputLanguage = 'zh', industry = 'general') {
   if (!AI_API_KEY) {
-    if (useMockCopywrite()) return buildMockAnalysis(transcript, outputLanguage);
+    if (useMockCopywrite()) return buildMockAnalysis(transcript, outputLanguage, industry);
     throw new Error('AI_API_KEY 未配置');
   }
 
-  const prompt = buildAnalysisPrompt(transcript, outputLanguage);
+  const prompt = buildAnalysisPrompt(transcript, outputLanguage, industry);
 
   try {
     const res = await axios.post(`${AI_API_URL}/chat/completions`, {
@@ -152,6 +165,7 @@ async function analyzeWithAI(transcript, outputLanguage = 'zh') {
         viralReason: parsed.viralReason || [],
         platformFit: parsed.platformFit || [],
         rewriteAngles: parsed.rewriteAngles || [],
+        industry: industry || 'general',
       };
     }
     throw new Error('AI 返回格式异常');
@@ -326,7 +340,7 @@ async function rewriteCommerceCard(analysis, platform = 'tiktok', style = 'seed'
   }
 }
 
-function buildMockAnalysis(transcript, outputLanguage = 'zh') {
+function buildMockAnalysis(transcript, outputLanguage = 'zh', industry = 'general') {
   const lang = normalizeOutputLanguage(outputLanguage);
   const sample = transcript.replace(/\s+/g, ' ').trim().slice(0, 120);
   const localized = {
@@ -400,7 +414,8 @@ function buildMockAnalysis(transcript, outputLanguage = 'zh') {
     contentStructure: localized.structure,
     viralReason: localized.viral,
     platformFit: localized.platform,
-    rewriteAngles: localized.angles
+    rewriteAngles: localized.angles,
+    industry: industry || 'general'
   };
 }
 
@@ -410,10 +425,10 @@ function buildMockAnalysis(transcript, outputLanguage = 'zh') {
  * @param {string} platform 平台名
  * @returns {Promise<{transcript, analysis}>}
  */
-async function extractCopywrite(taskId, platform = '', outputLanguage = 'zh') {
+async function extractCopywrite(taskId, platform = '', outputLanguage = 'zh', industry = 'general') {
   if (useMockCopywrite()) {
     const transcript = `本地 mock 转写文本：task=${taskId}, platform=${platform || 'unknown'}。用于验证 AI 文案提取、素材库标签写入和用量计量。`;
-    return { transcript, analysis: buildMockAnalysis(transcript, outputLanguage) };
+    return { transcript, analysis: buildMockAnalysis(transcript, outputLanguage, industry) };
   }
 
   // 1. 找到视频文件
@@ -452,7 +467,7 @@ async function extractCopywrite(taskId, platform = '', outputLanguage = 'zh') {
 
   // 4. AI 分析
   logger.info(`[AI] Analyzing transcript (${transcript.length} chars)...`);
-  const analysis = await analyzeWithAI(transcript, outputLanguage);
+  const analysis = await analyzeWithAI(transcript, outputLanguage, industry);
 
   return { transcript, analysis };
 }

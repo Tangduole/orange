@@ -238,6 +238,42 @@ router.get('/admin/users', auth.required, requireAdmin, async (req, res) => {
   }
 });
 
+router.patch('/admin/users/:userId/subscription', auth.required, requireAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const tier = String(req.body?.tier || '').toLowerCase();
+    const days = Math.min(3650, Math.max(1, Number(req.body?.days) || 30));
+    const user = await userDb.getById(userId);
+    if (!user) return res.status(404).json({ code: 404, message: 'User not found' });
+
+    if (tier === 'free') {
+      await userDb.db.execute({
+        sql: `UPDATE users SET tier = 'free', subscription_status = 'cancelled', subscription_ends_at = NULL WHERE id = ?`,
+        args: [userId]
+      });
+    } else if (tier === 'basic' || tier === 'pro') {
+      const endsAt = Math.floor(Date.now() / 1000) + days * 86400;
+      await userDb.db.execute({
+        sql: `UPDATE users SET tier = ?, subscription_status = 'active', subscription_ends_at = ? WHERE id = ?`,
+        args: [tier, endsAt, userId]
+      });
+    } else if (tier === 'lifetime') {
+      await userDb.db.execute({
+        sql: `UPDATE users SET tier = 'pro', subscription_status = 'lifetime', subscription_ends_at = ? WHERE id = ?`,
+        args: [4102444800, userId]
+      });
+    } else {
+      return res.status(400).json({ code: 400, message: 'Invalid tier' });
+    }
+
+    const next = await userDb.getById(userId);
+    res.json({ code: 0, data: next });
+  } catch (e) {
+    logger.error('[admin] update subscription error:', e.message);
+    res.status(500).json({ code: 500, message: 'Failed to update subscription' });
+  }
+});
+
 // 管理员 AI 用量查询
 router.get('/admin/ai-usage', auth.required, requireAdmin, async (req, res) => {
   try {

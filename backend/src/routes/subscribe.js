@@ -166,11 +166,12 @@ router.get('/status', auth.required, async (req, res) => {
 
   // 使用 isVip 检查真实的 VIP 状态（会验证 ends_at）
   const vip = userDb.isVip(user);
+  const basic = userDb.isBasic(user);
   let subscriptionStatus = user.subscription_status;
   const endsAt = user.subscription_ends_at;
 
-  // 如果 tier 是 pro 但 isVip 返回 false（过期/ends_at缺失），自动降级
-  if (user.tier === 'pro' && !vip) {
+  // 如果付费 tier 失效（过期/ends_at缺失），自动降级
+  if ((user.tier === 'pro' && !vip) || (user.tier === 'basic' && !basic)) {
     subscriptionStatus = 'expired';
     try {
       await userDb.downgradeToFree(user.email);
@@ -183,7 +184,7 @@ router.get('/status', auth.required, async (req, res) => {
   res.json({
     code: 0,
     data: {
-      tier: vip ? 'pro' : (user.tier === 'pro' ? 'free' : user.tier),
+      tier: vip ? 'pro' : basic ? 'basic' : 'free',
       subscriptionStatus,
       subscriptionEndsAt: user.subscription_ends_at,
       usage
@@ -205,7 +206,7 @@ router.post('/webhook', async (req, res) => {
   }
 
   // ---- 用对应 provider 验签 + 解析事件 ----
-  let eventName, eventId, email, subscriptionStatus, endsAt, renewsAt;
+  let eventName, eventId, email, subscriptionStatus, endsAt, renewsAt, plan;
   let providerLabel;
 
   if (PAYMENT_PROVIDER === 'creem') {
@@ -226,6 +227,7 @@ router.post('/webhook', async (req, res) => {
     subscriptionStatus = parsed.subscriptionStatus;
     endsAt = parsed.endsAt;
     renewsAt = parsed.renewsAt;
+    plan = parsed.plan;
   } else {
     providerLabel = 'lemonsqueezy';
     const signature = req.headers['x-signature'] || '';
@@ -262,6 +264,7 @@ router.post('/webhook', async (req, res) => {
       req.headers['x-event-id'] ||
       `${eventName}:${event?.data?.id}:${event?.data?.attributes?.updated_at || ''}`;
     email = event?.data?.attributes?.user_email?.toLowerCase();
+    plan = event?.meta?.custom_data?.plan || event?.data?.attributes?.custom_data?.plan;
     subscriptionStatus = event?.data?.attributes?.status;
     endsAt = event?.data?.attributes?.ends_at
       ? Math.floor(new Date(event.data.attributes.ends_at).getTime() / 1000)
@@ -297,8 +300,9 @@ router.post('/webhook', async (req, res) => {
       case 'subscription_created':
       case 'subscription_updated':
         if (subscriptionStatus === 'active' || subscriptionStatus === 'past_due') {
-          await userDb.upgradeToPro(email, renewsAt || endsAt);
-          logger.info(`[webhook] Upgraded ${email} to Pro (status=${subscriptionStatus})`);
+          const tier = String(plan || '').startsWith('basic') ? 'basic' : 'pro';
+          await userDb.upgradeToTier(email, tier, renewsAt || endsAt, subscriptionStatus);
+          logger.info(`[webhook] Upgraded ${email} to ${tier} (status=${subscriptionStatus})`);
         } else if (
           subscriptionStatus === 'cancelled' ||
           subscriptionStatus === 'expired' ||
@@ -319,7 +323,7 @@ router.post('/webhook', async (req, res) => {
         break;
 
       case 'subscription_resumed':
-        await userDb.upgradeToPro(email, renewsAt || endsAt);
+        await userDb.upgradeToTier(email, String(plan || '').startsWith('basic') ? 'basic' : 'pro', renewsAt || endsAt, 'active');
         logger.info(`[webhook] Resumed ${email}`);
         break;
 
@@ -330,7 +334,7 @@ router.post('/webhook', async (req, res) => {
 
       case 'subscription_payment_success':
         if (renewsAt) {
-          await userDb.upgradeToPro(email, renewsAt);
+          await userDb.upgradeToTier(email, String(plan || '').startsWith('basic') ? 'basic' : 'pro', renewsAt, 'active');
         }
         logger.info(`[webhook] Payment success for ${email}`);
         break;

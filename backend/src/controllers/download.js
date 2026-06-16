@@ -132,11 +132,11 @@ async function saveCopywriteResult({ taskId, task, user, transcript, analysis })
   });
 }
 
-async function generateCommerceCardForTask(taskId, user, outputLanguage = null) {
+async function generateCommerceCardForTask(taskId, user, outputLanguage = null, industry = 'general') {
   if (!user) throw new Error('请先登录');
   const userDb = require('../userDb');
-  if (!userDb.isVip(user)) {
-    const err = new Error('带货素材卡为 Pro 会员功能');
+  if (!userDb.isVip(user) && !userDb.isBasic(user)) {
+    const err = new Error('带货素材卡为 Basic/Pro 会员功能');
     err.statusCode = 403;
     throw err;
   }
@@ -181,10 +181,10 @@ async function generateCommerceCardForTask(taskId, user, outputLanguage = null) 
   const language = outputLanguage || task.outputLanguage || 'zh';
   if (transcript && transcript.length >= 5) {
     const { analyzeWithAI } = require('../services/ai-copywrite');
-    analysis = await analyzeWithAI(transcript, language);
+    analysis = await analyzeWithAI(transcript, language, industry);
   } else {
     const { extractCopywrite } = require('../services/ai-copywrite');
-    const result = await extractCopywrite(taskId, task.platform || '', language);
+    const result = await extractCopywrite(taskId, task.platform || '', language, industry);
     transcript = result.transcript;
     analysis = result.analysis;
   }
@@ -2858,6 +2858,83 @@ function safeJsonObject(value) {
   }
 }
 
+function safeExportName(value, fallback = 'material') {
+  return String(value || fallback)
+    .replace(/[\\/:*?"<>|]+/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[. ]+$/g, '')
+    .slice(0, 80) || fallback;
+}
+
+function csvCell(value) {
+  return `"${String(value ?? '').replace(/\r?\n/g, ' / ').replace(/"/g, '""')}"`;
+}
+
+function formatAnalysisMarkdown(title, analysis) {
+  if (!analysis) return '';
+  const list = value => Array.isArray(value) ? value : (value ? [value] : []);
+  const packs = analysis.rewritePacks && typeof analysis.rewritePacks === 'object'
+    ? Object.values(analysis.rewritePacks)
+    : [];
+  return [
+    `# ${title}`,
+    '',
+    `## AI Material Card`,
+    `- Product: ${analysis.productName || ''}`,
+    ...list(analysis.openingHook).map(item => `- Hook: ${item}`),
+    ...list(analysis.sellingPoints).map(item => `- Selling point: ${item}`),
+    ...list(analysis.painPoints).map(item => `- Pain point: ${item}`),
+    ...list(analysis.copyScript).map(item => `- Script: ${item}`),
+    '',
+    `## Publish Packs`,
+    ...packs.map(pack => `- ${pack.platform || ''} / ${pack.style || ''}: ${pack.title || ''} | ${pack.caption || ''} | ${(pack.hashtags || []).map(tag => `#${tag}`).join(' ')}`)
+  ].join('\n');
+}
+
+async function exportHistoryPackage(req, res) {
+  try {
+    const userDb = require('../userDb');
+    const JSZip = require('jszip');
+    const taskIds = Array.from(new Set((req.body?.taskIds || []).map(id => String(id || '').trim()).filter(Boolean))).slice(0, userDb.isVip(req.user) ? 100 : 5);
+    if (taskIds.length === 0) return res.status(400).json({ code: 400, message: '请选择要导出的素材' });
+
+    const zip = new JSZip();
+    const rows = [['task_id', 'title', 'platform', 'group', 'tags', 'source_url', 'has_ai_card', 'publish_pack_count']];
+    let addedFiles = 0;
+    for (const taskId of taskIds) {
+      const history = await userDb.getHistoryItem(req.user.id, null, taskId);
+      const task = store.get(taskId);
+      if (!history && !task) continue;
+      const title = history?.title || task?.title || taskId;
+      const folderName = safeExportName(`${history?.platform || task?.platform || 'auto'}_${title}`, taskId);
+      const tags = safeJsonArray(history?.tags || task?.tags);
+      const analysis = safeJsonObject(history?.ai_analysis) || task?.copywriteAnalysis || task?.aiAnalysis || null;
+      const packCount = analysis?.rewritePacks && typeof analysis.rewritePacks === 'object' ? Object.keys(analysis.rewritePacks).length : 0;
+      rows.push([taskId, title, history?.platform || task?.platform || '', history?.group_name || task?.groupName || '', tags.join(' #'), history?.url || task?.url || '', analysis ? 'Y' : '', packCount]);
+
+      const markdown = formatAnalysisMarkdown(title, analysis);
+      if (markdown) zip.file(`${folderName}/ai-analysis.md`, markdown);
+
+      const mediaPath = task?.filePath && fs.existsSync(task.filePath) ? task.filePath : null;
+      if (mediaPath) {
+        const ext = path.extname(mediaPath) || '.mp4';
+        zip.file(`${folderName}/${safeExportName(title, taskId)}${ext}`, fs.readFileSync(mediaPath));
+        addedFiles += 1;
+      }
+    }
+    zip.file('materials.csv', rows.map(row => row.map(csvCell).join(',')).join('\n'));
+    zip.file('README.txt', `Orange material export\nItems: ${rows.length - 1}\nMedia files included: ${addedFiles}\nGenerated: ${new Date().toISOString()}\n`);
+    const buffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="orange-materials-${Date.now()}.zip"`);
+    return res.send(buffer);
+  } catch (e) {
+    logger.error('[history-export] package failed:', e.message);
+    return res.status(500).json({ code: 500, message: '素材导出包生成失败' });
+  }
+}
+
 /**
  * 获取系统状态
  */
@@ -3036,7 +3113,7 @@ async function updateHistoryItem(req, res) {
 }
 
 async function extractCopywriteForTask(req, res) {
-  const { taskId, outputLanguage = null } = req.body || {};
+  const { taskId, outputLanguage = null, industry = 'general' } = req.body || {};
   if (!taskId) return res.json({ code: 400, message: '缺少 taskId' });
 
   try {
@@ -3044,10 +3121,10 @@ async function extractCopywriteForTask(req, res) {
     if (req.user.email_verified !== 1) {
       return res.status(403).json({ code: 403, message: '请先验证邮箱' });
     }
-    if (!userDb.isVip(req.user)) {
-      return res.status(403).json({ code: 403, message: 'AI 文案提取为 Pro 会员功能' });
+    if (!userDb.isVip(req.user) && !userDb.isBasic(req.user)) {
+      return res.status(403).json({ code: 403, message: 'AI 文案提取为 Basic/Pro 会员功能' });
     }
-    const result = await generateCommerceCardForTask(taskId, req.user, outputLanguage);
+    const result = await generateCommerceCardForTask(taskId, req.user, outputLanguage, industry);
     return res.json({ code: 0, data: result });
   } catch (e) {
     logger.error(`[copywrite] ${taskId} failed:`, e.message);
@@ -3068,61 +3145,202 @@ async function rewriteCopywriteForTask(req, res) {
       return res.status(403).json({ code: 403, message: '平台发布文案包为 Pro 会员功能' });
     }
 
-    let task = store.get(taskId);
-    if (!task) {
-      const historyItem = await userDb.getHistoryItem(req.user.id, null, taskId);
-      if (!historyItem) return res.status(404).json({ code: 404, message: '任务不存在或文件已过期' });
-      task = store.save({
-        taskId,
-        userId: req.user.id,
-        url: historyItem.url,
-        platform: historyItem.platform,
-        title: historyItem.title,
-        thumbnailUrl: historyItem.thumbnail_url,
-        duration: historyItem.duration,
-        status: TASK_STATUS.COMPLETED,
-        progress: 100,
-        tags: safeJsonArray(historyItem.tags),
-        notes: historyItem.notes || '',
-        groupName: historyItem.group_name || '',
-        copywriteAnalysis: safeJsonObject(historyItem.ai_analysis),
-        historySaved: true,
-        createdAt: Number(historyItem.created_at || Math.floor(Date.now() / 1000)) * 1000
-      });
-    } else if (!canAccessTask(req, task)) {
-      return res.status(403).json({ code: 403, message: '无权访问此任务' });
-    }
-
-    const analysis = task.copywriteAnalysis || task.aiAnalysis;
-    if (!analysis) return res.status(400).json({ code: 400, message: '请先生成 AI 素材卡' });
-
-    await getCopywriteUsageOrBlock(req.user, taskId);
-    const { rewriteCommerceCard } = require('../services/ai-copywrite');
-    const pack = await rewriteCommerceCard(analysis, platform, style, outputLanguage || task.outputLanguage || 'zh');
-    const rewritePacks = {
-      ...(analysis.rewritePacks || {}),
-      [`${platform}:${style}`]: pack
-    };
-    const nextAnalysis = { ...analysis, rewritePacks };
-
-    store.update(taskId, { copywriteAnalysis: nextAnalysis });
-    await userDb.updateHistoryMeta({
-      userId: req.user.id,
-      taskId,
-      aiAnalysis: nextAnalysis
-    });
-    await userDb.recordAiUsage({
-      userId: req.user.id,
-      taskId,
-      feature: 'copywrite',
-      inputChars: JSON.stringify(analysis).length,
-      outputItems: Array.isArray(pack.hashtags) ? pack.hashtags.length : 0
-    });
+    const { pack, analysis: nextAnalysis } = await generateRewritePackForTask(taskId, req.user, platform, style, outputLanguage);
 
     return res.json({ code: 0, data: { pack, analysis: nextAnalysis } });
   } catch (e) {
     logger.error(`[copywrite-rewrite] ${taskId} failed:`, e.message);
     return res.status(e.statusCode || 500).json({ code: e.statusCode || 500, message: e.message || '平台发布文案包生成失败' });
+  }
+}
+
+async function getTaskForHistoryOwner(taskId, user) {
+  const userDb = require('../userDb');
+  let task = store.get(taskId);
+  if (!task) {
+    const historyItem = await userDb.getHistoryItem(user.id, null, taskId);
+    if (!historyItem) {
+      const err = new Error('任务不存在或文件已过期');
+      err.statusCode = 404;
+      throw err;
+    }
+    task = store.save({
+      taskId,
+      userId: user.id,
+      url: historyItem.url,
+      platform: historyItem.platform,
+      title: historyItem.title,
+      thumbnailUrl: historyItem.thumbnail_url,
+      duration: historyItem.duration,
+      status: TASK_STATUS.COMPLETED,
+      progress: 100,
+      tags: safeJsonArray(historyItem.tags),
+      notes: historyItem.notes || '',
+      groupName: historyItem.group_name || '',
+      copywriteAnalysis: safeJsonObject(historyItem.ai_analysis),
+      historySaved: true,
+      createdAt: Number(historyItem.created_at || Math.floor(Date.now() / 1000)) * 1000
+    });
+  } else if (task.userId !== user.id) {
+    const err = new Error('无权访问此任务');
+    err.statusCode = 403;
+    throw err;
+  }
+  return task;
+}
+
+async function generateRewritePackForTask(taskId, user, platform = 'tiktok', style = 'seed', outputLanguage = null) {
+  const userDb = require('../userDb');
+  const task = await getTaskForHistoryOwner(taskId, user);
+  const analysis = task.copywriteAnalysis || task.aiAnalysis;
+  if (!analysis) {
+    const err = new Error('请先生成 AI 素材卡');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  await getCopywriteUsageOrBlock(user, taskId);
+  const { rewriteCommerceCard } = require('../services/ai-copywrite');
+  const pack = await rewriteCommerceCard(analysis, platform, style, outputLanguage || task.outputLanguage || 'zh');
+  const rewritePacks = {
+    ...(analysis.rewritePacks || {}),
+    [`${platform}:${style}`]: pack
+  };
+  const nextAnalysis = { ...analysis, rewritePacks };
+
+  store.update(taskId, { copywriteAnalysis: nextAnalysis });
+  await userDb.updateHistoryMeta({ userId: user.id, taskId, aiAnalysis: nextAnalysis });
+  await userDb.recordAiUsage({
+    userId: user.id,
+    taskId,
+    feature: 'copywrite',
+    inputChars: JSON.stringify(analysis).length,
+    outputItems: Array.isArray(pack.hashtags) ? pack.hashtags.length : 0
+  });
+  return { pack, analysis: nextAnalysis };
+}
+
+const WORKFLOW_REWRITE_PLATFORMS = ['tiktok', 'douyin', 'xiaohongshu', 'youtube_shorts'];
+const WORKFLOW_REWRITE_STYLES = ['seed', 'review', 'promo', 'problem', 'live'];
+
+async function runMaterialWorkflow(jobId, userId) {
+  const userDb = require('../userDb');
+  const job = await userDb.getBatchJob(jobId, userId);
+  if (!job) return;
+  const user = await userDb.getById(userId);
+  if (!user) {
+    await userDb.updateBatchJob(jobId, { status: 'failed', error: '用户不存在' });
+    return;
+  }
+
+  await userDb.updateBatchJob(jobId, { status: 'running' });
+  let done = 0;
+  let success = 0;
+  let failed = 0;
+  const options = job.options || {};
+  const outputLanguage = options.outputLanguage || 'zh';
+  const industry = options.industry || 'general';
+  const makeCards = options.makeCards !== false;
+  const makePacks = !!options.makePacks;
+  const platforms = Array.isArray(options.platforms) && options.platforms.length ? options.platforms : WORKFLOW_REWRITE_PLATFORMS;
+  const styles = Array.isArray(options.styles) && options.styles.length ? options.styles : ['seed'];
+
+  for (const item of job.items || []) {
+    const taskId = item.task_id;
+    try {
+      await userDb.updateBatchJobItem(jobId, taskId, { status: 'running', step: 'ai_card' });
+      let cardResult = null;
+      if (makeCards) {
+        cardResult = await generateCommerceCardForTask(taskId, user, outputLanguage, industry);
+      }
+      if (makePacks) {
+        await userDb.updateBatchJobItem(jobId, taskId, { status: 'running', step: 'publish_packs' });
+        for (const platform of platforms) {
+          for (const style of styles) {
+            await generateRewritePackForTask(taskId, user, platform, style, outputLanguage);
+          }
+        }
+      }
+      success += 1;
+      await userDb.updateBatchJobItem(jobId, taskId, {
+        status: 'completed',
+        step: 'done',
+        result: { hasCard: !!cardResult, packs: makePacks ? platforms.length * styles.length : 0 }
+      });
+    } catch (error) {
+      failed += 1;
+      await userDb.updateBatchJobItem(jobId, taskId, {
+        status: 'failed',
+        step: 'error',
+        error: error.message || '处理失败'
+      });
+      logger.warn(`[workflow] ${jobId} item ${taskId} failed: ${error.message}`);
+    } finally {
+      done += 1;
+      await userDb.updateBatchJob(jobId, {
+        done,
+        success,
+        failed,
+        status: done >= job.total ? (failed > 0 ? 'partial_failed' : 'completed') : 'running'
+      });
+    }
+  }
+}
+
+async function createMaterialWorkflow(req, res) {
+  try {
+    const userDb = require('../userDb');
+    if (req.user.email_verified !== 1) {
+      return res.status(403).json({ code: 403, message: '请先验证邮箱' });
+    }
+    if (!userDb.isVip(req.user)) {
+      return res.status(403).json({ code: 403, message: '批量 AI 工作流为 Pro 会员功能' });
+    }
+    const taskIds = Array.from(new Set((req.body?.taskIds || []).map(id => String(id || '').trim()).filter(Boolean))).slice(0, 50);
+    if (taskIds.length === 0) return res.status(400).json({ code: 400, message: '请选择要处理的素材' });
+
+    const jobId = uuidv4();
+    const options = {
+      makeCards: req.body?.makeCards !== false,
+      makePacks: !!req.body?.makePacks,
+      platforms: Array.isArray(req.body?.platforms) ? req.body.platforms : [],
+      styles: Array.isArray(req.body?.styles) ? req.body.styles : [],
+      outputLanguage: req.body?.outputLanguage || 'zh',
+      industry: req.body?.industry || 'general'
+    };
+    await userDb.createBatchJob({ id: jobId, userId: req.user.id, type: 'material_workflow', total: taskIds.length, options });
+    await userDb.addBatchJobItems(jobId, taskIds);
+    setImmediate(() => runMaterialWorkflow(jobId, req.user.id).catch(error => {
+      logger.error(`[workflow] ${jobId} failed:`, error);
+      userDb.updateBatchJob(jobId, { status: 'failed', error: error.message }).catch(() => {});
+    }));
+    return res.json({ code: 0, data: { jobId, status: 'queued', total: taskIds.length } });
+  } catch (e) {
+    logger.error('[workflow] create failed:', e.message);
+    return res.status(500).json({ code: 500, message: '创建批量 AI 工作流失败' });
+  }
+}
+
+async function getMaterialWorkflow(req, res) {
+  try {
+    const userDb = require('../userDb');
+    const job = await userDb.getBatchJob(req.params.jobId, req.user.id);
+    if (!job) return res.status(404).json({ code: 404, message: '批量任务不存在' });
+    return res.json({ code: 0, data: job });
+  } catch (e) {
+    logger.error('[workflow] get failed:', e.message);
+    return res.status(500).json({ code: 500, message: '批量任务查询失败' });
+  }
+}
+
+async function listMaterialWorkflows(req, res) {
+  try {
+    const userDb = require('../userDb');
+    const jobs = await userDb.listBatchJobs(req.user.id, 'material_workflow', Number(req.query.limit) || 20);
+    return res.json({ code: 0, data: { jobs } });
+  } catch (e) {
+    logger.error('[workflow] list failed:', e.message);
+    return res.status(500).json({ code: 500, message: '批量任务列表查询失败' });
   }
 }
 
@@ -3410,6 +3628,7 @@ module.exports = {
   getStatus,
   getHistory,
   getHistoryMeta,
+  exportHistoryPackage,
   getSystemStatus,
   getAdminStats,
   deleteTask,
@@ -3417,6 +3636,9 @@ module.exports = {
   updateHistoryItem,
   extractCopywriteForTask,
   rewriteCopywriteForTask,
+  createMaterialWorkflow,
+  getMaterialWorkflow,
+  listMaterialWorkflows,
   getAiUsageStatus,
   getAsrLexicon,
   updateAsrLexicon,

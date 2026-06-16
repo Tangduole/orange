@@ -18,6 +18,7 @@ const {
   getStatus,
   getHistory,
   getHistoryMeta,
+  exportHistoryPackage,
   getSystemStatus,
   getAdminStats,
   deleteTask,
@@ -25,6 +26,9 @@ const {
   updateHistoryItem,
   extractCopywriteForTask,
   rewriteCopywriteForTask,
+  createMaterialWorkflow,
+  getMaterialWorkflow,
+  listMaterialWorkflows,
   getAiUsageStatus,
   getAsrLexicon,
   updateAsrLexicon,
@@ -59,11 +63,15 @@ router.get('/status/:taskId', auth.optional, getStatus);
 // 获取历史记录
 router.get('/history', auth.optional, getHistory);
 router.get('/history/meta', auth.optional, getHistoryMeta);
+router.post('/history/export-package', auth.required, exportHistoryPackage);
 router.patch('/history/:taskId', auth.optional, updateHistoryItem);
 
 // AI 文案提取（Pro）
 router.post('/copywrite', downloadLimiter, auth.required, extractCopywriteForTask);
 router.post('/copywrite/rewrite', downloadLimiter, auth.required, rewriteCopywriteForTask);
+router.post('/workflows/materials', downloadLimiter, auth.required, createMaterialWorkflow);
+router.get('/workflows/materials', auth.required, listMaterialWorkflows);
+router.get('/workflows/materials/:jobId', auth.required, getMaterialWorkflow);
 router.get('/ai/usage', auth.required, getAiUsageStatus);
 router.get('/asr/lexicon', auth.required, getAsrLexicon);
 router.put('/asr/lexicon', auth.required, updateAsrLexicon);

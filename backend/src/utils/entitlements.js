@@ -8,12 +8,14 @@ function numberEnv(key, fallback) {
 }
 
 function getAiCopywriteMonthlyLimit(user) {
+  if (userDb.isBasic(user)) return numberEnv('AI_COPYWRITE_MONTHLY_LIMIT_BASIC', 50);
   if (!userDb.isVip(user)) return numberEnv('AI_COPYWRITE_MONTHLY_LIMIT_FREE', 0);
   return numberEnv('AI_COPYWRITE_MONTHLY_LIMIT_PRO', 200);
 }
 
 function getFileRetentionHoursForTier(tier) {
   if (tier === 'pro') return numberEnv('PRO_FILE_RETENTION_HOURS', 24 * 7);
+  if (tier === 'basic') return numberEnv('BASIC_FILE_RETENTION_HOURS', 72);
   if (tier === 'guest') return numberEnv('GUEST_FILE_RETENTION_HOURS', numberEnv('FREE_FILE_RETENTION_HOURS', 24));
   return numberEnv('FREE_FILE_RETENTION_HOURS', numberEnv('FILE_RETENTION_HOURS', 24));
 }
@@ -24,7 +26,7 @@ async function getFileRetentionMsForTask(task) {
 
   try {
     const user = await userDb.getById(task.userId);
-    return getFileRetentionHoursForTier(userDb.isVip(user) ? 'pro' : 'free') * HOUR_MS;
+    return getFileRetentionHoursForTier(userDb.isVip(user) ? 'pro' : userDb.isBasic(user) ? 'basic' : 'free') * HOUR_MS;
   } catch {
     return getFileRetentionHoursForTier('free') * HOUR_MS;
   }
@@ -35,9 +37,10 @@ function monthStartUnix(date = new Date()) {
 }
 
 function retentionSummaryForUser(user) {
+  const tier = userDb.isVip(user) ? 'pro' : userDb.isBasic(user) ? 'basic' : 'free';
   return {
-    hours: getFileRetentionHoursForTier(userDb.isVip(user) ? 'pro' : 'free'),
-    tier: userDb.isVip(user) ? 'pro' : 'free'
+    hours: getFileRetentionHoursForTier(tier),
+    tier
   };
 }
 

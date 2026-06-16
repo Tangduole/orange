@@ -115,6 +115,25 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
       highlight: billing !== 'lifetime',
     },
     {
+      key: 'basic',
+      name: t('basic'),
+      price: billing === 'monthly' ? '$3' : '$29',
+      period: billing === 'monthly' ? t('monthly') : t('yearly'),
+      savings: billing === 'yearly' ? '$7' : null,
+      desc: t('basicPlanDesc'),
+      features: [
+        { text: t('dailyDownloadLimit', { count: 30 }), included: true },
+        { text: t('supportMainPlatforms'), included: true },
+        { text: t('qualityLimit720p'), included: true },
+        { text: t('basicFeatureAiCards'), included: true },
+        { text: t('proFeatureBatch'), included: false },
+        { text: t('proFeaturePublishPacks'), included: false },
+      ],
+      current: status?.tier === 'basic',
+      planId: billing === 'monthly' ? 'basic_monthly' : 'basic_yearly',
+      highlight: false,
+    },
+    {
       key: 'pro_lifetime',
       name: t('lifetime'),
       price: '$99',
@@ -177,6 +196,8 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
                 <p className="text-2xl font-bold">
                   {status.tier === 'pro' ? (
                     <span className="text-yellow-400">🎉 {t('pro')}</span>
+                  ) : status.tier === 'basic' ? (
+                    <span className="text-orange-300">{t('basic')}</span>
                   ) : (
                     <span>{t('free')}</span>
                   )}
@@ -255,7 +276,7 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
         </div>
 
         {/* Pricing Cards */}
-        <div className="grid md:grid-cols-2 gap-6 max-w-2xl mx-auto">
+        <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6 max-w-6xl mx-auto">
           {plans.map((plan) => (
             <div 
               key={plan.key}

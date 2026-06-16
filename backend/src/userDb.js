@@ -121,6 +121,14 @@ function isVip(user) {
   return true;
 }
 
+function isBasic(user) {
+  if (!user) return false;
+  if (user.tier !== 'basic') return false;
+  if (user.subscription_status !== 'active' && user.subscription_status !== 'past_due') return false;
+  if (!user.subscription_ends_at || Number(user.subscription_ends_at) <= 0) return false;
+  return Number(user.subscription_ends_at) * 1000 >= Date.now();
+}
+
 // 初始化表
 async function initDb() {
   try {
@@ -274,6 +282,38 @@ async function initDb() {
       )`
     });
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_asr_lexicon_user ON asr_lexicon(user_id, language, created_at DESC)`);
+
+    await db.execute({
+      sql: `CREATE TABLE IF NOT EXISTS batch_jobs (
+        id TEXT PRIMARY KEY,
+        user_id TEXT,
+        type TEXT NOT NULL,
+        status TEXT DEFAULT 'queued',
+        total INTEGER DEFAULT 0,
+        done INTEGER DEFAULT 0,
+        success INTEGER DEFAULT 0,
+        failed INTEGER DEFAULT 0,
+        options TEXT,
+        error TEXT,
+        created_at INTEGER DEFAULT (unixepoch()),
+        updated_at INTEGER DEFAULT (unixepoch())
+      )`
+    });
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_batch_jobs_user ON batch_jobs(user_id, created_at DESC)`);
+    await db.execute({
+      sql: `CREATE TABLE IF NOT EXISTS batch_job_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        job_id TEXT NOT NULL,
+        task_id TEXT,
+        status TEXT DEFAULT 'queued',
+        step TEXT,
+        error TEXT,
+        result TEXT,
+        created_at INTEGER DEFAULT (unixepoch()),
+        updated_at INTEGER DEFAULT (unixepoch())
+      )`
+    });
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_batch_job_items_job ON batch_job_items(job_id, id)`);
     
     console.log('[userDb] Turso 数据库初始化完成');
   } catch (err) {
@@ -285,6 +325,7 @@ initDb();
 const userDb = {
   db,
   isVip,
+  isBasic,
 
   /**
    * 创建用户
@@ -398,7 +439,8 @@ const userDb = {
     if (!user) return null;
 
     const vip = isVip(user);
-    let limit = vip ? -1 : FREE_DAILY_LIMIT;
+    const basic = isBasic(user);
+    let limit = vip ? -1 : (basic ? 30 : FREE_DAILY_LIMIT);
 
     // 推荐奖励：+5次/天（有效期内）
     const hasReferralBonus =
@@ -411,6 +453,7 @@ const userDb = {
     return {
       tier: user.tier,
       isPro: vip,
+      isBasic: basic,
       dailyDownloads: user.daily_downloads || 0,
       dailyLimit: limit,
       remaining: limit === -1 ? -1 : Math.max(0, limit - (user.daily_downloads || 0)),
@@ -445,6 +488,14 @@ const userDb = {
     await db.execute({
       sql: `UPDATE users SET tier = 'pro', subscription_status = 'active', subscription_ends_at = ? WHERE email = ?`,
       args: [endsAt, email.toLowerCase()]
+    });
+  },
+
+  async upgradeToTier(email, tier, endsAt, status = 'active') {
+    const safeTier = tier === 'basic' ? 'basic' : 'pro';
+    await db.execute({
+      sql: `UPDATE users SET tier = ?, subscription_status = ?, subscription_ends_at = ? WHERE email = ?`,
+      args: [safeTier, status, endsAt, email.toLowerCase()]
     });
   },
 
@@ -998,6 +1049,102 @@ const userDb = {
       args: [userId, sinceUnix]
     });
     return result.rows || [];
+  },
+
+  async createBatchJob({ id, userId, type, total = 0, options = {} }) {
+    await db.execute({
+      sql: `INSERT INTO batch_jobs (id, user_id, type, status, total, options, created_at, updated_at)
+            VALUES (?, ?, ?, 'queued', ?, ?, unixepoch(), unixepoch())`,
+      args: [id, userId || null, type, Number(total) || 0, JSON.stringify(options || {})]
+    });
+    return this.getBatchJob(id, userId);
+  },
+
+  async addBatchJobItems(jobId, taskIds = []) {
+    for (const taskId of taskIds) {
+      await db.execute({
+        sql: `INSERT INTO batch_job_items (job_id, task_id, status, created_at, updated_at)
+              VALUES (?, ?, 'queued', unixepoch(), unixepoch())`,
+        args: [jobId, taskId]
+      });
+    }
+  },
+
+  async updateBatchJob(jobId, updates = {}) {
+    const sets = ['updated_at = unixepoch()'];
+    const args = [];
+    for (const key of ['status', 'total', 'done', 'success', 'failed', 'error']) {
+      if (updates[key] !== undefined) {
+        sets.push(`${key} = ?`);
+        args.push(updates[key]);
+      }
+    }
+    if (updates.options !== undefined) {
+      sets.push('options = ?');
+      args.push(JSON.stringify(updates.options || {}));
+    }
+    args.push(jobId);
+    await db.execute({ sql: `UPDATE batch_jobs SET ${sets.join(', ')} WHERE id = ?`, args });
+  },
+
+  async updateBatchJobItem(jobId, taskId, updates = {}) {
+    const sets = ['updated_at = unixepoch()'];
+    const args = [];
+    for (const key of ['status', 'step', 'error']) {
+      if (updates[key] !== undefined) {
+        sets.push(`${key} = ?`);
+        args.push(updates[key]);
+      }
+    }
+    if (updates.result !== undefined) {
+      sets.push('result = ?');
+      args.push(JSON.stringify(updates.result || null));
+    }
+    args.push(jobId, taskId);
+    await db.execute({
+      sql: `UPDATE batch_job_items SET ${sets.join(', ')} WHERE job_id = ? AND task_id = ?`,
+      args
+    });
+  },
+
+  async getBatchJob(jobId, userId = null) {
+    const jobRes = await db.execute({
+      sql: `SELECT * FROM batch_jobs WHERE id = ? ${userId ? 'AND user_id = ?' : ''} LIMIT 1`,
+      args: userId ? [jobId, userId] : [jobId]
+    });
+    const job = jobRes.rows?.[0];
+    if (!job) return null;
+    const itemsRes = await db.execute({
+      sql: `SELECT * FROM batch_job_items WHERE job_id = ? ORDER BY id ASC`,
+      args: [jobId]
+    });
+    return {
+      ...job,
+      options: parseAiAnalysis(job.options) || {},
+      items: (itemsRes.rows || []).map(item => ({
+        ...item,
+        result: parseAiAnalysis(item.result)
+      }))
+    };
+  },
+
+  async listBatchJobs(userId, type = null, limit = 20) {
+    if (!userId) return [];
+    const args = [userId];
+    let where = 'user_id = ?';
+    if (type) {
+      where += ' AND type = ?';
+      args.push(type);
+    }
+    args.push(Math.min(100, Math.max(1, Number(limit) || 20)));
+    const result = await db.execute({
+      sql: `SELECT * FROM batch_jobs WHERE ${where} ORDER BY created_at DESC LIMIT ?`,
+      args
+    });
+    return (result.rows || []).map(job => ({
+      ...job,
+      options: parseAiAnalysis(job.options) || {}
+    }));
   },
 
   async getAdminMetrics() {

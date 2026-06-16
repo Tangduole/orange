@@ -235,6 +235,15 @@ const REWRITE_STYLES = [
   { id: 'live', labelKey: 'rewriteStyleLive' },
 ]
 
+const INDUSTRY_TEMPLATES = [
+  { id: 'general', labelKey: 'industryGeneral' },
+  { id: 'drama', labelKey: 'industryDrama' },
+  { id: 'ecommerce', labelKey: 'industryEcommerce' },
+  { id: 'xiaohongshu', labelKey: 'industryXiaohongshu' },
+  { id: 'local', labelKey: 'industryLocal' },
+  { id: 'live', labelKey: 'industryLive' },
+]
+
 function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
   const k = 1024;
@@ -323,6 +332,7 @@ export default function App() {
   const [copywritingLoading, setCopywritingLoading] = useState(false)
   const [copywritingResult, setCopywritingResult] = useState<any>(null)
   const [rewriteStyle, setRewriteStyle] = useState('seed')
+  const [industryTemplate, setIndustryTemplate] = useState('general')
   const [rewriteLoadingKey, setRewriteLoadingKey] = useState('')
   const [batchCardGenerating, setBatchCardGenerating] = useState(false)
   const [batchRewriteLoadingKey, setBatchRewriteLoadingKey] = useState('')
@@ -376,6 +386,7 @@ export default function App() {
   const [resetPwdMsg, setResetPwdMsg] = useState('')
   const [resetPwdLoading, setResetPwdLoading] = useState(false)
   const [isVip, setIsVip] = useState(false)
+  const [isBasic, setIsBasic] = useState(false)
   const [remainingDownloads, setRemainingDownloads] = useState(-1) // -1 = unlimited/no display, 0 = 0次, n = Remainingn次
   const GUEST_DAILY_LIMIT = 3
   const [isDark, setIsDark] = useState(() => {
@@ -423,6 +434,31 @@ export default function App() {
       if (r.data?.data) { setAdminAiUsage(r.data.data.items || []); setAdminAiUsageTotal(r.data.data.total || 0); }
     } catch {}
   };
+  const updateAdminUserTier = async (userId: string, tier: 'free' | 'basic' | 'pro' | 'lifetime') => {
+    try {
+      await axios.patch(`${API_BASE}/api/auth/admin/users/${userId}/subscription`, { tier, days: 30 }, { headers: getAuthHeaders() })
+      await fetchAdminUsers()
+      setAdminMetrics(await api.getAdminMetrics(authToken!))
+    } catch (e: any) {
+      setAdminMetricsError(e.response?.data?.message || e.message)
+    }
+  }
+  const downloadAdminCsv = async (kind: 'users' | 'ai-usage') => {
+    try {
+      const r = await axios.get(`${API_BASE}/api/auth/admin/export/${kind}.csv`, {
+        headers: getAuthHeaders(),
+        responseType: 'blob'
+      })
+      const objectUrl = URL.createObjectURL(r.data)
+      const a = document.createElement('a')
+      a.href = objectUrl
+      a.download = `${kind}.csv`
+      a.click()
+      URL.revokeObjectURL(objectUrl)
+    } catch (e: any) {
+      setAdminMetricsError(e.response?.data?.message || e.message)
+    }
+  }
   useEffect(() => { if (adminTab === 'users') fetchAdminUsers(); }, [adminTab, adminUserSearch, adminUserTier]);
   useEffect(() => { if (adminTab === 'ai') fetchAdminAiUsage(); }, [adminTab]);
   const changeLanguage = (lng: string) => {
@@ -509,8 +545,11 @@ export default function App() {
       }).catch(() => {})
       api.getSubscriptionStatus(authToken).then(status => {
         // 同时检查 tier 和 subscriptionStatus，防止过期账号仍显示 VIP
-        const isPro = status?.tier === 'pro' && status?.subscriptionStatus === 'active';
+        const paidStatuses = ['active', 'past_due', 'lifetime'];
+        const isPro = status?.tier === 'pro' && paidStatuses.includes(status?.subscriptionStatus);
+        const isBasicPlan = status?.tier === 'basic' && paidStatuses.includes(status?.subscriptionStatus);
         setIsVip(isPro)
+        setIsBasic(isBasicPlan)
         // VIP用户Show无限制（-1），非VIPShowRemainingTimes
         if (isPro) {
           setRemainingDownloads(-1) // VIP无限制
@@ -525,6 +564,7 @@ export default function App() {
       })
     } else {
       setIsVip(false)
+      setIsBasic(false)
       setAiUsage(null)
       // Check localStorage for guest remaining downloads
       const today = new Date().toISOString().split('T')[0]
@@ -680,6 +720,10 @@ export default function App() {
   }
 
   const openMaterialEditor = (item: HistoryItem) => {
+    if (editingMaterial?.taskId === item.taskId) {
+      setEditingMaterial(null)
+      return
+    }
     setEditingMaterial(item)
     setMaterialTagsText(normalizeHistoryTags(item.tags).join(', '))
     setMaterialNotes(item.notes || '')
@@ -896,13 +940,13 @@ export default function App() {
       setShowAuthModal(true)
       return
     }
-    if (!isVip) {
+    if (!isVip && !isBasic) {
       setShowUpgradePopup(true)
       return
     }
     setCopywritingLoading(true)
     try {
-      const r = await axios.post(`${API}/copywrite`, { taskId: task.taskId, outputLanguage: getAiOutputLanguage(i18n.language) }, {
+      const r = await axios.post(`${API}/copywrite`, { taskId: task.taskId, outputLanguage: getAiOutputLanguage(i18n.language), industry: industryTemplate }, {
         headers: getAuthHeaders(),
         timeout: 120000,
       })
@@ -1254,6 +1298,17 @@ export default function App() {
     }
   }
 
+  const waitMaterialWorkflow = async (jobId: string) => {
+    for (let i = 0; i < 240; i++) {
+      const r = await axios.get(`${API}/workflows/materials/${jobId}`, { headers: getAuthHeaders() })
+      const job = r.data.data
+      setBatchCardProgress({ done: Number(job.done || 0), total: Number(job.total || 0) })
+      if (['completed', 'partial_failed', 'failed'].includes(job.status)) return job
+      await new Promise(resolve => setTimeout(resolve, 1500))
+    }
+    throw new Error(t('timeout'))
+  }
+
   const generateSelectedRewritePacks = async (platform: string, style = rewriteStyle) => {
     if (!authToken) {
       setShowAuthModal(true)
@@ -1282,32 +1337,20 @@ export default function App() {
     setBatchRewriteLoadingKey(`${platform}:${style}`)
     setBatchCardMessage('')
     setBatchCardProgress({ done: 0, total: jobs.length })
-    let success = 0
     try {
-      for (let i = 0; i < jobs.length; i++) {
-        const { item, platform: platformId, style: styleId } = jobs[i]
-        const r = await axios.post(`${API}/copywrite/rewrite`, {
-          taskId: item.taskId,
-          platform: platformId,
-          style: styleId,
-          outputLanguage: getAiOutputLanguage(i18n.language)
-        }, {
-          headers: getAuthHeaders(),
-          timeout: 120000,
-        })
-        if (r.data.code === 0) {
-          success += 1
-          setHistory(prev => prev.map(h => h.taskId === item.taskId ? {
-            ...h,
-            aiAnalysis: r.data.data.analysis,
-            copywriteAnalysis: r.data.data.analysis,
-          } : h))
-        }
-        setBatchCardProgress({ done: i + 1, total: jobs.length })
-      }
+      const selectedItems = Array.from(new Set(jobs.map(job => job.item.taskId)))
+      const r = await axios.post(`${API}/workflows/materials`, {
+        taskIds: selectedItems,
+        makeCards: false,
+        makePacks: true,
+        platforms,
+        styles,
+        outputLanguage: getAiOutputLanguage(i18n.language)
+      }, { headers: getAuthHeaders(), timeout: 30000 })
+      const job = await waitMaterialWorkflow(r.data.data.jobId)
       await fetchHistory()
       fetchAiUsage()
-      setBatchCardMessage(success > 0 ? t('batchRewritePacksDone', { count: success }) : '')
+      setBatchCardMessage(job.success > 0 ? t('batchRewritePacksDone', { count: job.success }) : '')
     } catch (e: any) {
       await fetchHistory()
       setError(e.response?.data?.message || e.message)
@@ -1380,6 +1423,37 @@ export default function App() {
     }
   }
 
+  const exportSelectedHistoryPackage = async () => {
+    if (!authToken) {
+      setShowAuthModal(true)
+      return
+    }
+    const taskIds = history.filter(item => selectedTasks.has(item.taskId)).map(item => item.taskId)
+    if (taskIds.length === 0) {
+      setError(t('noMaterialsToExport'))
+      return
+    }
+    if (!isVip && taskIds.length > 5) {
+      setShowUpgradePopup(true)
+      return
+    }
+    try {
+      const r = await axios.post(`${API}/history/export-package`, { taskIds }, {
+        headers: getAuthHeaders(),
+        responseType: 'blob',
+        timeout: 120000
+      })
+      const objectUrl = URL.createObjectURL(r.data)
+      const a = document.createElement('a')
+      a.href = objectUrl
+      a.download = `${sanitizeFilename(getHistoryExportContext(), 'materials')}-${taskIds.length}.zip`
+      a.click()
+      URL.revokeObjectURL(objectUrl)
+    } catch (e: any) {
+      setError(e.response?.data?.message || e.message)
+    }
+  }
+
   const generateSelectedCommerceCards = async () => {
     if (!authToken) {
       setShowAuthModal(true)
@@ -1402,31 +1476,18 @@ export default function App() {
     setBatchCardGenerating(true)
     setBatchCardMessage('')
     setBatchCardProgress({ done: 0, total: selectedItems.length })
-    let success = 0
     try {
-      for (let i = 0; i < selectedItems.length; i++) {
-        const item = selectedItems[i]
-        const r = await axios.post(`${API}/copywrite`, {
-          taskId: item.taskId,
-          outputLanguage: getAiOutputLanguage(i18n.language)
-        }, {
-          headers: getAuthHeaders(),
-          timeout: 120000,
-        })
-        if (r.data.code === 0) {
-          success += 1
-          setHistory(prev => prev.map(h => h.taskId === item.taskId ? {
-            ...h,
-            aiAnalysis: r.data.data.analysis,
-            copywriteAnalysis: r.data.data.analysis,
-            tags: r.data.data.analysis?.tags || h.tags
-          } : h))
-        }
-        setBatchCardProgress({ done: i + 1, total: selectedItems.length })
-      }
+      const r = await axios.post(`${API}/workflows/materials`, {
+        taskIds: selectedItems.map(item => item.taskId),
+        makeCards: true,
+        makePacks: false,
+        outputLanguage: getAiOutputLanguage(i18n.language),
+        industry: industryTemplate
+      }, { headers: getAuthHeaders(), timeout: 30000 })
+      const job = await waitMaterialWorkflow(r.data.data.jobId)
       await fetchHistory()
       fetchAiUsage()
-      setBatchCardMessage(success > 0 ? t('batchAiCardsDone', { count: success }) : '')
+      setBatchCardMessage(job.success > 0 ? t('batchAiCardsDone', { count: job.success }) : '')
     } catch (e: any) {
       await fetchHistory()
       setError(e.response?.data?.message || e.message)
@@ -3190,13 +3251,24 @@ export default function App() {
                                   : t('aiCommerceCardReadyHint')}
                             </p>
                           </div>
-                          <button
-                            onClick={runCommerceCard}
-                            disabled={copywritingLoading || task.commerceCardStatus === 'processing'}
-                            className="shrink-0 px-3 py-1.5 rounded-lg text-xs bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 transition disabled:opacity-50"
-                          >
-                            {copywritingLoading || task.commerceCardStatus === 'processing' ? t('generating') : t('generate')}
-                          </button>
+                          <div className="shrink-0 flex items-center gap-1">
+                            <select
+                              value={industryTemplate}
+                              onChange={(e) => setIndustryTemplate(e.target.value)}
+                              className="px-2 py-1.5 rounded-lg text-xs bg-slate-900/60 text-slate-300 border border-slate-700/60"
+                            >
+                              {INDUSTRY_TEMPLATES.map(item => (
+                                <option key={item.id} value={item.id}>{t(item.labelKey)}</option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={runCommerceCard}
+                              disabled={copywritingLoading || task.commerceCardStatus === 'processing'}
+                              className="px-3 py-1.5 rounded-lg text-xs bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 transition disabled:opacity-50"
+                            >
+                              {copywritingLoading || task.commerceCardStatus === 'processing' ? t('generating') : t('generate')}
+                            </button>
+                          </div>
                         </div>
                       )
                     }
@@ -3770,8 +3842,17 @@ export default function App() {
                   <div className="flex gap-2 items-center">
                     {filteredHistory.length > 0 && <input type="checkbox" checked={selectedTasks.size === filteredHistory.length} onChange={toggleSelectAll} className={`w-3.5 h-3.5 rounded-full ${isDark ? 'border-slate-600' : 'border-light-border'}`} />}
                     {selectedTasks.size > 0 && (
-                      <div className="flex items-center gap-1.5 shrink-0">
+                        <div className="flex items-center gap-1.5 shrink-0">
                         <span className="text-[10px] text-slate-400">{t('selectedCount', { count: selectedTasks.size })}</span>
+                        <select
+                          value={industryTemplate}
+                          onChange={(e) => setIndustryTemplate(e.target.value)}
+                          className="px-2 py-1 bg-slate-900/50 text-slate-300 border border-slate-700/50 rounded-lg text-[10px]"
+                        >
+                          {INDUSTRY_TEMPLATES.map(item => (
+                            <option key={item.id} value={item.id}>{t(item.labelKey)}</option>
+                          ))}
+                        </select>
                         {history.some(item => selectedTasks.has(item.taskId) && item.downloadUrl) && (
                           <button onClick={downloadSelectedHistoryFiles} className="px-2 py-1 bg-green-500/15 text-green-300 border border-green-500/30 rounded-lg text-[10px]">{t('saveSelectedFiles')}</button>
                         )}
@@ -3833,6 +3914,7 @@ export default function App() {
                         <button onClick={() => exportSelectedCommerceCards('txt')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">TXT</button>
                         <button onClick={() => exportSelectedCommerceCards('csv')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">CSV</button>
                         <button onClick={exportSelectedHistoryMetadata} className="px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-lg text-[10px]">{t('exportMaterialCsv')}</button>
+                        <button onClick={exportSelectedHistoryPackage} className="px-2 py-1 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px]">{t('exportMaterialZip')}</button>
                         <button onClick={() => exportSelectedCommerceCards('pack')} className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px]">PACK</button>
                         <button onClick={() => exportSelectedCommerceCards('packCsv')} className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px]">PACK CSV</button>
                         <button onClick={deleteSelected} className="px-2 py-1 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg text-[10px]">{t('clearAll')}</button>
@@ -3919,7 +4001,8 @@ export default function App() {
                 </div>
                 <div className="max-h-60 overflow-y-auto">
                   {filteredHistory.length === 0 ? <p className="py-8 text-center text-sm text-slate-500">{historySearch || historyFilter !== 'all' || historyPlatformFilter !== 'all' || historyGroupFilter !== 'all' || historyTagFilter !== 'all' || historyAiOnly || historyPackOnly || historyPackTodoOnly ? t('noResults') : t('noHistory')}</p> : filteredHistory.map(item => (
-                    <div key={item.taskId} className={`flex items-center gap-2 px-3 py-2 border-b border-slate-700/20 last:border-0 hover:bg-slate-900/60 transition ${selectedTasks.has(item.taskId) ? 'bg-orange/10' : ''}`}>
+                    <div key={item.taskId} className={`border-b border-slate-700/20 last:border-0 transition ${selectedTasks.has(item.taskId) ? 'bg-orange/10' : ''}`}>
+                    <div className="flex items-center gap-2 px-3 py-2 hover:bg-slate-900/60 transition">
                       <input type="checkbox" checked={selectedTasks.has(item.taskId)} onChange={() => { const s = new Set(selectedTasks); selectedTasks.has(item.taskId) ? s.delete(item.taskId) : s.add(item.taskId); setSelectedTasks(s) }} className="w-3.5 h-3.5 rounded-full border-slate-600 shrink-0" />
                       {item.thumbnailUrl ? <button onClick={() => openSavedFile(item)} className="relative shrink-0 group"><img src={`${BASE_URL}${item.thumbnailUrl}`} alt="" className="w-12 h-9 object-cover rounded-lg" /><div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 transition"><Play className="w-4 h-4 text-white" /></div></button> : <div className="w-12 h-9 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0"><Video className="w-4 h-4 text-slate-500" /></div>}
                       <div className="flex-1 min-w-0 overflow-hidden">
@@ -3967,6 +4050,50 @@ export default function App() {
                       <button onClick={() => openMaterialEditor(item)} className="p-1 text-slate-500 hover:text-purple-300" title="编辑素材"><FileText className="w-4 h-4" /></button>
                       <button onClick={() => toggleFavorite(item.taskId)} className={`p-1.5 ${item.isFavorite || favorites.has(item.taskId) ? 'text-yellow-400' : 'text-slate-500 hover:text-yellow-400'}`}><svg className="w-4 h-4" fill={item.isFavorite || favorites.has(item.taskId) ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg></button>
                       <button onClick={() => del(item.taskId)} className="p-1 text-slate-500 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                    {editingMaterial?.taskId === item.taskId && (
+                      <div className="mx-3 mb-3 rounded-xl border border-purple-500/20 bg-purple-500/5 p-3">
+                        <div className="grid md:grid-cols-[1fr_1.3fr] gap-2">
+                          <input
+                            value={materialGroupName}
+                            onChange={(e) => setMaterialGroupName(e.target.value)}
+                            placeholder={t('materialGroupPlaceholder')}
+                            className="w-full px-2.5 py-2 rounded-lg bg-slate-950/70 border border-slate-700/60 text-xs text-white placeholder:text-slate-500"
+                          />
+                          <input
+                            value={materialTagsText}
+                            onChange={(e) => setMaterialTagsText(e.target.value)}
+                            placeholder={t('batchTagsPlaceholder')}
+                            className="w-full px-2.5 py-2 rounded-lg bg-slate-950/70 border border-slate-700/60 text-xs text-white placeholder:text-slate-500"
+                          />
+                        </div>
+                        {popularHistoryTags.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            {popularHistoryTags.slice(0, 5).map(({ tag }) => (
+                              <button
+                                key={tag}
+                                type="button"
+                                onClick={() => setMaterialTagsText(prev => appendTagsToInput(prev, [tag]))}
+                                className="px-2 py-1 rounded-full bg-slate-900/70 border border-slate-700/60 text-purple-300 text-[10px] hover:border-purple-500/40"
+                              >
+                                + #{tag}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <textarea
+                          value={materialNotes}
+                          onChange={(e) => setMaterialNotes(e.target.value)}
+                          placeholder={t('materialNotesPlaceholder')}
+                          rows={2}
+                          className="mt-2 w-full px-2.5 py-2 rounded-lg bg-slate-950/70 border border-slate-700/60 text-xs text-white placeholder:text-slate-500 resize-none"
+                        />
+                        <div className="mt-2 flex justify-end gap-2">
+                          <button onClick={() => setEditingMaterial(null)} className="px-3 py-1.5 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs transition">{t('cancel')}</button>
+                          <button onClick={saveMaterialMeta} className="px-3 py-1.5 rounded-lg bg-orange text-white hover:bg-orange-dark text-xs transition">{t('save')}</button>
+                        </div>
+                      </div>
+                    )}
                     </div>
                   ))}
                   {historyHasMore && (
@@ -4068,14 +4195,14 @@ export default function App() {
           </div>
         )}
 
-        {editingMaterial && (
+        {false && editingMaterial && (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className="bg-slate-800 rounded-2xl p-5 max-w-md w-full border border-slate-700">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-base font-bold text-white">{t('editMaterial')}</h3>
                 <button onClick={() => setEditingMaterial(null)} className="text-slate-400 hover:text-white"><X className="w-4 h-4" /></button>
               </div>
-              <p className="text-xs text-slate-400 mb-3 truncate">{editingMaterial.title || editingMaterial.url || editingMaterial.taskId}</p>
+              <p className="text-xs text-slate-400 mb-3 truncate">{editingMaterial?.title || editingMaterial?.url || editingMaterial?.taskId}</p>
               <label className="block text-xs text-slate-300 mb-1">{t('materialGroup')}</label>
               <input
                 value={materialGroupName}
@@ -4386,6 +4513,7 @@ export default function App() {
                     className="w-full sm:w-28 px-2 py-2 rounded-lg bg-slate-800/50 border border-slate-700/50 text-white text-xs"
                   >
                     <option value="">全部</option>
+                    <option value="basic">Basic</option>
                     <option value="pro">Pro</option>
                     <option value="free">Free</option>
                   </select>
@@ -4403,11 +4531,22 @@ export default function App() {
                         {u.subscription_status && <span className="px-2 py-0.5 rounded-full bg-slate-900/60">{u.subscription_status}</span>}
                         {typeof u.email_verified !== 'undefined' && <span className="px-2 py-0.5 rounded-full bg-slate-900/60">{u.email_verified ? 'verified' : 'unverified'}</span>}
                       </div>
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {(['basic', 'pro', 'lifetime', 'free'] as const).map(tier => (
+                          <button
+                            key={tier}
+                            onClick={() => updateAdminUserTier(u.id, tier)}
+                            className="px-2 py-1 rounded-lg bg-slate-900/70 text-slate-300 hover:text-orange border border-slate-700/60 text-[10px]"
+                          >
+                            {tier}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                   ))}
                 </div>
                 <p className="text-[10px] text-slate-500 mt-2">
-                  共 {adminUsersTotal} 用户 · <a href={`${API_BASE}/api/auth/admin/export/users.csv`} className="text-orange hover:underline">CSV导出</a>
+                  共 {adminUsersTotal} 用户 · <button onClick={() => downloadAdminCsv('users')} className="text-orange hover:underline">CSV导出</button>
                 </p>
               </div>
             )}
@@ -4428,7 +4567,7 @@ export default function App() {
                   ))}
                 </div>
                 <p className="text-[10px] text-slate-500 mt-2">
-                  共 {adminAiUsageTotal} 条 · <a href={`${API_BASE}/api/auth/admin/export/ai-usage.csv`} className="text-orange hover:underline">CSV导出</a>
+                  共 {adminAiUsageTotal} 条 · <button onClick={() => downloadAdminCsv('ai-usage')} className="text-orange hover:underline">CSV导出</button>
                 </p>
               </div>
             )}
