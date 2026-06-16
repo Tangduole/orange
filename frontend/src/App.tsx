@@ -589,6 +589,7 @@ export default function App() {
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set())
   const [editingMaterial, setEditingMaterial] = useState<HistoryItem | null>(null)
   const [materialTagsText, setMaterialTagsText] = useState('')
+  const [inlineTagDraft, setInlineTagDraft] = useState('')
   const [materialNotes, setMaterialNotes] = useState('')
   const [materialGroupName, setMaterialGroupName] = useState('')
   const [showWorkbenchManager, setShowWorkbenchManager] = useState(false)
@@ -726,6 +727,7 @@ export default function App() {
     }
     setEditingMaterial(item)
     setMaterialTagsText(normalizeHistoryTags(item.tags).join(', '))
+    setInlineTagDraft('')
     setMaterialNotes(item.notes || '')
     setMaterialGroupName(item.groupName || '')
   }
@@ -742,11 +744,15 @@ export default function App() {
     return parseTagInput(value).filter(tag => tag !== tagToRemove).join(', ')
   }
   const addInlineTag = (tag: string) => {
-    setMaterialTagsText(prev => appendTagsToInput(prev, [tag]))
+    const normalized = String(tag || '').replace(/[,，#]/g, '').trim()
+    if (!normalized) return
+    setMaterialTagsText(prev => appendTagsToInput(prev, [normalized]))
+    setInlineTagDraft('')
   }
   const removeInlineTag = (tag: string) => {
     setMaterialTagsText(prev => removeTagFromInput(prev, tag))
   }
+  const addInlineDraftTag = () => addInlineTag(inlineTagDraft)
   const toggleHistoryTagFilter = (tag: string) => {
     setHistoryTagFilter(current => current === tag ? 'all' : tag)
   }
@@ -3848,7 +3854,7 @@ export default function App() {
                   </div>
                 )}
                 <div className={`p-3 border-b space-y-2 ${isDark ? 'border-slate-700/30' : 'border-light-border'}`}>
-                  <div className="flex gap-2 items-center">
+                  <div className="flex gap-2 items-center flex-wrap">
                     {filteredHistory.length > 0 && <input type="checkbox" checked={selectedTasks.size === filteredHistory.length} onChange={toggleSelectAll} className={`w-3.5 h-3.5 rounded-full ${isDark ? 'border-slate-600' : 'border-light-border'}`} />}
                     {selectedTasks.size > 0 && (
                         <div className="flex items-center gap-1.5 shrink-0">
@@ -3923,7 +3929,6 @@ export default function App() {
                         <button onClick={() => exportSelectedCommerceCards('txt')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">TXT</button>
                         <button onClick={() => exportSelectedCommerceCards('csv')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">CSV</button>
                         <button onClick={exportSelectedHistoryMetadata} className="px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-lg text-[10px]">{t('exportMaterialCsv')}</button>
-                        <button onClick={exportSelectedHistoryPackage} className="px-2 py-1 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px]">{t('exportMaterialZip')}</button>
                         <button onClick={() => exportSelectedCommerceCards('pack')} className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px]">PACK</button>
                         <button onClick={() => exportSelectedCommerceCards('packCsv')} className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px]">PACK CSV</button>
                         <button onClick={deleteSelected} className="px-2 py-1 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg text-[10px]">{t('clearAll')}</button>
@@ -3933,6 +3938,14 @@ export default function App() {
                       <input type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} data-testid="history-search-input" placeholder={t('searchPlaceholder')} className={`w-full pl-8 pr-3 py-2 border rounded-lg text-sm placeholder:text-slate-300 ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`} />
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
                     </div>
+                    <button
+                      onClick={exportSelectedHistoryPackage}
+                      disabled={selectedTasks.size === 0}
+                      title={selectedTasks.size === 0 ? t('selectMaterialsForZip') : t('exportMaterialZip')}
+                      className="px-3 py-2 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {t('exportMaterialZip')}
+                    </button>
                   </div>
                   <div className="flex flex-wrap gap-2 items-center">
                     <select value={historyFilter} onChange={(e) => setHistoryFilter(e.target.value as 'all' | 'completed' | 'error' | 'favorites')} className={`px-2 py-1.5 border rounded-lg text-xs ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`}>
@@ -4054,10 +4067,10 @@ export default function App() {
                           <span className="shrink-0 text-[10px] text-slate-500">{new Date(item.createdAt).toLocaleString(i18n.language === 'zh-CN' ? 'zh-CN' : i18n.language === 'ja' ? 'ja-JP' : i18n.language === 'ko' ? 'ko-KR' : 'en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       </div>
-                      <div className={`flex items-center gap-0.5 transition ${editingMaterial?.taskId === item.taskId ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100'}`}>
+                      <div className={`flex items-center gap-0.5 transition ${editingMaterial?.taskId === item.taskId ? 'opacity-100' : 'opacity-40 group-hover:opacity-100 focus-within:opacity-100'}`}>
                         {item.status === 'error' && <button onClick={() => retryTask(item)} className="p-1.5 text-orange-500 hover:text-orange"><Loader2 className="w-5 h-5" /></button>}
                         {item.status === 'completed' && <button onClick={() => retryTask(item)} title="Re-download" className="p-1 text-slate-500 hover:text-green-400"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg></button>}
-                        <button onClick={() => openMaterialEditor(item)} className={`p-1 rounded-lg ${editingMaterial?.taskId === item.taskId ? 'text-purple-300 bg-purple-500/10' : 'text-slate-500 hover:text-purple-300'}`} title={t('inlineEdit')}><FileText className="w-4 h-4" /></button>
+                        <button onClick={() => openMaterialEditor(item)} className={`px-2 py-1 rounded-lg text-[10px] inline-flex items-center gap-1 ${editingMaterial?.taskId === item.taskId ? 'text-purple-300 bg-purple-500/10' : 'text-slate-400 hover:text-purple-300 hover:bg-purple-500/10'}`} title={t('inlineEdit')}><FileText className="w-3.5 h-3.5" />{t('inlineEdit')}</button>
                         <button onClick={() => toggleFavorite(item.taskId)} className={`p-1.5 ${item.isFavorite || favorites.has(item.taskId) ? 'text-yellow-400' : 'text-slate-500 hover:text-yellow-400'}`}><svg className="w-4 h-4" fill={item.isFavorite || favorites.has(item.taskId) ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg></button>
                         <button onClick={() => del(item.taskId)} className="p-1 text-slate-500 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
                       </div>
@@ -4079,32 +4092,32 @@ export default function App() {
                               {parseTagInput(materialTagsText).map(tag => (
                                 <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 text-[10px] text-purple-300">
                                   #{tag}
-                                  <button type="button" onClick={() => removeInlineTag(tag)} className="text-slate-500 hover:text-red-300">×</button>
+                                  <button type="button" onClick={() => removeInlineTag(tag)} title={t('inlineRemoveTag')} className="text-red-300 hover:text-red-200 font-bold">-</button>
                                 </span>
                               ))}
                             </div>
-                            <input
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault()
-                                  const input = e.currentTarget
-                                  const value = input.value.trim()
-                                  if (value) {
-                                    addInlineTag(value)
-                                    input.value = ''
+                            <div className="mt-1 flex items-center gap-1">
+                              <input
+                                value={inlineTagDraft}
+                                onChange={(e) => setInlineTagDraft(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault()
+                                    addInlineDraftTag()
                                   }
-                                }
-                              }}
-                              onBlur={(e) => {
-                                const value = e.currentTarget.value.trim()
-                                if (value) {
-                                  addInlineTag(value)
-                                  e.currentTarget.value = ''
-                                }
-                              }}
-                              placeholder={t('inlineAddTagHint')}
-                              className="mt-1 w-full bg-transparent text-xs text-white outline-none placeholder:text-slate-500"
-                            />
+                                }}
+                                placeholder={t('inlineAddTagHint')}
+                                className="min-w-0 flex-1 bg-transparent text-xs text-white outline-none placeholder:text-slate-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={addInlineDraftTag}
+                                className="shrink-0 w-6 h-6 rounded-full bg-purple-500/20 text-purple-200 border border-purple-500/30 hover:bg-purple-500/30 font-bold"
+                                title={t('inlineAddTag')}
+                              >
+                                +
+                              </button>
+                            </div>
                           </div>
                         </div>
                         {popularHistoryTags.length > 0 && (
