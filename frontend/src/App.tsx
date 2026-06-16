@@ -738,6 +738,15 @@ export default function App() {
   const appendTagsToInput = (value: string, tagsToAdd: string[]) => {
     return Array.from(new Set([...parseTagInput(value), ...tagsToAdd])).slice(0, 20).join(', ')
   }
+  const removeTagFromInput = (value: string, tagToRemove: string) => {
+    return parseTagInput(value).filter(tag => tag !== tagToRemove).join(', ')
+  }
+  const addInlineTag = (tag: string) => {
+    setMaterialTagsText(prev => appendTagsToInput(prev, [tag]))
+  }
+  const removeInlineTag = (tag: string) => {
+    setMaterialTagsText(prev => removeTagFromInput(prev, tag))
+  }
   const toggleHistoryTagFilter = (tag: string) => {
     setHistoryTagFilter(current => current === tag ? 'all' : tag)
   }
@@ -4001,7 +4010,7 @@ export default function App() {
                 </div>
                 <div className="max-h-60 overflow-y-auto">
                   {filteredHistory.length === 0 ? <p className="py-8 text-center text-sm text-slate-500">{historySearch || historyFilter !== 'all' || historyPlatformFilter !== 'all' || historyGroupFilter !== 'all' || historyTagFilter !== 'all' || historyAiOnly || historyPackOnly || historyPackTodoOnly ? t('noResults') : t('noHistory')}</p> : filteredHistory.map(item => (
-                    <div key={item.taskId} className={`border-b border-slate-700/20 last:border-0 transition ${selectedTasks.has(item.taskId) ? 'bg-orange/10' : ''}`}>
+                    <div key={item.taskId} className={`group border-b border-slate-700/20 last:border-0 transition ${selectedTasks.has(item.taskId) ? 'bg-orange/10' : ''}`}>
                     <div className="flex items-center gap-2 px-3 py-2 hover:bg-slate-900/60 transition">
                       <input type="checkbox" checked={selectedTasks.has(item.taskId)} onChange={() => { const s = new Set(selectedTasks); selectedTasks.has(item.taskId) ? s.delete(item.taskId) : s.add(item.taskId); setSelectedTasks(s) }} className="w-3.5 h-3.5 rounded-full border-slate-600 shrink-0" />
                       {item.thumbnailUrl ? <button onClick={() => openSavedFile(item)} className="relative shrink-0 group"><img src={`${BASE_URL}${item.thumbnailUrl}`} alt="" className="w-12 h-9 object-cover rounded-lg" /><div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 transition"><Play className="w-4 h-4 text-white" /></div></button> : <div className="w-12 h-9 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0"><Video className="w-4 h-4 text-slate-500" /></div>}
@@ -4045,11 +4054,13 @@ export default function App() {
                           <span className="shrink-0 text-[10px] text-slate-500">{new Date(item.createdAt).toLocaleString(i18n.language === 'zh-CN' ? 'zh-CN' : i18n.language === 'ja' ? 'ja-JP' : i18n.language === 'ko' ? 'ko-KR' : 'en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
                       </div>
-                      {item.status === 'error' && <button onClick={() => retryTask(item)} className="p-1.5 text-orange-500 hover:text-orange"><Loader2 className="w-5 h-5" /></button>}
-                      {item.status === 'completed' && <button onClick={() => retryTask(item)} title="Re-download" className="p-1 text-slate-500 hover:text-green-400"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg></button>}
-                      <button onClick={() => openMaterialEditor(item)} className="p-1 text-slate-500 hover:text-purple-300" title="编辑素材"><FileText className="w-4 h-4" /></button>
-                      <button onClick={() => toggleFavorite(item.taskId)} className={`p-1.5 ${item.isFavorite || favorites.has(item.taskId) ? 'text-yellow-400' : 'text-slate-500 hover:text-yellow-400'}`}><svg className="w-4 h-4" fill={item.isFavorite || favorites.has(item.taskId) ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg></button>
-                      <button onClick={() => del(item.taskId)} className="p-1 text-slate-500 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
+                      <div className={`flex items-center gap-0.5 transition ${editingMaterial?.taskId === item.taskId ? 'opacity-100' : 'opacity-0 group-hover:opacity-100 focus-within:opacity-100'}`}>
+                        {item.status === 'error' && <button onClick={() => retryTask(item)} className="p-1.5 text-orange-500 hover:text-orange"><Loader2 className="w-5 h-5" /></button>}
+                        {item.status === 'completed' && <button onClick={() => retryTask(item)} title="Re-download" className="p-1 text-slate-500 hover:text-green-400"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg></button>}
+                        <button onClick={() => openMaterialEditor(item)} className={`p-1 rounded-lg ${editingMaterial?.taskId === item.taskId ? 'text-purple-300 bg-purple-500/10' : 'text-slate-500 hover:text-purple-300'}`} title={t('inlineEdit')}><FileText className="w-4 h-4" /></button>
+                        <button onClick={() => toggleFavorite(item.taskId)} className={`p-1.5 ${item.isFavorite || favorites.has(item.taskId) ? 'text-yellow-400' : 'text-slate-500 hover:text-yellow-400'}`}><svg className="w-4 h-4" fill={item.isFavorite || favorites.has(item.taskId) ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg></button>
+                        <button onClick={() => del(item.taskId)} className="p-1 text-slate-500 hover:text-red-400"><Trash2 className="w-4 h-4" /></button>
+                      </div>
                     </div>
                     {editingMaterial?.taskId === item.taskId && (
                       <div className="mx-3 mb-3 rounded-xl border border-purple-500/20 bg-purple-500/5 p-3">
@@ -4060,12 +4071,41 @@ export default function App() {
                             placeholder={t('materialGroupPlaceholder')}
                             className="w-full px-2.5 py-2 rounded-lg bg-slate-950/70 border border-slate-700/60 text-xs text-white placeholder:text-slate-500"
                           />
-                          <input
-                            value={materialTagsText}
-                            onChange={(e) => setMaterialTagsText(e.target.value)}
-                            placeholder={t('batchTagsPlaceholder')}
-                            className="w-full px-2.5 py-2 rounded-lg bg-slate-950/70 border border-slate-700/60 text-xs text-white placeholder:text-slate-500"
-                          />
+                          <div className="rounded-lg bg-slate-950/70 border border-slate-700/60 px-2 py-1.5">
+                            <div className="flex flex-wrap gap-1">
+                              {parseTagInput(materialTagsText).length === 0 && (
+                                <span className="text-[10px] text-slate-500 py-1">{t('inlineNoTags')}</span>
+                              )}
+                              {parseTagInput(materialTagsText).map(tag => (
+                                <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 text-[10px] text-purple-300">
+                                  #{tag}
+                                  <button type="button" onClick={() => removeInlineTag(tag)} className="text-slate-500 hover:text-red-300">×</button>
+                                </span>
+                              ))}
+                            </div>
+                            <input
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.preventDefault()
+                                  const input = e.currentTarget
+                                  const value = input.value.trim()
+                                  if (value) {
+                                    addInlineTag(value)
+                                    input.value = ''
+                                  }
+                                }
+                              }}
+                              onBlur={(e) => {
+                                const value = e.currentTarget.value.trim()
+                                if (value) {
+                                  addInlineTag(value)
+                                  e.currentTarget.value = ''
+                                }
+                              }}
+                              placeholder={t('inlineAddTagHint')}
+                              className="mt-1 w-full bg-transparent text-xs text-white outline-none placeholder:text-slate-500"
+                            />
+                          </div>
                         </div>
                         {popularHistoryTags.length > 0 && (
                           <div className="mt-2 flex flex-wrap gap-1">
@@ -4073,7 +4113,7 @@ export default function App() {
                               <button
                                 key={tag}
                                 type="button"
-                                onClick={() => setMaterialTagsText(prev => appendTagsToInput(prev, [tag]))}
+                                onClick={() => addInlineTag(tag)}
                                 className="px-2 py-1 rounded-full bg-slate-900/70 border border-slate-700/60 text-purple-300 text-[10px] hover:border-purple-500/40"
                               >
                                 + #{tag}
