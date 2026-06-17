@@ -2740,7 +2740,7 @@ async function getHistory(req, res) {
         publishPackOnly: publishPackOnly === '1' || publishPackOnly === 'true',
         needsPublishPack: needsPublishPack === '1' || needsPublishPack === 'true',
       });
-      const items = (result.items || []).map(h => ({
+      const items = (result.items || []).map(h => signTaskResponse({
         taskId: h.task_id,
         url: h.url,
         platform: h.platform,

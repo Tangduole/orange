@@ -18,6 +18,12 @@ import {
 const BASE_URL = API_BASE
 const API = `${BASE_URL}/api`
 
+function resolveAssetUrl(url?: string | null) {
+  if (!url) return ''
+  if (/^https?:\/\//i.test(url) || url.startsWith('blob:') || url.startsWith('data:')) return url
+  return `${BASE_URL}${url.startsWith('/') ? url : `/${url}`}`
+}
+
 function readStoredJson<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key)
@@ -593,6 +599,7 @@ export default function App() {
   const [materialNotes, setMaterialNotes] = useState('')
   const [materialGroupName, setMaterialGroupName] = useState('')
   const [showWorkbenchManager, setShowWorkbenchManager] = useState(false)
+  const [managerScope, setManagerScope] = useState<'filtered' | 'all'>('filtered')
   const [showBatchTagEditor, setShowBatchTagEditor] = useState(false)
   const [batchTagMode, setBatchTagMode] = useState<'add' | 'remove'>('add')
   const [batchTagsText, setBatchTagsText] = useState('')
@@ -676,6 +683,33 @@ export default function App() {
     }
     return true
   })
+  const managerItems = managerScope === 'filtered' ? filteredHistory : history
+  const managerTagStats = (() => {
+    const counts = new Map<string, number>()
+    managerItems.forEach(item => {
+      normalizeHistoryTags(item.tags).forEach(tag => counts.set(tag, (counts.get(tag) || 0) + 1))
+    })
+    return Array.from(counts.entries())
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 80)
+      .map(([tag, count]) => ({ tag, count }))
+  })()
+  const managerGroupStats = (() => {
+    const counts = new Map<string, number>()
+    let ungrouped = 0
+    managerItems.forEach(item => {
+      const group = item.groupName?.trim()
+      if (group) counts.set(group, (counts.get(group) || 0) + 1)
+      else ungrouped += 1
+    })
+    return {
+      groups: Array.from(counts.entries())
+        .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+        .slice(0, 80)
+        .map(([group, count]) => ({ group, count })),
+      ungrouped
+    }
+  })()
 
   const materialStats = (() => {
     const platformCounts = new Map<string, number>()
@@ -855,6 +889,63 @@ export default function App() {
       setError('')
     } catch (e: any) {
       setError(e.response?.data?.message || t('renameGroupFailed'))
+      fetchHistory()
+    } finally {
+      setGroupRenameLoading(false)
+    }
+  }
+
+  const removeTagEverywhere = async (tagToRemove: string) => {
+    const tag = tagToRemove.trim()
+    if (!tag) return
+    const affectedItems = managerItems.filter(item => normalizeHistoryTags(item.tags).includes(tag))
+    if (affectedItems.length === 0) return
+    if (!window.confirm(t('confirmRemoveTag', { tag, count: affectedItems.length, scope: t(managerScope === 'filtered' ? 'managerScopeFiltered' : 'managerScopeAll') }))) return
+
+    setBatchTagsLoading(true)
+    try {
+      const updates = affectedItems.map(item => ({
+        taskId: item.taskId,
+        tags: normalizeHistoryTags(item.tags).filter(itemTag => itemTag !== tag)
+      }))
+      setHistory(prev => prev.map(item => {
+        const update = updates.find(u => u.taskId === item.taskId)
+        return update ? { ...item, tags: update.tags } : item
+      }))
+      await Promise.all(updates.map(update =>
+        axios.patch(`${API}/history/${update.taskId}`, { tags: update.tags }, { headers: getAuthHeaders() })
+      ))
+      if (historyTagFilter === tag) setHistoryTagFilter('all')
+      setError('')
+    } catch (e: any) {
+      setError(e.response?.data?.message || t('removeTagFailed'))
+      fetchHistory()
+    } finally {
+      setBatchTagsLoading(false)
+    }
+  }
+
+  const clearGroupEverywhere = async (groupToClear: string) => {
+    const group = groupToClear.trim()
+    if (!group) return
+    const affectedItems = managerItems.filter(item => (item.groupName || '').trim() === group)
+    if (affectedItems.length === 0) return
+    if (!window.confirm(t('confirmClearGroup', { group, count: affectedItems.length, scope: t(managerScope === 'filtered' ? 'managerScopeFiltered' : 'managerScopeAll') }))) return
+
+    setGroupRenameLoading(true)
+    try {
+      setHistory(prev => prev.map(item => (item.groupName || '').trim() === group ? { ...item, groupName: '' } : item))
+      await Promise.all(affectedItems.map(item =>
+        axios.patch(`${API}/history/${item.taskId}`, { groupName: '' }, { headers: getAuthHeaders() })
+      ))
+      if (historyGroupFilter === group) setHistoryGroupFilter('all')
+      if (renamingGroupName === group) {
+        setRenamingGroupName('')
+        setRenameGroupText('')
+      }
+      setError('')
+    } catch (e: any) {
+      setError(e.response?.data?.message || t('clearGroupFailed'))
       fetchHistory()
     } finally {
       setGroupRenameLoading(false)
@@ -1210,7 +1301,7 @@ export default function App() {
         getHistoryRewritePackCount(item),
         item.createdAt ? new Date(item.createdAt).toLocaleString() : '',
         item.url || '',
-        item.downloadUrl ? `${BASE_URL}${item.downloadUrl}` : ''
+        item.downloadUrl ? resolveAssetUrl(item.downloadUrl) : ''
       ]
     })
     return [headers, ...rows].map(row => row.map(toCsvCell).join(',')).join('\n')
@@ -3101,7 +3192,7 @@ export default function App() {
                     <button
                       onClick={async () => {
                         for (const img of task.imageFiles!) {
-                          const fullUrl = (img.url.startsWith('http') ? img.url : `${BASE_URL}${img.url}`);
+                    const fullUrl = resolveAssetUrl(img.url);
                           const a = document.createElement('a');
                           a.href = fullUrl;
                           a.download = img.filename;
@@ -3117,7 +3208,7 @@ export default function App() {
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     {task.imageFiles!.map(img => {
-                      const fullUrl = img.url.startsWith('http') ? img.url : `${BASE_URL}${img.url}`;
+                      const fullUrl = resolveAssetUrl(img.url);
                       const dimLabel = (img as any).width ? `${(img as any).width}×${(img as any).height}` : '';
                       return (
                         <div key={img.filename} className="group relative rounded-xl overflow-hidden bg-slate-700/30">
@@ -3153,7 +3244,7 @@ export default function App() {
                 <div className="mt-2">
                   <div className="relative rounded-xl overflow-hidden bg-black">
                     <video
-                      src={task.downloadUrl.startsWith('http') ? task.downloadUrl : `${BASE_URL}${task.downloadUrl}`}
+                      src={resolveAssetUrl(task.downloadUrl)}
                       controls
                       playsInline
                       style={{ width: '100%', borderRadius: '12px', maxHeight: '400px' }}
@@ -3186,7 +3277,7 @@ export default function App() {
                   onClick={() => {
                     clearAutoDownload()
                     autoDownloaded.current = true
-                    const fullUrl = task.downloadUrl!.startsWith('http') ? task.downloadUrl : `${BASE_URL}${task.downloadUrl}`
+                    const fullUrl = resolveAssetUrl(task.downloadUrl)
                     window.open(fullUrl, '_blank')
                   }}
                   className="w-full py-3.5 rounded-2xl text-sm font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-2"
@@ -3514,7 +3605,7 @@ export default function App() {
               {task.status === 'completed' && (task.subtitleFiles?.length || 0) > 0 && (
                 <div className="flex gap-2 flex-wrap">
                   {task.subtitleFiles!.map(s => (
-                    <a key={s.filename} href={`${BASE_URL}${s.url}`} download={s.filename} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs bg-slate-700/30 border border-slate-700/60 text-slate-300 hover:text-white transition-all">
+                    <a key={s.filename} href={resolveAssetUrl(s.url)} download={s.filename} className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs bg-slate-700/30 border border-slate-700/60 text-slate-300 hover:text-white transition-all">
                       <Languages className="w-3 h-3" />{s.filename}
                     </a>
                   ))}
@@ -3587,7 +3678,7 @@ export default function App() {
                     setSubbedDownloading(true)
                     try {
                       const subbedVideoUrl = task.subbedVideoUrl!
-                      const fullUrl = subbedVideoUrl.startsWith('http') ? subbedVideoUrl : `${BASE_URL}${subbedVideoUrl}`
+                      const fullUrl = resolveAssetUrl(subbedVideoUrl)
                       const a = document.createElement('a')
                       a.href = fullUrl
                       a.download = (task.title || 'subbed') + '_subbed.mp4'
@@ -3786,21 +3877,38 @@ export default function App() {
                         <div className="rounded-xl bg-slate-900/60 border border-slate-700/60 p-3">
                           <div className="flex items-center justify-between mb-2">
                             <p className="text-xs text-slate-300 font-semibold">{t('tagManager')}</p>
-                            <span className="text-[10px] text-slate-500">{t('tagCount', { count: historyTagStats.length })}</span>
+                            <select
+                              value={managerScope}
+                              onChange={(e) => setManagerScope(e.target.value as 'filtered' | 'all')}
+                              className="px-2 py-1 rounded-lg bg-slate-950 border border-slate-700 text-[10px] text-slate-300"
+                            >
+                              <option value="filtered">{t('managerScopeFiltered')}</option>
+                              <option value="all">{t('managerScopeAll')}</option>
+                            </select>
                           </div>
-                          {historyTagStats.length === 0 ? (
+                          <p className="mb-2 text-[10px] text-slate-500">{t('tagCount', { count: managerTagStats.length })} · {t('managerScopeItemCount', { count: managerItems.length })}</p>
+                          {managerTagStats.length === 0 ? (
                             <p className="text-xs text-slate-500">{t('none')}</p>
                           ) : (
                             <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                              {historyTagStats.map(({ tag, count }) => (
-                                <button
+                              {managerTagStats.map(({ tag, count }) => (
+                                <span
                                   key={tag}
-                                  onClick={() => toggleHistoryTagFilter(tag)}
                                   data-testid={`tag-chip-${tag}`}
-                                  className={`px-2 py-1 rounded-full border text-[10px] transition ${historyTagFilter === tag ? 'bg-purple-500/20 border-purple-500/40 text-purple-300' : 'bg-slate-800/50 border-slate-700/50 text-slate-300 hover:text-purple-300'}`}
+                                  className={`inline-flex items-center gap-1 rounded-full border text-[10px] transition ${historyTagFilter === tag ? 'bg-purple-500/20 border-purple-500/40 text-purple-300' : 'bg-slate-800/50 border-slate-700/50 text-slate-300'}`}
                                 >
-                                  #{tag} · {count}
-                                </button>
+                                  <button onClick={() => toggleHistoryTagFilter(tag)} className="px-2 py-1 hover:text-purple-300">
+                                    #{tag} · {count}
+                                  </button>
+                                  <button
+                                    onClick={() => removeTagEverywhere(tag)}
+                                    disabled={batchTagsLoading}
+                                    className="pr-2 text-red-300 hover:text-red-200 disabled:opacity-50"
+                                    title={t('removeTag')}
+                                  >
+                                    -
+                                  </button>
+                                </span>
                               ))}
                             </div>
                           )}
@@ -3821,9 +3929,9 @@ export default function App() {
                               className={`w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs transition ${historyGroupFilter === '__ungrouped' ? 'bg-emerald-500/15 text-emerald-300' : 'bg-slate-800/45 text-slate-300 hover:text-emerald-300'}`}
                             >
                               <span>{t('ungrouped')}</span>
-                              <span>{historyGroupStats.ungrouped}</span>
+                              <span>{managerGroupStats.ungrouped}</span>
                             </button>
-                            {historyGroupStats.groups.map(({ group, count }) => (
+                            {managerGroupStats.groups.map(({ group, count }) => (
                               <div key={group} className={`rounded-lg px-2 py-1.5 ${historyGroupFilter === group ? 'bg-emerald-500/15' : 'bg-slate-800/45'}`}>
                                 {renamingGroupName === group ? (
                                   <div className="flex items-center gap-1">
@@ -3843,6 +3951,7 @@ export default function App() {
                                     </button>
                                     <span className="text-[10px] text-emerald-300">{count}</span>
                                     <button onClick={() => startRenameGroup(group)} className="text-[10px] text-slate-500 hover:text-orange">{t('rename')}</button>
+                                    <button onClick={() => clearGroupEverywhere(group)} disabled={groupRenameLoading} className="text-[10px] text-red-300 hover:text-red-200 disabled:opacity-50">{t('clearGroup')}</button>
                                   </div>
                                 )}
                               </div>
@@ -4026,7 +4135,7 @@ export default function App() {
                     <div key={item.taskId} className={`group border-b border-slate-700/20 last:border-0 transition ${selectedTasks.has(item.taskId) ? 'bg-orange/10' : ''}`}>
                     <div className="flex items-center gap-2 px-3 py-2 hover:bg-slate-900/60 transition">
                       <input type="checkbox" checked={selectedTasks.has(item.taskId)} onChange={() => { const s = new Set(selectedTasks); selectedTasks.has(item.taskId) ? s.delete(item.taskId) : s.add(item.taskId); setSelectedTasks(s) }} className="w-3.5 h-3.5 rounded-full border-slate-600 shrink-0" />
-                      {item.thumbnailUrl ? <button onClick={() => openSavedFile(item)} className="relative shrink-0 group"><img src={`${BASE_URL}${item.thumbnailUrl}`} alt="" className="w-12 h-9 object-cover rounded-lg" /><div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 transition"><Play className="w-4 h-4 text-white" /></div></button> : <div className="w-12 h-9 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0"><Video className="w-4 h-4 text-slate-500" /></div>}
+                      {item.thumbnailUrl ? <button onClick={() => openSavedFile(item)} className="relative shrink-0 group"><img src={resolveAssetUrl(item.thumbnailUrl)} alt="" className="w-12 h-9 object-cover rounded-lg" /><div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 transition"><Play className="w-4 h-4 text-white" /></div></button> : <div className="w-12 h-9 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0"><Video className="w-4 h-4 text-slate-500" /></div>}
                       <div className="flex-1 min-w-0 overflow-hidden">
                         <div className="overflow-hidden leading-5" title={item.title || t('untitled')}>
                           <p className={`text-xs text-slate-300 font-medium whitespace-nowrap ${(item.title || '').length > 20 ? 'animate-marquee' : 'truncate'}`}>{item.title || t('untitled')}</p>
