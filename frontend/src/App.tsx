@@ -3966,7 +3966,7 @@ export default function App() {
                   <div className="flex gap-2 items-center flex-wrap">
                     {filteredHistory.length > 0 && <input type="checkbox" checked={selectedTasks.size === filteredHistory.length} onChange={toggleSelectAll} className={`w-3.5 h-3.5 rounded-full ${isDark ? 'border-slate-600' : 'border-light-border'}`} />}
                     {selectedTasks.size > 0 && (
-                        <div className="flex items-center gap-1.5 shrink-0">
+                      <div className="flex flex-wrap items-center gap-1.5 min-w-0 w-full sm:w-auto">
                         <span className="text-[10px] text-slate-400">{t('selectedCount', { count: selectedTasks.size })}</span>
                         <select
                           value={industryTemplate}
@@ -3993,7 +3993,7 @@ export default function App() {
                           </button>
                         )}
                         {history.some(item => selectedTasks.has(item.taskId) && getHistoryAnalysis(item)) && (
-                          <div className="flex items-center gap-1">
+                          <div className="flex flex-wrap items-center gap-1 min-w-0">
                             <span className="text-[10px] text-slate-500">{t('batchRewritePacks')}</span>
                             <select
                               value={rewriteStyle}
@@ -4117,7 +4117,7 @@ export default function App() {
                   {popularHistoryTags.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 items-center">
                       <span className="text-[10px] text-slate-500">{t('popularTags')}</span>
-                      {popularHistoryTags.slice(0, 8).map(({ tag, count }) => (
+                      {popularHistoryTags.slice(0, 5).map(({ tag, count }) => (
                         <button
                           key={tag}
                           onClick={() => toggleHistoryTagFilter(tag)}
@@ -4309,7 +4309,7 @@ export default function App() {
                 <div className="mt-3">
                   <p className="text-[10px] text-slate-500 mb-1">{t('quickAddPopularTags')}</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {popularHistoryTags.map(({ tag, count }) => (
+                    {popularHistoryTags.slice(0, 5).map(({ tag, count }) => (
                       <button
                         key={tag}
                         onClick={() => setBatchTagsText(prev => appendTagsToInput(prev, [tag]))}
@@ -4383,7 +4383,7 @@ export default function App() {
                 <div className="mb-3">
                   <p className="text-[10px] text-slate-500 mb-1">{t('quickAddPopularTags')}</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {popularHistoryTags.map(({ tag, count }) => (
+                    {popularHistoryTags.slice(0, 5).map(({ tag, count }) => (
                       <button
                         key={tag}
                         onClick={() => setMaterialTagsText(prev => appendTagsToInput(prev, [tag]))}
