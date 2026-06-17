@@ -615,6 +615,7 @@ export default function App() {
   const [newLexiconTerm, setNewLexiconTerm] = useState('')
   const [lexiconLoading, setLexiconLoading] = useState(false)
   const [lexiconMessage, setLexiconMessage] = useState('')
+  const historySelectAllRef = useRef<HTMLInputElement | null>(null)
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedHistorySearch(historySearch.trim()), 300)
@@ -683,6 +684,11 @@ export default function App() {
     }
     return true
   })
+  const selectedFilteredCount = filteredHistory.filter(item => selectedTasks.has(item.taskId)).length
+  useEffect(() => {
+    if (!historySelectAllRef.current) return
+    historySelectAllRef.current.indeterminate = selectedFilteredCount > 0 && selectedFilteredCount < filteredHistory.length
+  }, [selectedFilteredCount, filteredHistory.length])
   const managerItems = managerScope === 'filtered' ? filteredHistory : history
   const managerTagStats = (() => {
     const counts = new Map<string, number>()
@@ -2300,9 +2306,13 @@ export default function App() {
     } catch {}
   }
   const toggleSelectAll = () => {
-    selectedTasks.size === filteredHistory.length
-      ? setSelectedTasks(new Set())
-      : setSelectedTasks(new Set(filteredHistory.map(item => item.taskId)))
+    if (selectedFilteredCount === filteredHistory.length) {
+      const next = new Set(selectedTasks)
+      filteredHistory.forEach(item => next.delete(item.taskId))
+      setSelectedTasks(next)
+      return
+    }
+    setSelectedTasks(new Set([...selectedTasks, ...filteredHistory.map(item => item.taskId)]))
   }
   const selectPackTodoItems = () => {
     const packTodoIds = filteredHistory
@@ -3963,8 +3973,19 @@ export default function App() {
                   </div>
                 )}
                 <div className={`p-3 border-b space-y-2 ${isDark ? 'border-slate-700/30' : 'border-light-border'}`}>
-                  <div className="flex gap-2 items-center">
-                    {filteredHistory.length > 0 && <input type="checkbox" checked={selectedTasks.size === filteredHistory.length} onChange={toggleSelectAll} className={`w-3.5 h-3.5 shrink-0 rounded-full ${isDark ? 'border-slate-600' : 'border-light-border'}`} />}
+                  <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] gap-2 items-center">
+                    {filteredHistory.length > 0 ? (
+                      <label className="shrink-0 inline-flex items-center gap-1" title={t('selectedCount', { count: selectedTasks.size })}>
+                        <input
+                          ref={historySelectAllRef}
+                          type="checkbox"
+                          checked={filteredHistory.length > 0 && selectedFilteredCount === filteredHistory.length}
+                          onChange={toggleSelectAll}
+                          className={`w-3.5 h-3.5 rounded-full accent-orange-500 ${isDark ? 'border-slate-600' : 'border-light-border'}`}
+                        />
+                        {selectedTasks.size > 0 && <span className="text-[10px] text-orange leading-none">{selectedTasks.size}</span>}
+                      </label>
+                    ) : <span />}
                     <div className="min-w-0 flex-1 relative">
                       <input type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} data-testid="history-search-input" placeholder={t('searchPlaceholder')} className={`w-full pl-8 pr-3 py-2 border rounded-lg text-sm placeholder:text-slate-300 ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`} />
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
