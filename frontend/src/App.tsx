@@ -2298,12 +2298,18 @@ export default function App() {
   }
   const deleteSelected = async () => {
     if (selectedTasks.size === 0) return
-    if (!confirm(t('deleteConfirm', { count: selectedTasks.size }))) return
+    if (!confirm(t('deleteSelectedHistoryConfirm', { count: selectedTasks.size }))) return
     try {
       await Promise.all([...selectedTasks].map(id => axios.delete(`${API}/tasks/${id}`, { headers: getAuthHeaders() })))
+      const deletedIds = new Set(selectedTasks)
+      setHistory(prev => prev.filter(item => !deletedIds.has(item.taskId)))
+      if (task?.taskId && deletedIds.has(task.taskId)) setTask(null)
       setSelectedTasks(new Set())
       fetchHistory()
-    } catch {}
+    } catch (e: any) {
+      setError(e.response?.data?.message || t('deleteSelectedHistoryFailed'))
+      fetchHistory()
+    }
   }
   const toggleSelectAll = () => {
     if (selectedFilteredCount === filteredHistory.length) {
@@ -4002,6 +4008,7 @@ export default function App() {
                   {selectedTasks.size > 0 && (
                     <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                       <span className="text-[10px] text-slate-400">{t('selectedCount', { count: selectedTasks.size })}</span>
+                      <button onClick={deleteSelected} className="px-2 py-1 bg-red-500/20 text-red-300 border border-red-500/50 rounded-lg text-[10px]">{t('deleteSelectedHistory')}</button>
                       <select
                         value={industryTemplate}
                         onChange={(e) => setIndustryTemplate(e.target.value)}
@@ -4074,7 +4081,6 @@ export default function App() {
                       <button onClick={exportSelectedHistoryMetadata} className="px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-lg text-[10px]">{t('exportMaterialCsv')}</button>
                       <button onClick={() => exportSelectedCommerceCards('pack')} className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px]">PACK</button>
                       <button onClick={() => exportSelectedCommerceCards('packCsv')} className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px]">PACK CSV</button>
-                      <button onClick={deleteSelected} className="px-2 py-1 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg text-[10px]">{t('clearAll')}</button>
                     </div>
                   )}
                   <div className="flex flex-wrap gap-2 items-center">
