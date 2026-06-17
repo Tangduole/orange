@@ -318,9 +318,7 @@ export default function App() {
   const [pendingDownload, setPendingDownload] = useState<(() => void) | null>(null)
   const [downloading, setDownloading] = useState(false)
   const [error, setError] = useState('')
-  const [showHistory, setShowHistory] = useState(() => (
-    typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
-  ))
+  const [showHistory, setShowHistory] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
   const [batchMode, setBatchMode] = useState(false)
   const [quality, setQuality] = useState('')
@@ -2469,8 +2467,8 @@ export default function App() {
 
       <div className="relative">
         {/* Header */}
-        <header data-testid="app-header" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 sm:pt-12 lg:pt-6 pb-5 sm:pb-8 text-center">
-          <div className={`flex items-center gap-3 mb-4 lg:mb-3 lg:rounded-3xl lg:border lg:px-5 lg:py-4 lg:shadow-xl ${isDark ? 'lg:bg-dark-surface/85 lg:border-slate-700/50' : 'lg:bg-light-surface/90 lg:border-light-border'}`}>
+        <header data-testid="app-header" className="max-w-2xl mx-auto px-6 pt-12 sm:pt-20 pb-6 sm:pb-10 text-center">
+          <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden shadow-lg shadow-orange/25 flex-shrink-0">
               <img src="/logo.png" alt="Orange" className="w-full h-full object-cover" />
             </div>
@@ -2580,9 +2578,7 @@ export default function App() {
         </header>
 
         {/* Main Card */}
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-10">
-          <div className="lg:grid lg:grid-cols-[minmax(340px,440px)_minmax(0,1fr)] xl:grid-cols-[minmax(380px,460px)_minmax(0,1fr)] lg:items-start lg:gap-6 xl:gap-8">
-            <section className="lg:sticky lg:top-6 lg:self-start">
+        <main className="max-w-xl mx-auto px-4 sm:px-6 pb-10">
           <div className={`rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl ${isDark ? 'bg-dark-surface' : 'bg-light-surface'}`}>
 
             {/* 单G/批量 Tab */}
@@ -3842,11 +3838,8 @@ export default function App() {
             </div>
           )}
 
-            </section>
-
-            <section className="mt-5 lg:mt-0 min-w-0">
           {/* // Download History - Enhanced */}
-          <div>
+          <div className="mt-5">
             <button onClick={() => setShowHistory(!showHistory)}
               data-testid="history-toggle"
               className={`w-full flex items-center justify-between px-5 py-3 rounded-2xl border text-sm transition ${isDark ? 'bg-slate-900/60 border-slate-700/60 text-slate-300 hover:text-slate-300' : 'bg-light-surface border-light-border text-light-textSecondary hover:text-light-text'}`}>
@@ -4164,7 +4157,7 @@ export default function App() {
                     </div>
                   )}
                 </div>
-                <div className="max-h-60 lg:max-h-[calc(100vh-260px)] overflow-y-auto">
+                <div className="max-h-60 overflow-y-auto">
                   {filteredHistory.length === 0 ? <p className="py-8 text-center text-sm text-slate-500">{historySearch || historyFilter !== 'all' || historyPlatformFilter !== 'all' || historyGroupFilter !== 'all' || historyTagFilter !== 'all' || historyAiOnly || historyPackOnly || historyPackTodoOnly ? t('noResults') : t('noHistory')}</p> : filteredHistory.map(item => (
                     <div key={item.taskId} className={`group border-b border-slate-700/20 last:border-0 transition ${selectedTasks.has(item.taskId) ? 'bg-orange/10' : ''}`}>
                     <div className="flex items-center gap-2 px-3 py-2 hover:bg-slate-900/60 transition">
@@ -4307,8 +4300,6 @@ export default function App() {
                 </div>
               </div>
             )}
-          </div>
-            </section>
           </div>
         </main>
 
