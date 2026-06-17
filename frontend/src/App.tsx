@@ -3963,87 +3963,9 @@ export default function App() {
                   </div>
                 )}
                 <div className={`p-3 border-b space-y-2 ${isDark ? 'border-slate-700/30' : 'border-light-border'}`}>
-                  <div className="flex gap-2 items-center flex-wrap">
-                    {filteredHistory.length > 0 && <input type="checkbox" checked={selectedTasks.size === filteredHistory.length} onChange={toggleSelectAll} className={`w-3.5 h-3.5 rounded-full ${isDark ? 'border-slate-600' : 'border-light-border'}`} />}
-                    {selectedTasks.size > 0 && (
-                      <div className="flex flex-wrap items-center gap-1.5 min-w-0 w-full sm:w-auto">
-                        <span className="text-[10px] text-slate-400">{t('selectedCount', { count: selectedTasks.size })}</span>
-                        <select
-                          value={industryTemplate}
-                          onChange={(e) => setIndustryTemplate(e.target.value)}
-                          className="px-2 py-1 bg-slate-900/50 text-slate-300 border border-slate-700/50 rounded-lg text-[10px]"
-                        >
-                          {INDUSTRY_TEMPLATES.map(item => (
-                            <option key={item.id} value={item.id}>{t(item.labelKey)}</option>
-                          ))}
-                        </select>
-                        {history.some(item => selectedTasks.has(item.taskId) && item.downloadUrl) && (
-                          <button onClick={downloadSelectedHistoryFiles} className="px-2 py-1 bg-green-500/15 text-green-300 border border-green-500/30 rounded-lg text-[10px]">{t('saveSelectedFiles')}</button>
-                        )}
-                        <button onClick={() => openBatchTagEditor('add')} data-testid="batch-tags-button" className="px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-lg text-[10px]">{t('batchTags')}</button>
-                        <button onClick={() => openBatchTagEditor('remove')} className="px-2 py-1 bg-red-500/15 text-red-300 border border-red-500/30 rounded-lg text-[10px]">{t('batchRemoveTags')}</button>
-                        <button onClick={openBatchGroupEditor} data-testid="batch-group-button" className="px-2 py-1 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px]">{t('batchGroup')}</button>
-                        {history.some(item => selectedTasks.has(item.taskId) && item.status === 'completed' && !getHistoryAnalysis(item)) && (
-                          <button
-                            onClick={generateSelectedCommerceCards}
-                            disabled={batchCardGenerating}
-                            className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px] disabled:opacity-60"
-                          >
-                            {batchCardGenerating ? t('generatingAiCards', batchCardProgress) : t('batchGenerateAiCards')}
-                          </button>
-                        )}
-                        {history.some(item => selectedTasks.has(item.taskId) && getHistoryAnalysis(item)) && (
-                          <div className="flex flex-wrap items-center gap-1 min-w-0">
-                            <span className="text-[10px] text-slate-500">{t('batchRewritePacks')}</span>
-                            <select
-                              value={rewriteStyle}
-                              onChange={(e) => setRewriteStyle(e.target.value)}
-                              disabled={!!batchRewriteLoadingKey}
-                              className="px-2 py-1 bg-slate-900/50 text-slate-300 border border-slate-700/50 rounded-lg text-[10px] disabled:opacity-60"
-                            >
-                              {REWRITE_STYLES.map(style => (
-                                <option key={style.id} value={style.id}>{t(style.labelKey)}</option>
-                              ))}
-                            </select>
-                            <button
-                              onClick={() => generateSelectedRewritePacks('all', rewriteStyle)}
-                              disabled={!!batchRewriteLoadingKey}
-                              className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px] disabled:opacity-60"
-                            >
-                              {batchRewriteLoadingKey === `all:${rewriteStyle}` ? t('generatingAiCards', batchCardProgress) : t('allPlatforms')}
-                            </button>
-                            <button
-                              onClick={() => generateSelectedRewritePacks('all', 'all')}
-                              disabled={!!batchRewriteLoadingKey}
-                              className="px-2 py-1 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px] disabled:opacity-60"
-                            >
-                              {batchRewriteLoadingKey === 'all:all' ? t('generatingAiCards', batchCardProgress) : t('completePublishPacks')}
-                            </button>
-                            {REWRITE_PLATFORMS.map(platform => {
-                              const key = `${platform.id}:${rewriteStyle}`
-                              return (
-                                <button
-                                  key={platform.id}
-                                  onClick={() => generateSelectedRewritePacks(platform.id, rewriteStyle)}
-                                  disabled={!!batchRewriteLoadingKey}
-                                  className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px] disabled:opacity-60"
-                                >
-                                  {batchRewriteLoadingKey === key ? t('generatingAiCards', batchCardProgress) : platform.label}
-                                </button>
-                              )
-                            })}
-                          </div>
-                        )}
-                        <button onClick={() => exportSelectedCommerceCards('md')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">MD</button>
-                        <button onClick={() => exportSelectedCommerceCards('txt')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">TXT</button>
-                        <button onClick={() => exportSelectedCommerceCards('csv')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">CSV</button>
-                        <button onClick={exportSelectedHistoryMetadata} className="px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-lg text-[10px]">{t('exportMaterialCsv')}</button>
-                        <button onClick={() => exportSelectedCommerceCards('pack')} className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px]">PACK</button>
-                        <button onClick={() => exportSelectedCommerceCards('packCsv')} className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px]">PACK CSV</button>
-                        <button onClick={deleteSelected} className="px-2 py-1 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg text-[10px]">{t('clearAll')}</button>
-                      </div>
-                    )}
-                    <div className="flex-1 relative">
+                  <div className="flex gap-2 items-center">
+                    {filteredHistory.length > 0 && <input type="checkbox" checked={selectedTasks.size === filteredHistory.length} onChange={toggleSelectAll} className={`w-3.5 h-3.5 shrink-0 rounded-full ${isDark ? 'border-slate-600' : 'border-light-border'}`} />}
+                    <div className="min-w-0 flex-1 relative">
                       <input type="text" value={historySearch} onChange={(e) => setHistorySearch(e.target.value)} data-testid="history-search-input" placeholder={t('searchPlaceholder')} className={`w-full pl-8 pr-3 py-2 border rounded-lg text-sm placeholder:text-slate-300 ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`} />
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
                     </div>
@@ -4056,6 +3978,84 @@ export default function App() {
                       {t('exportMaterialZip')}
                     </button>
                   </div>
+                  {selectedTasks.size > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                      <span className="text-[10px] text-slate-400">{t('selectedCount', { count: selectedTasks.size })}</span>
+                      <select
+                        value={industryTemplate}
+                        onChange={(e) => setIndustryTemplate(e.target.value)}
+                        className="px-2 py-1 bg-slate-900/50 text-slate-300 border border-slate-700/50 rounded-lg text-[10px]"
+                      >
+                        {INDUSTRY_TEMPLATES.map(item => (
+                          <option key={item.id} value={item.id}>{t(item.labelKey)}</option>
+                        ))}
+                      </select>
+                      {history.some(item => selectedTasks.has(item.taskId) && item.downloadUrl) && (
+                        <button onClick={downloadSelectedHistoryFiles} className="px-2 py-1 bg-green-500/15 text-green-300 border border-green-500/30 rounded-lg text-[10px]">{t('saveSelectedFiles')}</button>
+                      )}
+                      <button onClick={() => openBatchTagEditor('add')} data-testid="batch-tags-button" className="px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-lg text-[10px]">{t('batchTags')}</button>
+                      <button onClick={() => openBatchTagEditor('remove')} className="px-2 py-1 bg-red-500/15 text-red-300 border border-red-500/30 rounded-lg text-[10px]">{t('batchRemoveTags')}</button>
+                      <button onClick={openBatchGroupEditor} data-testid="batch-group-button" className="px-2 py-1 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px]">{t('batchGroup')}</button>
+                      {history.some(item => selectedTasks.has(item.taskId) && item.status === 'completed' && !getHistoryAnalysis(item)) && (
+                        <button
+                          onClick={generateSelectedCommerceCards}
+                          disabled={batchCardGenerating}
+                          className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px] disabled:opacity-60"
+                        >
+                          {batchCardGenerating ? t('generatingAiCards', batchCardProgress) : t('batchGenerateAiCards')}
+                        </button>
+                      )}
+                      {history.some(item => selectedTasks.has(item.taskId) && getHistoryAnalysis(item)) && (
+                        <div className="flex flex-wrap items-center gap-1 min-w-0">
+                          <span className="text-[10px] text-slate-500">{t('batchRewritePacks')}</span>
+                          <select
+                            value={rewriteStyle}
+                            onChange={(e) => setRewriteStyle(e.target.value)}
+                            disabled={!!batchRewriteLoadingKey}
+                            className="px-2 py-1 bg-slate-900/50 text-slate-300 border border-slate-700/50 rounded-lg text-[10px] disabled:opacity-60"
+                          >
+                            {REWRITE_STYLES.map(style => (
+                              <option key={style.id} value={style.id}>{t(style.labelKey)}</option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => generateSelectedRewritePacks('all', rewriteStyle)}
+                            disabled={!!batchRewriteLoadingKey}
+                            className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px] disabled:opacity-60"
+                          >
+                            {batchRewriteLoadingKey === `all:${rewriteStyle}` ? t('generatingAiCards', batchCardProgress) : t('allPlatforms')}
+                          </button>
+                          <button
+                            onClick={() => generateSelectedRewritePacks('all', 'all')}
+                            disabled={!!batchRewriteLoadingKey}
+                            className="px-2 py-1 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px] disabled:opacity-60"
+                          >
+                            {batchRewriteLoadingKey === 'all:all' ? t('generatingAiCards', batchCardProgress) : t('completePublishPacks')}
+                          </button>
+                          {REWRITE_PLATFORMS.map(platform => {
+                            const key = `${platform.id}:${rewriteStyle}`
+                            return (
+                              <button
+                                key={platform.id}
+                                onClick={() => generateSelectedRewritePacks(platform.id, rewriteStyle)}
+                                disabled={!!batchRewriteLoadingKey}
+                                className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px] disabled:opacity-60"
+                              >
+                                {batchRewriteLoadingKey === key ? t('generatingAiCards', batchCardProgress) : platform.label}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+                      <button onClick={() => exportSelectedCommerceCards('md')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">MD</button>
+                      <button onClick={() => exportSelectedCommerceCards('txt')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">TXT</button>
+                      <button onClick={() => exportSelectedCommerceCards('csv')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">CSV</button>
+                      <button onClick={exportSelectedHistoryMetadata} className="px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-lg text-[10px]">{t('exportMaterialCsv')}</button>
+                      <button onClick={() => exportSelectedCommerceCards('pack')} className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px]">PACK</button>
+                      <button onClick={() => exportSelectedCommerceCards('packCsv')} className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px]">PACK CSV</button>
+                      <button onClick={deleteSelected} className="px-2 py-1 bg-red-500/20 text-red-400 border border-red-500/50 rounded-lg text-[10px]">{t('clearAll')}</button>
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-2 items-center">
                     <select value={historyFilter} onChange={(e) => setHistoryFilter(e.target.value as 'all' | 'completed' | 'error' | 'favorites')} className={`px-2 py-1.5 border rounded-lg text-xs ${isDark ? 'bg-slate-800/50 border-slate-700/50 text-white' : 'bg-light-bg border-light-border text-light-text'}`}>
                       <option value="all">{t('filterAll')}</option>
