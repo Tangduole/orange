@@ -1,3 +1,25 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <image href="./icon-512.png" width="512" height="512"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Orange Creator">
+  <defs>
+    <radialGradient id="orange" cx="34%" cy="30%" r="72%">
+      <stop offset="0" stop-color="#ffd76a"/>
+      <stop offset="0.55" stop-color="#f97316"/>
+      <stop offset="1" stop-color="#ea580c"/>
+    </radialGradient>
+    <linearGradient id="leaf" x1="290" y1="82" x2="424" y2="174" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#bdf341"/>
+      <stop offset="1" stop-color="#15803d"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="108" fill="#fffdf8"/>
+  <circle cx="252" cy="292" r="166" fill="url(#orange)"/>
+  <path d="M230 395c48 22 119 7 153-42-20 65-93 94-153 42Z" fill="#fb923c" opacity=".45"/>
+  <path d="M352 88c58 0 102 18 145 5-19 65-79 102-143 78-39-14-72-38-113-20 27-39 64-63 111-63Z" fill="url(#leaf)"/>
+  <path d="M281 124c52 9 102 14 159-17-38 43-88 53-159 17Z" fill="#14532d" opacity=".5"/>
+  <path d="M256 128c-12-31 14-69 34-67 21 2 6 27-6 45-12 17-12 34-28 22Z" fill="#9a3412"/>
+  <path d="M268 77c-13 22-14 43-11 56-18-15-1-55 16-70 9-7 13 0-5 14Z" fill="#f97316" opacity=".8"/>
+  <ellipse cx="176" cy="184" rx="26" ry="17" transform="rotate(-32 176 184)" fill="#fff7cc"/>
+  <circle cx="139" cy="215" r="13" fill="#fff7cc"/>
+  <circle cx="196" cy="214" r="14" fill="#fff7cc"/>
+  <circle cx="160" cy="165" r="10" fill="#fff7cc"/>
+  <circle cx="138" cy="239" r="8" fill="#fff7cc"/>
 </svg>
