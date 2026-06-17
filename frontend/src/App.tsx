@@ -2467,7 +2467,7 @@ export default function App() {
 
       <div className="relative">
         {/* Header */}
-        <header data-testid="app-header" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 sm:pt-12 lg:pt-14 pb-5 sm:pb-8 text-center">
+        <header data-testid="app-header" className="max-w-2xl mx-auto px-6 pt-12 sm:pt-20 pb-6 sm:pb-10 text-center">
           <div className="flex items-center gap-3 mb-4">
             <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full overflow-hidden shadow-lg shadow-orange/25 flex-shrink-0">
               <img src="/logo.png" alt="Orange" className="w-full h-full object-cover" />
@@ -2578,9 +2578,7 @@ export default function App() {
         </header>
 
         {/* Main Card */}
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-10">
-          <div className="xl:grid xl:grid-cols-[minmax(380px,460px)_minmax(0,1fr)] xl:items-start xl:gap-6 2xl:gap-8">
-            <section className="xl:sticky xl:top-6 xl:self-start">
+        <main className="max-w-xl mx-auto px-4 sm:px-6 pb-10">
           <div className={`rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl ${isDark ? 'bg-dark-surface' : 'bg-light-surface'}`}>
 
             {/* 单G/批量 Tab */}
@@ -3840,11 +3838,8 @@ export default function App() {
             </div>
           )}
 
-            </section>
-
-            <section className="mt-5 xl:mt-0 min-w-0">
           {/* // Download History - Enhanced */}
-          <div>
+          <div className="mt-5">
             <button onClick={() => setShowHistory(!showHistory)}
               data-testid="history-toggle"
               className={`w-full flex items-center justify-between px-5 py-3 rounded-2xl border text-sm transition ${isDark ? 'bg-slate-900/60 border-slate-700/60 text-slate-300 hover:text-slate-300' : 'bg-light-surface border-light-border text-light-textSecondary hover:text-light-text'}`}>
@@ -4305,8 +4300,6 @@ export default function App() {
                 </div>
               </div>
             )}
-          </div>
-            </section>
           </div>
         </main>
 
