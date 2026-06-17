@@ -14,14 +14,6 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').then((reg) => {
-      reg.update().catch(() => { /* offline ok */ })
-      if (reg.waiting) {
-        reg.waiting.postMessage({ type: 'SKIP_WAITING' })
-      }
-      if (navigator.serviceWorker.controller) {
-        navigator.serviceWorker.controller.postMessage({ type: 'CLEAR_ORANGE_CACHES' })
-      }
-
       // 周期性主动检查更新（默认浏览器只在导航时检查）
       const checkInterval = setInterval(() => {
         reg.update().catch(() => { /* offline ok */ })

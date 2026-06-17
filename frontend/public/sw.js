@@ -8,10 +8,12 @@
  *   - 非 GET / 跨源请求       : 不拦截，让浏览器原生处理
  */
 
-const VERSION = 'v4-2026-06-mobile-cache-reset';
+const VERSION = 'v3-2026-04';
 const STATIC_CACHE = 'orange-static-' + VERSION;
 const RUNTIME_CACHE = 'orange-runtime-' + VERSION;
 const PRECACHE_URLS = [
+  '/',
+  '/index.html',
   '/manifest.json',
   '/icon.svg',
   '/icon-192.png',
@@ -37,7 +39,7 @@ self.addEventListener('activate', (event) => {
     const keys = await caches.keys();
     await Promise.all(
       keys
-        .filter((k) => k.startsWith('orange-') && k !== STATIC_CACHE && k !== RUNTIME_CACHE)
+        .filter((k) => k !== STATIC_CACHE && k !== RUNTIME_CACHE)
         .map((k) => caches.delete(k)),
     );
     await self.clients.claim();
@@ -47,12 +49,6 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
-  }
-  if (event.data && event.data.type === 'CLEAR_ORANGE_CACHES') {
-    event.waitUntil((async () => {
-      const keys = await caches.keys();
-      await Promise.all(keys.filter((k) => k.startsWith('orange-')).map((k) => caches.delete(k)));
-    })());
   }
 });
 
@@ -77,31 +73,11 @@ self.addEventListener('fetch', (event) => {
       try {
         const preload = await event.preloadResponse;
         if (preload) return preload;
-        const fresh = await fetch(request, { cache: 'no-store' });
-        const cache = await caches.open(STATIC_CACHE);
-        cache.put('/index.html', fresh.clone()).catch(() => {});
+        const fresh = await fetch(request);
         return fresh;
       } catch (_) {
         const cached = await caches.match('/index.html');
         return cached || new Response('Offline', { status: 503, statusText: 'Offline' });
-      }
-    })());
-    return;
-  }
-
-  // App bundles must prefer the network so a bad mobile build cannot stay stuck in cache.
-  if (url.pathname.startsWith('/assets/') && /\.(js|css)$/i.test(url.pathname)) {
-    event.respondWith((async () => {
-      const cache = await caches.open(RUNTIME_CACHE);
-      try {
-        const fresh = await fetch(request, { cache: 'no-store' });
-        if (fresh && fresh.ok && fresh.type === 'basic') {
-          cache.put(request, fresh.clone()).catch(() => {});
-        }
-        return fresh;
-      } catch (_) {
-        const cached = await cache.match(request);
-        return cached || new Response('Offline asset', { status: 503, statusText: 'Offline' });
       }
     })());
     return;
