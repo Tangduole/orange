@@ -601,9 +601,9 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
   }
 
   // 3. play_addr 兜底
-  if (video.play_addr?.url_list?.[0]) {
+  if (video.play_addr?.url_list?.length > 0) {
     candidates.push({
-      url: video.play_addr.url_list[0],
+      url: video.play_addr.url_list[video.play_addr.url_list.length - 1], // 最后一个不过期
       width: video.play_addr.width || 0,
       height: video.play_addr.height || 0,
       codec: 'h264',
