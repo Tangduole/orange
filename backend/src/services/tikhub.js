@@ -1531,12 +1531,10 @@ function parseWechatExportId(url) {
 /**
  * 获取视频号视频信息
  */
-async function getWechatVideoInfo(videoId) {
-  // 智能选择参数: 纯数字用id, 否则用exportId
-  const isNumeric = /^\d+$/.test(videoId);
-  const param = isNumeric ? `id=${encodeURIComponent(videoId)}` : `exportId=${encodeURIComponent(videoId)}`;
-  const endpoint = `/api/v1/wechat_channels/fetch_video_detail?${param}`;
-  logger.info(`[WeChat] Fetching video info with ${isNumeric ? 'id' : 'exportId'}: ${videoId}`);
+async function getWechatVideoInfo(url) {
+  // 使用 fetch_video_by_share_url 端点（exportId 会过期，直接用完整 URL 更可靠）
+  const endpoint = `/api/v1/wechat_channels/fetch_video_by_share_url?share_url=${encodeURIComponent(url)}`;
+  logger.info(`[WeChat] Fetching video info via share_url: ${url.substring(0, 60)}...`);
   const data = await tikhubRequest(endpoint, API_KEY_WECHAT);
   return data;
 }
@@ -1545,26 +1543,43 @@ async function getWechatVideoInfo(videoId) {
  * 下载并解密微信视频号
  */
 async function downloadWechat(url, taskId, onProgress) {
-  const videoId = parseWechatExportId(url);
-  if (!videoId) throw new Error('无法解析视频号链接，请确认链接格式正确');
-
   if (onProgress) onProgress(5, 0, 0);
 
-  // 获取视频信息
+  // 获取视频信息 (使用新端点 fetch_video_by_share_url)
   let info;
   try {
-    info = await getWechatVideoInfo(videoId);
+    info = await getWechatVideoInfo(url);
   } catch (e) {
     if (e.message.includes('402')) {
       throw new Error('视频号API余额不足，请联系管理员充值');
     }
     throw new Error('视频号链接已过期或无效，请重新获取分享链接');
   }
-  const data = info?.data || info;
-  const obj = data?.object_desc || data?.object || {};
+
+  const feed = info?.data?.data?.feedInfo || info?.data?.feedInfo || info?.feedInfo || {};
+  const description = feed.description || '微信视频号';
+
+  // 从动态 exportId 获取真实视频下载链接
+  const dynamicExportId = info?.data?.data?.sceneInfo?.dynamicExportId
+    || info?.data?.sceneInfo?.dynamicExportId
+    || info?.sceneInfo?.dynamicExportId;
+
+  if (!dynamicExportId) {
+    throw new Error('未能获取视频下载链接，请确认链接有效');
+  }
+
+  logger.info(`[WeChat] Got dynamicExportId: ${dynamicExportId.substring(0, 40)}...`);
+
+  // 用动态 exportId 调用 fetch_video_detail 获取真实视频 URL
+  const detailData = await tikhubRequest(
+    `/api/v1/wechat_channels/fetch_video_detail?exportId=${encodeURIComponent(dynamicExportId)}`,
+    API_KEY_WECHAT
+  );
+
+  const detail = detailData?.data || detailData || {};
+  const obj = detail?.object_desc || detail?.object || {};
   const media = Array.isArray(obj.media) ? obj.media[0] : obj.media || {};
 
-  const description = data?.description || obj?.description || '微信视频号';
   const videoUrl = (media.url || '') + (media.url_token || '');
   const decodeKey = media.decode_key;
 
