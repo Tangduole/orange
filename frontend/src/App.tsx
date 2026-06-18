@@ -11,7 +11,7 @@ import {
   Download, Link2, CheckCircle2, XCircle, Loader2,
   Video, FileText, Image as ImageIcon, Mic, Languages,
   Trash2, ChevronDown, ChevronUp, Clock, Copy, Check,
-  X, Zap, AlertCircle, Eraser, FolderOpen,
+  X, Zap, AlertCircle, Eraser, FolderOpen, HardDrive, Smartphone,
   Play, Search, Clipboard, Sun, Moon, Keyboard, User,
 } from 'lucide-react'
 
@@ -1722,6 +1722,23 @@ export default function App() {
   const [batchQueue, setBatchQueue] = useState<Array<{url: string, status: string, progress: number, title?: string}>>([])
   const savedBatchTasks = useRef<Set<string>>(new Set())
   const [batchIndex, setBatchIndex] = useState(0)
+  const [saveLocation, setSaveLocation] = useState<string>('album')
+
+  useEffect(() => {
+    const saved = localStorage.getItem('xiaodianlv_saveLocation')
+    if (saved) setSaveLocation(saved)
+  }, [])
+
+  const handleLocationChange = (loc: string) => {
+    setSaveLocation(loc)
+    localStorage.setItem('xiaodianlv_saveLocation', loc)
+  }
+
+  const locationLabels: Record<string, { label: string; icon: typeof Smartphone; desc: string }> = {
+    album: { label: t('saveToAlbum'), icon: Smartphone, desc: t('browserDownloadHint') },
+    download: { label: t('saveToDownloads'), icon: HardDrive, desc: t('tipChangeDownloadPath') },
+    desktop: { label: t('saveToDesktop'), icon: HardDrive, desc: t('tipChangeDownloadPath') },
+  }
   // Poll task status
   useEffect(() => {
     if (!task || ['completed', 'error'].includes(task.status)) return
@@ -2969,15 +2986,27 @@ export default function App() {
               </div>
             )}
 
-            {/* Browser save behavior notice */}
+            {/* Save Location SaveLocation - 下拉式 */}
             <div className="mb-5">
               <label className="text-xs text-slate-400 mb-2 font-medium flex items-center gap-1.5">
                 <FolderOpen className="w-3.5 h-3.5" />
                 {t('saveLocation')}
               </label>
-              <div className={`mt-1.5 rounded-xl border px-3 py-2.5 ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-light-input border-light-border'}`}>
+              <div className="relative mt-1.5">
+                <select
+                  value={saveLocation}
+                  onChange={(e) => handleLocationChange(e.target.value)}
+                  className={`w-full px-4 py-3 border-2 rounded-xl text-sm outline-none focus:border-orange/70 cursor-pointer appearance-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-light-surface border-light-border text-light-text'}`}
+                >
+                  {Object.entries(locationLabels).map(([value, item]) => (
+                    <option key={value} value={value}>{item.label}</option>
+                  ))}
+                </select>
+                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 pointer-events-none" />
+              </div>
+              <div className="mt-2 p-2.5 bg-slate-700/30 rounded-xl border border-slate-700/60">
                 <p className={`text-xs leading-relaxed ${isDark ? 'text-slate-300' : 'text-light-textSecondary'}`}>
-                  {isIOS() ? t('iosBrowserSaveHint') : t('browserDownloadHint')}
+                  {isIOS() ? t('iosBrowserSaveHint') : (locationLabels[saveLocation]?.desc || t('browserDownloadHint'))}
                 </p>
               </div>
             </div>

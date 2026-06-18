@@ -18,6 +18,7 @@ const { tikhubRequest } = require('../services/tikhub');
 const path = require('path');
 const fs = require('fs');
 const axios = require('axios');
+const crypto = require('crypto');
 
 // 新增工具导入
 const taskLock = require('../utils/taskLock');
@@ -53,6 +54,40 @@ function canAccessTask(req, task) {
 
 function signTaskResponse(data) {
   return signTaskDownloadFields(data);
+}
+
+function buildAiCacheKey(feature, payload) {
+  const hash = crypto
+    .createHash('sha256')
+    .update(JSON.stringify(payload || {}))
+    .digest('hex');
+  return `${feature}:${hash}`;
+}
+
+async function getCachedAiResult(feature, payload) {
+  try {
+    const userDb = require('../userDb');
+    const cacheKey = buildAiCacheKey(feature, payload);
+    const cached = await userDb.getAiCache(cacheKey);
+    if (cached !== null && cached !== undefined) {
+      logger.info(`[ai-cache] hit feature=${feature}`);
+      return cached;
+    }
+    return null;
+  } catch (e) {
+    logger.warn(`[ai-cache] read failed feature=${feature}: ${e.message}`);
+    return null;
+  }
+}
+
+async function setCachedAiResult(feature, payload, result) {
+  try {
+    const userDb = require('../userDb');
+    const cacheKey = buildAiCacheKey(feature, payload);
+    await userDb.setAiCache(cacheKey, feature, result);
+  } catch (e) {
+    logger.warn(`[ai-cache] write failed feature=${feature}: ${e.message}`);
+  }
 }
 
 function summarizeAiUsage(rows, feature, monthlyLimit) {
@@ -829,9 +864,18 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
     // AI 同音纠错（自动，失败不影响 ASR）
     if (text && text.length >= 10) {
       try {
-        const { correctAsrText, correctWithDeepSeek } = require('../services/summarize');
-        const deepCorrected = await correctWithDeepSeek(text, asrLanguage, correctionContext);
-        const corrected = deepCorrected !== text ? deepCorrected : await correctAsrText(text, asrLanguage, correctionContext);
+        const { correctWithDeepSeek } = require('../services/summarize');
+        const correctionCachePayload = {
+          owner: task?.userId ? `user:${task.userId}` : `guest:${task?.guestIp || 'anonymous'}`,
+          language: asrLanguage,
+          context: correctionContext,
+          text
+        };
+        let corrected = await getCachedAiResult('asr-correction', correctionCachePayload);
+        if (!corrected) {
+          corrected = await correctWithDeepSeek(text, asrLanguage, correctionContext);
+          await setCachedAiResult('asr-correction', correctionCachePayload, corrected || text);
+        }
         if (corrected && corrected !== text) {
           text = corrected;
           logger.info('[ASR] Text corrected (homophone fix)');
@@ -868,22 +912,43 @@ async function handleAsr(taskId, filePath, asrLanguage, targetLang = null) {
     let translatedSegments = [];
     if (tLang && text) {
       try {
-        logger.info(`[ASR] ${taskId} translating: ${asrLanguage === 'auto' ? 'zh' : asrLanguage} -> ${tLang}, textLen=${text.length}`);
-        // M2M-100 翻译（免费优先）→ DeepSeek 兜底
+        const sourceLang = asrLanguage === 'auto' ? 'zh' : asrLanguage;
+        logger.info(`[ASR] ${taskId} translating: ${sourceLang} -> ${tLang}, textLen=${text.length}`);
+        // 高质量优先：只走 DeepSeek 单路径，并缓存同文本同参数结果，避免 M2M + DeepSeek 双重调用。
         const { translateWithDeepSeek, translateSubtitleSegments } = require('../services/summarize');
         if (asrSegments.length > 0) {
-          translatedSegments = await translateSubtitleSegments(
-            asrSegments,
-            asrLanguage === 'auto' ? 'zh' : asrLanguage,
-            tLang,
-            correctionContext
-          ) || [];
+          const segmentCachePayload = {
+            sourceLang,
+            targetLang: tLang,
+            context: correctionContext,
+            segments: asrSegments.map(segment => String(segment.text || '').trim()).filter(Boolean)
+          };
+          translatedSegments = await getCachedAiResult('subtitle-translation', segmentCachePayload);
+          if (!Array.isArray(translatedSegments)) {
+            translatedSegments = await translateSubtitleSegments(
+              asrSegments,
+              sourceLang,
+              tLang,
+              correctionContext
+            ) || [];
+            await setCachedAiResult('subtitle-translation', segmentCachePayload, translatedSegments);
+          }
         }
-        let raw = await asr.translateText(text, asrLanguage === 'auto' ? 'zh' : asrLanguage, tLang);
-        if (!raw || raw === text) {
-          raw = await translateWithDeepSeek(text, asrLanguage === 'auto' ? 'zh' : asrLanguage, tLang);
+        if (translatedSegments.length > 0) {
+          translatedText = translatedSegments.filter(Boolean).join('\n');
+        } else {
+          const textCachePayload = {
+            sourceLang,
+            targetLang: tLang,
+            context: correctionContext,
+            text
+          };
+          translatedText = await getCachedAiResult('text-translation', textCachePayload);
+          if (!translatedText) {
+            translatedText = await translateWithDeepSeek(text, sourceLang, tLang);
+            await setCachedAiResult('text-translation', textCachePayload, translatedText || '');
+          }
         }
-        translatedText = raw || translatedSegments.filter(Boolean).join('\n');
       } catch (e) {
         logger.error(`[ASR] Translation failed: ${e.message}`);
       }

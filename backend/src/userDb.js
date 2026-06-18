@@ -271,6 +271,16 @@ async function initDb() {
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_ai_usage_user ON ai_usage(user_id, created_at DESC)`);
 
     await db.execute({
+      sql: `CREATE TABLE IF NOT EXISTS ai_cache (
+        cache_key TEXT PRIMARY KEY,
+        feature TEXT NOT NULL,
+        result TEXT NOT NULL,
+        created_at INTEGER DEFAULT (unixepoch())
+      )`
+    });
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_ai_cache_feature ON ai_cache(feature, created_at DESC)`);
+
+    await db.execute({
       sql: `CREATE TABLE IF NOT EXISTS asr_lexicon (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         user_id TEXT NOT NULL,
@@ -1049,6 +1059,27 @@ const userDb = {
       args: [userId, sinceUnix]
     });
     return result.rows || [];
+  },
+
+  async getAiCache(cacheKey) {
+    if (!cacheKey) return null;
+    const result = await db.execute({
+      sql: 'SELECT result FROM ai_cache WHERE cache_key = ? LIMIT 1',
+      args: [cacheKey]
+    });
+    const raw = result.rows?.[0]?.result;
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch { return raw; }
+  },
+
+  async setAiCache(cacheKey, feature, result) {
+    if (!cacheKey || result === undefined || result === null) return;
+    await db.execute({
+      sql: `INSERT INTO ai_cache (cache_key, feature, result, created_at)
+            VALUES (?, ?, ?, unixepoch())
+            ON CONFLICT(cache_key) DO UPDATE SET result = excluded.result, created_at = unixepoch()`,
+      args: [cacheKey, feature || 'unknown', JSON.stringify(result)]
+    });
   },
 
   async createBatchJob({ id, userId, type, total = 0, options = {} }) {
