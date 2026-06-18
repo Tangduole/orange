@@ -105,7 +105,9 @@ const shareFile = async (
 interface Task {
   taskId: string; status: string; progress: number
   title?: string; platform?: string; thumbnailUrl?: string
+  needAsr?: boolean; options?: string[]
   downloadUrl?: string; audioUrl?: string; asrText?: string; summaryText?: any; copyText?: string
+  asrError?: string
   translatedText?: string; translatedTxtUrl?: string; subbedVideoUrl?: string
   coverUrl?: string; isNote?: boolean
   copywriteAnalysis?: any; copywriteTranscript?: string; commerceCardStatus?: string; commerceCardError?: string
@@ -1741,7 +1743,15 @@ export default function App() {
   }
   // Poll task status
   useEffect(() => {
-    if (!task || ['completed', 'error'].includes(task.status)) return
+    const waitingForAiSummary =
+      task?.status === 'completed' &&
+      task.options?.includes('ai_summary') &&
+      !task.summaryText &&
+      !task.asrText &&
+      !task.asrError &&
+      !task.error
+
+    if (!task || (['completed', 'error'].includes(task.status) && !waitingForAiSummary)) return
     
     // 保存 taskId 到 localStorage（用于后台恢复）
     localStorage.setItem('orange_active_task', task.taskId)
@@ -1750,8 +1760,17 @@ export default function App() {
       try {
         const r = await axios.get(`${API}/status/${task.taskId}`, { headers: getAuthHeaders() })
         if (r.data.data) {
-          setTask(r.data.data)
-          if (['completed', 'error'].includes(r.data.data.status)) { 
+          const nextTask = r.data.data
+          const nextWaitingForAiSummary =
+            nextTask.status === 'completed' &&
+            nextTask.options?.includes('ai_summary') &&
+            !nextTask.summaryText &&
+            !nextTask.asrText &&
+            !nextTask.asrError &&
+            !nextTask.error
+
+          setTask(nextTask)
+          if (['completed', 'error'].includes(nextTask.status) && !nextWaitingForAiSummary) { 
             clearInterval(t)
             localStorage.removeItem('orange_active_task')
             fetchHistory()
@@ -2266,7 +2285,7 @@ export default function App() {
         url: url.trim(), platform: detected || 'auto',
         needAsr: requestNeedAsr, options: requestOptions, quality: downloadQuality, asrLanguage, targetLang: requestTargetLang, outputLanguage: getAiOutputLanguage(i18n.language)
       }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} })
-      setTask(r.data.data);
+      setTask({ ...r.data.data, needAsr: requestNeedAsr, options: requestOptions });
       // 服务器返回 403 且提到次数用尽 → 弹升级提示
       if (r.data.code === 403 && (r.data.message || '').includes('下载次数')) {
         setShowUpgradePopup(true)

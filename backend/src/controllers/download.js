@@ -2767,6 +2767,8 @@ function getStatus(req, res) {
       url: task.url,
       status: task.status,
       progress: task.progress || 0,
+      needAsr: task.needAsr,
+      options: task.options || [],
       title: task.title,
       duration: task.duration,
       platform: task.platform,
