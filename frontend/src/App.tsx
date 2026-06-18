@@ -117,6 +117,7 @@ interface Task {
   directLink?: boolean; quality?: string; width?: number; height?: number
   downloadedBytes?: number; totalBytes?: number
   speed?: string; eta?: string
+  clientDownload?: { videoUrl: string; audioUrl: string | null; filename: string }
   qualityAdjusted?: string // 'downgrade' | 'upgrade' | null
 }
 interface HistoryItem {
@@ -1938,6 +1939,46 @@ export default function App() {
     }
     return clearAutoDownload
   }, [task?.status, task?.downloadUrl, task?.taskId, authToken])
+
+  // Client-side download for B站 (CDN blocks server IP)
+  useEffect(() => {
+    if (task?.status === 'completed' && task.clientDownload && !autoDownloaded.current) {
+      autoDownloaded.current = true
+      playNotificationSound()
+      showDownloadComplete(task.taskId, task.title || 'Download', false).catch(console.error)
+      if (!authToken && remainingDownloads > 0) {
+        setRemainingDownloads(Math.max(0, remainingDownloads - 1))
+      }
+      const { videoUrl, audioUrl, filename } = task.clientDownload
+      autoDownloadTimer.current = setTimeout(async () => {
+        setDownloading(true)
+        try {
+          // 下载视频流
+          const vRes = await fetch(videoUrl, { headers: { Referer: 'https://www.bilibili.com' } })
+          const vBlob = await vRes.blob()
+          // 下载音频流（可选）
+          let blob = vBlob
+          if (audioUrl) {
+            try {
+              const aRes = await fetch(audioUrl, { headers: { Referer: 'https://www.bilibili.com' } })
+              const aBlob = await aRes.blob()
+              // merge logic: 先给视频（无声），下载完成提示
+              setShowNotification({ type: 'info', text: '已下载视频，音频暂不支持浏览器合并，仅保存视频' })
+            } catch { /* audio optional */ }
+          }
+          const url = URL.createObjectURL(blob)
+          shareFile(url, filename).finally(() => {
+            URL.revokeObjectURL(url)
+            setDownloading(false)
+          })
+        } catch (e: any) {
+          setDownloading(false)
+          setShowNotification({ type: 'error', text: '客户端下载失败：' + (e.message || '网络错误') })
+        }
+      }, 500)
+    }
+    return () => {}
+  }, [task?.status, task?.clientDownload, task?.taskId, authToken])
 
   const fetchHistoryMeta = useCallback(async () => {
     try {

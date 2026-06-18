@@ -1303,19 +1303,52 @@ async function parseBilibili(url, taskId, onProgress, quality) {
 
   if (onProgress) onProgress(25);
 
-  // Step 3: 下载视频流 + 音频流
+  // Step 3: 尝试服务器端下载视频流 + 音频流
+  // B站 CDN 封锁国外 IP，失败时回传 URL 给前端客户端下载
   const videoPath = path.join(DOWNLOAD_DIR, `${taskId}_video.m4s`);
   const audioPath = path.join(DOWNLOAD_DIR, `${taskId}_audio.m4s`);
   const outputPath = path.join(DOWNLOAD_DIR, `${taskId}.mp4`);
 
-  await downloadFile(bestVideo.baseUrl || bestVideo.base_url || bestVideo.url, videoPath, (p) => {
-    if (onProgress) onProgress(25 + Math.round(p * 0.5));
-  }, { Referer: 'https://www.bilibili.com' });
+  let serverDownloadFailed = false;
+  const videoUrl = bestVideo.baseUrl || bestVideo.base_url || bestVideo.url;
+  const audioUrl = bestAudio?.baseUrl || bestAudio?.base_url || bestAudio?.url;
 
-  if (bestAudio?.baseUrl || bestAudio?.base_url || bestAudio?.url) {
-    await downloadFile(bestAudio.baseUrl || bestAudio.base_url || bestAudio.url, audioPath, (p) => {
-      if (onProgress) onProgress(75 + Math.round(p * 0.15));
+  try {
+    await downloadFile(videoUrl, videoPath, (p) => {
+      if (onProgress) onProgress(25 + Math.round(p * 0.5));
     }, { Referer: 'https://www.bilibili.com' });
+  } catch (e) {
+    logger.warn(`[TikHub] Bilibili video stream download failed (will use client-side): ${e.message}`);
+    serverDownloadFailed = true;
+  }
+
+  if (!serverDownloadFailed && audioUrl) {
+    try {
+      await downloadFile(audioUrl, audioPath, (p) => {
+        if (onProgress) onProgress(75 + Math.round(p * 0.15));
+      }, { Referer: 'https://www.bilibili.com' });
+    } catch (e) {
+      logger.warn(`[TikHub] Bilibili audio stream download failed: ${e.message}`);
+      serverDownloadFailed = true;
+    }
+  }
+
+  // 服务器端下载失败 → 返回客户端下载 URL
+  if (serverDownloadFailed) {
+    if (onProgress) onProgress(100);
+    return {
+      title,
+      clientDownload: {
+        videoUrl,
+        audioUrl: audioUrl || null,
+        filename: title + '.mp4',
+      },
+      width: bestVideo.width || null,
+      height: videoH || null,
+      quality: videoH ? `${videoH}p` : null,
+      duration,
+      thumbnailUrl: (info.pic || '').replace('http://', 'https://'),
+    };
   }
 
   // Step 4: ffmpeg 合并音视频

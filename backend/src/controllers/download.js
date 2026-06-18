@@ -2498,7 +2498,10 @@ async function processBilibili(taskId, url, needAsr, options = ['video'], qualit
       thumbnailUrl: result.thumbnailUrl,
     };
 
-    if (result.filePath) {
+    if (result.clientDownload) {
+      // B站 CDN 被封锁，传 URL 给前端客户端下载
+      update.clientDownload = result.clientDownload;
+    } else if (result.filePath) {
       update.filePath = result.filePath;
       update.ext = result.ext;
       update.downloadUrl = `/download/${path.basename(result.filePath)}`;
