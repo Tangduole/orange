@@ -137,6 +137,19 @@ export const api = {
     return data.data;
   },
 
+  async getAdminUserDownloads(token: string, userId: string, params: Record<string, any> = {}) {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== '') query.set(key, String(value));
+    });
+    const qs = query.toString() ? `?${query.toString()}` : '';
+    const data = await apiFetch(`${API_BASE}/api/auth/admin/users/${encodeURIComponent(userId)}/downloads${qs}`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (data.code !== 0) throw new Error(data.message);
+    return data.data;
+  },
+
   // 获取用户使用量（下载次数等）
   async getUsage(token: string) {
     const data = await apiFetch(`${API_BASE}/api/subscribe/status`, {

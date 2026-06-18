@@ -238,6 +238,94 @@ router.get('/admin/users', auth.required, requireAdmin, async (req, res) => {
   }
 });
 
+// 管理员查看某个用户的下载统计和最近下载明细
+router.get('/admin/users/:userId/downloads', auth.required, requireAdmin, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { page = 1, pageSize = 50, platform, since } = req.query;
+    const user = await userDb.getById(userId);
+    if (!user) return res.status(404).json({ code: 404, message: 'User not found' });
+
+    const safePage = Math.max(1, parseInt(page) || 1);
+    const safePageSize = Math.min(100, Math.max(1, parseInt(pageSize) || 50));
+    const offset = (safePage - 1) * safePageSize;
+    const now = Math.floor(Date.now() / 1000);
+    const sevenDaysAgo = now - 7 * 86400;
+    const thirtyDaysAgo = now - 30 * 86400;
+
+    const conditions = ['user_id = ?'];
+    const args = [userId];
+    if (platform) {
+      conditions.push('platform = ?');
+      args.push(String(platform));
+    }
+    if (since) {
+      const sinceTs = Math.floor(new Date(String(since)).getTime() / 1000);
+      if (Number.isFinite(sinceTs)) {
+        conditions.push('created_at >= ?');
+        args.push(sinceTs);
+      }
+    }
+    const where = conditions.join(' AND ');
+
+    const [
+      totalRes,
+      last7dRes,
+      last30dRes,
+      platformRes,
+      itemsRes,
+      countRes,
+    ] = await Promise.all([
+      userDb.db.execute({ sql: 'SELECT COUNT(*) as cnt FROM download_history WHERE user_id = ?', args: [userId] }),
+      userDb.db.execute({ sql: 'SELECT COUNT(*) as cnt FROM download_history WHERE user_id = ? AND created_at >= ?', args: [userId, sevenDaysAgo] }),
+      userDb.db.execute({ sql: 'SELECT COUNT(*) as cnt FROM download_history WHERE user_id = ? AND created_at >= ?', args: [userId, thirtyDaysAgo] }),
+      userDb.db.execute({
+        sql: `SELECT COALESCE(platform, 'unknown') as platform, COUNT(*) as count
+              FROM download_history
+              WHERE user_id = ?
+              GROUP BY COALESCE(platform, 'unknown')
+              ORDER BY count DESC
+              LIMIT 20`,
+        args: [userId]
+      }),
+      userDb.db.execute({
+        sql: `SELECT task_id, url, platform, title, duration, created_at
+              FROM download_history
+              WHERE ${where}
+              ORDER BY created_at DESC
+              LIMIT ? OFFSET ?`,
+        args: [...args, safePageSize, offset]
+      }),
+      userDb.db.execute({ sql: `SELECT COUNT(*) as cnt FROM download_history WHERE ${where}`, args }),
+    ]);
+
+    res.json({
+      code: 0,
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          tier: user.tier,
+          subscriptionStatus: user.subscription_status,
+        },
+        summary: {
+          total: totalRes.rows[0]?.cnt || 0,
+          last7d: last7dRes.rows[0]?.cnt || 0,
+          last30d: last30dRes.rows[0]?.cnt || 0,
+        },
+        platforms: platformRes.rows || [],
+        items: itemsRes.rows || [],
+        total: countRes.rows[0]?.cnt || 0,
+        page: safePage,
+        pageSize: safePageSize,
+      }
+    });
+  } catch (e) {
+    logger.error('[admin] user downloads error:', e.message);
+    res.status(500).json({ code: 500, message: 'Failed to load user downloads' });
+  }
+});
+
 router.patch('/admin/users/:userId/subscription', auth.required, requireAdmin, async (req, res) => {
   try {
     const { userId } = req.params;

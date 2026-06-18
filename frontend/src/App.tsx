@@ -364,6 +364,9 @@ export default function App() {
   const [adminUserTier, setAdminUserTier] = useState('')
   const [adminAiUsage, setAdminAiUsage] = useState<any[]>([])
   const [adminAiUsageTotal, setAdminAiUsageTotal] = useState(0)
+  const [adminDownloadDetails, setAdminDownloadDetails] = useState<any>(null)
+  const [adminDownloadsLoading, setAdminDownloadsLoading] = useState(false)
+  const [adminDownloadsPlatform, setAdminDownloadsPlatform] = useState('')
 
   // 全局 401 拦截：token 过期自动弹出登录框
   useEffect(() => {
@@ -440,6 +443,20 @@ export default function App() {
       if (r.data?.data) { setAdminAiUsage(r.data.data.items || []); setAdminAiUsageTotal(r.data.data.total || 0); }
     } catch {}
   };
+  const fetchAdminUserDownloads = async (userId: string, platform = '') => {
+    if (!authToken) return
+    setAdminDownloadsLoading(true)
+    setAdminMetricsError('')
+    try {
+      const data = await api.getAdminUserDownloads(authToken, userId, { pageSize: 50, platform })
+      setAdminDownloadDetails(data)
+      setAdminDownloadsPlatform(platform)
+    } catch (e: any) {
+      setAdminMetricsError(e.message || 'Failed to load user downloads')
+    } finally {
+      setAdminDownloadsLoading(false)
+    }
+  }
   const updateAdminUserTier = async (userId: string, tier: 'free' | 'basic' | 'pro' | 'lifetime') => {
     try {
       await axios.patch(`${API_BASE}/api/auth/admin/users/${userId}/subscription`, { tier, days: 30 }, { headers: getAuthHeaders() })
@@ -588,9 +605,6 @@ export default function App() {
   const [historyPlatformFilter, setHistoryPlatformFilter] = useState('all')
   const [historyGroupFilter, setHistoryGroupFilter] = useState('all')
   const [historyTagFilter, setHistoryTagFilter] = useState('all')
-  const [historyAiOnly, setHistoryAiOnly] = useState(false)
-  const [historyPackOnly, setHistoryPackOnly] = useState(false)
-  const [historyPackTodoOnly, setHistoryPackTodoOnly] = useState(false)
   const [favorites, setFavorites] = useState<Set<string>>(() => new Set(readStoredJson<string[]>('orange_favorites', [])))
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set())
   const [editingMaterial, setEditingMaterial] = useState<HistoryItem | null>(null)
@@ -665,9 +679,6 @@ export default function App() {
     if (historyGroupFilter === '__ungrouped' && item.groupName?.trim()) return false
     if (historyGroupFilter !== 'all' && historyGroupFilter !== '__ungrouped' && (item.groupName || '') !== historyGroupFilter) return false
     if (historyTagFilter !== 'all' && !normalizeHistoryTags(item.tags).includes(historyTagFilter)) return false
-    if (historyAiOnly && !getHistoryAnalysis(item)) return false
-    if (historyPackOnly && getHistoryRewritePackCount(item) === 0) return false
-    if (historyPackTodoOnly && (!getHistoryAnalysis(item) || isHistoryRewritePackComplete(item))) return false
     if (historySearch) {
       const q = historySearch.toLowerCase()
       const haystack = [
@@ -1932,9 +1943,6 @@ export default function App() {
         group: historyGroupFilter !== 'all' ? historyGroupFilter : undefined,
         tag: historyTagFilter !== 'all' ? historyTagFilter : undefined,
         favorite: historyFilter === 'favorites' ? 1 : undefined,
-        aiOnly: historyAiOnly ? 1 : undefined,
-        publishPackOnly: historyPackOnly ? 1 : undefined,
-        needsPublishPack: historyPackTodoOnly ? 1 : undefined,
       }
       const r = await axios.get(`${API}/history`, { headers: getAuthHeaders(), params })
       const data = r.data.data || {}
@@ -1957,7 +1965,7 @@ export default function App() {
     } finally {
       setHistoryLoading(false)
     }
-  }, [authToken, debouncedHistorySearch, historyAiOnly, historyFilter, historyGroupFilter, historyPageSize, historyPackOnly, historyPackTodoOnly, historyPlatformFilter, historyTagFilter])
+  }, [authToken, debouncedHistorySearch, historyFilter, historyGroupFilter, historyPageSize, historyPlatformFilter, historyTagFilter])
 
   useEffect(() => { fetchHistory(1, false) }, [fetchHistory])
   useEffect(() => { fetchHistoryMeta() }, [fetchHistoryMeta])
@@ -2320,12 +2328,6 @@ export default function App() {
     }
     setSelectedTasks(new Set([...selectedTasks, ...filteredHistory.map(item => item.taskId)]))
   }
-  const selectPackTodoItems = () => {
-    const packTodoIds = filteredHistory
-      .filter(item => getHistoryAnalysis(item) && !isHistoryRewritePackComplete(item))
-      .map(item => item.taskId)
-    setSelectedTasks(new Set(packTodoIds))
-  }
   const retryTask = async (item: HistoryItem) => {
     if (!item.url) return
     setLoading(true); setError('')
@@ -2434,6 +2436,13 @@ export default function App() {
   const formatAdminGeneratedAt = (value?: number) => {
     if (!value) return ''
     return new Date(value).toLocaleString(
+      i18n.language === 'zh-CN' ? 'zh-CN' : i18n.language === 'ja' ? 'ja-JP' : i18n.language === 'ko' ? 'ko-KR' : 'en-US',
+      { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }
+    )
+  }
+  const formatAdminUnixTime = (value?: number) => {
+    if (!value) return ''
+    return new Date(value * 1000).toLocaleString(
       i18n.language === 'zh-CN' ? 'zh-CN' : i18n.language === 'ja' ? 'ja-JP' : i18n.language === 'ko' ? 'ko-KR' : 'en-US',
       { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }
     )
@@ -3874,8 +3883,6 @@ export default function App() {
                     <div className="flex flex-wrap gap-1.5 text-xs">
                       {[
                         { label: t('dashboardDownloads'), value: materialStats.total, color: 'text-orange', onClick: () => {} },
-                        { label: t('dashboardAiCards'), value: materialStats.aiCards, color: 'text-purple-300', onClick: () => setHistoryAiOnly(v => !v) },
-                        { label: t('dashboardNeedsPublishPack'), value: materialStats.needsPublishPack, color: 'text-yellow-300', onClick: () => setHistoryPackTodoOnly(v => !v) },
                         { label: t('dashboardFavorites'), value: materialStats.favorites, color: 'text-yellow-300', onClick: () => setHistoryFilter(historyFilter === 'favorites' ? 'all' : 'favorites') },
                         { label: t('dashboardTopPlatform'), value: `${materialStats.topPlatform}${materialStats.topPlatformCount ? ` · ${materialStats.topPlatformCount}` : ''}`, color: 'text-slate-200', onClick: () => {
                           const topPlatform = historyMeta?.platforms?.[0]?.platform
@@ -4109,32 +4116,6 @@ export default function App() {
                         <option key={tag} value={tag}>#{tag}</option>
                       ))}
                     </select>
-                    <button
-                      onClick={() => setHistoryAiOnly(v => !v)}
-                      className={`px-2 py-1.5 border rounded-lg text-xs transition ${historyAiOnly ? 'bg-purple-500/20 border-purple-500/40 text-purple-300' : isDark ? 'bg-slate-800/50 border-slate-700/50 text-slate-300' : 'bg-light-bg border-light-border text-light-text'}`}
-                    >
-                      {t('aiCardsOnly')}
-                    </button>
-                    <button
-                      onClick={() => setHistoryPackOnly(v => !v)}
-                      className={`px-2 py-1.5 border rounded-lg text-xs transition ${historyPackOnly ? 'bg-orange/20 border-orange/40 text-orange' : isDark ? 'bg-slate-800/50 border-slate-700/50 text-slate-300' : 'bg-light-bg border-light-border text-light-text'}`}
-                    >
-                      {t('publishPacksOnly')}
-                    </button>
-                    <button
-                      onClick={() => setHistoryPackTodoOnly(v => !v)}
-                      className={`px-2 py-1.5 border rounded-lg text-xs transition ${historyPackTodoOnly ? 'bg-yellow-500/20 border-yellow-500/40 text-yellow-300' : isDark ? 'bg-slate-800/50 border-slate-700/50 text-slate-300' : 'bg-light-bg border-light-border text-light-text'}`}
-                    >
-                      {t('publishPacksTodoOnly')}
-                    </button>
-                    {filteredHistory.some(item => getHistoryAnalysis(item) && !isHistoryRewritePackComplete(item)) && (
-                      <button
-                        onClick={selectPackTodoItems}
-                        className="px-2 py-1.5 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs transition"
-                      >
-                        {t('selectPublishPackTodos')}
-                      </button>
-                    )}
                     {(batchCardGenerating || batchRewriteLoadingKey || batchCardMessage) && (
                       <span className="text-[10px] text-orange">
                         {batchCardGenerating || batchRewriteLoadingKey ? t('generatingAiCards', batchCardProgress) : batchCardMessage}
@@ -4158,7 +4139,7 @@ export default function App() {
                   )}
                 </div>
                 <div className="max-h-60 overflow-y-auto">
-                  {filteredHistory.length === 0 ? <p className="py-8 text-center text-sm text-slate-500">{historySearch || historyFilter !== 'all' || historyPlatformFilter !== 'all' || historyGroupFilter !== 'all' || historyTagFilter !== 'all' || historyAiOnly || historyPackOnly || historyPackTodoOnly ? t('noResults') : t('noHistory')}</p> : filteredHistory.map(item => (
+                  {filteredHistory.length === 0 ? <p className="py-8 text-center text-sm text-slate-500">{historySearch || historyFilter !== 'all' || historyPlatformFilter !== 'all' || historyGroupFilter !== 'all' || historyTagFilter !== 'all' ? t('noResults') : t('noHistory')}</p> : filteredHistory.map(item => (
                     <div key={item.taskId} className={`group border-b border-slate-700/20 last:border-0 transition ${selectedTasks.has(item.taskId) ? 'bg-orange/10' : ''}`}>
                     <div className="flex items-center gap-2 px-3 py-2 hover:bg-slate-900/60 transition">
                       <input type="checkbox" checked={selectedTasks.has(item.taskId)} onChange={() => { const s = new Set(selectedTasks); selectedTasks.has(item.taskId) ? s.delete(item.taskId) : s.add(item.taskId); setSelectedTasks(s) }} className="w-3.5 h-3.5 rounded-full border-slate-600 shrink-0" />
@@ -4721,6 +4702,13 @@ export default function App() {
                         {typeof u.email_verified !== 'undefined' && <span className="px-2 py-0.5 rounded-full bg-slate-900/60">{u.email_verified ? 'verified' : 'unverified'}</span>}
                       </div>
                       <div className="mt-2 flex flex-wrap gap-1">
+                        <button
+                          onClick={() => fetchAdminUserDownloads(u.id)}
+                          disabled={adminDownloadsLoading}
+                          className="px-2 py-1 rounded-lg bg-orange/15 text-orange hover:bg-orange/20 border border-orange/30 text-[10px] disabled:opacity-60"
+                        >
+                          下载记录
+                        </button>
                         {(['basic', 'pro', 'lifetime', 'free'] as const).map(tier => (
                           <button
                             key={tier}
@@ -4734,6 +4722,86 @@ export default function App() {
                     </div>
                   ))}
                 </div>
+                {adminDownloadDetails && (
+                  <div className="mt-3 rounded-xl bg-slate-950/60 border border-slate-700/60 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-white break-all">
+                          {adminDownloadDetails.user?.email || 'User downloads'}
+                        </p>
+                        <p className="mt-1 text-[10px] text-slate-500">
+                          下载记录 · {adminDownloadDetails.user?.tier || 'free'}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => setAdminDownloadDetails(null)}
+                        className="shrink-0 text-slate-500 hover:text-white text-xs"
+                      >
+                        关闭
+                      </button>
+                    </div>
+                    <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+                      {[
+                        { label: '总下载', value: adminDownloadDetails.summary?.total || 0 },
+                        { label: '近7天', value: adminDownloadDetails.summary?.last7d || 0 },
+                        { label: '近30天', value: adminDownloadDetails.summary?.last30d || 0 },
+                      ].map(item => (
+                        <div key={item.label} className="rounded-lg bg-slate-900/70 border border-slate-700/60 px-2 py-2">
+                          <p className="text-base font-bold text-orange">{item.value}</p>
+                          <p className="text-[10px] text-slate-500">{item.label}</p>
+                        </div>
+                      ))}
+                    </div>
+                    {(adminDownloadDetails.platforms || []).length > 0 && (
+                      <div className="mt-3">
+                        <p className="text-[10px] text-slate-500 mb-1">下载平台</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          <button
+                            onClick={() => fetchAdminUserDownloads(adminDownloadDetails.user.id, '')}
+                            className={`px-2 py-1 rounded-full border text-[10px] ${!adminDownloadsPlatform ? 'bg-orange/15 border-orange/40 text-orange' : 'bg-slate-900/70 border-slate-700/60 text-slate-300'}`}
+                          >
+                            全部
+                          </button>
+                          {adminDownloadDetails.platforms.map((item: any) => (
+                            <button
+                              key={item.platform}
+                              onClick={() => fetchAdminUserDownloads(adminDownloadDetails.user.id, item.platform)}
+                              className={`px-2 py-1 rounded-full border text-[10px] ${adminDownloadsPlatform === item.platform ? 'bg-orange/15 border-orange/40 text-orange' : 'bg-slate-900/70 border-slate-700/60 text-slate-300'}`}
+                            >
+                              {getPlatformLabel(item.platform) || item.platform} · {item.count}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <div className="mt-3 space-y-2 max-h-56 overflow-y-auto">
+                      {(adminDownloadDetails.items || []).length === 0 ? (
+                        <p className="py-4 text-center text-xs text-slate-500">暂无下载记录</p>
+                      ) : adminDownloadDetails.items.map((item: any) => (
+                        <div key={item.task_id} className="rounded-lg bg-slate-900/60 border border-slate-700/50 p-2 text-xs">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="text-slate-300 break-words leading-5">{item.title || item.task_id}</p>
+                              <p className="mt-0.5 text-[10px] text-slate-500">
+                                {(getPlatformLabel(item.platform) || item.platform || 'unknown')} · {formatAdminUnixTime(item.created_at)}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => item.url && navigator.clipboard?.writeText(item.url)}
+                              className="shrink-0 text-[10px] text-orange hover:underline"
+                            >
+                              复制链接
+                            </button>
+                          </div>
+                          {item.url && <p className="mt-1 text-[10px] text-slate-600 break-all">{item.url}</p>}
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-[10px] text-slate-500">
+                      当前显示 {adminDownloadDetails.items?.length || 0}/{adminDownloadDetails.total || 0} 条
+                    </p>
+                  </div>
+                )}
                 <p className="text-[10px] text-slate-500 mt-2">
                   共 {adminUsersTotal} 用户 · <button onClick={() => downloadAdminCsv('users')} className="text-orange hover:underline">CSV导出</button>
                 </p>
