@@ -1228,6 +1228,19 @@ async function getDouyinQualities(url) {
  * Step 3: ffmpeg 合并音视频
  */
 async function parseBilibili(url, taskId, onProgress, quality) {
+  // 如果是 b23.tv 短链接，先解析出完整 URL
+  if (/b23\.tv/i.test(url)) {
+    logger.info(`[TikHub] Resolving b23.tv short link: ${url}`);
+    try {
+      const axios = require('axios');
+      const res = await axios.head(url, { maxRedirects: 0, timeout: 5000, validateStatus: null });
+      url = res.headers.location || url;
+      logger.info(`[TikHub] b23.tv resolved to: ${url}`);
+    } catch (e) {
+      if (e.response?.headers?.location) url = e.response.headers.location;
+    }
+  }
+  
   const bvidMatch = url.match(/BV[a-zA-Z0-9]{10}/);
   if (!bvidMatch) throw new Error('无法解析 Bilibili BV 号');
   const bvid = bvidMatch[0];
