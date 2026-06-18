@@ -11,7 +11,7 @@ import {
   Download, Link2, CheckCircle2, XCircle, Loader2,
   Video, FileText, Image as ImageIcon, Mic, Languages,
   Trash2, ChevronDown, ChevronUp, Clock, Copy, Check,
-  X, Zap, AlertCircle, Eraser, FolderOpen, HardDrive, Smartphone,
+  X, Zap, AlertCircle, Eraser, FolderOpen,
   Play, Search, Clipboard, Sun, Moon, Keyboard, User,
 } from 'lucide-react'
 
@@ -1720,27 +1720,6 @@ export default function App() {
   const [batchQueue, setBatchQueue] = useState<Array<{url: string, status: string, progress: number, title?: string}>>([])
   const savedBatchTasks = useRef<Set<string>>(new Set())
   const [batchIndex, setBatchIndex] = useState(0)
-  const [saveLocation, setSaveLocation] = useState<string>('album')
-
-  // ReadSave的LocationPreference
-  useEffect(() => {
-    const saved = localStorage.getItem('xiaodianlv_saveLocation')
-    if (saved) setSaveLocation(saved)
-  }, [])
-
-  // Save Location SaveLocationPreference
-  const handleLocationChange = (loc: string) => {
-    setSaveLocation(loc)
-    localStorage.setItem('xiaodianlv_saveLocation', loc)
-  }
-
-  const locationLabels: Record<string, { label: string; icon: typeof Smartphone; desc: string }> = {
-    album: { label: '手机相册', icon: Smartphone, desc: '默认Save到相册' },
-    downloads: { label: t('saveToDownloads'), icon: HardDrive, desc: '' },
-    desktop: { label: t('saveToDesktop'), icon: HardDrive, desc: '' },
-    documents: { label: 'Documents', icon: FolderOpen, desc: 'Save到DocumentsFile夹' },
-  }
-
   // Poll task status
   useEffect(() => {
     if (!task || ['completed', 'error'].includes(task.status)) return
@@ -2988,31 +2967,17 @@ export default function App() {
               </div>
             )}
 
-            {/* Save Location SaveLocation - 下拉式 */}
+            {/* Browser save behavior notice */}
             <div className="mb-5">
               <label className="text-xs text-slate-400 mb-2 font-medium flex items-center gap-1.5">
                 <FolderOpen className="w-3.5 h-3.5" />
                 {t('saveLocation')}
               </label>
-              <div className="relative mt-1.5">
-                <select
-                  value={saveLocation}
-                  onChange={(e) => handleLocationChange(e.target.value)}
-                  className={`w-full px-4 py-3 border-2 rounded-xl text-sm outline-none focus:border-orange/70 cursor-pointer appearance-none ${isDark ? 'bg-slate-900/60 border-slate-600/50 text-white' : 'bg-light-surface border-light-border text-light-text'}`}
-                >
-                  <option value="album">📱 {t('saveToAlbum')}</option>
-                  <option value="download">💻 {t('saveToDownloads')}</option>
-                  <option value="desktop">🖥️ {t('saveToDesktop')}</option>
-                </select>
-                <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 pointer-events-none" />
+              <div className={`mt-1.5 rounded-xl border px-3 py-2.5 ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-light-input border-light-border'}`}>
+                <p className={`text-xs leading-relaxed ${isDark ? 'text-slate-300' : 'text-light-textSecondary'}`}>
+                  {isIOS() ? t('iosBrowserSaveHint') : t('browserDownloadHint')}
+                </p>
               </div>
-              {saveLocation === 'download' && (
-                <div className="mt-2 p-2.5 bg-slate-700/30 rounded-xl border border-slate-700/60">
-                  <p className="text-xs text-slate-300 leading-relaxed">
-                    {t('tipChangeDownloadPath')}
-                  </p>
-                </div>
-              )}
             </div>
 
             {/* ErrorPrompt */}
@@ -3291,7 +3256,7 @@ export default function App() {
                     className="w-full mt-2 py-3 rounded-xl text-sm font-semibold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 hover:bg-emerald-500/20 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                   >
                     {downloading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
-                    {downloading ? t('downloading') : t('saveToPhotos')}
+                    {downloading ? t('downloading') : t('saveToDevice')}
                   </button>
                 </div>
               )}
