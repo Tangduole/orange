@@ -1310,12 +1310,12 @@ async function parseBilibili(url, taskId, onProgress, quality) {
 
   await downloadFile(bestVideo.baseUrl || bestVideo.base_url || bestVideo.url, videoPath, (p) => {
     if (onProgress) onProgress(25 + Math.round(p * 0.5));
-  });
+  }, { Referer: 'https://www.bilibili.com' });
 
   if (bestAudio?.baseUrl || bestAudio?.base_url || bestAudio?.url) {
     await downloadFile(bestAudio.baseUrl || bestAudio.base_url || bestAudio.url, audioPath, (p) => {
       if (onProgress) onProgress(75 + Math.round(p * 0.15));
-    });
+    }, { Referer: 'https://www.bilibili.com' });
   }
 
   // Step 4: ffmpeg 合并音视频

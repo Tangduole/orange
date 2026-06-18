@@ -2516,7 +2516,44 @@ async function processBilibili(taskId, url, needAsr, options = ['video'], qualit
     await finalizeTask(taskId);
     logger.info(`[task] ${taskId} bilibili completed`);
   } catch (error) {
-    logger.error(`[task] ${taskId} bilibili failed:`, error);
+    // TikHub CDN 可能被 B站封锁(403)，回退到 Cobalt
+    logger.error(`[task] ${taskId} bilibili TikHub failed: ${error.message}, trying cobalt fallback...`);
+    try {
+      const { downloadViaCobalt, isCobaltConfigured } = require('../services/cobalt');
+      if (isCobaltConfigured()) {
+        store.update(taskId, { status: TASK_STATUS.PARSING, progress: 5 });
+        const cobaltResult = await downloadViaCobalt(url, taskId, {
+          onProgress: (p) => store.update(taskId, { status: p < 90 ? TASK_STATUS.DOWNLOADING : TASK_STATUS.PROCESSING, progress: p })
+        });
+        if (cobaltResult) {
+          const update = {
+            status: TASK_STATUS.COMPLETED,
+            width: cobaltResult.width || 0,
+            height: cobaltResult.height || 0,
+            quality: cobaltResult.quality || null,
+            progress: 100,
+            title: cobaltResult.title || 'Bilibili Video',
+            thumbnailUrl: cobaltResult.thumbnailUrl || '',
+          };
+          if (cobaltResult.filePath) {
+            update.filePath = cobaltResult.filePath;
+            update.ext = path.extname(cobaltResult.filePath).replace('.', '') || 'mp4';
+            update.downloadUrl = `/download/${path.basename(cobaltResult.filePath)}`;
+            fileRefManager.addRef(path.basename(cobaltResult.filePath));
+          }
+          store.update(taskId, update);
+          if (needAsr && update.filePath) {
+            const asrResult = await handleAsr(taskId, update.filePath, 'zh');
+            if (asrResult?.text) { const upd = { status: TASK_STATUS.COMPLETED, asrText: asrResult.text, asrTxtUrl: asrResult.txtUrl }; if (asrResult.rawText && asrResult.rawText !== asrResult.text) upd.asrRawText = asrResult.rawText; if (asrResult.summary) upd.summaryText = asrResult.summary; if (asrResult.translatedText) { upd.translatedText = asrResult.translatedText; upd.translatedTxtUrl = asrResult.translatedTxtUrl; } if (asrResult.subbedVideoUrl) upd.subbedVideoUrl = asrResult.subbedVideoUrl; store.update(taskId, upd); }
+          }
+          await finalizeTask(taskId);
+          logger.info(`[task] ${taskId} bilibili completed via cobalt fallback`);
+          return;
+        }
+      }
+    } catch (cobaltErr) {
+      logger.error(`[task] ${taskId} bilibili cobalt fallback also failed:`, cobaltErr.message);
+    }
     store.update(taskId, { status: TASK_STATUS.ERROR, error: error.message });
   } finally {
     taskLock.release(taskId);
