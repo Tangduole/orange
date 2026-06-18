@@ -1345,7 +1345,7 @@ async function parseBilibili(url, taskId, onProgress, quality) {
       },
       width: bestVideo.width || null,
       height: videoH || null,
-      quality: videoH ? `${videoH}p` : null,
+      quality: videoH ? `${Math.min(bestVideo.width || 0, videoH)}p` : null,
       duration,
       thumbnailUrl: (info.pic || '').replace('http://', 'https://'),
     };
@@ -1365,7 +1365,7 @@ async function parseBilibili(url, taskId, onProgress, quality) {
     subtitleFiles: [],
     width: bestVideo.width || null,
     height: videoH || null,
-    quality: videoH ? `${videoH}p` : null,
+    quality: videoH ? `${Math.min(bestVideo.width || 0, videoH)}p` : null,
     duration
   };
 }

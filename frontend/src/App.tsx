@@ -2127,11 +2127,12 @@ export default function App() {
         const qualities = r.data.data.qualities
           .filter((q: any) => q.height >= minDisplayHeight && q.hasVideo)
           .map((q: any) => {
-            let label = `${q.height}p`
-            if (q.height >= 2160) label = '4K'
-            else if (q.height >= 1440) label = '2K'
-            else if (q.height >= 1080) label = '1080p'
-            else if (q.height >= 720) label = '720p'
+            const shortEdge = Math.min(q.width || 0, q.height || 0)
+            let label = `${shortEdge}p`
+            if (shortEdge >= 2160) label = '4K'
+            else if (shortEdge >= 1440) label = '2K'
+            else if (shortEdge >= 1080) label = '1080p'
+            else if (shortEdge >= 720) label = '720p'
             return { ...q, qualityLabel: label }
           })
           .sort((a: any, b: any) => b.height - a.height);
