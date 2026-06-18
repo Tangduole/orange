@@ -530,7 +530,7 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
 
   // 获取 H.265 画质 URL（备用，通常有 1080p）
   const playAddr265 = video.play_addr_265 || {};
-  const playAddr265Url = playAddr265.url_list?.[0] || '';
+  const playAddr265Url = playAddr265.url_list?.[playAddr265.url_list.length - 1] || '';
 
   // 尝试使用高清 API 获取原始视频（可能有 2K/4K）
   logger.info(`[TikHub] Fetching high quality video...`);
@@ -586,7 +586,7 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
   // 2. bit_rate 数组(H.264,通常有音频)
   if (video.bit_rate) {
     for (const br of video.bit_rate) {
-      const url = br.play_addr?.url_list?.[0];
+      const url = br.play_addr?.url_list?.[br.play_addr.url_list.length - 1];
       if (url) {
         candidates.push({
           url,
@@ -699,7 +699,7 @@ async function parseDouyin(url, taskId, onProgress, quality = null, isVip = fals
 
   // 下载封面
   let thumbnailUrl = '';
-  const coverUrl = video.cover?.url_list?.[0] || video.origin_cover?.url_list?.[0] || '';
+  const coverUrl = video.cover?.url_list?.[video.cover.url_list.length - 1] || video.origin_cover?.url_list?.[video.origin_cover.url_list.length - 1] || '';
   if (coverUrl) {
     const thumbPath = path.join(DOWNLOAD_DIR, `${taskId}_thumb.jpg`);
     try {
@@ -1116,7 +1116,7 @@ async function getDouyinQualities(url) {
   const detail = data?.aweme_detail || {};
   const video = detail.video || {};
   const title = detail.desc || '抖音作品';
-  const cover = (detail.video?.cover?.url_list?.[0] || detail.video?.origin_cover?.url_list?.[0]) || '';
+  const cover = (detail.video?.cover?.url_list?.[detail.video.cover.url_list.length - 1] || detail.video?.origin_cover?.url_list?.[detail.video.origin_cover.url_list.length - 1]) || '';
   // TikHub API 返回的是毫秒，转换为秒
   const duration = detail.video?.duration ? Math.floor(detail.video.duration / 1000) : 0;
 
@@ -1137,7 +1137,7 @@ async function getDouyinQualities(url) {
 
   // H.265 源 (可能 1080p/2K)
   const playAddr265 = video.play_addr_265;
-  if (playAddr265?.url_list?.[0]) {
+  if (playAddr265?.url_list?.length > 0) { const pa265Url = playAddr265.url_list[playAddr265.url_list.length - 1];
     const w = playAddr265.width || 0;
     const h = playAddr265.height || 0;
     const key = `${w}x${h}`;
@@ -1158,7 +1158,7 @@ async function getDouyinQualities(url) {
   const bitrates = video.bit_rate || [];
   for (const br of bitrates) {
     const pa = br.play_addr;
-    if (!pa?.url_list?.[0]) continue;
+    if (!pa?.url_list?.length) continue;
     const w = pa.width || 0;
     const h = pa.height || 0;
     const key = `${w}x${h}`;
@@ -1178,7 +1178,7 @@ async function getDouyinQualities(url) {
 
   // play_addr 兜底 (通常 720p)
   const playAddr = video.play_addr;
-  if (playAddr?.url_list?.[0]) {
+  if (playAddr?.url_list?.length > 0) {
     const w = playAddr.width || 0;
     const h = playAddr.height || 720;
     const key = `${w}x${h}`;
