@@ -156,6 +156,7 @@ const PLATFORMS = [
   { id: 'instagram', labelKey: 'platform_instagram', labelFallback: 'Instagram', icon: '📸' },
   { id: 'xiaohongshu', labelKey: 'platform_xiaohongshu', labelFallback: '小紅書', icon: '📕' },
   { id: 'bilibili', labelKey: 'platform_bilibili', labelFallback: 'Bilibili', icon: '📺' },
+  { id: 'reddit', labelKey: 'platform_reddit', labelFallback: 'Reddit', icon: '🟠' },
   { id: 'more', labelKey: 'morePlatforms', labelFallback: '更多', icon: '🌐' },
 ]
 
@@ -269,6 +270,7 @@ function detectPlatform(url: string): string {
   if (/bilibili\.com|b23\.tv/i.test(url)) return 'bilibili'
   if (/xiaohongshu\.com|xhslink\.com/i.test(url)) return 'xiaohongshu'
   if (/(?:channels|finder|weixin)\.weixin\.qq\.com|weixin\.qq\.com\/sph\/|wxsnsdy\.|wechat/i.test(url)) return 'wechat'
+  if (/reddit\.com|redd\.it|v\.redd\.it/i.test(url)) return 'reddit'
   if (/kuaishou\.com|v\.kuaishou\.com/i.test(url)) return 'kuaishou'
   return ''
 }

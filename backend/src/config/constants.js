@@ -95,6 +95,7 @@ module.exports = {
     BILIBILI: 'bilibili',
     KUAISHOU: 'kuaishou',
     HONGGUO: 'hongguo',
+    REDDIT: 'reddit',
     AUTO: 'auto'
   },
 

@@ -1028,7 +1028,22 @@ async function processDownload(taskId, url, needAsr, options = ['video'], qualit
           logger.info(`[task] ${taskId} completed via cobalt (generic platform)`);
           return;
         } catch (cobaltErr) {
-          logger.warn(`[task] ${taskId} cobalt failed: ${cobaltErr.message}, falling back to yt-dlp...`);
+          logger.warn(`[task] ${taskId} cobalt failed: ${cobaltErr.message}, falling back...`);
+        }
+      }
+
+      // ========== TikHub Reddit 兜底 ==========
+      if (!cobaltResult && /reddit\.com|redd\.it|v\.redd\.it/i.test(url)) {
+        try {
+          logger.info(`[task] ${taskId} trying TikHub Reddit API...`);
+          const { parseReddit } = require('../services/tikhub');
+          const redditResult = await parseReddit(url, taskId, (percent) => store.update(taskId, { status: TASK_STATUS.DOWNLOADING, progress: percent }));
+          if (redditResult) {
+            result = { title: redditResult.title, filePath: redditResult.filePath, ext: 'mp4', downloadUrl: `/download/${taskId}.mp4`, thumbnailUrl: redditResult.thumbnailUrl, width: redditResult.width, height: redditResult.height, quality: redditResult.quality };
+            fileRefManager.addRef(`${taskId}.mp4`);
+          }
+        } catch (e) {
+          logger.warn(`[task] ${taskId} TikHub Reddit failed: ${e.message}`);
         }
       }
 

@@ -1418,7 +1418,91 @@ async function getBilibiliQualities(url) {
   return { title, duration, qualities };
 }
 
-module.exports = { parseYouTube, parseYouTubeV2, parseXiaohongshu, parseDouyin, parseInstagram, getDouyinQualities, parseBilibili, getBilibiliQualities, tikhubRequest, tikhubRequestPost, downloadFile, parseWechatExportId, getWechatVideoInfo, downloadWechat };
+module.exports = { parseYouTube, parseYouTubeV2, parseXiaohongshu, parseDouyin, parseInstagram, getDouyinQualities, parseBilibili, getBilibiliQualities, tikhubRequest, tikhubRequestPost, downloadFile, parseWechatExportId, getWechatVideoInfo, downloadWechat, parseReddit };
+
+// ============ Reddit ============
+
+/**
+ * 下载 Reddit 视频
+ */
+async function parseReddit(url, taskId, onProgress) {
+  const API_KEY = process.env.TIKHUB_API_KEY_REDDIT;
+  if (!API_KEY) throw new Error('TIKHUB_API_KEY_REDDIT not configured');
+
+  logger.info(`[TikHub] Parsing Reddit: ${url}`);
+
+  // 提取 Reddit post ID
+  const postId = extractRedditPostId(url);
+  if (!postId) throw new Error('Could not extract Reddit post ID');
+
+  if (onProgress) onProgress(10);
+
+  // 调用 TikHub Reddit API
+  const data = await tikhubRequest(
+    `/api/v1/reddit/web/fetch_one_post?post_id=${encodeURIComponent(postId)}`,
+    API_KEY
+  );
+
+  if (onProgress) onProgress(50);
+
+  const post = data?.data || data || {};
+  const video = post.video || {};
+  const title = post.title || `Reddit ${postId}`;
+
+  // 获取视频 URL
+  let videoUrl = video.play_url || video.url || '';
+  if (!videoUrl && video.url_list?.length > 0) {
+    videoUrl = video.url_list[video.url_list.length - 1];
+  }
+
+  if (!videoUrl) {
+    // 回退：直接下载 post 中可能的视频链接
+    if (post.media?.reddit_video?.fallback_url) {
+      videoUrl = post.media.reddit_video.fallback_url;
+    } else if (post.url_overridden_by_dest?.includes('v.redd.it')) {
+      videoUrl = post.url_overridden_by_dest;
+    }
+  }
+
+  if (!videoUrl) throw new Error('No video found in Reddit post');
+
+  const outputPath = path.join(DOWNLOAD_DIR, `${taskId}.mp4`);
+  await downloadFile(videoUrl, outputPath, onProgress);
+
+  // 下载封面
+  let thumbnailUrl = '';
+  if (post.thumbnail && post.thumbnail !== 'self' && post.thumbnail !== 'default') {
+    const thumbPath = path.join(DOWNLOAD_DIR, `${taskId}_thumb.jpg`);
+    try { await downloadFile(post.thumbnail, thumbPath); thumbnailUrl = `/download/${taskId}_thumb.jpg`; } catch {}
+  }
+
+  if (onProgress) onProgress(100);
+
+  return {
+    title,
+    filePath: outputPath,
+    ext: 'mp4',
+    thumbnailUrl,
+    subtitleFiles: [],
+    width: video.width || 0,
+    height: video.height || 0,
+    quality: video.height ? `${video.height}p` : null,
+    duration: post.media?.reddit_video?.duration || 0
+  };
+}
+
+function extractRedditPostId(url) {
+  const patterns = [
+    /reddit\.com\/r\/[^\/]+\/comments\/([a-z0-9]+)/i,
+    /redd\.it\/([a-z0-9]+)/i,
+    /v\.redd\.it\/([a-z0-9]+)/i,
+  ];
+  for (const p of patterns) {
+    const m = url.match(p);
+    if (m) return m[1];
+  }
+  return null;
+}
 
 // ============ WeChat Channels (视频号) ============
 
