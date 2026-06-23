@@ -103,6 +103,36 @@ function summarizeAiUsage(rows, feature, monthlyLimit) {
   };
 }
 
+async function getUsageStatus(req, res) {
+  try {
+    const userDb = require('../userDb');
+    if (req.user?.id) {
+      const usage = await userDb.getUsage(req.user.id);
+      return res.json({ code: 0, data: usage });
+    }
+
+    const guestUsage = await userDb.checkGuestDownload(getClientIp(req));
+    const limit = Number(guestUsage.limit || 0);
+    const remaining = Number(guestUsage.remaining || 0);
+    return res.json({
+      code: 0,
+      data: {
+        tier: 'guest',
+        isPro: false,
+        isBasic: false,
+        dailyDownloads: Math.max(0, limit - remaining),
+        dailyLimit: limit,
+        remaining,
+        subscriptionStatus: 'none',
+        subscriptionEndsAt: null
+      }
+    });
+  } catch (e) {
+    logger.error('[usage] failed:', e.message);
+    return res.status(500).json({ code: 500, message: '获取下载次数失败' });
+  }
+}
+
 async function buildAsrCorrectionContext(task, language = 'auto') {
   if (!task) return '';
   const parts = [];
@@ -244,7 +274,9 @@ function saveHistory(taskId) {
       platform: task.platform,
       title: task.title,
       thumbnailUrl: task.thumbnailUrl,
-      duration: task.duration
+      downloadUrl: task.downloadUrl,
+      duration: task.duration,
+      height: task.height
     }).then(() => store.update(taskId, { historySaved: true })).catch(e => logger.error('[history] save failed:', e.message));
   } catch (e) { logger.error('[history]', e.message); }
 }
@@ -2795,7 +2827,9 @@ function getStatus(req, res) {
       platform: task.platform,
       title: task.title,
       thumbnailUrl: task.thumbnailUrl,
-      duration: task.duration
+      downloadUrl: task.downloadUrl,
+      duration: task.duration,
+      height: task.height
     }).catch(e => logger.error('[history]', e.message));
     store.update(taskId, { historySaved: true });
   }
@@ -2868,7 +2902,9 @@ async function getHistory(req, res) {
         platform: h.platform,
         title: h.title,
         thumbnailUrl: h.thumbnail_url,
+        downloadUrl: h.download_url,
         duration: h.duration,
+        height: h.height,
         isFavorite: h.is_favorite === 1,
         tags: safeJsonArray(h.tags),
         notes: h.notes || '',
@@ -2913,7 +2949,9 @@ async function getHistory(req, res) {
         platform: h.platform,
         title: h.title,
         thumbnailUrl: h.thumbnail_url,
+        downloadUrl: h.download_url,
         duration: h.duration,
+        height: h.height,
         isFavorite: h.is_favorite === 1,
         tags: safeJsonArray(h.tags),
         notes: h.notes || '',
@@ -3746,6 +3784,7 @@ module.exports = {
   createDownload,
   createBatchDownload,
   getBatchStatus,
+  getUsageStatus,
   getInfo,
   getStatus,
   getHistory,

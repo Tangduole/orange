@@ -18,6 +18,8 @@ import {
 const BASE_URL = API_BASE
 const API = `${BASE_URL}/api`
 
+const isWeChatBrowser = () => /MicroMessenger/i.test(navigator.userAgent || '')
+
 function resolveAssetUrl(url?: string | null) {
   if (!url) return ''
   if (/^https?:\/\//i.test(url) || url.startsWith('blob:') || url.startsWith('data:')) return url
@@ -422,6 +424,15 @@ export default function App() {
     }
   }, [authToken])
 
+  const refreshDownloadUsage = useCallback(async () => {
+    try {
+      const usage = await api.getDownloadUsage(authToken)
+      setRemainingDownloads(usage.isPro ? -1 : (usage.remaining ?? GUEST_DAILY_LIMIT))
+    } catch (err) {
+      console.error('[usage] getDownloadUsage failed:', err)
+    }
+  }, [authToken])
+
   const openAdminDashboard = async () => {
     if (!authToken) return
     setShowUserMenu(false)
@@ -594,16 +605,9 @@ export default function App() {
       setIsVip(false)
       setIsBasic(false)
       setAiUsage(null)
-      // Check localStorage for guest remaining downloads
-      const today = new Date().toISOString().split('T')[0]
-      const parsed = readStoredJson<{ date?: string; count?: number } | null>('orange_guest_downloads', null)
-      if (parsed?.date === today) {
-        setRemainingDownloads(Math.max(0, GUEST_DAILY_LIMIT - (parsed.count || 0)))
-      } else {
-        setRemainingDownloads(GUEST_DAILY_LIMIT)
-      }
+      refreshDownloadUsage()
     }
-  }, [authToken, fetchAiUsage])
+  }, [authToken, fetchAiUsage, refreshDownloadUsage])
   const [historySearch, setHistorySearch] = useState('')
   const [debouncedHistorySearch, setDebouncedHistorySearch] = useState('')
   const [historyFilter, setHistoryFilter] = useState<'all' | 'completed' | 'error' | 'favorites'>('all')
@@ -1910,35 +1914,25 @@ export default function App() {
       playNotificationSound()
       // ShowCompleted通知
       showDownloadComplete(task.taskId, task.title || 'Download', false).catch(console.error)
-      // 更新游客剩余次数
-      if (!authToken && remainingDownloads > 0) {
-        setRemainingDownloads(Math.max(0, remainingDownloads - 1))
-      }
       // 延迟 500ms 后AutoDownload
       const downloadUrl = task.downloadUrl
       autoDownloadTimer.current = setTimeout(() => {
         setDownloading(true)
-        // iOS Safari: 不触发自动下载，让用户通过 inline video 长按保存
-        if (isIOS() && !task.directLink) {
+        // iOS Safari / WeChat built-in browser: keep the inline player visible instead of auto-saving.
+        if ((isIOS() || isWeChatBrowser()) && !task.directLink) {
           setShowIosGuide(true)
           setDownloading(false)
+          refreshDownloadUsage()
           return
         }
         shareFile(downloadUrl, task.title || 'video').finally(() => {
           setDownloading(false)
-          // DownloadCompleted后重新获取Use量
-          if (authToken) {
-            api.getUsage(authToken).then(u => {
-              if (u) {
-                setRemainingDownloads(u.isPro ? -1 : u.remaining)
-              }
-            }).catch(() => {})
-          }
+          refreshDownloadUsage()
         })
       }, 500)
     }
     return clearAutoDownload
-  }, [task?.status, task?.downloadUrl, task?.taskId, authToken])
+  }, [task?.status, task?.downloadUrl, task?.taskId, refreshDownloadUsage])
 
   // Client-side download for B站 (CDN blocks server IP)
   useEffect(() => {
@@ -1946,9 +1940,6 @@ export default function App() {
       autoDownloaded.current = true
       playNotificationSound()
       showDownloadComplete(task.taskId, task.title || 'Download', false).catch(console.error)
-      if (!authToken && remainingDownloads > 0) {
-        setRemainingDownloads(Math.max(0, remainingDownloads - 1))
-      }
       const { videoUrl, audioUrl, filename } = task.clientDownload
       autoDownloadTimer.current = setTimeout(async () => {
         setDownloading(true)
@@ -1963,22 +1954,23 @@ export default function App() {
               const aRes = await fetch(audioUrl, { headers: { Referer: 'https://www.bilibili.com' } })
               const aBlob = await aRes.blob()
               // merge logic: 先给视频（无声），下载完成提示
-              setShowNotification({ type: 'info', text: '已下载视频，音频暂不支持浏览器合并，仅保存视频' })
+              setError('已下载视频，音频暂不支持浏览器合并，仅保存视频')
             } catch { /* audio optional */ }
           }
           const url = URL.createObjectURL(blob)
           shareFile(url, filename).finally(() => {
             URL.revokeObjectURL(url)
             setDownloading(false)
+            refreshDownloadUsage()
           })
         } catch (e: any) {
           setDownloading(false)
-          setShowNotification({ type: 'error', text: '客户端下载失败：' + (e.message || '网络错误') })
+          setError('客户端下载失败：' + (e.message || '网络错误'))
         }
       }, 500)
     }
     return () => {}
-  }, [task?.status, task?.clientDownload, task?.taskId, authToken])
+  }, [task?.status, task?.clientDownload, task?.taskId, refreshDownloadUsage])
 
   const fetchHistoryMeta = useCallback(async () => {
     try {
@@ -2229,9 +2221,6 @@ export default function App() {
       return
     }
     
-    // 如果还没有自动选择画质（API在加载中），继续用默认quality参数
-    doSingleDownload()
-    
     // 检查是否已Download
     const dupItem = history.find(h => h.url === url.trim())
     if (dupItem && dupItem.status === 'completed') {
@@ -2295,7 +2284,9 @@ export default function App() {
         batchTasks.forEach((t: any) => {
           if (t.status === 'completed' && t.downloadUrl && !savedBatchTasks.current.has(t.taskId)) {
             savedBatchTasks.current.add(t.taskId)
-            shareFile(t.downloadUrl, t.title || 'video')
+            if (!isWeChatBrowser()) {
+              shareFile(t.downloadUrl, t.title || 'video')
+            }
           }
         })
         if (status === 'completed') {
@@ -2327,15 +2318,27 @@ export default function App() {
         url: url.trim(), platform: detected || 'auto',
         needAsr: requestNeedAsr, options: requestOptions, quality: downloadQuality, asrLanguage, targetLang: requestTargetLang, outputLanguage: getAiOutputLanguage(i18n.language)
       }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} })
+      if (r.data.code !== 0) {
+        if (r.data.code === 403 && (r.data.message || '').includes('下载次数')) {
+          setShowUpgradePopup(true)
+          refreshDownloadUsage()
+        }
+        setError(getErrorMessage(r.data.message || t('errorDefault')))
+        return
+      }
       setTask({ ...r.data.data, needAsr: requestNeedAsr, options: requestOptions });
-      // 服务器返回 403 且提到次数用尽 → 弹升级提示
-      if (r.data.code === 403 && (r.data.message || '').includes('下载次数')) {
-        setShowUpgradePopup(true)
+      if (r.data.usage) {
+        setRemainingDownloads(r.data.usage.isPro ? -1 : r.data.usage.remaining)
       }
       setPendingQuality('')  // 清空选择的画质
       qualityManuallySet.current = false
     } catch (e: any) {
-      setError(getErrorMessage(e.code === 'ECONNABORTED' ? 'timeout' : (e.response?.data?.message || e.message || t('errorDefault'))))
+      const message = e.response?.data?.message || e.message || t('errorDefault')
+      if (e.response?.status === 403 && message.includes('下载次数')) {
+        setShowUpgradePopup(true)
+        refreshDownloadUsage()
+      }
+      setError(getErrorMessage(e.code === 'ECONNABORTED' ? 'timeout' : message))
     } finally { setLoading(false) }
   }
 
@@ -2447,6 +2450,7 @@ export default function App() {
       progress: 100,
       directLink: false
     })
+    setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 0)
   }
   const clip = async (text: string, id: string) => {
     try { await navigator.clipboard.writeText(text); setCopied(id); setTimeout(() => setCopied(null), 3000) } catch {}
@@ -3340,6 +3344,10 @@ export default function App() {
                     onClick={async () => {
                       clearAutoDownload()  // 取消AutoDownload
                       autoDownloaded.current = true  // Mark为已Process
+                      if (isWeChatBrowser()) {
+                        window.open(resolveAssetUrl(task.downloadUrl), '_blank')
+                        return
+                      }
                       setDownloading(true)
                       await shareFile(task.downloadUrl!, task.title || 'video', 'video')
                       setDownloading(false)
@@ -4200,8 +4208,8 @@ export default function App() {
                     <div key={item.taskId} className={`group border-b border-slate-700/20 last:border-0 transition ${selectedTasks.has(item.taskId) ? 'bg-orange/10' : ''}`}>
                     <div className="flex items-center gap-2 px-3 py-2 hover:bg-slate-900/60 transition">
                       <input type="checkbox" checked={selectedTasks.has(item.taskId)} onChange={() => { const s = new Set(selectedTasks); selectedTasks.has(item.taskId) ? s.delete(item.taskId) : s.add(item.taskId); setSelectedTasks(s) }} className="w-3.5 h-3.5 rounded-full border-slate-600 shrink-0" />
-                      {item.thumbnailUrl ? <button onClick={() => openSavedFile(item)} className="relative shrink-0 group"><img src={resolveAssetUrl(item.thumbnailUrl)} alt="" className="w-12 h-9 object-cover rounded-lg" /><div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 transition"><Play className="w-4 h-4 text-white" /></div></button> : <div className="w-12 h-9 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0"><Video className="w-4 h-4 text-slate-500" /></div>}
-                      <div className="flex-1 min-w-0 overflow-hidden">
+                      {item.thumbnailUrl ? <button onClick={() => openSavedFile(item)} className="relative shrink-0 group"><img src={resolveAssetUrl(item.thumbnailUrl)} alt="" className="w-12 h-9 object-cover rounded-lg" /><div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 transition"><Play className="w-4 h-4 text-white" /></div></button> : <button onClick={() => openSavedFile(item)} className="w-12 h-9 rounded-lg bg-slate-700/50 flex items-center justify-center shrink-0 hover:bg-slate-700/70 transition"><Video className="w-4 h-4 text-slate-500" /></button>}
+                      <button type="button" onClick={() => openSavedFile(item)} className="flex-1 min-w-0 overflow-hidden text-left">
                         <div className="overflow-hidden leading-5" title={item.title || t('untitled')}>
                           <p className={`text-xs text-slate-300 font-medium whitespace-nowrap ${(item.title || '').length > 20 ? 'animate-marquee' : 'truncate'}`}>{item.title || t('untitled')}</p>
                         </div>
@@ -4240,7 +4248,7 @@ export default function App() {
                           </div>
                           <span className="shrink-0 text-[10px] text-slate-500">{new Date(item.createdAt).toLocaleString(i18n.language === 'zh-CN' ? 'zh-CN' : i18n.language === 'ja' ? 'ja-JP' : i18n.language === 'ko' ? 'ko-KR' : 'en-US', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
                         </div>
-                      </div>
+                      </button>
                       <div className={`flex items-center gap-0.5 transition ${editingMaterial?.taskId === item.taskId ? 'opacity-100' : 'opacity-40 group-hover:opacity-100 focus-within:opacity-100'}`}>
                         {item.status === 'error' && <button onClick={() => retryTask(item)} className="p-1.5 text-orange-500 hover:text-orange"><Loader2 className="w-5 h-5" /></button>}
                         {item.status === 'completed' && <button onClick={() => retryTask(item)} title="Re-download" className="p-1 text-slate-500 hover:text-green-400"><svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg></button>}

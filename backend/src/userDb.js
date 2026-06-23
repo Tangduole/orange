@@ -179,7 +179,9 @@ async function initDb() {
         platform TEXT,
         title TEXT,
         thumbnail_url TEXT,
+        download_url TEXT,
         duration INTEGER,
+        height INTEGER,
         is_favorite INTEGER DEFAULT 0,
         tags TEXT,
         notes TEXT,
@@ -195,6 +197,8 @@ async function initDb() {
       `ALTER TABLE download_history ADD COLUMN notes TEXT`,
       `ALTER TABLE download_history ADD COLUMN group_name TEXT`,
       `ALTER TABLE download_history ADD COLUMN ai_analysis TEXT`,
+      `ALTER TABLE download_history ADD COLUMN download_url TEXT`,
+      `ALTER TABLE download_history ADD COLUMN height INTEGER`,
     ]) {
       try { await db.execute({ sql: statement }); } catch (e) {}
     }
@@ -823,11 +827,11 @@ const userDb = {
   },
 
   // 下载历史
-  async addHistory({ userId, guestIp, taskId, url, platform, title, thumbnailUrl, duration }) {
+  async addHistory({ userId, guestIp, taskId, url, platform, title, thumbnailUrl, downloadUrl, duration, height }) {
     await db.execute({
-      sql: `INSERT INTO download_history (user_id, guest_ip, task_id, url, platform, title, thumbnail_url, duration, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, unixepoch())`,
-      args: [userId || null, guestIp || null, taskId, url, platform || null, title || null, thumbnailUrl || null, duration || null]
+      sql: `INSERT INTO download_history (user_id, guest_ip, task_id, url, platform, title, thumbnail_url, download_url, duration, height, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())`,
+      args: [userId || null, guestIp || null, taskId, url, platform || null, title || null, thumbnailUrl || null, downloadUrl || null, duration || null, height || null]
     });
   },
 

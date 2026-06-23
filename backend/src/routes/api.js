@@ -14,6 +14,7 @@ const {
   createDownload,
   createBatchDownload,
   getBatchStatus,
+  getUsageStatus,
   getInfo,
   getStatus,
   getHistory,
@@ -59,6 +60,9 @@ router.post('/video-info', auth.optional, getVideoInfo);
 
 // 查询任务状态
 router.get('/status/:taskId', auth.optional, getStatus);
+
+// 查询当前下载用量（登录用户或游客 IP）
+router.get('/usage', auth.optional, getUsageStatus);
 
 // 获取历史记录
 router.get('/history', auth.optional, getHistory);

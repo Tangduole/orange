@@ -159,6 +159,14 @@ export const api = {
     return data.data.usage;
   },
 
+  async getDownloadUsage(token?: string | null): Promise<UsageResponse> {
+    const data = await apiFetch(`${API_BASE}/api/usage`, {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : undefined
+    });
+    if (data.code !== 0) throw new Error(data.message);
+    return data.data;
+  },
+
   // 订阅 API
   async getSubscriptionStatus(token: string) {
     const data = await apiFetch(`${API_BASE}/api/subscribe/status`, {
