@@ -56,6 +56,31 @@ function signTaskResponse(data) {
   return signTaskDownloadFields(data);
 }
 
+function recoverHistoryDownloadUrl(taskId, storedUrl = null) {
+  if (storedUrl) return storedUrl;
+  if (!taskId) return null;
+
+  try {
+    const downloadDir = path.join(__dirname, '../../downloads');
+    const mediaExts = new Set(['.mp4', '.webm', '.mkv', '.mov', '.m4v', '.mp3']);
+    const files = fs.readdirSync(downloadDir)
+      .filter(file => file.startsWith(taskId) && mediaExts.has(path.extname(file).toLowerCase()))
+      .filter(file => !/_thumb|_cover|_asr|subtitle|translation/i.test(file))
+      .sort((a, b) => {
+        const aExact = path.parse(a).name === taskId ? 0 : 1;
+        const bExact = path.parse(b).name === taskId ? 0 : 1;
+        if (aExact !== bExact) return aExact - bExact;
+        const aVideo = path.extname(a).toLowerCase() === '.mp3' ? 1 : 0;
+        const bVideo = path.extname(b).toLowerCase() === '.mp3' ? 1 : 0;
+        return aVideo - bVideo;
+      });
+    return files[0] ? `/download/${encodeURIComponent(files[0])}` : null;
+  } catch (e) {
+    logger.warn(`[history] recover download url failed for ${taskId}: ${e.message}`);
+    return null;
+  }
+}
+
 function buildAiCacheKey(feature, payload) {
   const hash = crypto
     .createHash('sha256')
@@ -2902,7 +2927,7 @@ async function getHistory(req, res) {
         platform: h.platform,
         title: h.title,
         thumbnailUrl: h.thumbnail_url,
-        downloadUrl: h.download_url,
+        downloadUrl: recoverHistoryDownloadUrl(h.task_id, h.download_url),
         duration: h.duration,
         height: h.height,
         isFavorite: h.is_favorite === 1,
@@ -2949,7 +2974,7 @@ async function getHistory(req, res) {
         platform: h.platform,
         title: h.title,
         thumbnailUrl: h.thumbnail_url,
-        downloadUrl: h.download_url,
+        downloadUrl: recoverHistoryDownloadUrl(h.task_id, h.download_url),
         duration: h.duration,
         height: h.height,
         isFavorite: h.is_favorite === 1,
