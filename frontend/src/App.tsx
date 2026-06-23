@@ -26,6 +26,18 @@ function resolveAssetUrl(url?: string | null) {
   return `${BASE_URL}${url.startsWith('/') ? url : `/${url}`}`
 }
 
+function resolvePreviewUrl(url?: string | null) {
+  const fullUrl = resolveAssetUrl(url)
+  if (!fullUrl || fullUrl.startsWith('blob:') || fullUrl.startsWith('data:')) return fullUrl
+  try {
+    const parsed = new URL(fullUrl, window.location.origin)
+    parsed.searchParams.set('preview', '1')
+    return parsed.toString()
+  } catch {
+    return fullUrl
+  }
+}
+
 function readStoredJson<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key)
@@ -3330,7 +3342,7 @@ export default function App() {
                 <div className="mt-2">
                   <div className="relative rounded-xl overflow-hidden bg-black">
                     <video
-                      src={resolveAssetUrl(task.downloadUrl)}
+                      src={resolvePreviewUrl(task.downloadUrl)}
                       controls
                       playsInline
                       style={{ width: '100%', borderRadius: '12px', maxHeight: '400px' }}
@@ -3345,7 +3357,7 @@ export default function App() {
                       clearAutoDownload()  // 取消AutoDownload
                       autoDownloaded.current = true  // Mark为已Process
                       if (isWeChatBrowser()) {
-                        window.open(resolveAssetUrl(task.downloadUrl), '_blank')
+                        window.open(resolvePreviewUrl(task.downloadUrl), '_blank')
                         return
                       }
                       setDownloading(true)

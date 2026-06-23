@@ -191,7 +191,7 @@ app.use('/download', (req, res, next) => {
     const mimeType = mimeTypes[ext] || 'application/octet-stream';
     res.setHeader('Content-Type', mimeType);
 
-    // 视频/音频强制下载（不用 inline，避免浏览器拦截）
+    // 默认视频/音频用于保存时走 attachment；播放器预览显式带 preview=1 时走 inline。
     // 图片保持 inline（可以预览）
     let encodedFilename;
     try {
@@ -210,7 +210,8 @@ app.use('/download', (req, res, next) => {
       }
     }
     const isMedia = ['.mp4', '.mp3', '.avi', '.mov', '.mkv', '.flv', '.webm'].includes(ext);
-    const disposition = isMedia ? 'attachment' : 'inline';
+    const isPreview = req.query.preview === '1';
+    const disposition = isMedia && !isPreview ? 'attachment' : 'inline';
     res.setHeader('Content-Disposition', `${disposition}; filename*=UTF-8''${encodedFilename}`);
     
     // 允许跨域访问
