@@ -1357,6 +1357,30 @@ export default function App() {
     URL.revokeObjectURL(objectUrl)
   }
 
+  const buildAiSummaryTextCard = (summaryText: any) => {
+    if (typeof summaryText === 'string') return `${t('aiSummary')}\n\n${summaryText}`
+    const lines = [`${t('aiSummary')}`]
+    if (summaryText?.summary) {
+      lines.push('', summaryText.summary)
+    }
+    if (Array.isArray(summaryText?.tags) && summaryText.tags.length > 0) {
+      lines.push('', `${t('tags')}:`, summaryText.tags.map((tag: string) => `#${tag}`).join(' '))
+    }
+    if (Array.isArray(summaryText?.platforms) && summaryText.platforms.length > 0) {
+      lines.push('', `${t('platformFit')}:`, summaryText.platforms.join(' / '))
+    }
+    if (Array.isArray(summaryText?.titles) && summaryText.titles.length > 0) {
+      lines.push('', '推荐标题:', ...summaryText.titles.map((title: string, i: number) => `${i + 1}. ${title}`))
+    }
+    return lines.join('\n')
+  }
+
+  const downloadAiSummaryCard = () => {
+    if (!task?.summaryText) return
+    const base = sanitizeFilename(task.title || 'ai-summary', 'ai-summary').slice(0, 80)
+    downloadUtf8TextFile(buildAiSummaryTextCard(task.summaryText), `${base}-ai-summary.txt`)
+  }
+
   const exportCommerceCard = (commerce: any, format: 'md' | 'txt' | 'csv' | 'pack' | 'packCsv') => {
     if (format === 'pack') {
       if (getRewritePacks(commerce, rewriteStyle).length === 0) {
@@ -3717,9 +3741,14 @@ export default function App() {
               {/* AI 摘要（纯文本版本） */}
               {typeof task.summaryText === 'string' && task.summaryText && (
                 <div className="p-3 bg-gradient-to-r from-orange/10 to-orange-light/10 rounded-xl border border-orange/20">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs text-orange">🤖</span>
-                    <span className="text-xs text-orange font-medium">{t('aiSummary')}</span>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-orange">🤖</span>
+                      <span className="text-xs text-orange font-medium">{t('aiSummary')}</span>
+                    </div>
+                    <button onClick={downloadAiSummaryCard} className="text-xs text-slate-300 hover:text-orange transition">
+                      <Download className="w-3 h-3 inline" /> TXT
+                    </button>
                   </div>
                   <p className="text-sm text-slate-300 leading-relaxed">{task.summaryText}</p>
                 </div>
@@ -3728,7 +3757,12 @@ export default function App() {
               {/* AI 视频总结 */}
               {task.summaryText?.summary && (
                 <div className="p-3 bg-cyan-500/5 border border-cyan-500/15 rounded-xl">
-                  <p className="text-xs text-cyan-400 mb-2 font-medium">🤖 AI 视频总结</p>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <p className="text-xs text-cyan-400 font-medium">🤖 AI 视频总结</p>
+                    <button onClick={downloadAiSummaryCard} className="text-xs text-slate-300 hover:text-cyan-300 transition">
+                      <Download className="w-3 h-3 inline" /> TXT
+                    </button>
+                  </div>
                   <p className="text-sm text-slate-300 mb-2">{task.summaryText.summary}</p>
                   {task.summaryText.tags && (
                     <div className="flex flex-wrap gap-1 mb-2">
