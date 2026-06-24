@@ -62,20 +62,6 @@ async function probeContentLength(rawUrl) {
   }
 }
 
-function estimateQualitySize(q, durationSec) {
-  if (durationSec > 1000) durationSec = Math.round(durationSec / 1000);
-  if (!durationSec) return 0;
-  const estimateBitrate = (h) => {
-    if (h >= 2160) return 40000000;
-    if (h >= 1440) return 20000000;
-    if (h >= 1080) return 8000000;
-    if (h >= 720) return 4000000;
-    return 2500000;
-  };
-  const h = (q.width && q.height) ? Math.min(q.width, q.height) : (q.height || Math.min(q.width || 720, 720));
-  return Math.round(durationSec * estimateBitrate(h) / 8);
-}
-
 function getCachedQualitySize(cache, q) {
   if (!cache) return 0;
   const shortEdge = (q.width && q.height) ? Math.min(q.width, q.height) : q.height;
@@ -108,6 +94,9 @@ async function enrichQualitySizes(qualities, durationSec, cacheKey) {
       q.size = cachedSize;
       q.sizeEstimated = false;
       q.sizeSource = 'downloaded';
+    } else if (q.size && q.size > 0) {
+      q.sizeEstimated = !!q.sizeEstimated;
+      q.sizeSource = q.sizeSource || (q.sizeEstimated ? 'estimate' : 'api');
     } else if (q._probeUrl && probes < probeLimit) {
       probes += 1;
       const probedSize = await probeContentLength(q._probeUrl);
@@ -116,18 +105,6 @@ async function enrichQualitySizes(qualities, durationSec, cacheKey) {
         q.sizeEstimated = false;
         q.sizeSource = 'content-length';
       }
-    }
-
-    if (!q.size || q.size <= 0) {
-      const estimated = estimateQualitySize(q, durationSec);
-      if (estimated > 0) {
-        q.size = estimated;
-        q.sizeEstimated = true;
-        q.sizeSource = 'estimate';
-      }
-    } else if (!q.sizeSource) {
-      q.sizeEstimated = !!q.sizeEstimated;
-      q.sizeSource = q.sizeEstimated ? 'estimate' : 'api';
     }
 
     delete q._probeUrl;
