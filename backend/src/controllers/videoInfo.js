@@ -5,9 +5,12 @@
  * 负责 /api/video-info 端点的画质查询逻辑。
  */
 
+const axios = require('axios');
 const { heightToLabel, formatSize, detectPlatform } = require('../utils/media');
 const logger = require('../utils/logger');
 const cacheManager = require('../utils/cacheManager');
+const { isPrivateHost } = require('../utils/httpGet');
+const { getSizes } = require('../services/sizeCache');
 const {
   RESPONSE_CODE,
   HTTP_STATUS,
@@ -20,16 +23,48 @@ function getCachedInfo(key, fetcher) {
   return cacheManager.getOrSet(key, fetcher, 'info');
 }
 
-/**
- * 对 size===0 的画质条目,根据分辨率和时长估算文件大小
- */
-function fillQualitySizes(qualities, durationSec) {
-  // 统一估算：不再混用 API 实际大小和估算大小
-  // 归一化：毫秒转秒（douyin/tikhub等接口返回毫秒）
+async function probeContentLength(rawUrl) {
+  if (!rawUrl) return 0;
+  let parsed;
+  try { parsed = new URL(rawUrl); } catch { return 0; }
+  if (!['http:', 'https:'].includes(parsed.protocol) || isPrivateHost(parsed.hostname)) return 0;
+
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+  };
+
+  try {
+    const head = await axios.head(rawUrl, {
+      headers,
+      timeout: 5000,
+      maxRedirects: 5,
+      validateStatus: status => status >= 200 && status < 400
+    });
+    const len = Number(head.headers?.['content-length'] || 0);
+    if (Number.isFinite(len) && len > 0) return len;
+  } catch {}
+
+  try {
+    const res = await axios.get(rawUrl, {
+      headers: { ...headers, Range: 'bytes=0-0' },
+      responseType: 'stream',
+      timeout: 5000,
+      maxRedirects: 5,
+      validateStatus: status => status === 200 || status === 206
+    });
+    res.data?.destroy?.();
+    const contentRange = String(res.headers?.['content-range'] || '');
+    const totalMatch = contentRange.match(/\/(\d+)$/);
+    const total = totalMatch ? Number(totalMatch[1]) : Number(res.headers?.['content-length'] || 0);
+    return Number.isFinite(total) && total > 1 ? total : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function estimateQualitySize(q, durationSec) {
   if (durationSec > 1000) durationSec = Math.round(durationSec / 1000);
-  // 避免 720p H.264 实际体积 > 2K H.265 实际体积 导致的混乱
-  // 始终基于分辨率估算，确保高画质 → 大容量，用户体验一致
-  if (!durationSec || !qualities?.length) return qualities;
+  if (!durationSec) return 0;
   const estimateBitrate = (h) => {
     if (h >= 2160) return 40000000;
     if (h >= 1440) return 20000000;
@@ -37,12 +72,68 @@ function fillQualitySizes(qualities, durationSec) {
     if (h >= 720) return 4000000;
     return 2500000;
   };
-  return qualities.map(q => {
-    // 保留 API 返回的实际比特率大小
-    if (q.size && q.size > 0) return q;
-    const h = (q.width && q.height) ? Math.min(q.width, q.height) : (q.height || Math.min(q.width || 720, 720));
-    return { ...q, size: Math.round(durationSec * estimateBitrate(h) / 8), sizeEstimated: true };
-  });
+  const h = (q.width && q.height) ? Math.min(q.width, q.height) : (q.height || Math.min(q.width || 720, 720));
+  return Math.round(durationSec * estimateBitrate(h) / 8);
+}
+
+function getCachedQualitySize(cache, q) {
+  if (!cache) return 0;
+  const shortEdge = (q.width && q.height) ? Math.min(q.width, q.height) : q.height;
+  const keys = [
+    q.quality,
+    q.qualityLabel,
+    shortEdge ? `${shortEdge}` : '',
+    shortEdge ? `${shortEdge}p` : '',
+    q.height ? `${q.height}` : '',
+    q.height ? `${q.height}p` : ''
+  ].filter(Boolean);
+  for (const key of keys) {
+    const val = Number(cache[key] || 0);
+    if (val > 0) return val;
+  }
+  return 0;
+}
+
+async function enrichQualitySizes(qualities, durationSec, cacheKey) {
+  if (!qualities?.length) return qualities || [];
+  const cache = cacheKey ? getSizes(cacheKey) : null;
+  const probeLimit = 4;
+  let probes = 0;
+
+  const enriched = [];
+  for (const original of qualities) {
+    const q = { ...original };
+    const cachedSize = getCachedQualitySize(cache, q);
+    if (cachedSize > 0) {
+      q.size = cachedSize;
+      q.sizeEstimated = false;
+      q.sizeSource = 'downloaded';
+    } else if (q._probeUrl && probes < probeLimit) {
+      probes += 1;
+      const probedSize = await probeContentLength(q._probeUrl);
+      if (probedSize > 0) {
+        q.size = probedSize;
+        q.sizeEstimated = false;
+        q.sizeSource = 'content-length';
+      }
+    }
+
+    if (!q.size || q.size <= 0) {
+      const estimated = estimateQualitySize(q, durationSec);
+      if (estimated > 0) {
+        q.size = estimated;
+        q.sizeEstimated = true;
+        q.sizeSource = 'estimate';
+      }
+    } else if (!q.sizeSource) {
+      q.sizeEstimated = !!q.sizeEstimated;
+      q.sizeSource = q.sizeEstimated ? 'estimate' : 'api';
+    }
+
+    delete q._probeUrl;
+    enriched.push(q);
+  }
+  return enriched;
 }
 
 /**
@@ -97,7 +188,8 @@ async function getVideoInfo(req, res) {
                 height: h,
                 hasVideo: true,
                 hasAudio: v.hasAudio === undefined ? true : v.hasAudio,
-                size: v.size || 0
+                size: v.size || 0,
+                _probeUrl: v.url
               };
             })
             .filter(q => q.height > 0 && !seen.has(q.height) && seen.add(q.height))
@@ -132,6 +224,8 @@ async function getVideoInfo(req, res) {
                 hasVideo: true,
                 hasAudio: f.acodec !== 'none',
                 size: f.filesize || f.filesize_approx || 0,
+                sizeEstimated: !f.filesize && !!f.filesize_approx,
+                _probeUrl: f.url,
                 formatId: f.format_id
               }))
               .filter(q => !seen.has(q.height) && seen.add(q.height))
@@ -148,7 +242,7 @@ async function getVideoInfo(req, res) {
 
       return res.json({
         code: 0,
-        data: { title, thumbnail, duration, platform: 'youtube', qualities: fillQualitySizes(qualities, duration) }
+        data: { title, thumbnail, duration, platform: 'youtube', qualities: await enrichQualitySizes(qualities, duration, url) }
       });
     }
 
@@ -225,7 +319,7 @@ async function getVideoInfo(req, res) {
 
         return res.json({
           code: 0,
-          data: { title, thumbnail, duration, platform: 'douyin', qualities: fillQualitySizes(qualities, duration) }
+          data: { title, thumbnail, duration, platform: 'douyin', qualities: await enrichQualitySizes(qualities, duration, url) }
         });
       } catch (e) {
         logger.warn('[video-info] Douyin error:', e.message);
@@ -258,7 +352,10 @@ async function getVideoInfo(req, res) {
                 height: br.play_addr?.height || 0,
                 hasVideo: true,
                 hasAudio: true,
-                size: estSize
+                size: estSize,
+                sizeEstimated: true,
+                sizeSource: 'bitrate',
+                _probeUrl: br.play_addr?.url_list?.[br.play_addr.url_list.length - 1] || br.play_addr?.url_list?.[0]
               };
             })
             .sort((a, b) => (b.height || 0) - (a.height || 0));
@@ -274,7 +371,7 @@ async function getVideoInfo(req, res) {
               thumbnail: video.cover?.url_list?.[0] || '',
               duration: video.duration ? Math.floor(video.duration / 1000) : 0,
               platform: 'tiktok',
-              qualities: fillQualitySizes(unique.length > 0 ? unique : [{ quality: '720p', format: 'mp4', width: 1280, height: 720, hasVideo: true, hasAudio: true }], video.duration ? Math.floor(video.duration / 1000) : 0)
+              qualities: await enrichQualitySizes(unique.length > 0 ? unique : [{ quality: '720p', format: 'mp4', width: 1280, height: 720, hasVideo: true, hasAudio: true }], video.duration ? Math.floor(video.duration / 1000) : 0, url)
             }
           });
         }
@@ -297,7 +394,7 @@ async function getVideoInfo(req, res) {
             thumbnail: '',
             duration: info.duration || 0,
             platform: 'bilibili',
-            qualities: fillQualitySizes(info.qualities || [], info.duration || 0)
+            qualities: await enrichQualitySizes(info.qualities || [], info.duration || 0, url)
           }
         });
       } catch (e) {
@@ -342,7 +439,10 @@ async function getVideoInfo(req, res) {
                   hasVideo: true,
                   hasAudio: true,
                   size: (s.avgBitrate || 0) * (xhsVideo.capa?.duration || 10) / 8,
-                  _bitrate: s.avgBitrate || 0
+                  sizeEstimated: true,
+                  sizeSource: 'bitrate',
+                  _bitrate: s.avgBitrate || 0,
+                  _probeUrl: s.masterUrl
                 });
               }
             }
@@ -377,7 +477,7 @@ async function getVideoInfo(req, res) {
               thumbnail: xhsVideo.image?.thumbnailFileid ? 'https://ci.xiaohongshu.com/' + xhsVideo.image.thumbnailFileid : '',
               duration: xhsVideo.capa?.duration || 0,
               platform: 'xiaohongshu',
-              qualities: fillQualitySizes(qualities, xhsVideo.capa?.duration || 0)
+              qualities: await enrichQualitySizes(qualities, xhsVideo.capa?.duration || 0, url)
             }
           });
         }

@@ -424,7 +424,14 @@ async function finalizeTask(taskId) {
       if (files.length > 0) {
         const filePath = path.join(DOWNLOAD_DIR, files[0]);
         const realSize = fs.statSync(filePath).size;
-        recordSizes(task.url, { _default: realSize });
+        const shortEdge = task.width && task.height ? Math.min(task.width, task.height) : task.height;
+        const sizes = { _default: realSize };
+        if (task.quality) sizes[task.quality] = realSize;
+        if (shortEdge) {
+          sizes[String(shortEdge)] = realSize;
+          sizes[`${shortEdge}p`] = realSize;
+        }
+        recordSizes(task.url, sizes);
       }
     } catch (e) {
       // 缓存记录失败不影响主流程

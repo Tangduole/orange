@@ -3047,7 +3047,15 @@ export default function App() {
                         >
                           <span>🎬</span>
                           <span>{qualityLabel}</span>
-                          {q.size && q.size > 0 && <span className="text-[10px] opacity-60 ml-0.5">~{(q.size / 1048576).toFixed(1)}MB</span>}
+                          {q.size && q.size > 0 && (
+                            <span
+                              className="text-[10px] opacity-60 ml-0.5"
+                              title={(q as any).sizeSource ? `size: ${(q as any).sizeSource}` : undefined}
+                            >
+                              {((q as any).sizeEstimated || (q as any).sizeSource === 'estimate' || (q as any).sizeSource === 'bitrate') ? '≈' : ''}
+                              {formatBytes(q.size)}
+                            </span>
+                          )}
                           {isHighQuality && !isVip && <span className="text-[10px]">⭐</span>}
                         </button>
                       )
