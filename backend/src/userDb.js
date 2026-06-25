@@ -187,6 +187,9 @@ async function initDb() {
         notes TEXT,
         group_name TEXT,
         ai_analysis TEXT,
+        copywrite_transcript TEXT,
+        asr_text TEXT,
+        summary_text TEXT,
         created_at INTEGER NOT NULL
       )
     `);
@@ -197,6 +200,9 @@ async function initDb() {
       `ALTER TABLE download_history ADD COLUMN notes TEXT`,
       `ALTER TABLE download_history ADD COLUMN group_name TEXT`,
       `ALTER TABLE download_history ADD COLUMN ai_analysis TEXT`,
+      `ALTER TABLE download_history ADD COLUMN copywrite_transcript TEXT`,
+      `ALTER TABLE download_history ADD COLUMN asr_text TEXT`,
+      `ALTER TABLE download_history ADD COLUMN summary_text TEXT`,
       `ALTER TABLE download_history ADD COLUMN download_url TEXT`,
       `ALTER TABLE download_history ADD COLUMN height INTEGER`,
     ]) {
@@ -827,11 +833,26 @@ const userDb = {
   },
 
   // 下载历史
-  async addHistory({ userId, guestIp, taskId, url, platform, title, thumbnailUrl, downloadUrl, duration, height }) {
+  async addHistory({ userId, guestIp, taskId, url, platform, title, thumbnailUrl, downloadUrl, duration, height, aiAnalysis, copywriteTranscript, asrText, summaryText }) {
     await db.execute({
-      sql: `INSERT INTO download_history (user_id, guest_ip, task_id, url, platform, title, thumbnail_url, download_url, duration, height, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())`,
-      args: [userId || null, guestIp || null, taskId, url, platform || null, title || null, thumbnailUrl || null, downloadUrl || null, duration || null, height || null]
+      sql: `INSERT INTO download_history (user_id, guest_ip, task_id, url, platform, title, thumbnail_url, download_url, duration, height, ai_analysis, copywrite_transcript, asr_text, summary_text, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())`,
+      args: [
+        userId || null,
+        guestIp || null,
+        taskId,
+        url,
+        platform || null,
+        title || null,
+        thumbnailUrl || null,
+        downloadUrl || null,
+        duration || null,
+        height || null,
+        aiAnalysis !== undefined ? JSON.stringify(aiAnalysis) : null,
+        copywriteTranscript || null,
+        asrText || null,
+        summaryText !== undefined ? JSON.stringify(summaryText) : null
+      ]
     });
   },
 
@@ -998,7 +1019,7 @@ const userDb = {
     }
   },
 
-  async updateHistoryMeta({ userId, guestIp, taskId, isFavorite, tags, notes, groupName, aiAnalysis }) {
+  async updateHistoryMeta({ userId, guestIp, taskId, isFavorite, tags, notes, groupName, aiAnalysis, copywriteTranscript, asrText, summaryText }) {
     const sets = [];
     const args = [];
     if (typeof isFavorite === 'boolean') {
@@ -1020,6 +1041,18 @@ const userDb = {
     if (aiAnalysis !== undefined) {
       sets.push('ai_analysis = ?');
       args.push(JSON.stringify(aiAnalysis));
+    }
+    if (copywriteTranscript !== undefined) {
+      sets.push('copywrite_transcript = ?');
+      args.push(copywriteTranscript || null);
+    }
+    if (asrText !== undefined) {
+      sets.push('asr_text = ?');
+      args.push(asrText || null);
+    }
+    if (summaryText !== undefined) {
+      sets.push('summary_text = ?');
+      args.push(JSON.stringify(summaryText));
     }
     if (sets.length === 0) return;
 

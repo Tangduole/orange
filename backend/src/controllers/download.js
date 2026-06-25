@@ -211,7 +211,8 @@ async function saveCopywriteResult({ taskId, task, user, transcript, analysis })
     userId: user.id,
     taskId,
     tags: analysis?.tags || [],
-    aiAnalysis: analysis
+    aiAnalysis: analysis,
+    copywriteTranscript: transcript
   });
   await userDb.recordAiUsage({
     userId: user.id,
@@ -249,6 +250,9 @@ async function generateCommerceCardForTask(taskId, user, outputLanguage = null, 
       notes: historyItem.notes || '',
       groupName: historyItem.group_name || '',
       copywriteAnalysis: safeJsonObject(historyItem.ai_analysis),
+      copywriteTranscript: historyItem.copywrite_transcript || '',
+      asrText: historyItem.asr_text || '',
+      summaryText: safeJsonValue(historyItem.summary_text),
       historySaved: true,
       createdAt: Number(historyItem.created_at || Math.floor(Date.now() / 1000)) * 1000
     });
@@ -288,7 +292,11 @@ async function generateCommerceCardForTask(taskId, user, outputLanguage = null, 
  */
 function saveHistory(taskId) {
   const task = store.get(taskId);
-  if (!task || task.historySaved) return;
+  if (!task) return;
+  if (task.historySaved) {
+    persistHistoryAiFields(taskId);
+    return;
+  }
   try {
     const userDb = require('../userDb');
     userDb.addHistory({
@@ -301,9 +309,32 @@ function saveHistory(taskId) {
       thumbnailUrl: task.thumbnailUrl,
       downloadUrl: task.downloadUrl,
       duration: task.duration,
-      height: task.height
+      height: task.height,
+      aiAnalysis: task.copywriteAnalysis || task.aiAnalysis,
+      copywriteTranscript: task.copywriteTranscript,
+      asrText: task.asrText,
+      summaryText: task.summaryText
     }).then(() => store.update(taskId, { historySaved: true })).catch(e => logger.error('[history] save failed:', e.message));
   } catch (e) { logger.error('[history]', e.message); }
+}
+
+function persistHistoryAiFields(taskId) {
+  const task = store.get(taskId);
+  if (!task) return;
+  const hasAiFields = task.copywriteAnalysis || task.aiAnalysis || task.copywriteTranscript || task.asrText || task.summaryText;
+  if (!hasAiFields) return;
+  try {
+    const userDb = require('../userDb');
+    userDb.updateHistoryMeta({
+      userId: task.userId,
+      guestIp: task.guestIp,
+      taskId: task.taskId,
+      aiAnalysis: task.copywriteAnalysis || task.aiAnalysis,
+      copywriteTranscript: task.copywriteTranscript,
+      asrText: task.asrText,
+      summaryText: task.summaryText
+    }).catch(e => logger.error('[history] ai update failed:', e.message));
+  } catch (e) { logger.error('[history] ai update failed:', e.message); }
 }
 
 /**
@@ -2861,7 +2892,11 @@ function getStatus(req, res) {
       thumbnailUrl: task.thumbnailUrl,
       downloadUrl: task.downloadUrl,
       duration: task.duration,
-      height: task.height
+      height: task.height,
+      aiAnalysis: task.copywriteAnalysis || task.aiAnalysis,
+      copywriteTranscript: task.copywriteTranscript,
+      asrText: task.asrText,
+      summaryText: task.summaryText
     }).catch(e => logger.error('[history]', e.message));
     store.update(taskId, { historySaved: true });
   }
@@ -2890,6 +2925,10 @@ function getStatus(req, res) {
       translatedTxtUrl: task.translatedTxtUrl,
       subbedVideoUrl: task.subbedVideoUrl,
       asrError: task.asrError,
+      copywriteAnalysis: task.copywriteAnalysis || task.aiAnalysis,
+      copywriteTranscript: task.copywriteTranscript,
+      commerceCardStatus: task.commerceCardStatus,
+      commerceCardError: task.commerceCardError,
       copyText: task.copyText,
       copyTxtUrl: task.copyTxtUrl,
       coverUrl: task.coverUrl,
@@ -2942,6 +2981,10 @@ async function getHistory(req, res) {
         notes: h.notes || '',
         groupName: h.group_name || '',
         aiAnalysis: safeJsonObject(h.ai_analysis),
+        copywriteAnalysis: safeJsonObject(h.ai_analysis),
+        copywriteTranscript: h.copywrite_transcript || '',
+        asrText: h.asr_text || '',
+        summaryText: safeJsonValue(h.summary_text),
         createdAt: h.created_at * 1000,
         status: 'completed',
         fromDb: true,
@@ -2989,6 +3032,10 @@ async function getHistory(req, res) {
         notes: h.notes || '',
         groupName: h.group_name || '',
         aiAnalysis: safeJsonObject(h.ai_analysis),
+        copywriteAnalysis: safeJsonObject(h.ai_analysis),
+        copywriteTranscript: h.copywrite_transcript || '',
+        asrText: h.asr_text || '',
+        summaryText: safeJsonValue(h.summary_text),
         status: 'completed',
         createdAt: h.created_at * 1000,
         fromDb: true
@@ -3047,6 +3094,15 @@ function safeJsonObject(value) {
     return parsed && typeof parsed === 'object' ? parsed : null;
   } catch {
     return null;
+  }
+}
+
+function safeJsonValue(value) {
+  if (!value) return null;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
   }
 }
 
@@ -3370,6 +3426,9 @@ async function getTaskForHistoryOwner(taskId, user) {
       notes: historyItem.notes || '',
       groupName: historyItem.group_name || '',
       copywriteAnalysis: safeJsonObject(historyItem.ai_analysis),
+      copywriteTranscript: historyItem.copywrite_transcript || '',
+      asrText: historyItem.asr_text || '',
+      summaryText: safeJsonValue(historyItem.summary_text),
       historySaved: true,
       createdAt: Number(historyItem.created_at || Math.floor(Date.now() / 1000)) * 1000
     });

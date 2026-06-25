@@ -139,7 +139,8 @@ interface HistoryItem {
   platform?: string; thumbnailUrl?: string; createdAt: string | number
   url?: string; downloadUrl?: string; height?: number
   isFavorite?: boolean; tags?: string[] | string; notes?: string; groupName?: string
-  aiAnalysis?: any; copywriteAnalysis?: any
+  aiAnalysis?: any; copywriteAnalysis?: any; copywriteTranscript?: string
+  asrText?: string; summaryText?: any
 }
 interface HistoryMeta {
   tags: Array<{ tag: string; count: number }>
@@ -2480,8 +2481,12 @@ export default function App() {
     }
     clearAutoDownload()
     previewingHistory.current = true
+    const analysis = getHistoryAnalysis(item)
+    setCopywritingResult(null)
     setTask({
       ...(item as unknown as Task),
+      copywriteAnalysis: analysis || undefined,
+      copywriteTranscript: item.copywriteTranscript,
       status: item.status || 'completed',
       progress: 100,
       directLink: false
