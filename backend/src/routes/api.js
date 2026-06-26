@@ -49,7 +49,7 @@ const router = express.Router();
 router.post('/download', downloadLimiter, auth.optional, createDownload);
 
 // 批量下载（VIP only）
-router.post('/download/batch', auth.required, createBatchDownload);
+router.post('/download/batch', downloadLimiter, auth.required, createBatchDownload);
 
 // 查询批量任务状态
 router.get('/download/batch/:batchId', auth.required, getBatchStatus);

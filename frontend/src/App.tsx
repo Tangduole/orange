@@ -1741,7 +1741,7 @@ export default function App() {
   }
 
   // ProcessPaste事件 - AutoExtractLink
-  const [batchQueue, setBatchQueue] = useState<Array<{url: string, status: string, progress: number, title?: string}>>([])
+  const [batchQueue, setBatchQueue] = useState<Array<{taskId?: string, url: string, status: string, progress: number, title?: string, downloadUrl?: string, error?: string}>>([])
   const savedBatchTasks = useRef<Set<string>>(new Set())
   const [batchIndex, setBatchIndex] = useState(0)
   const [saveLocation, setSaveLocation] = useState<string>('album')
@@ -2200,13 +2200,14 @@ export default function App() {
     
     // 批量模式
     if (batchMode) {
-      const urls = batchUrls.split('\n')
+      const urls = Array.from(new Set(batchUrls.split('\n')
         .map(u => u.trim())
         .filter(u => u)
         .map(u => u.replace(/^\d+\.\s*/, ''))
         .map(u => extractUrls(u)[0] || u)
-        .filter(u => u)
+        .filter(u => u)))
       if (urls.length === 0) { setError(t('enterVideoLink')); return }
+      if (urls.length > 10) { setError('单次最多 10 个链接'); return }
       
       // 批量下载仅限VIP
       if (!isVip) {
@@ -2214,11 +2215,10 @@ export default function App() {
         return;
       }
       
-      // 检查第一个Link是否已Download
-      const firstUrl = urls[0]
-      const dupItem = history.find(h => h.url === firstUrl)
+      // 检查批量中是否有已完成历史记录
+      const dupItem = history.find(h => h.status === 'completed' && urls.includes(h.url || ''))
       if (dupItem && dupItem.status === 'completed') {
-        setDupUrl(firstUrl)
+        setDupUrl(dupItem.url || urls[0])
         setPendingDownload(() => () => doBatchDownload(urls))
         setShowDupConfirm(true)
         return
@@ -2253,8 +2253,10 @@ export default function App() {
     const requestNeedAsr = selectedAiTools.size > 0
     const requestTargetLang = selectedAiTools.has('translate_subtitle') ? (targetLang || 'en') : null
 
-    const cleanUrls = urls.map(u => u.replace(/^\d+\.\s*/, '').trim()).filter(u => u)
+    const cleanUrls = Array.from(new Set(urls.map(u => u.replace(/^\d+\.\s*/, '').trim()).filter(u => u)))
+    if (cleanUrls.length > 10) { setError('单次最多 10 个链接'); return }
     setBatchQueue(cleanUrls.map(u => ({ url: u, status: 'pending', progress: 0 })))
+    setBatchIndex(0)
     setLoading(true); setError('')
 
     try {
@@ -2268,10 +2270,16 @@ export default function App() {
         outputLanguage: getAiOutputLanguage(i18n.language),
       }, { timeout: 30000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} })
 
+      if (r.data.code !== 0) {
+        if (r.data.code === 403 && (r.data.message || '').includes('Pro')) setShowUpgradePopup(true)
+        setError(getErrorMessage(r.data.message || t('errorDefault')))
+        setLoading(false)
+        return
+      }
       const { batchId: bid, tasks } = r.data.data
       setBatchId(bid)
       savedBatchTasks.current.clear()
-      setBatchQueue(tasks.map((t: any) => ({ url: t.url, status: t.status, progress: 0 })))
+      setBatchQueue(tasks.map((t: any) => ({ taskId: t.taskId, url: t.url, status: t.status, progress: 0 })))
 
       // 后台轮询批量状态
       pollBatchStatus(bid)
@@ -2282,39 +2290,61 @@ export default function App() {
   }
 
   const pollBatchStatus = (bid: string) => {
+    let failures = 0
     const timer = setInterval(async () => {
       try {
         const r = await axios.get(`${API}/download/batch/${bid}`, {
           headers: authToken ? { Authorization: `Bearer ${authToken}` } : {}
         })
+        if (r.data.code !== 0) {
+          throw new Error(r.data.message || t('errorDefault'))
+        }
+        failures = 0
         const { status, tasks: batchTasks } = r.data.data
+        const doneCount = batchTasks.filter((t: any) => ['completed', 'error', 'failed'].includes(t.status)).length
+        setBatchIndex(doneCount)
         setBatchQueue(batchTasks.map((t: any) => ({
+          taskId: t.taskId,
           url: t.url,
           status: t.status,
           progress: 0,
           title: t.title || '',
           downloadUrl: t.downloadUrl || '',
+          error: t.error || '',
         })))
         // 批量任务完成时自动保存（每个任务只保存一次）
         batchTasks.forEach((t: any) => {
           if (t.status === 'completed' && t.downloadUrl && !savedBatchTasks.current.has(t.taskId)) {
             savedBatchTasks.current.add(t.taskId)
             if (!isWeChatBrowser()) {
-              shareFile(t.downloadUrl, t.title || 'video')
+              shareFile(t.downloadUrl, t.title || 'video').catch(() => {})
             }
           }
         })
-        if (status === 'completed') {
+        if (['completed', 'partial_failed', 'failed'].includes(status)) {
           clearInterval(timer)
           setBatchId(null)
           setLoading(false)
           fetchHistory()
           // PWA notification
-          const doneCount = batchTasks.filter((t: any) => t.status === 'completed').length
+          const successCount = batchTasks.filter((t: any) => t.status === 'completed').length
           const totalCount = batchTasks.length
-          showDownloadComplete(bid, `批量下载完成 ${doneCount}/${totalCount}`, false)
+          const title = status === 'completed'
+            ? `批量下载完成 ${successCount}/${totalCount}`
+            : status === 'partial_failed'
+              ? `批量下载部分完成 ${successCount}/${totalCount}`
+              : `批量下载失败 ${successCount}/${totalCount}`
+          showDownloadComplete(bid, title, false)
         }
-      } catch { /* ignore */ }
+      } catch (e: any) {
+        failures += 1
+        if (failures >= 3) {
+          clearInterval(timer)
+          setBatchId(null)
+          setLoading(false)
+          setError(getErrorMessage(e.message || t('errorDefault')))
+        }
+      }
     }, 2000)
   }
 
@@ -3116,18 +3146,18 @@ export default function App() {
               <div className={`mb-3 rounded-xl border overflow-hidden ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-light-surface border-light-border'}`}>
                 <div className={`px-4 py-2 border-b flex justify-between items-center ${isDark ? 'border-slate-700/60' : 'border-light-border'}`}>
                   <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-light-textSecondary'}`}>
-                    📋 批量下载 · {batchQueue.filter(i => i.status !== 'pending').length}/{batchQueue.length}
+                    📋 批量下载 · {batchQueue.filter(i => ['completed', 'error', 'failed'].includes(i.status)).length}/{batchQueue.length}
                   </p>
-                  {batchId && <span className="text-[10px] text-emerald-400">✅ {t('canClosePage')}</span>}
+                  {batchId && <span className="text-[10px] text-orange">{t('processing')}</span>}
                 </div>
                 <div className="max-h-52 overflow-y-auto">
                   {batchQueue.map((item, idx) => {
                     let statusIcon: any = <span className="text-xs text-slate-500">⏳</span>
                     let rowClass = ''
-                    if (item.status === 'completed' || item.status === 'completed') {
+                    if (item.status === 'completed') {
                       statusIcon = <span className="text-xs text-emerald-400">✅</span>
                       rowClass = 'opacity-60'
-                    } else if (item.status === 'error') {
+                    } else if (item.status === 'error' || item.status === 'failed') {
                       statusIcon = <span className="text-xs text-red-400">❌</span>
                       rowClass = 'opacity-60'
                     } else if (item.status === 'processing') {
@@ -3205,7 +3235,7 @@ export default function App() {
                     className="w-full py-3.5 sm:py-4 rounded-2xl font-bold text-white text-sm sm:text-base bg-gradient-to-r from-orange to-orange-light hover:from-orange-600 hover:to-amber-600 transition-all disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-orange/25 active:scale-[0.98]"
                   >
                     {loading ? (
-                      <><Loader2 className="w-5 h-5 animate-spin" />{batchMode ? `${t('processing')} ${batchIndex + 1}/${batchQueue.length}...` : t('processing')}</>
+                      <><Loader2 className="w-5 h-5 animate-spin" />{batchMode ? `${t('processing')} ${batchIndex}/${batchQueue.length}...` : t('processing')}</>
                     ) : (
                       <><Zap className="w-5 h-5" />{autoQuality ? `${t('startDownload')} (${autoQuality.height === 99999 ? t('originalQuality') : autoQuality.label})` : t('startDownload')}</>
                     )}

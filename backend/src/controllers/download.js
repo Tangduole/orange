@@ -42,6 +42,7 @@ const {
 
 const API_KEY_DOUYIN = process.env.TIKHUB_API_KEY_DOUYIN;
 const MAX_STREAM_DOWNLOAD_BYTES = parseInt(process.env.MAX_STREAM_DOWNLOAD_BYTES || String(500 * 1024 * 1024), 10);
+const MAX_ACTIVE_BATCH_DOWNLOADS_PER_USER = parseInt(process.env.MAX_ACTIVE_BATCH_DOWNLOADS_PER_USER || '1', 10);
 
 // 获取客户端 IP
 const getClientIp = (req) => req.ip || (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || 'unknown';
@@ -3715,18 +3716,24 @@ async function processWechat(taskId, url, needAsr, options = ['video']) {
 
 const batchStore = new Map();
 
+function getActiveBatchDownloadCount(userId) {
+  if (!userId) return 0;
+  let count = 0;
+  for (const batch of batchStore.values()) {
+    if (batch.userId === userId && ['processing', 'queued'].includes(batch.status)) count += 1;
+  }
+  return count;
+}
+
 /**
  * POST /api/download/batch
- * 一次提交多个链接，后端顺序处理，前端可关闭页面
+ * 一次提交多个链接，后端顺序处理
  */
 async function createBatchDownload(req, res) {
   const { urls, quality = '', options = ['video'], needAsr = false, asrLanguage = 'zh', targetLang = null, outputLanguage = 'zh' } = req.body || {};
 
   if (!Array.isArray(urls) || urls.length === 0) {
     return res.json({ code: 400, message: '请提供至少一个链接' });
-  }
-  if (urls.length > 10) {
-    return res.json({ code: 400, message: '单次最多 10 个链接' });
   }
 
   const userDb = require('../userDb');
@@ -3753,8 +3760,44 @@ async function createBatchDownload(req, res) {
   const { isXUrl } = require('../services/x-download');
   const { parseWechatExportId } = require('../services/tikhub');
 
-  const tasks = urls.map(rawUrl => {
-    const extracted = extractUrl(rawUrl) || rawUrl.trim();
+  const cleanUrls = Array.from(new Set(urls
+    .map(rawUrl => extractUrl(String(rawUrl || '')) || String(rawUrl || '').trim())
+    .filter(Boolean)));
+  if (cleanUrls.length === 0) {
+    return res.json({ code: 400, message: '请提供至少一个有效链接' });
+  }
+  if (cleanUrls.length > 10) {
+    return res.json({ code: 400, message: '单次最多 10 个链接' });
+  }
+  for (const cleanUrl of cleanUrls) {
+    const validation = validateInput({ url: cleanUrl });
+    if (!validation.valid) {
+      return res.json({ code: 400, message: validation.message });
+    }
+  }
+
+  const limitStatus = getLimiterStatus();
+  if (limitStatus.queued + cleanUrls.length > LIMITS.MAX_QUEUE) {
+    return res.json({ code: HTTP_STATUS.TOO_MANY_REQUESTS, message: '任务队列已满,请稍后再试' });
+  }
+  if (getActiveBatchDownloadCount(userId) >= MAX_ACTIVE_BATCH_DOWNLOADS_PER_USER) {
+    return res.json({ code: HTTP_STATUS.TOO_MANY_REQUESTS, message: '已有批量下载正在处理中，请完成后再提交新的批量任务' });
+  }
+
+  let safeQuality = quality;
+  if (isVip && quality) {
+    const hMatch = String(quality).match(/height<=(\d+)/i);
+    const qHeight = hMatch ? parseInt(hMatch[1]) : 0;
+    if (qHeight >= 1440 || qHeight >= 99999) {
+      const todayOriginal = await userDb.getTodayOriginalDownloads(userId);
+      if (todayOriginal >= 30) {
+        safeQuality = `bestvideo[height<=1080]+bestaudio/best[height<=1080]`;
+        logger.info(`[batch] User ${userId} exceeded daily original limit (30), downgrading batch to 1080p`);
+      }
+    }
+  }
+
+  const tasks = cleanUrls.map(extracted => {
     const taskId = uuidv4();
     const detectedPlatform = detectPlatform(extracted);
 
@@ -3772,6 +3815,7 @@ async function createBatchDownload(req, res) {
       createdAt: Date.now(),
       userId,
       guestIp,
+      quality: safeQuality,
     };
     store.save(task);
     return { taskId, url: extracted, status: 'pending', platform: detectedPlatform };
@@ -3780,7 +3824,7 @@ async function createBatchDownload(req, res) {
   batchStore.set(batchId, { tasks, status: 'processing', progress: 0, userId });
 
   // 后台顺序处理
-  processBatchQueue(batchId, tasks, { quality, options: normalizedOptions, needAsr: wantsAsr, asrLanguage, userId, guestIp, isDouyinUrl, isXUrl, parseWechatExportId });
+  processBatchQueue(batchId, tasks, { quality: safeQuality, options: normalizedOptions, needAsr: wantsAsr, asrLanguage, userId, guestIp, isDouyinUrl, isXUrl, parseWechatExportId });
 
   res.json({
     code: 0,
@@ -3844,8 +3888,11 @@ async function processBatchQueue(batchId, tasks, opts) {
     logger.info(`[batch] ${batchId.substring(0,8)} task ${i+1}/${tasks.length} done: ${t.taskId} (status=${t.status})`);
   }
 
-  batchStore.set(batchId, { ...batchStore.get(batchId), status: 'completed', progress: 100 });
-  logger.info(`[batch] ${batchId.substring(0,8)} all tasks completed`);
+  const success = tasks.filter(task => task.status === 'completed').length;
+  const failed = tasks.length - success;
+  const status = failed === 0 ? 'completed' : (success === 0 ? 'failed' : 'partial_failed');
+  batchStore.set(batchId, { ...batchStore.get(batchId), status, progress: 100, success, failed });
+  logger.info(`[batch] ${batchId.substring(0,8)} finished: ${success}/${tasks.length} completed, status=${status}`);
 }
 
 async function getBatchStatus(req, res) {
@@ -3868,7 +3915,17 @@ async function getBatchStatus(req, res) {
     });
   });
 
-  res.json({ code: 0, data: { batchId, status: batch.status, progress: batch.progress, tasks: taskDetails } });
+  res.json({
+    code: 0,
+    data: {
+      batchId,
+      status: batch.status,
+      progress: batch.progress,
+      success: batch.success || taskDetails.filter(task => task.status === 'completed').length,
+      failed: batch.failed || taskDetails.filter(task => task.status === 'error').length,
+      tasks: taskDetails
+    }
+  });
 }
 
 module.exports = {
