@@ -101,7 +101,12 @@ Requirements:
 5. A ready-to-use e-commerce sales script, within 200 ${lang === 'en' ? 'words' : 'characters'}.
 6. Keyword tags, 5-8 items.
 7. Viral content breakdown: opening hook, customer pain points, conversion triggers, content structure, reasons it may perform well, platform fit, and rewrite angles.
-8. ${industryInstruction(industry)}
+8. Three ready-to-use spoken scripts based on the material card analysis:
+   - viral_opening: strong first-3-seconds hook for short videos.
+   - pain_solution: pain point first, then product benefit and trust cue.
+   - live_pitch: live-commerce style with interaction cues and order-now CTA.
+   Each script should be practical, conversational, and within 120 ${lang === 'en' ? 'words' : 'characters'}.
+9. ${industryInstruction(industry)}
 
 Return JSON only, without markdown or extra text:
 {
@@ -117,11 +122,36 @@ Return JSON only, without markdown or extra text:
   "contentStructure": ["", ""],
   "viralReason": ["", ""],
   "platformFit": ["", ""],
-  "rewriteAngles": ["", ""]
+  "rewriteAngles": ["", ""],
+  "speechScripts": [
+    { "type": "viral_opening", "title": "", "script": "" },
+    { "type": "pain_solution", "title": "", "script": "" },
+    { "type": "live_pitch", "title": "", "script": "" }
+  ]
 }
 
 Video transcript:
 ${transcript.substring(0, 4000)}`;
+}
+
+function normalizeSpeechScripts(value, fallbackScript = '') {
+  const labels = {
+    viral_opening: '爆款开场版',
+    pain_solution: '痛点转化版',
+    live_pitch: '直播带货版'
+  };
+  const rawItems = Array.isArray(value) ? value : [];
+  const byType = new Map(rawItems
+    .filter(item => item && typeof item === 'object')
+    .map(item => [String(item.type || '').trim(), item]));
+  return ['viral_opening', 'pain_solution', 'live_pitch'].map((type, index) => {
+    const item = byType.get(type) || rawItems[index] || {};
+    return {
+      type,
+      title: item.title || labels[type],
+      script: item.script || (index === 0 ? fallbackScript : '')
+    };
+  }).filter(item => item.script);
 }
 
 async function analyzeWithAI(transcript, outputLanguage = 'zh', industry = 'general') {
@@ -137,7 +167,7 @@ async function analyzeWithAI(transcript, outputLanguage = 'zh', industry = 'gene
       model: AI_MODEL,
       messages: [{ role: 'user', content: prompt }],
       temperature: 0.1,
-      max_tokens: 2000,
+      max_tokens: 2600,
     }, {
       headers: {
         'Authorization': `Bearer ${AI_API_KEY}`,
@@ -165,6 +195,7 @@ async function analyzeWithAI(transcript, outputLanguage = 'zh', industry = 'gene
         viralReason: parsed.viralReason || [],
         platformFit: parsed.platformFit || [],
         rewriteAngles: parsed.rewriteAngles || [],
+        speechScripts: normalizeSpeechScripts(parsed.speechScripts, parsed.copyScript || ''),
         industry: industry || 'general',
       };
     }
@@ -356,7 +387,12 @@ function buildMockAnalysis(transcript, outputLanguage = 'zh', industry = 'genera
       structure: ['场景引入', '卖点说明', '行动号召'],
       viral: ['信息密度高', '适合做短视频二创'],
       platform: ['TikTok短视频', '抖音带货'],
-      angles: ['痛点开场版', '测评种草版', '限时优惠版']
+      angles: ['痛点开场版', '测评种草版', '限时优惠版'],
+      speech: [
+        { type: 'viral_opening', title: '爆款开场版', script: `前三秒先抛问题：你是不是也想更快提炼视频卖点？这条素材已经帮你整理好了核心场景、卖点和行动号召，可以直接拿去测试。` },
+        { type: 'pain_solution', title: '痛点转化版', script: `很多人不是没有好素材，而是不知道怎么讲清楚卖点。用这张素材卡，先讲痛点，再讲解决方案，最后引导收藏或下单。` },
+        { type: 'live_pitch', title: '直播带货版', script: `家人们看这里，这个素材的核心卖点已经给你整理好了。需要快速出脚本、做短视频、做直播话术的，直接复制就能用。` }
+      ]
     },
     en: {
       productName: 'Local Test Material',
@@ -370,7 +406,12 @@ function buildMockAnalysis(transcript, outputLanguage = 'zh', industry = 'genera
       structure: ['Scene setup', 'Selling points', 'Call to action'],
       viral: ['High information density', 'Easy to repurpose for short videos'],
       platform: ['TikTok short videos', 'Product demo ads'],
-      angles: ['Pain-point opener', 'Review-style pitch', 'Limited-time offer']
+      angles: ['Pain-point opener', 'Review-style pitch', 'Limited-time offer'],
+      speech: [
+        { type: 'viral_opening', title: 'Viral Opener', script: `Start with the problem: if you need to turn a video into selling points fast, this material card gives you the angle, hook, and CTA in one place.` },
+        { type: 'pain_solution', title: 'Pain To Solution', script: `The hard part is not finding content, it is explaining why people should care. Use this script to move from pain point to benefit, then close with a simple action.` },
+        { type: 'live_pitch', title: 'Live Pitch', script: `Take a quick look: the key selling points are already organized. If you need a ready-to-use short video or live commerce script, copy this and test it right away.` }
+      ]
     },
     ja: {
       productName: 'ローカルテスト素材',
@@ -384,7 +425,12 @@ function buildMockAnalysis(transcript, outputLanguage = 'zh', industry = 'genera
       structure: ['シーン提示', 'セールスポイント', '行動喚起'],
       viral: ['情報密度が高い', 'ショート動画に再編集しやすい'],
       platform: ['TikTok短尺動画', '商品デモ広告'],
-      angles: ['悩み訴求型', 'レビュー型', '限定オファー型']
+      angles: ['悩み訴求型', 'レビュー型', '限定オファー型'],
+      speech: [
+        { type: 'viral_opening', title: 'バズる冒頭版', script: `最初に悩みを提示します。動画の売りポイントを素早く整理したいなら、この素材カードでフック、訴求、CTAまで確認できます。` },
+        { type: 'pain_solution', title: '悩み解決版', script: `良い素材があっても、伝え方が弱いと売れません。悩みから入り、商品の価値を伝え、最後に保存や購入へ誘導します。` },
+        { type: 'live_pitch', title: 'ライブ販売版', script: `皆さん見てください。この素材の売りポイントは整理済みです。短尺動画やライブ用の話術として、そのまま使えます。` }
+      ]
     },
     ko: {
       productName: '로컬 테스트 소재',
@@ -398,7 +444,12 @@ function buildMockAnalysis(transcript, outputLanguage = 'zh', industry = 'genera
       structure: ['상황 제시', '판매 포인트', '행동 유도'],
       viral: ['정보 밀도가 높음', '숏폼 영상으로 재가공하기 쉬움'],
       platform: ['TikTok 숏폼', '상품 데모 광고'],
-      angles: ['문제 제기형', '리뷰형', '한정 혜택형']
+      angles: ['문제 제기형', '리뷰형', '한정 혜택형'],
+      speech: [
+        { type: 'viral_opening', title: '바이럴 오프닝', script: `처음 3초에 문제를 던지세요. 영상의 판매 포인트를 빠르게 정리하고 싶다면, 이 소재 카드에서 후킹과 CTA까지 바로 확인할 수 있습니다.` },
+        { type: 'pain_solution', title: '문제 해결형', script: `좋은 소재가 있어도 장점이 명확하지 않으면 전환이 어렵습니다. 문제를 말하고, 해결 포인트를 보여준 뒤 행동을 유도하세요.` },
+        { type: 'live_pitch', title: '라이브 판매형', script: `여러분, 여기 보세요. 이 소재의 핵심 판매 포인트가 이미 정리되어 있습니다. 숏폼이나 라이브 멘트로 바로 활용해 보세요.` }
+      ]
     }
   }[lang];
   return {
@@ -415,6 +466,7 @@ function buildMockAnalysis(transcript, outputLanguage = 'zh', industry = 'genera
     viralReason: localized.viral,
     platformFit: localized.platform,
     rewriteAngles: localized.angles,
+    speechScripts: localized.speech,
     industry: industry || 'general'
   };
 }

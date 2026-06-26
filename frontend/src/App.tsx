@@ -1159,6 +1159,29 @@ export default function App() {
     listify(pack.hashtags).map(tag => `#${tag}`).join(' ')
   ].filter(Boolean).join(' | ')
 
+  const getSpeechScripts = (commerce: any) => {
+    const labels: Record<string, string> = {
+      viral_opening: '爆款开场版',
+      pain_solution: '痛点转化版',
+      live_pitch: '直播带货版'
+    }
+    const scripts = Array.isArray(commerce?.speechScripts) ? commerce.speechScripts : []
+    const normalized = scripts
+      .filter((item: any) => item?.script)
+      .map((item: any, index: number) => ({
+        type: String(item.type || `script_${index + 1}`),
+        title: item.title || labels[item.type] || `口播话术 ${index + 1}`,
+        script: item.script
+      }))
+    if (normalized.length > 0) return normalized.slice(0, 3)
+    return commerce?.copyScript ? [{ type: 'default', title: t('aiScript'), script: commerce.copyScript }] : []
+  }
+
+  const formatSpeechScript = (script: any) => [
+    script.title,
+    script.script
+  ].filter(Boolean).join('\n')
+
   const buildCommerceCardExport = (commerce: any, format: 'md' | 'txt' = 'md', fallbackTitle?: string) => {
     const title = commerce.productName || fallbackTitle || task?.title || t('aiCommerceCardTitle')
     const section = (heading: string, items: string[]): [string, string[]] => [heading, items]
@@ -1173,6 +1196,7 @@ export default function App() {
       section(t('viralReason'), listify(commerce.viralReason)),
       section(t('platformFit'), listify(commerce.platformFit)),
       section(t('rewriteAngles'), listify(commerce.rewriteAngles)),
+      section(t('readySpeechScripts'), getSpeechScripts(commerce).map(formatSpeechScript)),
       section(t('aiScript'), listify(commerce.copyScript)),
       section(t('tags'), listify(commerce.tags).map(tag => `#${tag}`)),
       section(t('platformPublishPack'), getRewritePacks(commerce).map(formatRewritePack))
@@ -1274,6 +1298,7 @@ export default function App() {
       t('viralReason'),
       t('platformFit'),
       t('rewriteAngles'),
+      t('readySpeechScripts'),
       t('aiScript'),
       t('tags'),
       t('platformPublishPack'),
@@ -1294,6 +1319,7 @@ export default function App() {
       listify(commerce.viralReason).join(' | '),
       listify(commerce.platformFit).join(' | '),
       listify(commerce.rewriteAngles).join(' | '),
+      getSpeechScripts(commerce).map(formatSpeechScript).join(' || '),
       listify(commerce.copyScript).join(' | '),
       listify(commerce.tags).map(tag => `#${tag}`).join(' '),
       getRewritePacks(commerce).map(formatRewritePack).join(' || '),
@@ -1380,6 +1406,11 @@ export default function App() {
     if (!task?.summaryText) return
     const base = sanitizeFilename(task.title || 'ai-summary', 'ai-summary').slice(0, 80)
     downloadUtf8TextFile(buildAiSummaryTextCard(task.summaryText), `${base}-ai-summary.txt`)
+  }
+
+  const copyAiSummaryCard = () => {
+    if (!task?.summaryText) return
+    clip(buildAiSummaryTextCard(task.summaryText), 'ai-summary')
   }
 
   const exportCommerceCard = (commerce: any, format: 'md' | 'txt' | 'csv' | 'pack' | 'packCsv') => {
@@ -3611,6 +3642,35 @@ export default function App() {
                       {commerce.openingHook && (
                         <p className="text-xs text-slate-300">🪝 <span className="text-slate-400">{t('openingHook')}：</span>{commerce.openingHook}</p>
                       )}
+                      {getSpeechScripts(commerce).length > 0 && (
+                        <div>
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <p className="text-[10px] text-slate-400">🎙️ {t('readySpeechScripts')}</p>
+                            <button
+                              onClick={() => clip(getSpeechScripts(commerce).map(formatSpeechScript).join('\n\n---\n\n'), 'speech-all')}
+                              className="text-[10px] text-purple-400 hover:text-purple-300"
+                            >
+                              {copied === 'speech-all' ? `✓ ${t('copied')}` : t('copyAll')}
+                            </button>
+                          </div>
+                          <div className="grid gap-2 md:grid-cols-3">
+                            {getSpeechScripts(commerce).map((script: any, i: number) => (
+                              <div key={`${script.type}-${i}`} className="rounded-lg bg-slate-900/80 border border-purple-500/15 p-2">
+                                <div className="flex items-center justify-between gap-2 mb-1">
+                                  <span className="text-[10px] text-purple-300 font-medium">{script.title}</span>
+                                  <button
+                                    onClick={() => clip(script.script, `speech-${i}`)}
+                                    className="shrink-0 text-[10px] text-purple-400 hover:text-purple-300"
+                                  >
+                                    {copied === `speech-${i}` ? `✓ ${t('copied')}` : t('copyScript')}
+                                  </button>
+                                </div>
+                                <p className="text-[11px] text-slate-300 whitespace-pre-wrap max-h-28 overflow-y-auto">{script.script}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       {commerce.sellingPoints?.length > 0 && (
                         <div>
                           <p className="text-[10px] text-slate-400 mb-1">💡 {t('aiSellingPoints')}</p>
@@ -3759,9 +3819,14 @@ export default function App() {
                       <span className="text-xs text-orange">🤖</span>
                       <span className="text-xs text-orange font-medium">{t('aiSummary')}</span>
                     </div>
-                    <button onClick={downloadAiSummaryCard} className="text-xs text-slate-300 hover:text-orange transition">
-                      <Download className="w-3 h-3 inline" /> TXT
-                    </button>
+                    <div className="flex gap-2">
+                      <button onClick={copyAiSummaryCard} className="text-xs text-slate-300 hover:text-orange transition">
+                        {copied === 'ai-summary' ? <><Check className="w-3 h-3 inline" /> {t('copied')}</> : <><Copy className="w-3 h-3 inline" /> {t('copyTextAction')}</>}
+                      </button>
+                      <button onClick={downloadAiSummaryCard} className="text-xs text-slate-300 hover:text-orange transition">
+                        <Download className="w-3 h-3 inline" /> TXT
+                      </button>
+                    </div>
                   </div>
                   <p className="text-sm text-slate-300 leading-relaxed">{task.summaryText}</p>
                 </div>
@@ -3772,9 +3837,14 @@ export default function App() {
                 <div className="p-3 bg-cyan-500/5 border border-cyan-500/15 rounded-xl">
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <p className="text-xs text-cyan-400 font-medium">🤖 AI 视频总结</p>
-                    <button onClick={downloadAiSummaryCard} className="text-xs text-slate-300 hover:text-cyan-300 transition">
-                      <Download className="w-3 h-3 inline" /> TXT
-                    </button>
+                    <div className="flex gap-2">
+                      <button onClick={copyAiSummaryCard} className="text-xs text-slate-300 hover:text-cyan-300 transition">
+                        {copied === 'ai-summary' ? <><Check className="w-3 h-3 inline" /> {t('copied')}</> : <><Copy className="w-3 h-3 inline" /> {t('copyTextAction')}</>}
+                      </button>
+                      <button onClick={downloadAiSummaryCard} className="text-xs text-slate-300 hover:text-cyan-300 transition">
+                        <Download className="w-3 h-3 inline" /> TXT
+                      </button>
+                    </div>
                   </div>
                   <p className="text-sm text-slate-300 mb-2">{task.summaryText.summary}</p>
                   {task.summaryText.tags && (
