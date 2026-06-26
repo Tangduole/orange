@@ -1282,52 +1282,6 @@ export default function App() {
     return [headers, ...rows].map(row => row.map(toCsvCell).join(',')).join('\n')
   }
 
-  const buildCommerceCardCsv = (items: Array<{ item?: HistoryItem, commerce: any }>) => {
-    const headers = [
-      t('title'),
-      t('platform'),
-      t('materialGroup'),
-      t('aiCommerceCardTitle'),
-      t('openingHook'),
-      t('aiSellingPoints'),
-      t('painPoints'),
-      t('conversionTriggers'),
-      t('targetAudience'),
-      t('pricePromotion'),
-      t('contentStructure'),
-      t('viralReason'),
-      t('platformFit'),
-      t('rewriteAngles'),
-      t('readySpeechScripts'),
-      t('aiScript'),
-      t('tags'),
-      t('platformPublishPack'),
-      'URL'
-    ]
-    const rows = items.map(({ item, commerce }) => [
-      item?.title || commerce.productName || '',
-      item?.platform ? getPlatformLabel(item.platform) : '',
-      item?.groupName || '',
-      commerce.productName || '',
-      listify(commerce.openingHook).join(' | '),
-      listify(commerce.sellingPoints).join(' | '),
-      listify(commerce.painPoints).join(' | '),
-      listify(commerce.conversionTriggers).join(' | '),
-      listify(commerce.targetAudience).join(' | '),
-      listify(commerce.priceInfo).join(' | '),
-      listify(commerce.contentStructure).join(' | '),
-      listify(commerce.viralReason).join(' | '),
-      listify(commerce.platformFit).join(' | '),
-      listify(commerce.rewriteAngles).join(' | '),
-      getSpeechScripts(commerce).map(formatSpeechScript).join(' || '),
-      listify(commerce.copyScript).join(' | '),
-      listify(commerce.tags).map(tag => `#${tag}`).join(' '),
-      getRewritePacks(commerce).map(formatRewritePack).join(' || '),
-      item?.url || ''
-    ])
-    return [headers, ...rows].map(row => row.map(toCsvCell).join(',')).join('\n')
-  }
-
   const getHistoryExportContext = () => {
     if (historyGroupFilter !== 'all') return historyGroupFilter === '__ungrouped' ? t('ungrouped') : historyGroupFilter
     if (historyTagFilter !== 'all') return historyTagFilter
@@ -1413,7 +1367,7 @@ export default function App() {
     clip(buildAiSummaryTextCard(task.summaryText), 'ai-summary')
   }
 
-  const exportCommerceCard = (commerce: any, format: 'md' | 'txt' | 'csv' | 'pack' | 'packCsv') => {
+  const exportCommerceCard = (commerce: any, format: 'md' | 'txt' | 'pack' | 'packCsv') => {
     if (format === 'pack') {
       if (getRewritePacks(commerce, rewriteStyle).length === 0) {
         setError(t('noItemsNeedRewritePacks'))
@@ -1434,9 +1388,7 @@ export default function App() {
       downloadUtf8TextFile(text, filename)
       return
     }
-    const text = format === 'csv'
-      ? buildCommerceCardCsv([{ commerce }])
-      : buildCommerceCardExport(commerce, format)
+    const text = buildCommerceCardExport(commerce, format)
     const filename = `${(commerce.productName || task?.title || 'commerce-card').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 80)}.${format}`
     downloadUtf8TextFile(text, filename)
   }
@@ -1559,7 +1511,7 @@ export default function App() {
     }
   }
 
-  const exportSelectedCommerceCards = (format: 'md' | 'txt' | 'csv' | 'pack' | 'packCsv') => {
+  const exportSelectedCommerceCards = (format: 'md' | 'txt' | 'pack' | 'packCsv') => {
     const selectedItems = history.filter(item => selectedTasks.has(item.taskId) && getHistoryAnalysis(item))
     if (selectedItems.length === 0) {
       setError(t('noAiCardsToExport'))
@@ -1585,11 +1537,6 @@ export default function App() {
       }
       const text = buildPublishPackCsv(itemsWithPacks.map(item => ({ item, commerce: getHistoryAnalysis(item) })), rewriteStyle)
       downloadUtf8TextFile(text, `${sanitizeFilename(getHistoryExportContext(), 'materials')}-publish-packs-${itemsWithPacks.length}-${rewriteStyle}.csv`)
-      return
-    }
-    if (format === 'csv') {
-      const text = buildCommerceCardCsv(selectedItems.map(item => ({ item, commerce: getHistoryAnalysis(item) })))
-      downloadUtf8TextFile(text, `${sanitizeFilename(getHistoryExportContext(), 'materials')}-commerce-cards-${selectedItems.length}.csv`)
       return
     }
     const separator = format === 'md' ? '\n\n---\n\n' : '\n\n==============================\n\n'
@@ -3568,7 +3515,6 @@ export default function App() {
                           )}
                           <button onClick={() => exportCommerceCard(commerce, 'md')} className="text-[10px] text-purple-400 hover:text-purple-300">MD</button>
                           <button onClick={() => exportCommerceCard(commerce, 'txt')} className="text-[10px] text-purple-400 hover:text-purple-300">TXT</button>
-                          <button onClick={() => exportCommerceCard(commerce, 'csv')} className="text-[10px] text-purple-400 hover:text-purple-300">CSV</button>
                           <button onClick={() => exportCommerceCard(commerce, 'pack')} className="text-[10px] text-orange hover:text-orange/80">PACK</button>
                           <button onClick={() => exportCommerceCard(commerce, 'packCsv')} className="text-[10px] text-orange hover:text-orange/80">PACK CSV</button>
                           <button onClick={runCommerceCard} disabled={copywritingLoading} className="text-[10px] text-purple-400 hover:text-purple-300 disabled:opacity-50">
@@ -4278,7 +4224,6 @@ export default function App() {
                       )}
                       <button onClick={() => exportSelectedCommerceCards('md')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">MD</button>
                       <button onClick={() => exportSelectedCommerceCards('txt')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">TXT</button>
-                      <button onClick={() => exportSelectedCommerceCards('csv')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">CSV</button>
                       <button onClick={exportSelectedHistoryMetadata} className="px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-lg text-[10px]">{t('exportMaterialCsv')}</button>
                       <button onClick={() => exportSelectedCommerceCards('pack')} className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px]">PACK</button>
                       <button onClick={() => exportSelectedCommerceCards('packCsv')} className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px]">PACK CSV</button>
