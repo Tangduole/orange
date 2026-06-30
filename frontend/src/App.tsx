@@ -2209,7 +2209,7 @@ export default function App() {
       if (urls.length === 0) { setError(t('enterVideoLink')); return }
       if (urls.length > 10) { setError('单次最多 10 个链接'); return }
       
-      // 批量下载仅限VIP
+      // 批量采集仅限 VIP
       if (!isVip) {
         setShowUpgradePopup(true);
         return;
@@ -2330,10 +2330,10 @@ export default function App() {
           const successCount = batchTasks.filter((t: any) => t.status === 'completed').length
           const totalCount = batchTasks.length
           const title = status === 'completed'
-            ? `批量下载完成 ${successCount}/${totalCount}`
+            ? `批量采集完成 ${successCount}/${totalCount}`
             : status === 'partial_failed'
-              ? `批量下载部分完成 ${successCount}/${totalCount}`
-              : `批量下载失败 ${successCount}/${totalCount}`
+              ? `批量采集部分完成 ${successCount}/${totalCount}`
+              : `批量采集失败 ${successCount}/${totalCount}`
           showDownloadComplete(bid, title, false)
         }
       } catch (e: any) {
@@ -2796,7 +2796,7 @@ export default function App() {
               </div>
             )}
 
-            {/* Batch Download模式 */}
+            {/* Batch Collection 模式 */}
             {batchMode && !isVip && (
               <div className="mb-5 p-4 bg-orange/10 border border-orange/30 rounded-2xl text-center">
                 <p className="text-sm text-orange mb-2">🔒 {t('batchDownload')} {t('vipOnly')}</p>
@@ -3146,7 +3146,7 @@ export default function App() {
               <div className={`mb-3 rounded-xl border overflow-hidden ${isDark ? 'bg-slate-900/60 border-slate-700/60' : 'bg-light-surface border-light-border'}`}>
                 <div className={`px-4 py-2 border-b flex justify-between items-center ${isDark ? 'border-slate-700/60' : 'border-light-border'}`}>
                   <p className={`text-xs ${isDark ? 'text-slate-300' : 'text-light-textSecondary'}`}>
-                    📋 批量下载 · {batchQueue.filter(i => ['completed', 'error', 'failed'].includes(i.status)).length}/{batchQueue.length}
+                    📋 批量采集 · {batchQueue.filter(i => ['completed', 'error', 'failed'].includes(i.status)).length}/{batchQueue.length}
                   </p>
                   {batchId && <span className="text-[10px] text-orange">{t('processing')}</span>}
                 </div>
@@ -3325,7 +3325,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* 图文笔记 - 图片网格 + 批量下载 */}
+              {/* 图文笔记 - 图片网格 + 批量保存 */}
               {task.isNote && (task.imageFiles?.length || 0) > 0 && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
@@ -4017,7 +4017,7 @@ export default function App() {
             </div>
           )}
 
-          {/* // Download History - Enhanced */}
+          {/* // Material Library - Enhanced */}
           <div className="mt-5">
             <button onClick={() => setShowHistory(!showHistory)}
               data-testid="history-toggle"
@@ -4652,7 +4652,7 @@ export default function App() {
             <a href={`/${i18n.language === 'zh-CN' ? '' : i18n.language + '/'}disclaimer.html`} className="hover:text-orange transition">{t('disclaimer')}</a>
           </div>
           <p>{t('personalUseOnly')}</p>
-          <p className="mt-1 opacity-60">Orange Downloader v1.0</p>
+          <p className="mt-1 opacity-60">Orange Creator v1.0</p>
         </footer>
         <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} onSuccess={handleAuthSuccess} onForgotPassword={() => { setShowAuthModal(false); setShowResetPwd(true); }} />
         {authToken && <ReferralModal token={authToken} isOpen={showReferral} onClose={() => setShowReferral(false)} />}
@@ -4876,7 +4876,7 @@ export default function App() {
                           disabled={adminDownloadsLoading}
                           className="px-2 py-1 rounded-lg bg-orange/15 text-orange hover:bg-orange/20 border border-orange/30 text-[10px] disabled:opacity-60"
                         >
-                          下载记录
+                          素材记录
                         </button>
                         {(['basic', 'pro', 'lifetime', 'free'] as const).map(tier => (
                           <button
@@ -4899,7 +4899,7 @@ export default function App() {
                           {adminDownloadDetails.user?.email || 'User downloads'}
                         </p>
                         <p className="mt-1 text-[10px] text-slate-500">
-                          下载记录 · {adminDownloadDetails.user?.tier || 'free'}
+                          素材记录 · {adminDownloadDetails.user?.tier || 'free'}
                         </p>
                       </div>
                       <button
@@ -4911,7 +4911,7 @@ export default function App() {
                     </div>
                     <div className="mt-3 grid grid-cols-3 gap-2 text-center">
                       {[
-                        { label: '总下载', value: adminDownloadDetails.summary?.total || 0 },
+                        { label: '总处理', value: adminDownloadDetails.summary?.total || 0 },
                         { label: '近7天', value: adminDownloadDetails.summary?.last7d || 0 },
                         { label: '近30天', value: adminDownloadDetails.summary?.last30d || 0 },
                       ].map(item => (
@@ -4923,7 +4923,7 @@ export default function App() {
                     </div>
                     {(adminDownloadDetails.platforms || []).length > 0 && (
                       <div className="mt-3">
-                        <p className="text-[10px] text-slate-500 mb-1">下载平台</p>
+                        <p className="text-[10px] text-slate-500 mb-1">素材平台</p>
                         <div className="flex flex-wrap gap-1.5">
                           <button
                             onClick={() => fetchAdminUserDownloads(adminDownloadDetails.user.id, '')}
@@ -4945,7 +4945,7 @@ export default function App() {
                     )}
                     <div className="mt-3 space-y-2 max-h-56 overflow-y-auto">
                       {(adminDownloadDetails.items || []).length === 0 ? (
-                        <p className="py-4 text-center text-xs text-slate-500">暂无下载记录</p>
+                        <p className="py-4 text-center text-xs text-slate-500">暂无素材记录</p>
                       ) : adminDownloadDetails.items.map((item: any) => (
                         <div key={item.task_id} className="rounded-lg bg-slate-900/60 border border-slate-700/50 p-2 text-xs">
                           <div className="flex items-start justify-between gap-2">

@@ -1,9 +1,9 @@
 {
   "extensionName": {
-    "message": "Orange Downloader"
+    "message": "Orange Creator Assistant"
   },
   "extensionDescription": {
-    "message": "Send supported video pages to Orange Downloader with platform detection and account status."
+    "message": "Send supported video pages to Orange Creator for collection and AI analysis."
   },
   "actionTitle": {
     "message": "Send to Orange"
@@ -33,7 +33,7 @@
     "message": "Open Orange to refresh account status."
   },
   "unlimitedUnlocked": {
-    "message": "Unlimited downloads unlocked."
+    "message": "Unlimited material processing unlocked."
   },
   "freeDownloadsLeft": {
     "message": "$remaining$/$limit$ free downloads left today.",
@@ -61,7 +61,7 @@
     "message": "Open & Start"
   },
   "openDownloader": {
-    "message": "Open Downloader"
+    "message": "Open Material Platform"
   },
   "detectingPlatform": {
     "message": "Detecting platform..."

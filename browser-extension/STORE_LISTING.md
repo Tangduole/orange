@@ -1,4 +1,4 @@
-# Orange Downloader Extension Store Listing
+# Orange Creator Assistant Extension Store Listing
 
 ## Short Description
 
@@ -6,12 +6,12 @@ Send short video pages to Orange for material collection, AI commerce breakdowns
 
 ## Full Description
 
-Orange Downloader helps creators, editors, and e-commerce operators turn short videos into reusable selling materials: collect the source video, generate AI material cards, organize by campaign, and prepare publish-ready copy for multiple platforms.
+Orange Creator helps creators, editors, and e-commerce operators turn short videos into reusable selling materials: collect the source video, generate AI material cards, organize by campaign, and prepare publish-ready copy for multiple platforms.
 
 With the browser extension, you can:
 
 - Detect supported platforms from the current tab.
-- Open Orange Downloader with the video URL already filled in.
+- Open Orange Creator with the video URL already filled in.
 - Open and start the import flow immediately.
 - See synced account status: Guest, Free, Pro, or daily limit reached.
 - Jump directly to login, upgrade, or the material workbench.
@@ -22,14 +22,14 @@ The extension only runs its account sync script on Orange domains. It does not i
 ## Permissions Justification
 
 - `activeTab`: reads the current active tab URL after the user opens the extension popup.
-- `tabs`: opens Orange Downloader in a new tab with the selected action.
+- `tabs`: opens Orange Creator in a new tab with the selected action.
 - `storage`: stores the synced Orange account token locally inside the extension.
 - `https://www.orangedl.com/*` and `https://orangedl.com/*`: syncs login state from the Orange web app.
-- `https://api.orangedl.com/*`: checks the signed-in user's plan and remaining free downloads.
+- `https://api.orangedl.com/*`: checks the signed-in user's plan and remaining free material processing credits.
 
 ## Privacy Summary
 
-The extension does not collect browsing history. It reads the active tab URL only when the user opens the popup and clicks an action. The URL is sent to Orange Downloader only when the user chooses "Open Downloader" or "Open & Start".
+The extension does not collect browsing history. It reads the active tab URL only when the user opens the popup and clicks an action. The URL is sent to Orange Creator only when the user chooses "Open Material Platform" or "Open & Start".
 
 Account status is synced only from Orange domains and stored locally in Chrome/Edge extension storage. The extension uses the token only to request the current Orange account status from `https://api.orangedl.com/api/auth/me`.
 

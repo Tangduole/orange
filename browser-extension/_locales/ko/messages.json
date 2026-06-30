@@ -1,9 +1,9 @@
 {
   "extensionName": {
-    "message": "Orange Downloader"
+    "message": "Orange Creator Assistant"
   },
   "extensionDescription": {
-    "message": "지원되는 영상 페이지를 Orange Downloader로 보내고 플랫폼 감지와 계정 상태를 표시합니다."
+    "message": "지원되는 영상 페이지를 Orange Creator로 보내 소재 수집과 AI 분석을 진행합니다."
   },
   "actionTitle": {
     "message": "Orange로 보내기"
@@ -33,7 +33,7 @@
     "message": "Orange를 열어 계정 상태를 새로고침하세요."
   },
   "unlimitedUnlocked": {
-    "message": "무제한 다운로드가 활성화되었습니다."
+    "message": "무제한 소재 처리가 활성화되었습니다."
   },
   "freeDownloadsLeft": {
     "message": "오늘 무료 다운로드 $remaining$/$limit$회 남음.",
@@ -61,7 +61,7 @@
     "message": "열고 시작"
   },
   "openDownloader": {
-    "message": "다운로더 열기"
+    "message": "소재 플랫폼 열기"
   },
   "detectingPlatform": {
     "message": "플랫폼 감지 중..."

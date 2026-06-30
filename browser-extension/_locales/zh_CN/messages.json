@@ -1,9 +1,9 @@
 {
   "extensionName": {
-    "message": "Orange Downloader"
+    "message": "橙子素材助手"
   },
   "extensionDescription": {
-    "message": "将支持的视频页面一键发送到 Orange Downloader，并显示平台识别和账号状态。"
+    "message": "将支持的视频页面一键发送到橙子素材助手，采集素材并生成 AI 分析。"
   },
   "actionTitle": {
     "message": "发送到 Orange"
@@ -33,7 +33,7 @@
     "message": "打开 Orange 刷新账号状态。"
   },
   "unlimitedUnlocked": {
-    "message": "已解锁无限下载。"
+    "message": "已解锁无限素材处理。"
   },
   "freeDownloadsLeft": {
     "message": "今日免费剩余 $remaining$/$limit$ 次。",
@@ -61,7 +61,7 @@
     "message": "打开并开始"
   },
   "openDownloader": {
-    "message": "打开下载器"
+    "message": "打开素材平台"
   },
   "detectingPlatform": {
     "message": "正在识别平台..."

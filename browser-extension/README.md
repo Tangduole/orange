@@ -1,7 +1,7 @@
-# Orange Downloader Browser Extension
+# Orange Creator Assistant Browser Extension
 
-Minimal Chrome/Edge extension for sending the current tab URL to Orange Downloader.
-It detects the current platform, shows the synced Orange account status, and can either open the downloader or start the import flow immediately.
+Minimal Chrome/Edge extension for sending the current tab URL to Orange Creator.
+It detects the current platform, shows the synced Orange account status, and can either open the material platform or start the import flow immediately.
 
 ## Local Install
 
@@ -11,7 +11,7 @@ It detects the current platform, shows the synced Orange account status, and can
 4. Select this `browser-extension` folder.
 5. Sign in on `https://www.orangedl.com` once if you want the popup to show your Free/Pro status.
 6. Open a supported video page and click the extension.
-7. Choose "Open Downloader" to prefill the URL, or "Open & Start" to begin the download/import flow immediately.
+7. Choose "Open Material Platform" to prefill the URL, or "Open & Start" to begin the material import flow immediately.
 
 The extension opens:
 
@@ -21,7 +21,7 @@ https://www.orangedl.com?url=<current-page-url>&source=extension&platform=<platf
 https://www.orangedl.com?source=extension&action=<login|upgrade|workbench>
 ```
 
-The web app reads the `url`, `platform`, `autostart`, and `action` query parameters. It pre-fills the download input, shows a confirmation banner, starts automatically when `autostart=1`, and opens login, upgrade, or the material workbench when an extension action is provided.
+The web app reads the `url`, `platform`, `autostart`, and `action` query parameters. It pre-fills the material link input, shows a confirmation banner, starts automatically when `autostart=1`, and opens login, upgrade, or the material workbench when an extension action is provided.
 
 ## Platform Detection
 

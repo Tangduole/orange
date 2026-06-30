@@ -3739,7 +3739,7 @@ async function createBatchDownload(req, res) {
   const userDb = require('../userDb');
   const isVip = req.user ? userDb.isVip(req.user) : false;
   if (!isVip) {
-    return res.json({ code: 403, message: '批量下载仅限 Pro 会员使用' });
+    return res.json({ code: 403, message: '批量采集仅限 Pro 会员使用' });
   }
   if (req.user && req.user.email_verified !== 1) {
     return res.json({ code: 403, message: '请先验证邮箱' });
@@ -3781,7 +3781,7 @@ async function createBatchDownload(req, res) {
     return res.json({ code: HTTP_STATUS.TOO_MANY_REQUESTS, message: '任务队列已满,请稍后再试' });
   }
   if (getActiveBatchDownloadCount(userId) >= MAX_ACTIVE_BATCH_DOWNLOADS_PER_USER) {
-    return res.json({ code: HTTP_STATUS.TOO_MANY_REQUESTS, message: '已有批量下载正在处理中，请完成后再提交新的批量任务' });
+    return res.json({ code: HTTP_STATUS.TOO_MANY_REQUESTS, message: '已有批量采集正在处理中，请完成后再提交新的批量任务' });
   }
 
   let safeQuality = quality;

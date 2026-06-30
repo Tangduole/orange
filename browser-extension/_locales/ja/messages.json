@@ -1,9 +1,9 @@
 {
   "extensionName": {
-    "message": "Orange Downloader"
+    "message": "Orange Creator Assistant"
   },
   "extensionDescription": {
-    "message": "対応する動画ページをOrange Downloaderへ送り、プラットフォーム検出とアカウント状態を表示します。"
+    "message": "対応する動画ページをOrange Creatorへ送り、素材収集とAI分析を行います。"
   },
   "actionTitle": {
     "message": "Orangeへ送信"
@@ -33,7 +33,7 @@
     "message": "Orangeを開いてアカウント状態を更新してください。"
   },
   "unlimitedUnlocked": {
-    "message": "無制限ダウンロードが有効です。"
+    "message": "無制限の素材処理が有効です。"
   },
   "freeDownloadsLeft": {
     "message": "本日の無料ダウンロード残り $remaining$/$limit$ 回。",
@@ -61,7 +61,7 @@
     "message": "開いて開始"
   },
   "openDownloader": {
-    "message": "ダウンローダーを開く"
+    "message": "素材プラットフォームを開く"
   },
   "detectingPlatform": {
     "message": "プラットフォームを検出中..."
