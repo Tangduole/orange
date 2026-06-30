@@ -344,8 +344,9 @@ export default function App() {
   const [quality, setQuality] = useState('')
   const [asrLanguage, setAsrLanguage] = useState('zh')
   const [targetLang, setTargetLang] = useState('')
-  const [availableQualities, setAvailableQualities] = useState<Array<{qualityLabel?: string, quality: string, format: string, width: number, height: number, hasVideo: boolean, hasAudio: boolean, size?: number}>>([])
+  const [availableQualities, setAvailableQualities] = useState<Array<{qualityLabel?: string, quality: string, format: string, width: number, height: number, hasVideo: boolean, hasAudio: boolean, size?: number, directUrl?: string}>>([])
   const [qualitiesLoading, setQualitiesLoading] = useState(false)
+  const [saveMode, setSaveMode] = useState<'smart' | 'fast'>('smart')
   const [autoQuality, setAutoQuality] = useState<{label: string, height: number} | null>(null) // 自动选择的画质
   const [sharedEntrySource, setSharedEntrySource] = useState<'extension' | 'share' | ''>('')
   const [sharedAutoStart, setSharedAutoStart] = useState(false)
@@ -2127,7 +2128,7 @@ export default function App() {
   const fetchVideoQualities = async (videoUrl: string) => {
     setQualitiesLoading(true)
     try {
-      const r = await axios.post(`${API}/video-info`, { url: videoUrl }, { timeout: 30000 })
+      const r = await axios.post(`${API}/video-info`, { url: videoUrl, includeDirect: isVip }, { timeout: 30000, headers: getAuthHeaders() })
       if (r.data.code === 0 && r.data.data.qualities && r.data.data.qualities.length > 0) {
         // 后端返回实际可用画质，前端只过滤掉过低画质（<480p）
         const minDisplayHeight = 480
@@ -2234,6 +2235,12 @@ export default function App() {
     if (qualitiesLoading) {
       setError(t('fetchingQualities'))
       return
+    }
+
+    if (saveMode === 'fast' && canUseFastSave) {
+      const fastSaved = await doFastSave(url.trim())
+      if (fastSaved) return
+      setError(t('fastSaveFallback'))
     }
     
     // 检查是否已Download
@@ -2346,6 +2353,47 @@ export default function App() {
         }
       }
     }, 2000)
+  }
+
+  const canUseFastSave = isVip && !batchMode && selectedAiTools.size === 0 && selected.size === 1 && selected.has('video')
+
+  const pickFastQuality = (qualities: Array<{ height: number, directUrl?: string, hasAudio?: boolean }>) => {
+    const directQualities = qualities.filter(q => q.directUrl && q.hasAudio !== false)
+    if (directQualities.length === 0) return null
+    const wantedHeight = Number((pendingQuality || quality || '').match(/height<=(\d+)/i)?.[1] || 0)
+    if (wantedHeight > 0) {
+      return directQualities
+        .filter(q => q.height && q.height <= wantedHeight)
+        .sort((a, b) => (b.height || 0) - (a.height || 0))[0] || directQualities[0]
+    }
+    return directQualities.sort((a, b) => (b.height || 0) - (a.height || 0))[0]
+  }
+
+  const doFastSave = async (videoUrl: string) => {
+    if (!canUseFastSave) return false
+    setLoading(true)
+    setError('')
+    try {
+      let qualities = availableQualities
+      let title = 'orange-fast-save'
+      if (pendingUrl !== videoUrl || qualities.length === 0 || !qualities.some(q => q.directUrl)) {
+        const r = await axios.post(`${API}/video-info`, { url: videoUrl, includeDirect: true }, { timeout: 30000, headers: getAuthHeaders() })
+        if (r.data.code !== 0) throw new Error(r.data.message || t('errorDefault'))
+        qualities = r.data.data?.qualities || []
+        title = r.data.data?.title || title
+      }
+      const selectedQuality = pickFastQuality(qualities)
+      if (!selectedQuality?.directUrl) throw new Error('No direct URL')
+      await shareFile(selectedQuality.directUrl, title, 'video')
+      showDownloadComplete('fast-save', t('fastSaveStarted'), false).catch(() => {})
+      setError(t('fastSaveStarted'))
+      return true
+    } catch (e) {
+      console.warn('[fast-save] fallback to smart mode:', e)
+      return false
+    } finally {
+      setLoading(false)
+    }
   }
 
   const doSingleDownload = async () => {
@@ -2792,6 +2840,31 @@ export default function App() {
                     </button>
                   </div>
                 )}
+
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSaveMode('smart')}
+                    className={`rounded-xl border px-3 py-2 text-left transition ${saveMode === 'smart' ? 'border-orange/40 bg-orange/10 text-orange' : 'border-slate-700/50 bg-slate-800/40 text-slate-300'}`}
+                  >
+                    <p className="text-xs font-semibold">{t('smartSaveMode')}</p>
+                    <p className="text-[10px] mt-0.5 opacity-80">{t('smartSaveModeDesc')}</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (canUseFastSave) {
+                        setSaveMode('fast')
+                      } else if (!isVip) {
+                        setShowUpgradePopup(true)
+                      }
+                    }}
+                    className={`rounded-xl border px-3 py-2 text-left transition ${saveMode === 'fast' && canUseFastSave ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-300' : canUseFastSave ? 'border-slate-700/50 bg-slate-800/40 text-slate-300 hover:text-emerald-300' : 'border-slate-800/50 bg-slate-900/30 text-slate-500 opacity-70'}`}
+                  >
+                    <p className="text-xs font-semibold">{t('fastSaveMode')} <span className="text-[10px]">Pro</span></p>
+                    <p className="text-[10px] mt-0.5 opacity-80">{canUseFastSave ? t('fastSaveModeDesc') : t('fastSaveModeDisabled')}</p>
+                  </button>
+                </div>
 
               </div>
             )}

@@ -80,7 +80,17 @@ function getCachedQualitySize(cache, q) {
   return 0;
 }
 
-async function enrichQualitySizes(qualities, durationSec, cacheKey) {
+function isSafeDirectUrl(rawUrl) {
+  if (!rawUrl) return false;
+  try {
+    const parsed = new URL(rawUrl);
+    return ['http:', 'https:'].includes(parsed.protocol) && !isPrivateHost(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
+async function enrichQualitySizes(qualities, durationSec, cacheKey, includeDirect = false) {
   if (!qualities?.length) return qualities || [];
   const cache = cacheKey ? getSizes(cacheKey) : null;
   const probeLimit = 4;
@@ -107,6 +117,9 @@ async function enrichQualitySizes(qualities, durationSec, cacheKey) {
       }
     }
 
+    if (includeDirect && isSafeDirectUrl(q._probeUrl)) {
+      q.directUrl = q._probeUrl;
+    }
     delete q._probeUrl;
     enriched.push(q);
   }
@@ -122,6 +135,7 @@ async function getVideoInfo(req, res) {
     if (!url) return res.status(400).json({ code: -1, message: 'URL required' });
 
     const platform = detectPlatform(url);
+    const includeDirect = !!req.body.includeDirect && !!req.user && require('../userDb').isVip(req.user);
 
     if (platform === 'youtube') {
       const videoIdMatch = url.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/);
@@ -219,7 +233,7 @@ async function getVideoInfo(req, res) {
 
       return res.json({
         code: 0,
-        data: { title, thumbnail, duration, platform: 'youtube', qualities: await enrichQualitySizes(qualities, duration, url) }
+        data: { title, thumbnail, duration, platform: 'youtube', qualities: await enrichQualitySizes(qualities, duration, url, includeDirect) }
       });
     }
 
@@ -296,7 +310,7 @@ async function getVideoInfo(req, res) {
 
         return res.json({
           code: 0,
-          data: { title, thumbnail, duration, platform: 'douyin', qualities: await enrichQualitySizes(qualities, duration, url) }
+          data: { title, thumbnail, duration, platform: 'douyin', qualities: await enrichQualitySizes(qualities, duration, url, includeDirect) }
         });
       } catch (e) {
         logger.warn('[video-info] Douyin error:', e.message);
@@ -348,7 +362,7 @@ async function getVideoInfo(req, res) {
               thumbnail: video.cover?.url_list?.[0] || '',
               duration: video.duration ? Math.floor(video.duration / 1000) : 0,
               platform: 'tiktok',
-              qualities: await enrichQualitySizes(unique.length > 0 ? unique : [{ quality: '720p', format: 'mp4', width: 1280, height: 720, hasVideo: true, hasAudio: true }], video.duration ? Math.floor(video.duration / 1000) : 0, url)
+              qualities: await enrichQualitySizes(unique.length > 0 ? unique : [{ quality: '720p', format: 'mp4', width: 1280, height: 720, hasVideo: true, hasAudio: true }], video.duration ? Math.floor(video.duration / 1000) : 0, url, includeDirect)
             }
           });
         }
@@ -371,7 +385,7 @@ async function getVideoInfo(req, res) {
             thumbnail: '',
             duration: info.duration || 0,
             platform: 'bilibili',
-            qualities: await enrichQualitySizes(info.qualities || [], info.duration || 0, url)
+            qualities: await enrichQualitySizes(info.qualities || [], info.duration || 0, url, includeDirect)
           }
         });
       } catch (e) {
@@ -454,7 +468,7 @@ async function getVideoInfo(req, res) {
               thumbnail: xhsVideo.image?.thumbnailFileid ? 'https://ci.xiaohongshu.com/' + xhsVideo.image.thumbnailFileid : '',
               duration: xhsVideo.capa?.duration || 0,
               platform: 'xiaohongshu',
-              qualities: await enrichQualitySizes(qualities, xhsVideo.capa?.duration || 0, url)
+              qualities: await enrichQualitySizes(qualities, xhsVideo.capa?.duration || 0, url, includeDirect)
             }
           });
         }
