@@ -89,8 +89,8 @@ const shareFile = async (
   title: string,
   fileType: 'video' | 'audio' | 'image' = 'video',
 ) => {
-  // 下载用相对路径（保持同源，<a download> 才能生效命名）
-  const fullUrl = url.startsWith('http') ? url : url
+  // 大文件保存直接走 API 域名，避免经前端平台 rewrite 代理导致移动端下载变慢。
+  const fullUrl = resolveAssetUrl(url)
   const base = sanitizeFilename(title, 'orange-download')
   const ext = inferDownloadExtension(fullUrl, fileType)
   const filename = base.toLowerCase().endsWith(ext) ? base : `${base}${ext}`
