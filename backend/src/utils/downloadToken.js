@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 
-const DEFAULT_TTL_SECONDS = 15 * 60;
+const DEFAULT_TTL_SECONDS = Number(process.env.DOWNLOAD_URL_TTL_SECONDS || 6 * 60 * 60);
 
 function getSecret() {
   const secret = process.env.DOWNLOAD_URL_SECRET || process.env.JWT_SECRET;

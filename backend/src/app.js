@@ -22,6 +22,57 @@ const { verifyDownloadRequest } = require('./utils/downloadToken');
 const { DOWNLOAD_DIR } = require('./services/yt-dlp');
 const store = require('./store');
 
+function buildAsciiFilename(filename) {
+  return filename
+    .replace(/[^\x20-\x7E]/g, '_')
+    .replace(/["\\]/g, '_')
+    .slice(0, 150) || 'download';
+}
+
+function setDownloadHeaders(res, {
+  mimeType,
+  disposition,
+  encodedFilename,
+  asciiFilename,
+  stat,
+  cacheTtl,
+  etag,
+}) {
+  res.setHeader('Content-Type', mimeType);
+  res.setHeader('Content-Disposition', `${disposition}; filename="${asciiFilename}"; filename*=UTF-8''${encodedFilename}`);
+  res.setHeader('Accept-Ranges', 'bytes');
+  res.setHeader('Last-Modified', stat.mtime.toUTCString());
+  res.setHeader('ETag', etag);
+  res.setHeader('Cache-Control', `private, max-age=${cacheTtl}`);
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Expose-Headers', 'Accept-Ranges, Content-Length, Content-Range, Content-Disposition, ETag, Last-Modified');
+}
+
+function parseRangeHeader(rangeHeader, fileSize) {
+  if (!rangeHeader) return null;
+  const match = String(rangeHeader).match(/^bytes=(\d*)-(\d*)$/);
+  if (!match) return { invalid: true };
+
+  let start = match[1] === '' ? null : Number(match[1]);
+  let end = match[2] === '' ? null : Number(match[2]);
+
+  if (start === null && end === null) return { invalid: true };
+  if ((start !== null && !Number.isSafeInteger(start)) || (end !== null && !Number.isSafeInteger(end))) return { invalid: true };
+
+  if (start === null) {
+    const suffixLength = end;
+    if (!suffixLength || suffixLength <= 0) return { invalid: true };
+    start = Math.max(fileSize - suffixLength, 0);
+    end = fileSize - 1;
+  } else {
+    if (start < 0 || start >= fileSize) return { invalid: true };
+    if (end === null || end >= fileSize) end = fileSize - 1;
+  }
+
+  if (end < start) return { invalid: true };
+  return { start, end };
+}
+
 // 验证环境变量
 validateEnv();
 
@@ -151,6 +202,11 @@ app.use('/download', (req, res, next) => {
     return res.status(403).send('Forbidden');
   }
   if (fs.existsSync(filePath)) {
+    const stat = fs.statSync(filePath);
+    if (!stat.isFile()) {
+      return res.status(404).json({ error: 'File not found' });
+    }
+
     const rawFilename = path.basename(filePath);
     if (!verifyDownloadRequest(rawFilename, req.query.exp, req.query.sig)) {
       return res.status(403).json({ error: 'Invalid or expired download link' });
@@ -189,7 +245,6 @@ app.use('/download', (req, res, next) => {
     };
     
     const mimeType = mimeTypes[ext] || 'application/octet-stream';
-    res.setHeader('Content-Type', mimeType);
 
     // 默认视频/音频用于保存时走 attachment；播放器预览显式带 preview=1 时走 inline。
     // 图片保持 inline（可以预览）
@@ -212,18 +267,54 @@ app.use('/download', (req, res, next) => {
     const isMedia = ['.mp4', '.mp3', '.avi', '.mov', '.mkv', '.flv', '.webm'].includes(ext);
     const isPreview = req.query.preview === '1';
     const disposition = isMedia && !isPreview ? 'attachment' : 'inline';
-    res.setHeader('Content-Disposition', `${disposition}; filename*=UTF-8''${encodedFilename}`);
-    
-    // 允许跨域访问
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    
-    // 禁用缓存，确保每次下载都是最新的
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
-    res.setHeader('Pragma', 'no-cache');
-    res.setHeader('Expires', '0');
-    
-    // 发送文件
-    res.sendFile(filePath);
+    const asciiFilename = buildAsciiFilename(downloadFilename);
+    const expSeconds = Number(req.query.exp || 0);
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const cacheTtl = Math.max(0, Math.min(expSeconds - nowSeconds, 6 * 60 * 60));
+    const etag = `"${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`;
+
+    setDownloadHeaders(res, {
+      mimeType,
+      disposition,
+      encodedFilename,
+      asciiFilename,
+      stat,
+      cacheTtl,
+      etag,
+    });
+
+    const range = parseRangeHeader(req.headers.range, stat.size);
+    if (range?.invalid) {
+      res.setHeader('Content-Range', `bytes */${stat.size}`);
+      return res.status(416).end();
+    }
+
+    if (req.method === 'HEAD') {
+      res.setHeader('Content-Length', stat.size);
+      return res.status(200).end();
+    }
+
+    const streamOptions = { highWaterMark: 1024 * 1024 };
+    if (range) {
+      const chunkSize = range.end - range.start + 1;
+      res.status(206);
+      res.setHeader('Content-Length', chunkSize);
+      res.setHeader('Content-Range', `bytes ${range.start}-${range.end}/${stat.size}`);
+      streamOptions.start = range.start;
+      streamOptions.end = range.end;
+    } else {
+      res.status(200);
+      res.setHeader('Content-Length', stat.size);
+    }
+
+    const stream = fs.createReadStream(filePath, streamOptions);
+    stream.on('error', err => {
+      logger.error(`[download] stream failed for ${rawFilename}: ${err.message}`);
+      if (!res.headersSent) res.status(500).end();
+      else res.destroy(err);
+    });
+    req.on('close', () => stream.destroy());
+    stream.pipe(res);
   } else {
     res.status(404).json({ error: 'File not found' });
   }
