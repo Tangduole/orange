@@ -507,9 +507,14 @@ async function createDownload(req, res) {
     const isGuest = !req.user;
     const userId = req.user ? req.user.id : null;
     const isVip = req.user ? userDb.isVip(req.user) : false;
-    const wantsProAiTool = rawOptions.some(o => ['ai_summary', 'translate_subtitle', 'copywriting'].includes(o));
+    const isBasic = req.user ? userDb.isBasic(req.user) : false;
+    const wantsProAiTool = rawOptions.some(o => ['ai_summary', 'translate_subtitle'].includes(o));
+    const wantsPaidCopywriting = rawOptions.includes('copywriting');
     if (wantsProAiTool && !isVip) {
       return res.status(403).json({ code: 403, message: 'AI 工具为 Pro 会员功能' });
+    }
+    if (wantsPaidCopywriting && !isVip && !isBasic) {
+      return res.status(403).json({ code: 403, message: '带货素材卡为 Basic/Pro 会员功能' });
     }
 
     if (!isGuest) {

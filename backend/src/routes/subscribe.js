@@ -44,6 +44,15 @@ const VARIANT_MAP = {
 // Lemon Squeezy API Base
 const LS_API_BASE = 'https://api.lemonsqueezy.com/v1';
 
+function isPaidSubscriptionStatus(status) {
+  return ['active', 'past_due', 'paid', 'completed', 'succeeded'].includes(String(status || '').toLowerCase());
+}
+
+function fallbackEndsAtForPlan(plan) {
+  const now = Math.floor(Date.now() / 1000);
+  return now + (String(plan || '').includes('yearly') ? 365 : 31) * 86400;
+}
+
 // ---------- Webhook 幂等：在 Turso 上建一张事件去重表 ----------
 let webhookTableReady = false;
 async function ensureWebhookTable() {
@@ -206,7 +215,7 @@ router.post('/webhook', async (req, res) => {
   }
 
   // ---- 用对应 provider 验签 + 解析事件 ----
-  let eventName, eventId, email, subscriptionStatus, endsAt, renewsAt, plan;
+  let eventName, eventId, email, userId, subscriptionStatus, endsAt, renewsAt, plan;
   let providerLabel;
 
   if (PAYMENT_PROVIDER === 'creem') {
@@ -224,6 +233,7 @@ router.post('/webhook', async (req, res) => {
     eventName = creemProvider.normalizeEventName(parsed.eventName);
     eventId = parsed.eventId;
     email = parsed.email;
+    userId = parsed.userId;
     subscriptionStatus = parsed.subscriptionStatus;
     endsAt = parsed.endsAt;
     renewsAt = parsed.renewsAt;
@@ -265,6 +275,7 @@ router.post('/webhook', async (req, res) => {
       `${eventName}:${event?.data?.id}:${event?.data?.attributes?.updated_at || ''}`;
     email = event?.data?.attributes?.user_email?.toLowerCase();
     plan = event?.meta?.custom_data?.plan || event?.data?.attributes?.custom_data?.plan;
+    userId = event?.meta?.custom_data?.user_id || event?.data?.attributes?.custom_data?.user_id;
     subscriptionStatus = event?.data?.attributes?.status;
     endsAt = event?.data?.attributes?.ends_at
       ? Math.floor(new Date(event.data.attributes.ends_at).getTime() / 1000)
@@ -273,6 +284,21 @@ router.post('/webhook', async (req, res) => {
       ? Math.floor(new Date(event.data.attributes.renews_at).getTime() / 1000)
       : null;
   }
+
+  let webhookUser = null;
+  if (userId) {
+    webhookUser = await userDb.getById(String(userId));
+    if (webhookUser?.email && !email) email = webhookUser.email;
+  }
+  if (!webhookUser && email) {
+    webhookUser = await userDb.getByEmail(String(email).toLowerCase());
+    if (webhookUser?.id && !userId) userId = webhookUser.id;
+  }
+  if (!webhookUser) {
+    logger.error(`[webhook][${providerLabel}] Missing user identity: event=${eventId}, email=${email || '-'}, userId=${userId || '-'}`);
+    return res.status(400).json({ error: 'Missing user identity' });
+  }
+  email = webhookUser.email;
 
   // —— 幂等去重（两种 provider 共用同一张表，eventId 加 provider 前缀防撞）——
   await ensureWebhookTable();
@@ -291,17 +317,15 @@ router.post('/webhook', async (req, res) => {
     // 即便去重表写入失败，也继续处理，不要把订阅事件丢了
   }
 
-  if (!email) {
-    return res.status(400).json({ error: 'Missing email' });
-  }
-
   try {
     switch (eventName) {
       case 'subscription_created':
       case 'subscription_updated':
-        if (subscriptionStatus === 'active' || subscriptionStatus === 'past_due') {
+        if (isPaidSubscriptionStatus(subscriptionStatus)) {
           const tier = String(plan || '').startsWith('basic') ? 'basic' : 'pro';
-          await userDb.upgradeToTier(email, tier, renewsAt || endsAt, subscriptionStatus);
+          const nextEndsAt = renewsAt || endsAt || fallbackEndsAtForPlan(plan);
+          const nextStatus = ['paid', 'completed', 'succeeded'].includes(String(subscriptionStatus || '').toLowerCase()) ? 'active' : subscriptionStatus;
+          await userDb.upgradeToTier(email, tier, nextEndsAt, nextStatus);
           logger.info(`[webhook] Upgraded ${email} to ${tier} (status=${subscriptionStatus})`);
         } else if (
           subscriptionStatus === 'cancelled' ||
@@ -323,7 +347,7 @@ router.post('/webhook', async (req, res) => {
         break;
 
       case 'subscription_resumed':
-        await userDb.upgradeToTier(email, String(plan || '').startsWith('basic') ? 'basic' : 'pro', renewsAt || endsAt, 'active');
+        await userDb.upgradeToTier(email, String(plan || '').startsWith('basic') ? 'basic' : 'pro', renewsAt || endsAt || fallbackEndsAtForPlan(plan), 'active');
         logger.info(`[webhook] Resumed ${email}`);
         break;
 
@@ -333,9 +357,7 @@ router.post('/webhook', async (req, res) => {
         break;
 
       case 'subscription_payment_success':
-        if (renewsAt) {
-          await userDb.upgradeToTier(email, String(plan || '').startsWith('basic') ? 'basic' : 'pro', renewsAt, 'active');
-        }
+        await userDb.upgradeToTier(email, String(plan || '').startsWith('basic') ? 'basic' : 'pro', renewsAt || endsAt || fallbackEndsAtForPlan(plan), 'active');
         logger.info(`[webhook] Payment success for ${email}`);
         break;
 

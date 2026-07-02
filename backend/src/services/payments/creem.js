@@ -43,6 +43,36 @@ const PRODUCT_MAP = {
   'pro_yearly': process.env.CREEM_PRODUCT_ID_PRO_YEARLY || '',
 };
 
+function firstString(...values) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) return value.trim();
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+  }
+  return '';
+}
+
+function findValueDeep(source, keys, depth = 0) {
+  if (!source || typeof source !== 'object' || depth > 6) return '';
+  for (const key of keys) {
+    const direct = source[key];
+    if (typeof direct === 'string' && direct.trim()) return direct.trim();
+    if (typeof direct === 'number' && Number.isFinite(direct)) return String(direct);
+  }
+  for (const value of Object.values(source)) {
+    if (value && typeof value === 'object') {
+      const found = findValueDeep(value, keys, depth + 1);
+      if (found) return found;
+    }
+  }
+  return '';
+}
+
+function planFromProductId(productId) {
+  if (!productId) return '';
+  const entry = Object.entries(PRODUCT_MAP).find(([, value]) => value && value === productId);
+  return entry ? entry[0] : '';
+}
+
 function isConfigured() {
   return !!(CREEM_API_KEY && CREEM_WEBHOOK_SECRET);
 }
@@ -123,9 +153,11 @@ function verifyWebhook(rawBody, headers) {
  *   eventId: string,
  *   eventName: string,
  *   email: string|null,
+ *   userId: string|null,
  *   subscriptionStatus: string|null,
  *   endsAt: number|null,
  *   renewsAt: number|null,
+ *   plan: string|null,
  *   raw: object,
  * }|null}
  */
@@ -148,15 +180,42 @@ function parseEvent(rawBody, headers) {
     headers['x-event-id'] ||
     `${eventName}:${obj.id || ''}:${obj.updated_at || obj.updatedAt || ''}`;
 
-  // 邮箱 / 订阅状态 / 时间字段在不同事件里位置可能不同，做容错抽取
-  const email = (
-    obj.customer && (obj.customer.email || obj.customer.emailAddress) ||
-    obj.email ||
-    (obj.metadata && obj.metadata.email) ||
-    ''
+  // 邮箱 / 用户 / 订阅状态 / 时间字段在不同事件里位置可能不同，做容错抽取。
+  const metadata = obj.metadata || obj.custom || obj.custom_fields || obj.customFields || event.metadata || {};
+  const email = firstString(
+    obj.customer && (obj.customer.email || obj.customer.emailAddress),
+    obj.email,
+    metadata.email,
+    findValueDeep(obj, ['email', 'emailAddress', 'customer_email', 'customerEmail']),
+    findValueDeep(event, ['email', 'emailAddress', 'customer_email', 'customerEmail'])
   ).toLowerCase() || null;
 
-  const subscriptionStatus = obj.status || obj.subscriptionStatus || null;
+  const userId = firstString(
+    metadata.user_id,
+    metadata.userId,
+    obj.user_id,
+    obj.userId,
+    findValueDeep(obj, ['user_id', 'userId']),
+    findValueDeep(event, ['user_id', 'userId'])
+  ) || null;
+
+  const productId = firstString(
+    obj.product_id,
+    obj.productId,
+    obj.product && (obj.product.id || obj.product.product_id),
+    findValueDeep(obj, ['product_id', 'productId']),
+    findValueDeep(event, ['product_id', 'productId'])
+  );
+  const plan = firstString(
+    metadata.plan,
+    obj.plan,
+    event.plan,
+    findValueDeep(obj, ['plan']),
+    findValueDeep(event, ['plan']),
+    planFromProductId(productId)
+  ) || null;
+
+  const subscriptionStatus = firstString(obj.status, obj.subscriptionStatus, findValueDeep(obj, ['status', 'subscriptionStatus'])) || null;
 
   const toUnixSec = (v) => {
     if (!v) return null;
@@ -171,9 +230,11 @@ function parseEvent(rawBody, headers) {
     eventId: String(eventId),
     eventName: String(eventName),
     email,
+    userId,
     subscriptionStatus,
     endsAt,
     renewsAt,
+    plan,
     raw: event,
   };
 }
