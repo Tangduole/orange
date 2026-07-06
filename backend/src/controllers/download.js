@@ -3916,6 +3916,7 @@ async function getBatchStatus(req, res) {
       status: detail?.status || t.status,
       title: detail?.title || '',
       downloadUrl: detail?.downloadUrl || '',
+      clientDownload: detail?.clientDownload || null,
       error: detail?.error || '',
     });
   });

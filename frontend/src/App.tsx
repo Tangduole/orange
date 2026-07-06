@@ -1570,6 +1570,24 @@ export default function App() {
     }
   }
 
+  const saveClientDownload = async (clientDownload: { videoUrl: string; audioUrl: string | null; filename: string }) => {
+    const { videoUrl, audioUrl, filename } = clientDownload
+    const vRes = await fetch(videoUrl, { headers: { Referer: 'https://www.bilibili.com' } })
+    const vBlob = await vRes.blob()
+    if (audioUrl) {
+      try {
+        await fetch(audioUrl, { headers: { Referer: 'https://www.bilibili.com' } })
+        setError('已保存视频，音频暂不支持浏览器合并，仅保存视频')
+      } catch { /* audio optional */ }
+    }
+    const blobUrl = URL.createObjectURL(vBlob)
+    try {
+      await shareFile(blobUrl, filename)
+    } finally {
+      URL.revokeObjectURL(blobUrl)
+    }
+  }
+
   const exportSelectedHistoryPackage = async () => {
     if (!authToken) {
       setShowAuthModal(true)
@@ -1741,7 +1759,7 @@ export default function App() {
   }
 
   // ProcessPaste事件 - AutoExtractLink
-  const [batchQueue, setBatchQueue] = useState<Array<{taskId?: string, url: string, status: string, progress: number, title?: string, downloadUrl?: string, error?: string}>>([])
+  const [batchQueue, setBatchQueue] = useState<Array<{taskId?: string, url: string, status: string, progress: number, title?: string, downloadUrl?: string, clientDownload?: { videoUrl: string; audioUrl: string | null; filename: string }, error?: string}>>([])
   const savedBatchTasks = useRef<Set<string>>(new Set())
   const [batchIndex, setBatchIndex] = useState(0)
   const [saveLocation, setSaveLocation] = useState<string>('album')
@@ -2310,14 +2328,19 @@ export default function App() {
           progress: 0,
           title: t.title || '',
           downloadUrl: t.downloadUrl || '',
+          clientDownload: t.clientDownload || undefined,
           error: t.error || '',
         })))
         // 批量任务完成时自动保存（每个任务只保存一次）
         batchTasks.forEach((t: any) => {
-          if (t.status === 'completed' && t.downloadUrl && !savedBatchTasks.current.has(t.taskId)) {
+          if (t.status === 'completed' && (t.downloadUrl || t.clientDownload) && !savedBatchTasks.current.has(t.taskId)) {
             savedBatchTasks.current.add(t.taskId)
             if (!isWeChatBrowser()) {
-              shareFile(t.downloadUrl, t.title || 'video').catch(() => {})
+              if (t.downloadUrl) {
+                shareFile(t.downloadUrl, t.title || 'video').catch(() => {})
+              } else if (t.clientDownload) {
+                saveClientDownload(t.clientDownload).catch(() => {})
+              }
             }
           }
         })
