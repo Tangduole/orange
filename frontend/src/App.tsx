@@ -3118,8 +3118,34 @@ export default function App() {
                 <button onClick={openLexiconEditor} className="text-[11px] text-slate-400 hover:text-orange transition">{t('asrLexicon')}</button>
               </div>
               <p className="text-[11px] text-slate-500 mb-2">{t('aiToolsHint')}</p>
-              <div className="grid grid-cols-2 gap-2">
-                {AI_TOOLS.map(tool => {
+              {(() => {
+                const materialCardTool = AI_TOOLS.find(tool => tool.id === 'copywriting')!
+                const MaterialCardIcon = materialCardTool.icon
+                const materialCardOn = selectedAiTools.has('copywriting')
+                return (
+                  <button
+                    onClick={() => toggleAiTool('copywriting')}
+                    className={`w-full text-left rounded-xl px-3 py-3 border transition-all ${
+                      materialCardOn
+                        ? 'bg-purple-500/15 border-purple-400/40 text-purple-200'
+                        : isDark
+                          ? 'bg-purple-500/10 border-purple-500/25 text-purple-200 hover:border-purple-400/50'
+                          : 'bg-purple-50 border-purple-200 text-purple-800 hover:border-purple-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 text-sm font-semibold">
+                      <MaterialCardIcon className="w-4 h-4" />
+                      <span>{t('recommendedMaterialCard')}</span>
+                      {!isVip && <span className="ml-auto text-orange text-xs">🔒</span>}
+                    </div>
+                    <p className="text-[11px] opacity-75 mt-1">{t('recommendedMaterialCardDesc')}</p>
+                  </button>
+                )
+              })()}
+              <details className="mt-2">
+                <summary className="cursor-pointer text-[11px] text-slate-500 hover:text-purple-300">{t('advancedAiTools')}</summary>
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                {AI_TOOLS.filter(tool => tool.id !== 'copywriting').map(tool => {
                   const Icon = tool.icon
                   const on = selectedAiTools.has(tool.id)
                   return (
@@ -3143,7 +3169,8 @@ export default function App() {
                     </button>
                   )
                 })}
-              </div>
+                </div>
+              </details>
             </div>
 
             {/* 画质选择 */}
@@ -3608,17 +3635,16 @@ export default function App() {
                 </button>
               )}
 
-              {/* VIP Upgrade Teaser - show after free user download completes */}
-              {task.status === 'completed' && !isVip && !authToken && (
+              {/* Next-step teaser after material is ready */}
+              {task.status === 'completed' && !isVip && !isBasic && !task.directLink && (
                 <div className="mt-3 p-3 bg-gradient-to-r from-orange/10 to-orange-light/10 border border-orange/20 rounded-xl">
-                  <p className="text-xs text-slate-300 text-center">
-                    🎬 {t('memberSubscribe')} · {t('qualityUpTo4K')} · {t('unlimited')} {t('downloads')}
-                  </p>
+                  <p className="text-xs text-orange font-semibold text-center">{t('resultNextStepTitle')}</p>
+                  <p className="text-[11px] text-slate-400 text-center mt-1">{t('resultNextStepDesc')}</p>
                   <button
-                    onClick={() => setShowAuthModal(true)}
+                    onClick={() => authToken ? showWorkbenchUpgrade('upgradeAiCardExportHint', 'result_next_step_card') : setShowAuthModal(true)}
                     className="w-full mt-2 py-2 rounded-lg bg-orange hover:bg-orange-dark text-white text-xs font-medium transition"
                   >
-                    {t('upgradeVip')}
+                    {authToken ? t('upgradeToPro') : t('loginToGenerateCard')}
                   </button>
                 </div>
               )}
@@ -4102,23 +4128,32 @@ export default function App() {
           {/* Pricing Card - 免费用户可见 */}
           {!isVip && (
             <div className="mt-5 bg-slate-800/40 backdrop-blur-sm rounded-2xl p-4 border border-slate-700/50">
-              <div className="grid grid-cols-2 gap-3 mb-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
                 <div className="bg-slate-700/30 rounded-xl p-3 text-center">
                   <p className="text-sm font-bold text-slate-300 mb-2">🆓 {t('pricingFree')}</p>
                   <div className="space-y-1 text-[11px] text-slate-400">
                     <p>{t('pricingTimes')}</p>
                     <p>{t('pricing720p')}</p>
                     <p>{t('pricingSingleLink')}</p>
-                    <p className="text-slate-500">❌ {t('aiCopyTitle')}</p>
+                    <p className="text-slate-500">❌ {t('aiCommerceCardTitle')}</p>
+                  </div>
+                </div>
+                <div className="bg-purple-500/10 rounded-xl p-3 text-center border border-purple-500/20">
+                  <p className="text-sm font-bold text-purple-300 mb-2">✨ {t('basic')}</p>
+                  <div className="space-y-1 text-[11px] text-purple-200/80">
+                    <p>{t('dailyDownloadLimit', { count: 30 })}</p>
+                    <p>{t('basicFeatureAiCards')}</p>
+                    <p>{t('pricingSingleCardExport')}</p>
+                    <p className="text-slate-500">❌ {t('proFeatureBatch')}</p>
                   </div>
                 </div>
                 <div className="bg-gradient-to-br from-amber-500/10 to-orange/10 rounded-xl p-3 text-center border border-amber-500/20">
                   <p className="text-sm font-bold text-amber-400 mb-2">⭐ {t('pricingPro')}</p>
                   <div className="space-y-1 text-[11px] text-amber-300/80">
                     <p>{t('pricingUnlimited')}</p>
-                    <p>{t('pricing4K')}</p>
-                    <p>{t('batchDownload')}</p>
-                    <p>🤖 {t('aiCopyTitle')}</p>
+                    <p>{t('proFeatureBatch')}</p>
+                    <p>{t('proFeaturePublishPacks')}</p>
+                    <p>{t('oneClickOrganizeMaterials')}</p>
                   </div>
                 </div>
               </div>
