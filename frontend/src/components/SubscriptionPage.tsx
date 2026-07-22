@@ -53,6 +53,12 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
     setUpgrading(plan);
     setError('');
     try {
+      api.trackConversionEvent({
+        eventName: 'checkout_click',
+        source: 'subscription_page',
+        plan,
+        path: window.location.pathname
+      }, token);
       const data = await api.createCheckout(token, plan);
       if (data.lifetime) {
         // 终身会员直接激活
@@ -102,7 +108,7 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
       savings: billing === 'yearly' ? '$23' : null,
       desc: t('bestValueForPowerUsers'),
       features: [
-        { text: t('unlimited') + ' ' + t('downloads'), included: true },
+        { text: t('proFeatureUnlimited'), included: true },
         { text: t('allPlatformsIncluding'), included: true },
         { text: t('qualityUpTo4K'), included: true },
         { text: t('proFeatureMaterialWorkbench'), included: true },
@@ -141,7 +147,7 @@ export default function SubscriptionPage({ token, onBack, onLogout }: Subscripti
       savings: t('bestValue'),
       desc: t('payOnceForever'),
       features: [
-        { text: t('unlimited') + ' ' + t('downloads'), included: true },
+        { text: t('proFeatureUnlimited'), included: true },
         { text: t('allPlatformsIncluding'), included: true },
         { text: t('qualityUpTo4K'), included: true },
         { text: t('proFeatureMaterialWorkbench'), included: true },

@@ -137,6 +137,25 @@ export const api = {
     return data.data;
   },
 
+  async trackConversionEvent(payload: {
+    eventName: 'upgrade_prompt' | 'checkout_click' | 'subscription_view';
+    source?: string;
+    plan?: string;
+    anonymousId?: string;
+    path?: string;
+  }, token?: string | null) {
+    try {
+      await fetch(`${API_BASE}/api/auth/conversion`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify(payload)
+      });
+    } catch {}
+  },
+
   async getAdminUserDownloads(token: string, userId: string, params: Record<string, any> = {}) {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => {

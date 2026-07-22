@@ -20,6 +20,19 @@ const API = `${BASE_URL}/api`
 
 const isWeChatBrowser = () => /MicroMessenger/i.test(navigator.userAgent || '')
 
+const getConversionAnonymousId = () => {
+  try {
+    const key = 'orange_conversion_id'
+    const existing = localStorage.getItem(key)
+    if (existing) return existing
+    const id = `anon_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
+    localStorage.setItem(key, id)
+    return id
+  } catch {
+    return ''
+  }
+}
+
 function resolveAssetUrl(url?: string | null) {
   if (!url) return ''
   if (/^https?:\/\//i.test(url) || url.startsWith('blob:') || url.startsWith('data:')) return url
@@ -776,6 +789,17 @@ export default function App() {
       topPlatformCount: serverTopPlatform?.count || topPlatform?.[1] || 0
     }
   })()
+  const workflowAiCardCandidates = filteredHistory.filter(item =>
+    item.status === 'completed' &&
+    !getHistoryAnalysis(item)
+  )
+  const workflowPublishPackCandidates = filteredHistory.filter(item => {
+    const commerce = getHistoryAnalysis(item)
+    if (!commerce) return false
+    return REWRITE_STYLES.some(style =>
+      REWRITE_PLATFORMS.some(platform => !commerce.rewritePacks?.[`${platform.id}:${style.id}`])
+    )
+  })
 
   const toggleFavorite = async (taskId: string) => {
     const nf = new Set(favorites)
@@ -1086,7 +1110,7 @@ export default function App() {
       return
     }
     if (!isVip && !isBasic) {
-      setShowUpgradePopup(true)
+      showWorkbenchUpgrade('upgradeAiCardExportHint', 'generate_single_ai_card')
       return
     }
     setCopywritingLoading(true)
@@ -1367,8 +1391,34 @@ export default function App() {
     clip(buildAiSummaryTextCard(task.summaryText), 'ai-summary')
   }
 
+  const trackConversionEvent = (eventName: 'upgrade_prompt' | 'checkout_click' | 'subscription_view', source: string, plan?: string) => {
+    api.trackConversionEvent({
+      eventName,
+      source,
+      plan,
+      anonymousId: getConversionAnonymousId(),
+      path: window.location.pathname
+    }, authToken)
+  }
+
+  const showWorkbenchUpgrade = (messageKey?: string, source = 'unknown') => {
+    if (messageKey) setError(t(messageKey))
+    trackConversionEvent('upgrade_prompt', source)
+    setShowUpgradePopup(true)
+  }
+
+  const openSubscriptionFromUpgrade = (source = 'upgrade_popup') => {
+    trackConversionEvent('subscription_view', source)
+    setShowUpgradePopup(false)
+    setShowSubscription(true)
+  }
+
   const exportCommerceCard = (commerce: any, format: 'md' | 'txt' | 'pack' | 'packCsv') => {
     if (format === 'pack') {
+      if (!isVip) {
+        showWorkbenchUpgrade('upgradePublishPackHint', 'single_publish_pack_export')
+        return
+      }
       if (getRewritePacks(commerce, rewriteStyle).length === 0) {
         setError(t('noItemsNeedRewritePacks'))
         return
@@ -1379,6 +1429,10 @@ export default function App() {
       return
     }
     if (format === 'packCsv') {
+      if (!isVip) {
+        showWorkbenchUpgrade('upgradePublishPackHint', 'single_publish_pack_csv_export')
+        return
+      }
       if (getRewritePacks(commerce, rewriteStyle).length === 0) {
         setError(t('noItemsNeedRewritePacks'))
         return
@@ -1388,12 +1442,20 @@ export default function App() {
       downloadUtf8TextFile(text, filename)
       return
     }
+    if (!isVip && !isBasic) {
+      showWorkbenchUpgrade('upgradeAiCardExportHint', `single_ai_card_${format}_export`)
+      return
+    }
     const text = buildCommerceCardExport(commerce, format)
     const filename = `${(commerce.productName || task?.title || 'commerce-card').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 80)}.${format}`
     downloadUtf8TextFile(text, filename)
   }
 
   const copyCommerceCard = (commerce: any, kind: 'card' | 'script' | 'tags') => {
+    if (!isVip && !isBasic) {
+      showWorkbenchUpgrade('upgradeAiCardExportHint', `single_ai_card_${kind}_copy`)
+      return
+    }
     if (kind === 'card') {
       clip(buildCommerceCardExport(commerce, 'md'), 'commerce-card')
       return
@@ -1413,7 +1475,7 @@ export default function App() {
       return
     }
     if (!isVip) {
-      setShowUpgradePopup(true)
+      showWorkbenchUpgrade('upgradePublishPackHint', 'generate_single_publish_pack')
       return
     }
     const key = `${platform}:${style}`
@@ -1461,20 +1523,12 @@ export default function App() {
     throw new Error(t('timeout'))
   }
 
-  const generateSelectedRewritePacks = async (platform: string, style = rewriteStyle) => {
-    if (!authToken) {
-      setShowAuthModal(true)
-      return
-    }
-    if (!isVip) {
-      setShowUpgradePopup(true)
-      return
-    }
+  const generateRewritePacksForItems = async (items: HistoryItem[], platform: string, style = rewriteStyle) => {
     const platforms = platform === 'all' ? REWRITE_PLATFORMS.map(item => item.id) : [platform]
     const styles = style === 'all' ? REWRITE_STYLES.map(item => item.id) : [style]
-    const jobs = history.flatMap(item => {
+    const jobs = items.flatMap(item => {
       const commerce = getHistoryAnalysis(item)
-      if (!selectedTasks.has(item.taskId) || !commerce) return []
+      if (!commerce) return []
       return styles.flatMap(styleId =>
         platforms
           .filter(platformId => !commerce.rewritePacks?.[`${platformId}:${styleId}`])
@@ -1511,7 +1565,23 @@ export default function App() {
     }
   }
 
+  const generateSelectedRewritePacks = async (platform: string, style = rewriteStyle) => {
+    if (!authToken) {
+      setShowAuthModal(true)
+      return
+    }
+    if (!isVip) {
+      showWorkbenchUpgrade('upgradePublishPackHint', 'generate_batch_publish_pack')
+      return
+    }
+    await generateRewritePacksForItems(history.filter(item => selectedTasks.has(item.taskId)), platform, style)
+  }
+
   const exportSelectedCommerceCards = (format: 'md' | 'txt' | 'pack' | 'packCsv') => {
+    if (!isVip) {
+      showWorkbenchUpgrade('upgradeBatchExportHint', `batch_${format}_export`)
+      return
+    }
     const selectedItems = history.filter(item => selectedTasks.has(item.taskId) && getHistoryAnalysis(item))
     if (selectedItems.length === 0) {
       setError(t('noAiCardsToExport'))
@@ -1593,13 +1663,13 @@ export default function App() {
       setShowAuthModal(true)
       return
     }
+    if (!isVip) {
+      showWorkbenchUpgrade('upgradeZipExportHint', 'zip_export')
+      return
+    }
     const taskIds = history.filter(item => selectedTasks.has(item.taskId)).map(item => item.taskId)
     if (taskIds.length === 0) {
       setError(t('noMaterialsToExport'))
-      return
-    }
-    if (!isVip && taskIds.length > 5) {
-      setShowUpgradePopup(true)
       return
     }
     try {
@@ -1619,31 +1689,18 @@ export default function App() {
     }
   }
 
-  const generateSelectedCommerceCards = async () => {
-    if (!authToken) {
-      setShowAuthModal(true)
-      return
-    }
-    if (!isVip) {
-      setShowUpgradePopup(true)
-      return
-    }
-    const selectedItems = history.filter(item =>
-      selectedTasks.has(item.taskId) &&
-      item.status === 'completed' &&
-      !getHistoryAnalysis(item)
-    )
-    if (selectedItems.length === 0) {
+  const generateCommerceCardsForItems = async (items: HistoryItem[]) => {
+    if (items.length === 0) {
       setError(t('noItemsNeedAiCards'))
       return
     }
 
     setBatchCardGenerating(true)
     setBatchCardMessage('')
-    setBatchCardProgress({ done: 0, total: selectedItems.length })
+    setBatchCardProgress({ done: 0, total: items.length })
     try {
       const r = await axios.post(`${API}/workflows/materials`, {
-        taskIds: selectedItems.map(item => item.taskId),
+        taskIds: items.map(item => item.taskId),
         makeCards: true,
         makePacks: false,
         outputLanguage: getAiOutputLanguage(i18n.language),
@@ -1659,6 +1716,64 @@ export default function App() {
     } finally {
       setBatchCardGenerating(false)
     }
+  }
+
+  const generateSelectedCommerceCards = async () => {
+    if (!authToken) {
+      setShowAuthModal(true)
+      return
+    }
+    if (!isVip) {
+      showWorkbenchUpgrade('upgradeBatchExportHint', 'generate_batch_ai_cards')
+      return
+    }
+    await generateCommerceCardsForItems(history.filter(item =>
+      selectedTasks.has(item.taskId) &&
+      item.status === 'completed' &&
+      !getHistoryAnalysis(item)
+    ))
+  }
+
+  const runProMaterialWorkflow = async (mode: 'cards' | 'packs') => {
+    if (!authToken) {
+      setShowAuthModal(true)
+      return
+    }
+    if (!isVip) {
+      showWorkbenchUpgrade('upgradeBatchExportHint', `pro_workflow_${mode}`)
+      return
+    }
+    const candidates = mode === 'cards' ? workflowAiCardCandidates : workflowPublishPackCandidates
+    if (candidates.length === 0) {
+      setError(t(mode === 'cards' ? 'noItemsNeedAiCards' : 'noItemsNeedRewritePacks'))
+      return
+    }
+    setSelectedTasks(new Set(candidates.map(item => item.taskId)))
+    if (mode === 'cards') {
+      await generateCommerceCardsForItems(candidates)
+    } else {
+      await generateRewritePacksForItems(candidates, 'all', 'all')
+    }
+  }
+
+  const runRecommendedMaterialWorkflow = async () => {
+    if (!authToken) {
+      setShowAuthModal(true)
+      return
+    }
+    if (!isVip) {
+      showWorkbenchUpgrade('upgradeBatchExportHint', 'pro_workflow_recommended')
+      return
+    }
+    if (workflowAiCardCandidates.length > 0) {
+      await runProMaterialWorkflow('cards')
+      return
+    }
+    if (workflowPublishPackCandidates.length > 0) {
+      await runProMaterialWorkflow('packs')
+      return
+    }
+    setError(t('proWorkflowNothingToDo'))
   }
 
   const handleAuthSuccess = (token: string, user: any) => {
@@ -2078,7 +2193,7 @@ export default function App() {
       const urls = text.match(/https?:\/\/[^\s\n,，、；;）)】"']+/g) || []
       setSharedEntrySource('')
       if (urls.length > 1) {
-        if (!isVip) { setShowUpgradePopup(true); return }
+        if (!isVip) { showWorkbenchUpgrade('upgradeBatchExportHint', 'paste_multiple_links'); return }
         setBatchMode(true)
         setBatchUrls(urls.map((url, idx) => `${idx + 1}. ${url}`).join('\n'))
       } else if (urls.length === 1) {
@@ -2107,7 +2222,7 @@ export default function App() {
       // 多个Link → 切换批量模式（仅VIP）
       e.preventDefault()
       if (!isVip) {
-        setShowUpgradePopup(true)
+        showWorkbenchUpgrade('upgradeBatchExportHint', 'paste_multiple_links_input')
         return
       }
       setBatchMode(true)
@@ -2183,7 +2298,7 @@ export default function App() {
     if (extensionAction === 'login' && !authToken) {
       setShowAuthModal(true)
     } else if (extensionAction === 'upgrade') {
-      if (authToken) setShowSubscription(true)
+      if (authToken) openSubscriptionFromUpgrade('extension_upgrade_action')
       else setShowAuthModal(true)
     } else if (extensionAction === 'workbench') {
       setShowHistory(true)
@@ -2229,7 +2344,7 @@ export default function App() {
       
       // 批量采集仅限 VIP
       if (!isVip) {
-        setShowUpgradePopup(true);
+        showWorkbenchUpgrade('upgradeBatchExportHint', 'submit_batch_download');
         return;
       }
       
@@ -2266,7 +2381,7 @@ export default function App() {
   }
 
   const doBatchDownload = async (urls: string[]) => {
-    if (!isVip) { setShowUpgradePopup(true); return }
+    if (!isVip) { showWorkbenchUpgrade('upgradeBatchExportHint', 'start_batch_download'); return }
     const requestOptions = [...selected, ...selectedAiTools]
     const requestNeedAsr = selectedAiTools.size > 0
     const requestTargetLang = selectedAiTools.has('translate_subtitle') ? (targetLang || 'en') : null
@@ -2289,7 +2404,7 @@ export default function App() {
       }, { timeout: 30000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} })
 
       if (r.data.code !== 0) {
-        if (r.data.code === 403 && (r.data.message || '').includes('Pro')) setShowUpgradePopup(true)
+        if (r.data.code === 403 && (r.data.message || '').includes('Pro')) showWorkbenchUpgrade('upgradeBatchExportHint', 'batch_api_pro_limit')
         setError(getErrorMessage(r.data.message || t('errorDefault')))
         setLoading(false)
         return
@@ -2388,7 +2503,7 @@ export default function App() {
       }, { timeout: 120000, headers: authToken ? { Authorization: `Bearer ${authToken}` } : {} })
       if (r.data.code !== 0) {
         if (r.data.code === 403 && (r.data.message || '').includes('下载次数')) {
-          setShowUpgradePopup(true)
+          showWorkbenchUpgrade('upgradeLimitHint', 'daily_limit_api')
           refreshDownloadUsage()
         }
         setError(getErrorMessage(r.data.message || t('errorDefault')))
@@ -2403,7 +2518,7 @@ export default function App() {
     } catch (e: any) {
       const message = e.response?.data?.message || e.message || t('errorDefault')
       if (e.response?.status === 403 && message.includes('下载次数')) {
-        setShowUpgradePopup(true)
+        showWorkbenchUpgrade('upgradeLimitHint', 'daily_limit_error')
         refreshDownloadUsage()
       }
       setError(getErrorMessage(e.code === 'ECONNABORTED' ? 'timeout' : message))
@@ -2421,7 +2536,7 @@ export default function App() {
       return
     }
     if (!isVip) {
-      setShowUpgradePopup(true)
+      showWorkbenchUpgrade('upgradePublishPackHint', `ai_tool_${toolId}`)
       return
     }
     setSelectedAiTools(prev => {
@@ -2734,7 +2849,7 @@ export default function App() {
                 {t('singleDownload')}
               </button>
               <button
-                onClick={() => !isVip ? setShowUpgradePopup(true) : setBatchMode(true)}
+                onClick={() => !isVip ? showWorkbenchUpgrade('upgradeBatchExportHint', 'batch_mode_tab') : setBatchMode(true)}
                 className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-all ${batchMode ? 'bg-orange/15 text-orange border border-orange/30' : isDark ? 'bg-slate-700/30 text-slate-300 border border-transparent' : 'bg-light-input text-light-textSecondary border border-transparent'}`}
               >
                 {t('batchDownload')}{!isVip && <span className="ml-1 text-orange">🔒</span>}
@@ -2825,7 +2940,7 @@ export default function App() {
                 <p className="text-sm text-orange mb-2">🔒 {t('batchDownload')} {t('vipOnly')}</p>
                 <p className="text-xs text-slate-300 mb-3">{t('batchVipHint')}</p>
                 <button
-                  onClick={() => setShowUpgradePopup(true)}
+                  onClick={() => showWorkbenchUpgrade('upgradeBatchExportHint', 'batch_mode_empty_state')}
                   className="px-4 py-2 bg-orange text-white text-sm font-medium rounded-xl hover:bg-orange-dark transition"
                 >
                   {t('upgradeToPro')}
@@ -2925,7 +3040,7 @@ export default function App() {
                         <button
                           key={opt.value}
                           onClick={() => {
-                            if (!canSelect) { setShowUpgradePopup(true); return }
+                            if (!canSelect) { showWorkbenchUpgrade('upgradeLimitHint', `batch_quality_${opt.value}`); return }
                             setBatchQuality(isSelected ? '' : opt.value)
                           }}
                           className={`flex items-center gap-1.5 px-3 py-2 text-xs rounded-lg transition-all ${
@@ -3066,7 +3181,7 @@ export default function App() {
                         <button
                           key={idx}
                           onClick={() => {
-                            if (!canSelect) { setShowUpgradePopup(true); return }
+                            if (!canSelect) { showWorkbenchUpgrade('upgradeLimitHint', `quality_${shortEdge}p`); return }
                             const qualityStr = `height<=${shortEdge}`
                             qualityManuallySet.current = true
                             setPendingQuality(qualityStr)
@@ -3209,7 +3324,7 @@ export default function App() {
               <div className="mb-3 p-3 bg-gradient-to-r from-orange/20 to-orange-light/20 rounded-xl border border-orange-500/40 text-center">
                 <p className="text-sm text-white mb-1">{t('dailyDownloadsExhausted')}</p>
                 <p className="text-[11px] text-slate-300 mb-1">{t('upgradeLimitHint')}</p>
-                <button onClick={() => setShowUpgradePopup(true)} className="text-orange hover:text-orange font-semibold text-sm">
+                <button onClick={() => showWorkbenchUpgrade('upgradeLimitHint', 'daily_limit_banner')} className="text-orange hover:text-orange font-semibold text-sm">
                   ⭐ {t('upgradeToProUnlimited')} →
                 </button>
               </div>
@@ -3218,7 +3333,7 @@ export default function App() {
             {!isVip && remainingDownloads >= 0 && (
               <div className={`mb-3 text-center text-xs py-2 rounded-xl ${isDark ? 'bg-slate-800/60 text-slate-300' : 'bg-light-input text-light-textSecondary'}`}>
                 {remainingDownloads === -1 ? t('unlimited') : `${t('downloadsRemaining', { count: remainingDownloads })}`}
-                {remainingDownloads === 0 && <span className="ml-2 text-orange">· <button onClick={() => setShowUpgradePopup(true)} className="underline hover:text-orange">{t('upgradeToPro')}</button></span>}
+                {remainingDownloads === 0 && <span className="ml-2 text-orange">· <button onClick={() => showWorkbenchUpgrade('upgradeLimitHint', 'daily_limit_inline')} className="underline hover:text-orange">{t('upgradeToPro')}</button></span>}
               </div>
             )}
             {isVip && (
@@ -3342,7 +3457,7 @@ export default function App() {
                   {!isVip && task.height && task.height < 1080 && (
                     <div className="text-xs text-slate-300 bg-slate-700/30 px-3 py-2 rounded-xl flex items-center justify-between">
                       <span>🔒 {t('memberExclusiveQuality')}</span>
-                      <button onClick={() => setShowUpgradePopup(true)} className="text-orange hover:text-orange underline">{t('upgradeToPro')}</button>
+                      <button onClick={() => showWorkbenchUpgrade('upgradeLimitHint', 'quality_locked_hint')} className="text-orange hover:text-orange underline">{t('upgradeToPro')}</button>
                     </div>
                   )}
                 </div>
@@ -3575,6 +3690,34 @@ export default function App() {
                           </button>
                         </div>
                       </div>
+                      {!isVip && !isBasic && (
+                        <div className="p-2 rounded-lg bg-orange/10 border border-orange/25 flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs text-orange font-medium">{t('upgradeAiCardExportTitle')}</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">{t('upgradeAiCardExportDesc')}</p>
+                          </div>
+                          <button
+                            onClick={() => showWorkbenchUpgrade('upgradeAiCardExportHint', 'single_ai_card_inline_upsell')}
+                            className="shrink-0 px-2.5 py-1.5 rounded-lg bg-orange text-white text-[10px] font-semibold"
+                          >
+                            {t('upgradeToPro')}
+                          </button>
+                        </div>
+                      )}
+                      {!isVip && isBasic && (
+                        <div className="p-2 rounded-lg bg-orange/10 border border-orange/25 flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs text-orange font-medium">{t('upgradePublishPackTitle')}</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">{t('upgradePublishPackDesc')}</p>
+                          </div>
+                          <button
+                            onClick={() => showWorkbenchUpgrade('upgradePublishPackHint', 'single_publish_pack_inline_upsell')}
+                            className="shrink-0 px-2.5 py-1.5 rounded-lg bg-orange text-white text-[10px] font-semibold"
+                          >
+                            {t('upgradeToPro')}
+                          </button>
+                        </div>
+                      )}
                       {commerce.productName && (
                         <p className="text-xs text-slate-300">📦 <span className="text-white">{commerce.productName}</span></p>
                       )}
@@ -3984,7 +4127,7 @@ export default function App() {
                   {t('pricingCurrentPlan')}
                 </button>
                 <button
-                  onClick={() => setShowUpgradePopup(true)}
+                  onClick={() => showWorkbenchUpgrade('upgradeWorkbenchDesc', 'history_upgrade_card')}
                   className="flex-1 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-amber-500 to-orange text-white hover:from-amber-600 hover:to-orange-600 transition-all"
                 >
                   $6/月
@@ -4006,7 +4149,7 @@ export default function App() {
                   { icon: '🌐', title: t('proFeatureTranslatedSubtitle'), desc: t('proFeatureTranslatedSubtitleDesc') },
                   { icon: '🔓', title: t('proFeatureUnlimited'), desc: t('proFeatureUnlimitedDesc') },
                 ].map(f => (
-                  <div key={f.title} className="flex items-start gap-2 p-2 bg-slate-700/20 rounded-lg cursor-pointer hover:bg-slate-700/30 transition" onClick={() => setShowUpgradePopup(true)}>
+                  <div key={f.title} className="flex items-start gap-2 p-2 bg-slate-700/20 rounded-lg cursor-pointer hover:bg-slate-700/30 transition" onClick={() => showWorkbenchUpgrade('upgradeWorkbenchDesc', `feature_preview_${f.title}`)}>
                     <span className="text-base">{f.icon}</span>
                     <div>
                       <p className="text-slate-300 font-medium">{f.title}</p>
@@ -4087,6 +4230,44 @@ export default function App() {
                           <span className={`ml-1 font-bold ${stat.color}`}>{stat.value}</span>
                         </button>
                       ))}
+                    </div>
+                    <div className="mt-3 rounded-xl border border-orange/20 bg-orange/5 p-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                        <div>
+                          <p className="text-xs text-orange font-semibold">{t('proMaterialWorkflowTitle')}</p>
+                          <p className="text-[10px] text-slate-500">{t('proMaterialWorkflowDesc')}</p>
+                        </div>
+                        <div className="flex flex-col sm:items-end gap-1.5">
+                          <button
+                            onClick={runRecommendedMaterialWorkflow}
+                            disabled={batchCardGenerating || !!batchRewriteLoadingKey || (workflowAiCardCandidates.length === 0 && workflowPublishPackCandidates.length === 0)}
+                            className="px-3 py-2 rounded-lg bg-orange text-white text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            {batchCardGenerating || batchRewriteLoadingKey
+                              ? t('generatingAiCards', batchCardProgress)
+                              : t('oneClickOrganizeMaterials')}
+                          </button>
+                          <details className="text-right">
+                            <summary className="cursor-pointer text-[10px] text-slate-500 hover:text-orange">{t('advancedOptions')}</summary>
+                            <div className="mt-1 flex flex-wrap justify-end gap-1.5">
+                              <button
+                                onClick={() => runProMaterialWorkflow('cards')}
+                                disabled={batchCardGenerating || workflowAiCardCandidates.length === 0}
+                                className="px-2.5 py-1.5 rounded-lg bg-purple-500/15 text-purple-300 border border-purple-500/30 text-[10px] disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                {t('proWorkflowFillAiCards', { count: workflowAiCardCandidates.length })}
+                              </button>
+                              <button
+                                onClick={() => runProMaterialWorkflow('packs')}
+                                disabled={!!batchRewriteLoadingKey || workflowPublishPackCandidates.length === 0}
+                                className="px-2.5 py-1.5 rounded-lg bg-orange/15 text-orange border border-orange/30 text-[10px] disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                {t('proWorkflowFillPublishPacks', { count: workflowPublishPackCandidates.length })}
+                              </button>
+                            </div>
+                          </details>
+                        </div>
+                      </div>
                     </div>
                     {showWorkbenchManager && (
                       <div className="grid md:grid-cols-2 gap-3 mt-3">
@@ -4202,12 +4383,20 @@ export default function App() {
                       title={selectedTasks.size === 0 ? t('selectMaterialsForZip') : t('exportMaterialZip')}
                       className="px-3 py-2 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-lg text-xs disabled:opacity-40 disabled:cursor-not-allowed"
                     >
-                      {t('exportMaterialZip')}
+                      {t('exportMaterialZip')}{!isVip ? ' · Pro' : ''}
                     </button>
                   </div>
                   {selectedTasks.size > 0 && (
                     <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                       <span className="text-[10px] text-slate-400">{t('selectedCount', { count: selectedTasks.size })}</span>
+                      {!isVip && (
+                        <button
+                          onClick={() => showWorkbenchUpgrade('upgradeBatchExportHint', 'batch_export_inline_upsell')}
+                          className="px-2 py-1 rounded-lg bg-orange/10 border border-orange/25 text-orange text-[10px]"
+                        >
+                          {t('upgradeBatchExportTitle')}
+                        </button>
+                      )}
                       <button onClick={deleteSelected} className="px-2 py-1 bg-red-500/20 text-red-300 border border-red-500/50 rounded-lg text-[10px]">{t('deleteSelectedHistory')}</button>
                       <select
                         value={industryTemplate}
@@ -4234,52 +4423,63 @@ export default function App() {
                         </button>
                       )}
                       {history.some(item => selectedTasks.has(item.taskId) && getHistoryAnalysis(item)) && (
-                        <div className="flex flex-wrap items-center gap-1 min-w-0">
-                          <span className="text-[10px] text-slate-500">{t('batchRewritePacks')}</span>
-                          <select
-                            value={rewriteStyle}
-                            onChange={(e) => setRewriteStyle(e.target.value)}
-                            disabled={!!batchRewriteLoadingKey}
-                            className="px-2 py-1 bg-slate-900/50 text-slate-300 border border-slate-700/50 rounded-lg text-[10px] disabled:opacity-60"
-                          >
-                            {REWRITE_STYLES.map(style => (
-                              <option key={style.id} value={style.id}>{t(style.labelKey)}</option>
-                            ))}
-                          </select>
-                          <button
-                            onClick={() => generateSelectedRewritePacks('all', rewriteStyle)}
-                            disabled={!!batchRewriteLoadingKey}
-                            className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px] disabled:opacity-60"
-                          >
-                            {batchRewriteLoadingKey === `all:${rewriteStyle}` ? t('generatingAiCards', batchCardProgress) : t('allPlatforms')}
-                          </button>
-                          <button
-                            onClick={() => generateSelectedRewritePacks('all', 'all')}
-                            disabled={!!batchRewriteLoadingKey}
-                            className="px-2 py-1 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px] disabled:opacity-60"
-                          >
-                            {batchRewriteLoadingKey === 'all:all' ? t('generatingAiCards', batchCardProgress) : t('completePublishPacks')}
-                          </button>
-                          {REWRITE_PLATFORMS.map(platform => {
-                            const key = `${platform.id}:${rewriteStyle}`
-                            return (
-                              <button
-                                key={platform.id}
-                                onClick={() => generateSelectedRewritePacks(platform.id, rewriteStyle)}
-                                disabled={!!batchRewriteLoadingKey}
-                                className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px] disabled:opacity-60"
-                              >
-                                {batchRewriteLoadingKey === key ? t('generatingAiCards', batchCardProgress) : platform.label}
-                              </button>
-                            )
-                          })}
-                        </div>
+                        <details className="relative">
+                          <summary className="list-none cursor-pointer px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px]">
+                            {t('publishPackOptions')}
+                          </summary>
+                          <div className="mt-1 flex flex-wrap items-center gap-1 rounded-xl bg-slate-950/95 border border-slate-700/70 p-2">
+                            <select
+                              value={rewriteStyle}
+                              onChange={(e) => setRewriteStyle(e.target.value)}
+                              disabled={!!batchRewriteLoadingKey}
+                              className="px-2 py-1 bg-slate-900/50 text-slate-300 border border-slate-700/50 rounded-lg text-[10px] disabled:opacity-60"
+                            >
+                              {REWRITE_STYLES.map(style => (
+                                <option key={style.id} value={style.id}>{t(style.labelKey)}</option>
+                              ))}
+                            </select>
+                            <button
+                              onClick={() => generateSelectedRewritePacks('all', 'all')}
+                              disabled={!!batchRewriteLoadingKey}
+                              className="px-2 py-1 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 rounded-lg text-[10px] disabled:opacity-60"
+                            >
+                              {batchRewriteLoadingKey === 'all:all' ? t('generatingAiCards', batchCardProgress) : t('completePublishPacks')}
+                            </button>
+                            <button
+                              onClick={() => generateSelectedRewritePacks('all', rewriteStyle)}
+                              disabled={!!batchRewriteLoadingKey}
+                              className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px] disabled:opacity-60"
+                            >
+                              {batchRewriteLoadingKey === `all:${rewriteStyle}` ? t('generatingAiCards', batchCardProgress) : t('allPlatforms')}
+                            </button>
+                            {REWRITE_PLATFORMS.map(platform => {
+                              const key = `${platform.id}:${rewriteStyle}`
+                              return (
+                                <button
+                                  key={platform.id}
+                                  onClick={() => generateSelectedRewritePacks(platform.id, rewriteStyle)}
+                                  disabled={!!batchRewriteLoadingKey}
+                                  className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px] disabled:opacity-60"
+                                >
+                                  {batchRewriteLoadingKey === key ? t('generatingAiCards', batchCardProgress) : platform.label}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </details>
                       )}
-                      <button onClick={() => exportSelectedCommerceCards('md')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">MD</button>
-                      <button onClick={() => exportSelectedCommerceCards('txt')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">TXT</button>
-                      <button onClick={exportSelectedHistoryMetadata} className="px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-lg text-[10px]">{t('exportMaterialCsv')}</button>
-                      <button onClick={() => exportSelectedCommerceCards('pack')} className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px]">PACK</button>
-                      <button onClick={() => exportSelectedCommerceCards('packCsv')} className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px]">PACK CSV</button>
+                      <details className="relative">
+                        <summary className="list-none cursor-pointer px-2 py-1 bg-slate-700/30 text-slate-300 border border-slate-700/60 rounded-lg text-[10px]">
+                          {t('moreExports')}{!isVip ? ' · Pro' : ''}
+                        </summary>
+                        <div className="mt-1 flex flex-wrap gap-1 rounded-xl bg-slate-950/95 border border-slate-700/70 p-2">
+                          <button onClick={() => exportSelectedCommerceCards('md')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">{t('exportAiCards')} MD</button>
+                          <button onClick={() => exportSelectedCommerceCards('txt')} className="px-2 py-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 rounded-lg text-[10px]">{t('exportAiCards')} TXT</button>
+                          <button onClick={exportSelectedHistoryMetadata} className="px-2 py-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 rounded-lg text-[10px]">{t('exportMaterialCsv')}</button>
+                          <button onClick={() => exportSelectedCommerceCards('pack')} className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px]">{t('exportPublishPacks')} MD</button>
+                          <button onClick={() => exportSelectedCommerceCards('packCsv')} className="px-2 py-1 bg-orange/15 text-orange border border-orange/30 rounded-lg text-[10px]">{t('exportPublishPacks')} CSV</button>
+                        </div>
+                      </details>
                     </div>
                   )}
                   <div className="flex flex-wrap gap-2 items-center">
@@ -4724,10 +4924,13 @@ export default function App() {
                     const usersTrend = adminMetrics.trends?.newUsers30d || []
                     const platform7d = adminMetrics.platform7d || []
                     const aiBreakdown = adminMetrics.aiBreakdown || []
+                    const promptSources7d = adminMetrics.conversion?.promptSources7d || []
+                    const checkoutPlans7d = adminMetrics.conversion?.checkoutPlans7d || []
                     const maxDownloads = maxAdminCount(downloadsTrend)
                     const maxUsers = maxAdminCount(usersTrend)
                     const maxPlatforms = maxAdminCount(platform7d)
                     const maxAi = maxAdminCount(aiBreakdown.map((item: any) => ({ count: item.requests })))
+                    const maxPromptSources = maxAdminCount(promptSources7d)
                     return (
                       <div className="space-y-4">
                         <section>
@@ -4744,7 +4947,7 @@ export default function App() {
                               { label: t('adminAiCards'), value: adminMetrics.materials?.aiCards || 0, sub: t('adminFavorites', { count: adminMetrics.materials?.favorites || 0 }) },
                               { label: t('adminGroups'), value: adminMetrics.materials?.groups || 0, sub: t('adminOutputItems', { count: adminMetrics.ai?.outputItems || 0 }) },
                               { label: t('adminDownloads7d'), value: adminMetrics.downloads?.last7d || 0, sub: t('adminFreeUsers', { count: adminMetrics.users?.free || 0 }) },
-                              { label: t('adminVerifiedUsers', { count: adminMetrics.users?.verified || 0 }), value: `${Math.round(((adminMetrics.users?.verified || 0) / Math.max(adminMetrics.users?.total || 1, 1)) * 100)}%`, sub: t('adminVerifiedRate') },
+                              { label: t('adminUpgradePrompts7d'), value: adminMetrics.conversion?.upgradePrompts7d || 0, sub: t('adminCheckoutClicks7d', { count: adminMetrics.conversion?.checkoutClicks7d || 0 }) },
                             ].map(card => (
                               <div key={card.label} className="rounded-xl bg-slate-900/60 border border-slate-700/60 p-3">
                                 <p className="text-[11px] text-slate-400">{card.label}</p>
@@ -4835,6 +5038,43 @@ export default function App() {
                                       <div className="h-full rounded-full bg-purple-400/70" style={{ width: adminBarWidth(item.requests, maxAi) }} />
                                     </div>
                                   </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </section>
+
+                        <section className="grid lg:grid-cols-2 gap-3">
+                          <div className="rounded-xl bg-slate-900/60 border border-slate-700/60 p-3">
+                            <p className="text-xs text-slate-300 font-semibold mb-3">{t('adminConversionSources7d')}</p>
+                            {promptSources7d.length === 0 ? (
+                              <span className="text-xs text-slate-500">{t('none')}</span>
+                            ) : (
+                              <div className="space-y-2">
+                                {promptSources7d.map((item: any) => (
+                                  <div key={item.source}>
+                                    <div className="flex items-center justify-between text-[11px] mb-1">
+                                      <span className="text-slate-300 truncate pr-2">{item.source}</span>
+                                      <span className="text-orange">{item.count}</span>
+                                    </div>
+                                    <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
+                                      <div className="h-full rounded-full bg-orange/70" style={{ width: adminBarWidth(item.count, maxPromptSources) }} />
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div className="rounded-xl bg-slate-900/60 border border-slate-700/60 p-3">
+                            <p className="text-xs text-slate-300 font-semibold mb-3">{t('adminCheckoutPlans7d')}</p>
+                            {(checkoutPlans7d || []).length === 0 ? (
+                              <span className="text-xs text-slate-500">{t('none')}</span>
+                            ) : (
+                              <div className="flex flex-wrap gap-2">
+                                {checkoutPlans7d.map((item: any) => (
+                                  <span key={item.plan} className="px-2 py-1 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-xs">
+                                    {item.plan} · {item.count}
+                                  </span>
                                 ))}
                               </div>
                             )}
@@ -5060,7 +5300,7 @@ export default function App() {
                 ))}
               </div>
               <button
-                onClick={() => { setShowUpgradePopup(false); setShowSubscription(true) }}
+                onClick={() => openSubscriptionFromUpgrade('upgrade_popup_cta')}
                 className="w-full py-3 bg-gradient-to-r from-orange to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-orange/25"
               >
                 {t('upgradeToPro')} →

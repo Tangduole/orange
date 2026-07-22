@@ -281,6 +281,22 @@ async function initDb() {
     await db.execute(`CREATE INDEX IF NOT EXISTS idx_ai_usage_user ON ai_usage(user_id, created_at DESC)`);
 
     await db.execute({
+      sql: `CREATE TABLE IF NOT EXISTS conversion_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT,
+        anonymous_id TEXT,
+        event_name TEXT NOT NULL,
+        source TEXT,
+        plan TEXT,
+        tier TEXT,
+        path TEXT,
+        created_at INTEGER DEFAULT (unixepoch())
+      )`
+    });
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_conversion_events_created ON conversion_events(created_at DESC)`);
+    await db.execute(`CREATE INDEX IF NOT EXISTS idx_conversion_events_source ON conversion_events(event_name, source, created_at DESC)`);
+
+    await db.execute({
       sql: `CREATE TABLE IF NOT EXISTS ai_cache (
         cache_key TEXT PRIMARY KEY,
         feature TEXT NOT NULL,
@@ -1073,6 +1089,24 @@ const userDb = {
     });
   },
 
+  async recordConversionEvent({ userId = null, anonymousId = null, eventName, source = null, plan = null, tier = null, path = null } = {}) {
+    const safeEventName = String(eventName || '').trim().slice(0, 64);
+    if (!safeEventName) return;
+    await db.execute({
+      sql: `INSERT INTO conversion_events (user_id, anonymous_id, event_name, source, plan, tier, path)
+            VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        userId || null,
+        anonymousId ? String(anonymousId).slice(0, 80) : null,
+        safeEventName,
+        source ? String(source).slice(0, 80) : null,
+        plan ? String(plan).slice(0, 40) : null,
+        tier ? String(tier).slice(0, 24) : null,
+        path ? String(path).slice(0, 160) : null
+      ]
+    });
+  },
+
   /**
    * 获取用户今日原画下载次数
    */
@@ -1272,7 +1306,9 @@ const userDb = {
       aiOutputItemsTotal,
       aiCards,
       materialGroups,
-      favorites
+      favorites,
+      upgradePrompts7d,
+      checkoutClicks7d
     ] = await Promise.all([
       firstNumber('SELECT COUNT(*) as value FROM users'),
       firstNumber(`SELECT COUNT(*) as value FROM users WHERE tier = 'pro' AND subscription_status IN ('active', 'past_due', 'lifetime')`),
@@ -1286,7 +1322,9 @@ const userDb = {
       firstNumber('SELECT COALESCE(SUM(output_items), 0) as value FROM ai_usage'),
       firstNumber(`SELECT COUNT(*) as value FROM download_history WHERE ai_analysis IS NOT NULL AND ai_analysis != ''`),
       firstNumber(`SELECT COUNT(DISTINCT group_name) as value FROM download_history WHERE group_name IS NOT NULL AND group_name != ''`),
-      firstNumber('SELECT COUNT(*) as value FROM download_history WHERE is_favorite = 1')
+      firstNumber('SELECT COUNT(*) as value FROM download_history WHERE is_favorite = 1'),
+      firstNumber(`SELECT COUNT(*) as value FROM conversion_events WHERE event_name = 'upgrade_prompt' AND created_at >= ?`, [sevenDaysAgoUnix]),
+      firstNumber(`SELECT COUNT(*) as value FROM conversion_events WHERE event_name = 'checkout_click' AND created_at >= ?`, [sevenDaysAgoUnix])
     ]);
 
     const [
@@ -1294,7 +1332,9 @@ const userDb = {
       downloadTrendResult,
       userTrendResult,
       aiFeatureResult,
-      platform7dResult
+      platform7dResult,
+      conversionSourceResult,
+      checkoutPlanResult
     ] = await Promise.all([
       db.execute({
         sql: `SELECT platform, COUNT(*) as count
@@ -1337,6 +1377,24 @@ const userDb = {
               ORDER BY count DESC
               LIMIT 8`,
         args: [sevenDaysAgoUnix]
+      }),
+      db.execute({
+        sql: `SELECT source, COUNT(*) as count
+              FROM conversion_events
+              WHERE event_name = 'upgrade_prompt' AND created_at >= ?
+              GROUP BY source
+              ORDER BY count DESC
+              LIMIT 10`,
+        args: [sevenDaysAgoUnix]
+      }),
+      db.execute({
+        sql: `SELECT plan, COUNT(*) as count
+              FROM conversion_events
+              WHERE event_name = 'checkout_click' AND created_at >= ?
+              GROUP BY plan
+              ORDER BY count DESC
+              LIMIT 8`,
+        args: [sevenDaysAgoUnix]
       })
     ]);
 
@@ -1362,6 +1420,18 @@ const userDb = {
         aiCards,
         groups: materialGroups,
         favorites
+      },
+      conversion: {
+        upgradePrompts7d,
+        checkoutClicks7d,
+        promptSources7d: (conversionSourceResult.rows || []).map(row => ({
+          source: row.source || 'unknown',
+          count: Number(row.count) || 0
+        })),
+        checkoutPlans7d: (checkoutPlanResult.rows || []).map(row => ({
+          plan: row.plan || 'unknown',
+          count: Number(row.count) || 0
+        }))
       },
       topPlatforms: (topPlatformsResult.rows || []).map(row => ({
         platform: row.platform,

@@ -204,6 +204,33 @@ router.get('/me', auth.required, async (req, res) => {
 });
 
 /**
+ * POST /api/auth/conversion
+ * 记录升级弹窗、结账点击等转化事件。失败不应影响主流程。
+ */
+router.post('/conversion', auth.optional, async (req, res) => {
+  try {
+    const { eventName, source, plan, anonymousId, path } = req.body || {};
+    const allowedEvents = new Set(['upgrade_prompt', 'checkout_click', 'subscription_view']);
+    if (!allowedEvents.has(String(eventName || ''))) {
+      return res.status(400).json({ code: 400, message: 'Invalid conversion event' });
+    }
+    await userDb.recordConversionEvent({
+      userId: req.user?.id || null,
+      anonymousId,
+      eventName,
+      source,
+      plan,
+      tier: req.user?.tier || 'guest',
+      path
+    });
+    res.json({ code: 0 });
+  } catch (e) {
+    logger.warn('[auth] conversion event ignored:', e.message);
+    res.json({ code: 0 });
+  }
+});
+
+/**
  * GET /api/auth/admin/metrics
  * 管理员运营数据概览
  */
