@@ -322,7 +322,7 @@
   "lexiconSaveFailed": "词库保存失败",
   "add": "添加",
   "delete": "删除",
-  "aiToolsHint": "默认推荐生成素材卡；转文字、总结、翻译等放在高级工具里。",
+  "aiToolsHint": "推荐生成素材卡，也可按需选择转文字、总结或翻译字幕。",
   "recommendedMaterialCard": "推荐：生成带货素材卡",
   "recommendedMaterialCardDesc": "提炼卖点、痛点、口播脚本和标签，适合下载后直接复盘和发布。",
   "advancedAiTools": "高级 AI 工具",

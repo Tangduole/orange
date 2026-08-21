@@ -3142,9 +3142,7 @@ export default function App() {
                   </button>
                 )
               })()}
-              <details className="mt-2">
-                <summary className="cursor-pointer text-[11px] text-slate-500 hover:text-purple-300">{t('advancedAiTools')}</summary>
-                <div className="grid grid-cols-2 gap-2 mt-2">
+              <div className="grid grid-cols-2 gap-2 mt-2">
                 {AI_TOOLS.filter(tool => tool.id !== 'copywriting').map(tool => {
                   const Icon = tool.icon
                   const on = selectedAiTools.has(tool.id)
@@ -3169,8 +3167,7 @@ export default function App() {
                     </button>
                   )
                 })}
-                </div>
-              </details>
+              </div>
             </div>
 
             {/* 画质选择 */}

@@ -322,7 +322,7 @@
   "lexiconSaveFailed": "辞書の保存に失敗しました",
   "add": "追加",
   "delete": "削除",
-  "aiToolsHint": "おすすめは素材カード生成です。文字起こし、要約、翻訳は詳細ツールにまとめています。",
+  "aiToolsHint": "素材カード生成をおすすめします。文字起こし、要約、字幕翻訳も必要に応じて選択できます。",
   "recommendedMaterialCard": "おすすめ：EC素材カードを生成",
   "recommendedMaterialCardDesc": "訴求点、悩み、口播スクリプト、タグを抽出し、レビューや投稿に使いやすくします。",
   "advancedAiTools": "詳細 AI ツール",

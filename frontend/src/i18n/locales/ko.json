@@ -322,7 +322,7 @@
   "lexiconSaveFailed": "어휘 저장에 실패했습니다",
   "add": "추가",
   "delete": "삭제",
-  "aiToolsHint": "기본 추천은 소재 카드 생성입니다. 음성 인식, 요약, 번역은 고급 도구에 모았습니다.",
+  "aiToolsHint": "소재 카드 생성을 추천하며 음성 인식, 요약, 자막 번역도 필요에 따라 선택할 수 있습니다.",
   "recommendedMaterialCard": "추천: 커머스 소재 카드 생성",
   "recommendedMaterialCardDesc": "판매 포인트, 문제점, 말하기 스크립트, 태그를 추출해 리뷰와 게시에 활용하세요.",
   "advancedAiTools": "고급 AI 도구",

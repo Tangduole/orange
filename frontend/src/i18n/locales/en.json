@@ -322,7 +322,7 @@
   "lexiconSaveFailed": "Failed to save lexicon",
   "add": "Add",
   "delete": "Delete",
-  "aiToolsHint": "Recommended default: generate a material card. Transcription, summary, and translation live under advanced tools.",
+  "aiToolsHint": "Generate a material card, or optionally select transcription, summary, or subtitle translation.",
   "recommendedMaterialCard": "Recommended: generate commerce material card",
   "recommendedMaterialCardDesc": "Extract selling points, pain points, spoken scripts, and tags for review and publishing.",
   "advancedAiTools": "Advanced AI tools",
